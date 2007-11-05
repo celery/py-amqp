@@ -29,13 +29,13 @@ def hexdump(s):
 class _AMQPReader(object):
     """
     Parse data from AMQP
-    
+
     """
     def __init__(self, source):
         """
         source should be either a file-like object with a read() method, or
         a plain (non-unicode) string.
-        
+
         """
         if isinstance(source, str):
             self.input = StringIO(source)
@@ -43,30 +43,30 @@ class _AMQPReader(object):
             self.input = source
         else:
             raise ValueError('_AMQPReader needs a file-like object or plain string')
-        
+
     def read(self, n):
         return self.input.read(n)
-        
+
     def read_octet(self):
         return unpack('B', self.input.read(1))[0]
-        
+
     def read_short(self):
         return unpack('>H', self.input.read(2))[0]
-        
+
     def read_long(self):
         return unpack('>I', self.input.read(4))[0]
-        
+
     def read_longlong(self):
         return unpack('>Q', self.input.read(8))[0]
-        
+
     def read_shortstr(self):
         len = unpack('B', self.input.read(1))[0]
         return self.input.read(len).decode('utf-8')
-        
+
     def read_longstr(self):
         len = unpack('>I', self.input.read(4))[0]
         return self.input.read(len)
-        
+
     def read_table(self):
         len = unpack('>I', self.input.read(4))[0]
         table_data = _AMQPReader(self.input.read(len))
@@ -89,29 +89,29 @@ class _AMQPReader(object):
                 val = table_data.read_table() # recurse
             result[name] = val
         return result
-                
+
 class _AMQPWriter(object):
     def __init__(self):
         self.out = StringIO()
-        
+
     def getvalue(self):
         return self.out.getvalue()
-        
+
     def write(self, s):
         self.out.write(s)
-        
+
     def write_octet(self, n):
         self.out.write(pack('B', n))
-        
+
     def write_short(self, n):
         self.out.write(pack('>H', n))
-        
+
     def write_long(self, n):
         self.out.write(pack('>I', n))
-        
+
     def write_longlong(self, n):
         self.out.write(pack('>Q', n))
-        
+
     def write_shortstr(self, s):
         if isinstance(s, unicode):
             s = s.encode('utf-8')
@@ -119,13 +119,13 @@ class _AMQPWriter(object):
             raise ValueError('String too long')
         self.write_octet(len(s))
         self.out.write(s)
-        
+
     def write_longstr(self, s):
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         self.write_long(len(s))
         self.out.write(s)
-        
+
     def write_table(self, d):
         table_data = _AMQPWriter()
         for k, v in d.items():
@@ -159,7 +159,7 @@ class Connection(object):
     An AMQP Connection
 
     """
-    
+
     def __init__(self):
         self.channels = {}
         self.input = self.out = None
@@ -178,14 +178,14 @@ class Connection(object):
         for ch in list(self.channels.values()):
             ch.close(msg)
         self.input = self.out = None
-        
+
     def open(self, host):
         if ':' in host:
             host, port = host.split(':', 1)
             port = int(port)
         else:
             port = AMQP_PORT
-            
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))
         self.input = _AMQPReader(sock.makefile('r'))
@@ -193,7 +193,7 @@ class Connection(object):
         self.out.write(AMQP_PROTOCOL_HEADER)
         self.out.flush()
         self.wait()
-       
+
     def start(self, args):
         version_major = args.read_octet()
         version_minor = args.read_octet()
@@ -201,12 +201,13 @@ class Connection(object):
         mechanisms = args.read_longstr().split(' ')
         locales = args.read_longstr().split(' ')
         print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' % (version_major, version_minor, str(properties), mechanisms, locales)
+
         login = _AMQPWriter()
         login.write_table({"LOGIN": "guest", "PASSWORD": "guest"})
-        login = login.getvalue()[4:]
-        hexdump(login)
+        login = login.getvalue()[4:]    #Skip the length at the beginning
+
         self.start_ok({'product': 'Python AMQP', 'version': '0.1'}, 'AMQPLAIN', login, 'en_US')
-        
+
     def start_ok(self, client_properties, mechanism, response, locale):
         args = _AMQPWriter()
         args.write_table(client_properties)
@@ -215,7 +216,7 @@ class Connection(object):
         args.write_shortstr(locale)
         self.send_method_frame(0, 10, 11, args.getvalue())
         self.wait()
-       
+
     def send_method_frame(self, channel, class_id, method_id, packed_args):
         pkt = _AMQPWriter()
         pkt.write_octet(1)
@@ -226,15 +227,27 @@ class Connection(object):
         pkt.write(packed_args)
         pkt.write_octet(0xce)
         pkt = pkt.getvalue()
-        hexdump(pkt)
+#        hexdump(pkt)
         self.out.write(pkt)
         self.out.flush()
-       
-       
+
+    def tune(self, args):
+        self.channel_max = args.read_short()
+        self.frame_max = args.read_long()
+        self.heartbeat = args.read_short()
+        self.tune_ok(self.channel_max, self.frame_max, 0)
+
+    def tune_ok(self, channel_max, frame_max, heartbeat):
+        args = _AMQPWriter()
+        args.write_short(channel_max)
+        args.write_long(frame_max)
+        args.write_short(heartbeat)
+        self.send_method_frame(0, 10, 31, args.getvalue())
+
     def wait(self):
         """
         Wait for a frame from the server
-        
+
         """
         frame_type = self.input.read_octet()
         channel = self.input.read_short()
@@ -245,10 +258,10 @@ class Connection(object):
         ch = self.input.read_octet()
         if ch != 0xce:
             raise Exception('Framing error, unexpected byte: %x' % ch)
-        
+
         if frame_type == 1:
             dispatch_method(self, channel, payload)
-        
+
 
 class Channel(object):
     def __init__(self, connection, channel_num):
@@ -262,21 +275,23 @@ class Channel(object):
     def close(self, msg=''):
         del self.connection.channels[self.channel_num]
         self.connection = None
-        
-        
+
+
 def dispatch_method(connection, channel, payload):
     if len(payload) < 4:
         raise Exception('Method frame too short')
     class_id, method_id = unpack('>HH', payload[:4])
     args = _AMQPReader(payload[4:])
-   
-    if class_id == 10 and method_id == 10:
-        connection.start(args)
-    else:
-        print 'unknown:', class_id, method_id
-        
-        
-        
+
+    if class_id == 10:
+        if method_id == 10:
+            return connection.start(args)
+        elif method_id == 30:
+            return connection.tune(args)
+    print 'unknown:', class_id, method_id
+
+
+
 AMQP_METHODS = {
     10: {
         10: Connection.start,
@@ -284,7 +299,7 @@ AMQP_METHODS = {
     20: {
         },
     }
-    
+
 
 
 def main():
@@ -292,6 +307,6 @@ def main():
     conn.open('10.66.0.8')
     ch = conn.channel(1)
 #    ch.basic_publish('hello world')
-    
+
 if __name__ == '__main__':
     main()
