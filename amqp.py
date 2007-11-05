@@ -178,9 +178,9 @@ class Connection(object):
         self.out.flush()
         self.wait()
 
-    def __delete__(self):
-        if self.input:
-            self.close(msg='destroying connection')
+    def __del__(self):
+        if self.input is not None:
+            self.close()
 
     def channel(self, channel_num):
         if channel_num in self.channels:
@@ -188,10 +188,19 @@ class Connection(object):
         self.channels[channel_num] = ch = Channel(self, channel_num)
         return ch
 
-    def close(self, msg=''):
-        for ch in list(self.channels.values()):
-            ch.close(msg)
+    def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
+        args = _AMQPWriter()
+        args.write_short(reply_code)
+        args.write_shortstr(reply_text)
+        args.write_short(class_id)
+        args.write_short(method_id)
+        self.send_method_frame(0, 10, 60, args.getvalue())
+        print 'sent close'
+        self.wait()
+        
+    def close_ok(self, args):
         self.input = self.out = None
+        print 'Closed Connection!'
 
     def open(self, virtual_host, capabilities='', insist=False):
         args = _AMQPWriter()
@@ -280,7 +289,7 @@ class Channel(object):
         self.connection = connection
         self.channel_num = channel_num
 
-    def __delete__(self):
+    def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
 
@@ -302,6 +311,8 @@ def dispatch_method(connection, channel, payload):
             return connection.tune(args)
         elif method_id == 41:
             return connection.open_ok(args)
+        elif method_id == 61:
+            return connection.close_ok(args)
     print 'unknown:', class_id, method_id
 
 
@@ -320,6 +331,7 @@ def main():
     conn = Connection('10.66.0.8')
     ch = conn.channel(1)
 #    ch.basic_publish('hello world')
+    conn.close()
 
 if __name__ == '__main__':
     main()
