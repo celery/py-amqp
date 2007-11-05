@@ -176,7 +176,9 @@ class Connection(object):
         self.out = sock.makefile('w')
         self.out.write(AMQP_PROTOCOL_HEADER)
         self.out.flush()
-        self.wait()
+        self.waiting = True
+        while self.waiting:        
+            self.wait()
 
     def __del__(self):
         if self.input is not None:
@@ -195,7 +197,6 @@ class Connection(object):
         args.write_short(class_id)
         args.write_short(method_id)
         self.send_method_frame(0, 10, 60, args.getvalue())
-        print 'sent close'
         self.wait()
         
     def close_ok(self, args):
@@ -208,11 +209,11 @@ class Connection(object):
         args.write_shortstr(capabilities)
         args.write_octet(1 if insist else 0)
         self.send_method_frame(0, 10, 40, args.getvalue())
-        self.wait()
         
     def open_ok(self, args):
         self.known_hosts = args.read_shortstr()
         print 'Open OK! known_hosts [%s]' % self.known_hosts
+        self.waiting = False
 
     def start(self, args):
         version_major = args.read_octet()
@@ -235,7 +236,6 @@ class Connection(object):
         args.write_longstr(response)
         args.write_shortstr(locale)
         self.send_method_frame(0, 10, 11, args.getvalue())
-        self.wait()
 
     def send_method_frame(self, channel, class_id, method_id, packed_args):
         pkt = _AMQPWriter()
