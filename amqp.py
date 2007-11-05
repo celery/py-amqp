@@ -184,10 +184,11 @@ class Connection(object):
         if self.input is not None:
             self.close()
 
-    def channel(self, channel_num):
-        if channel_num in self.channels:
-            return self.channels[channel_num]
-        self.channels[channel_num] = ch = Channel(self, channel_num)
+    def channel(self, channel_id):
+        ch = self.channels.get(channel_id, None)
+        if ch is None:
+            self.channels[channel_id] = ch = Channel(self, channel_id)
+        ch.open()
         return ch
 
     def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
@@ -281,39 +282,78 @@ class Connection(object):
             raise Exception('Framing error, unexpected byte: %x' % ch)
 
         if frame_type == 1:
-            dispatch_method(self, channel, payload)
+            self.dispatch_method(channel, payload)
+
+    def dispatch_method(self, channel, payload):
+        if len(payload) < 4:
+            raise Exception('Method frame too short')
+        class_id, method_id = unpack('>HH', payload[:4])
+        args = _AMQPReader(payload[4:])
+    
+        if class_id == 10:
+            return self.dispatch_method_connection(method_id, args)
+        if class_id == 20:
+            ch = self.channels[channel]
+            return ch.dispatch_method(method_id, args)
+            
+    def dispatch_method_connection(self, method_id, args):          
+        if method_id == 10:
+            return self.start(args)
+        elif method_id == 30:
+            return self.tune(args)
+        elif method_id == 41:
+            return self.open_ok(args)
+        elif method_id == 61:
+            return self.close_ok(args)
+        print 'unknown connection method_id:', method_id
 
 
 class Channel(object):
-    def __init__(self, connection, channel_num):
+    def __init__(self, connection, channel_id):
+        print 'channels:', connection.channels
         self.connection = connection
-        self.channel_num = channel_num
+        self.channel_id = channel_id
+        self.is_open = False
 
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
 
-    def close(self, msg=''):
-        del self.connection.channels[self.channel_num]
-        self.connection = None
+    def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
+        args = _AMQPWriter()
+        args.write_short(reply_code)
+        args.write_shortstr(reply_text)
+        args.write_short(class_id)
+        args.write_short(method_id)
+        self.send_method_frame(40, args.getvalue())
+        self.connection.wait()
+        
+    def close_ok(self, args):
+        self.is_open = False
+        print 'Closed Channel!'
+    
+    def open(self, out_of_band=''):
+        if not self.is_open:
+            args = _AMQPWriter()
+            args.write_shortstr(out_of_band)
+            self.send_method_frame(10, args.getvalue())
+            self.connection.wait()
+        
+    def open_ok(self, args):
+        self.is_open = True
+        print 'Channel open'
+        
+    def dispatch_method(self, method_id, args):
+        if method_id == 11:
+            return self.open_ok(args)
+        if method_id == 41:
+            return self.close_ok(args)
+        print 'Unknown channel method: ', method_id
+        
+    def send_method_frame(self, method_id, packed_args):
+        self.connection.send_method_frame(self.channel_id, 20, method_id, packed_args)
+        
 
-
-def dispatch_method(connection, channel, payload):
-    if len(payload) < 4:
-        raise Exception('Method frame too short')
-    class_id, method_id = unpack('>HH', payload[:4])
-    args = _AMQPReader(payload[4:])
-
-    if class_id == 10:
-        if method_id == 10:
-            return connection.start(args)
-        elif method_id == 30:
-            return connection.tune(args)
-        elif method_id == 41:
-            return connection.open_ok(args)
-        elif method_id == 61:
-            return connection.close_ok(args)
-    print 'unknown:', class_id, method_id
 
 
 
@@ -331,6 +371,7 @@ def main():
     conn = Connection('10.66.0.8')
     ch = conn.channel(1)
 #    ch.basic_publish('hello world')
+    ch.close()
     conn.close()
 
 if __name__ == '__main__':
