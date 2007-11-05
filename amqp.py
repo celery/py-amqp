@@ -160,9 +160,23 @@ class Connection(object):
 
     """
 
-    def __init__(self):
+    def __init__(self, host):
         self.channels = {}
         self.input = self.out = None
+
+        if ':' in host:
+            host, port = host.split(':', 1)
+            port = int(port)
+        else:
+            port = AMQP_PORT
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, port))
+        self.input = _AMQPReader(sock.makefile('r'))
+        self.out = sock.makefile('w')
+        self.out.write(AMQP_PROTOCOL_HEADER)
+        self.out.flush()
+        self.wait()
 
     def __delete__(self):
         if self.input:
@@ -179,20 +193,17 @@ class Connection(object):
             ch.close(msg)
         self.input = self.out = None
 
-    def open(self, host):
-        if ':' in host:
-            host, port = host.split(':', 1)
-            port = int(port)
-        else:
-            port = AMQP_PORT
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
-        self.input = _AMQPReader(sock.makefile('r'))
-        self.out = sock.makefile('w')
-        self.out.write(AMQP_PROTOCOL_HEADER)
-        self.out.flush()
+    def open(self, virtual_host, capabilities='', insist=False):
+        args = _AMQPWriter()
+        args.write_shortstr(virtual_host)
+        args.write_shortstr(capabilities)
+        args.write_octet(1 if insist else 0)
+        self.send_method_frame(0, 10, 40, args.getvalue())
         self.wait()
+        
+    def open_ok(self, args):
+        self.known_hosts = args.read_shortstr()
+        print 'Open OK! known_hosts [%s]' % self.known_hosts
 
     def start(self, args):
         version_major = args.read_octet()
@@ -243,6 +254,7 @@ class Connection(object):
         args.write_long(frame_max)
         args.write_short(heartbeat)
         self.send_method_frame(0, 10, 31, args.getvalue())
+        self.open('/')
 
     def wait(self):
         """
@@ -288,6 +300,8 @@ def dispatch_method(connection, channel, payload):
             return connection.start(args)
         elif method_id == 30:
             return connection.tune(args)
+        elif method_id == 41:
+            return connection.open_ok(args)
     print 'unknown:', class_id, method_id
 
 
@@ -303,8 +317,7 @@ AMQP_METHODS = {
 
 
 def main():
-    conn = Connection()
-    conn.open('10.66.0.8')
+    conn = Connection('10.66.0.8')
     ch = conn.channel(1)
 #    ch.basic_publish('hello world')
 
