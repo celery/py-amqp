@@ -93,26 +93,50 @@ class _AMQPReader(object):
 class _AMQPWriter(object):
     def __init__(self):
         self.out = StringIO()
+        self.bits = []
+        self.bitcount = 0
+
+    def flushbits(self):
+        if self.bits:
+            for b in self.bits:
+                self.out.write(pack('B', b))
+            self.bits = []
+            self.bitcount = 0
 
     def getvalue(self):
+        self.flushbits()
         return self.out.getvalue()
 
     def write(self, s):
+        self.flushbits()
         self.out.write(s)
 
+    def write_boolean(self, b):
+        b = 1 if b else 0
+        shift = self.bitcount %8
+        if shift == 0:
+            self.bits.append(0)
+        self.bits[-1] |= (b << shift)
+        self.bitcount += 1
+        
     def write_octet(self, n):
+        self.flushbits()
         self.out.write(pack('B', n))
 
     def write_short(self, n):
+        self.flushbits()
         self.out.write(pack('>H', n))
 
     def write_long(self, n):
+        self.flushbits()
         self.out.write(pack('>I', n))
 
     def write_longlong(self, n):
+        self.flushbits()
         self.out.write(pack('>Q', n))
 
     def write_shortstr(self, s):
+        self.flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         if len(s) > 255:
@@ -121,12 +145,14 @@ class _AMQPWriter(object):
         self.out.write(s)
 
     def write_longstr(self, s):
+        self.flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         self.write_long(len(s))
         self.out.write(s)
 
     def write_table(self, d):
+        self.flushbits()
         table_data = _AMQPWriter()
         for k, v in d.items():
             table_data.write_shortstr(k)
@@ -177,7 +203,7 @@ class Connection(object):
         self.out.write(AMQP_PROTOCOL_HEADER)
         self.out.flush()
         self.waiting = True
-        while self.waiting:        
+        while self.waiting:
             self.wait()
 
     def __del__(self):
@@ -199,8 +225,19 @@ class Connection(object):
         args.write_short(method_id)
         self.send_method_frame(0, 10, 60, args.getvalue())
         self.wait()
+
+    def _close(self, args):
+        reply_code = args.read_short()
+        reply_text = args.read_shortstr()
+        class_id = args.read_short()
+        method_id = args.read_short()
+        self.close_ok()
+        print 'Server closed connection: %d %s, class = %d, method = %d' % (reply_code, reply_text, class_id, method_id)        
         
-    def close_ok(self, args):
+    def close_ok(self):
+        self.send_method_frame(0, 10, 61, '')
+        
+    def _close_ok(self, args):
         self.input = self.out = None
         print 'Closed Connection!'
 
@@ -210,7 +247,7 @@ class Connection(object):
         args.write_shortstr(capabilities)
         args.write_octet(1 if insist else 0)
         self.send_method_frame(0, 10, 40, args.getvalue())
-        
+
     def open_ok(self, args):
         self.known_hosts = args.read_shortstr()
         print 'Open OK! known_hosts [%s]' % self.known_hosts
@@ -289,22 +326,24 @@ class Connection(object):
             raise Exception('Method frame too short')
         class_id, method_id = unpack('>HH', payload[:4])
         args = _AMQPReader(payload[4:])
-    
+
         if class_id == 10:
             return self.dispatch_method_connection(method_id, args)
-        if class_id == 20:
+        if class_id in [20, 30]:
             ch = self.channels[channel]
-            return ch.dispatch_method(method_id, args)
-            
-    def dispatch_method_connection(self, method_id, args):          
+            return ch.dispatch_method(class_id, method_id, args)
+
+    def dispatch_method_connection(self, method_id, args):
         if method_id == 10:
             return self.start(args)
         elif method_id == 30:
             return self.tune(args)
         elif method_id == 41:
             return self.open_ok(args)
+        elif method_id == 60:
+            return self._close(args)
         elif method_id == 61:
-            return self.close_ok(args)
+            return self._close_ok(args)
         print 'unknown connection method_id:', method_id
 
 
@@ -319,40 +358,60 @@ class Channel(object):
         if self.connection:
             self.close(msg='destroying channel')
 
+    def access_request(self, realm, exclusive=False, passive=False, active=False, write=False, read=False):
+        args = _AMQPWriter()
+        args.write_shortstr(realm)
+        args.write_boolean(exclusive)
+        args.write_boolean(passive)
+        args.write_boolean(active)
+        args.write_boolean(write)
+        args.write_boolean(read)        
+        self.send_method_frame(30, 10, args.getvalue())
+        self.connection.wait()
+    
+    def access_request_ok(self, args):
+        ticket = args.read_short()
+        print 'Got ticket', ticket
+        return ticket
+
     def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
         args = _AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)
         args.write_short(class_id)
         args.write_short(method_id)
-        self.send_method_frame(40, args.getvalue())
+        self.send_method_frame(20, 40, args.getvalue())
         self.connection.wait()
-        
+
     def close_ok(self, args):
         self.is_open = False
         print 'Closed Channel!'
-    
+
     def open(self, out_of_band=''):
         if not self.is_open:
             args = _AMQPWriter()
             args.write_shortstr(out_of_band)
-            self.send_method_frame(10, args.getvalue())
+            self.send_method_frame(20, 10, args.getvalue())
             self.connection.wait()
-        
+
     def open_ok(self, args):
         self.is_open = True
         print 'Channel open'
-        
-    def dispatch_method(self, method_id, args):
-        if method_id == 11:
-            return self.open_ok(args)
-        if method_id == 41:
-            return self.close_ok(args)
-        print 'Unknown channel method: ', method_id
-        
-    def send_method_frame(self, method_id, packed_args):
-        self.connection.send_method_frame(self.channel_id, 20, method_id, packed_args)
-        
+
+    def dispatch_method(self, class_id, method_id, args):
+        if class_id == 20:
+            if method_id == 11:
+                return self.open_ok(args)
+            if method_id == 41:
+                return self.close_ok(args)
+        if class_id == 30:
+            if method_id == 11:
+                return self.access_request_ok(args)
+        print 'Unknown channel method: ', class_id, method_id
+
+    def send_method_frame(self, class_id, method_id, packed_args):
+        self.connection.send_method_frame(self.channel_id, class_id, method_id, packed_args)
+
 
 
 
@@ -371,6 +430,7 @@ def main():
     conn = Connection('10.66.0.8')
     ch = conn.channel(1)
 #    ch.basic_publish('hello world')
+    ticket = ch.access_request('/data', write=True)
     ch.close()
     conn.close()
 
