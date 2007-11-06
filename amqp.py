@@ -275,14 +275,50 @@ class Connection(object):
         args.write_shortstr(locale)
         self.send_method_frame(0, 10, 11, args.getvalue())
 
+    def send_content(self, channel, class_id, weight, body_size, packed_properties, body):
+        pkt = _AMQPWriter()
+
+        pkt.write_octet(2)
+        pkt.write_short(channel)
+        pkt.write_long(len(packed_properties)+12)
+
+        pkt.write_short(class_id)
+        pkt.write_short(weight)
+        pkt.write_longlong(body_size)
+        pkt.write(packed_properties)
+
+        pkt.write_octet(0xce)
+        pkt = pkt.getvalue()
+        self.out.write(pkt)
+        self.out.flush()
+
+        while body:
+            payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
+            pkt = _AMQPWriter()
+    
+            pkt.write_octet(3)
+            pkt.write_short(channel)
+            pkt.write_long(len(payload))
+    
+            pkt.write(payload)
+    
+            pkt.write_octet(0xce)
+            pkt = pkt.getvalue()
+            self.out.write(pkt)
+            self.out.flush()
+
+
     def send_method_frame(self, channel, class_id, method_id, packed_args):
         pkt = _AMQPWriter()
+
         pkt.write_octet(1)
         pkt.write_short(channel)
-        pkt.write_long(len(packed_args)+4)
+        pkt.write_long(len(packed_args)+4)  # 4 = length of class_id and method_id in payload
+        
         pkt.write_short(class_id)
         pkt.write_short(method_id)
         pkt.write(packed_args)
+        
         pkt.write_octet(0xce)
         pkt = pkt.getvalue()
 #        hexdump(pkt)
@@ -293,6 +329,10 @@ class Connection(object):
         self.channel_max = args.read_short()
         self.frame_max = args.read_long()
         self.heartbeat = args.read_short()
+        
+        if not self.frame_max:
+            self.frame_max = 131072
+            
         self.tune_ok(self.channel_max, self.frame_max, 0)
 
     def tune_ok(self, channel_max, frame_max, heartbeat):
@@ -319,7 +359,7 @@ class Connection(object):
             raise Exception('Framing error, unexpected byte: %x' % ch)
 
         if frame_type == 1:
-            self.dispatch_method(channel, payload)
+            return self.dispatch_method(channel, payload)
 
     def dispatch_method(self, channel, payload):
         if len(payload) < 4:
@@ -367,12 +407,24 @@ class Channel(object):
         args.write_boolean(write)
         args.write_boolean(read)        
         self.send_method_frame(30, 10, args.getvalue())
-        self.connection.wait()
+        return self.connection.wait()
     
     def access_request_ok(self, args):
         ticket = args.read_short()
-        print 'Got ticket', ticket
+        print 'Got ticket', ticket, type(ticket)
         return ticket
+
+    def basic_publish(self, msg, ticket, exchange, routing_key='', mandatory=False, immediate=False):
+        print 'basic_publish ticket', ticket, type(ticket)
+        args = _AMQPWriter()
+        args.write_short(ticket)
+        args.write_shortstr(exchange)
+        args.write_shortstr(routing_key)
+        args.write_boolean(mandatory)
+        args.write_boolean(immediate)
+        self.send_method_frame(60, 40, args.getvalue())        
+        packed_properties, body = msg.serialize()
+        self.connection.send_content(self.channel_id, 60, 0, len(body), packed_properties, body) 
 
     def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
         args = _AMQPWriter()
@@ -413,24 +465,28 @@ class Channel(object):
         self.connection.send_method_frame(self.channel_id, class_id, method_id, packed_args)
 
 
-
-
-
-AMQP_METHODS = {
-    10: {
-        10: Connection.start,
-        },
-    20: {
-        },
-    }
-
-
+class Content(object):
+    def __init__(self, body=None, children=None, properties=None):
+        if isinstance(body, unicode):
+            body = body.encode('utf-8')
+            body.content_encoding = 'utf-8'
+            
+        self.body = body
+        
+    def serialize(self):
+        args = _AMQPWriter()
+        args.write_short(0)
+        packed_properties = args.getvalue()
+        return packed_properties, self.body
+            
+       
 
 def main():
     conn = Connection('10.66.0.8')
     ch = conn.channel(1)
-#    ch.basic_publish('hello world')
+    msg = Content('hello from py-amqp')
     ticket = ch.access_request('/data', write=True)
+    ch.basic_publish(msg, ticket, 'amq.fanout')
     ch.close()
     conn.close()
 
