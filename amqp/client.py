@@ -589,7 +589,7 @@ class Channel(object):
     #
     #
 
-    def exchange_declare(self, ticket, exchange, type, passive, durable, auto_delete, internal, nowait, arguments):
+    def exchange_declare(self, ticket, exchange, type, passive=False, durable=False, auto_delete=False, internal=False, nowait=False, arguments={}):
         """
         This method creates an exchange if it does not already exist, and if the
         exchange exists, verifies that it is of the correct and expected class.
@@ -606,7 +606,9 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self.send_method_frame(40, 10, args.getvalue())
-        return self.connection.wait()
+
+        if not nowait:
+            return self.connection.wait()
 
 
     def _exchange_declare_ok(self, args):
@@ -1818,7 +1820,7 @@ class Channel(object):
         This method reports the result of an Integer method.
 
         """
-        result = args.read_longlong()
+        return args.read_longlong()
 
 
     def test_string(self, string_1, string_2, operation):
@@ -1862,7 +1864,7 @@ class Channel(object):
         This method reports the result of a String method.
 
         """
-        result = args.read_longstr()
+        return args.read_longstr()
 
 
     def test_table(self, table, integer_op, string_op):
