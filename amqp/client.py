@@ -5,6 +5,7 @@ AMQP Library
 
 """
 import socket
+from Queue import Queue
 from struct import unpack
 from util import _AMQPReader, _AMQPWriter, hexdump
 
@@ -34,6 +35,7 @@ class Connection(object):
     """
     def __init__(self, host):
         self.channels = {}
+        self.frame_queue = Queue()
         self.input = self.out = None
 
         if ':' in host:
@@ -56,6 +58,11 @@ class Connection(object):
     def __del__(self):
         if self.input is not None:
             self.close()
+
+    def _get_channel_queue(self, channel_id):
+        if channel_id == 0:
+            return self.frame_queue
+        return self.channels[channel_id].frame_queue
 
 
     def channel(self, channel_id):
@@ -121,7 +128,7 @@ class Connection(object):
         self.out.flush()
 
 
-    def wait(self):
+    def wait_frame(self):
         """
         Wait for a frame from the server
 
@@ -136,8 +143,35 @@ class Connection(object):
         if ch != 0xce:
             raise Exception('Framing error, unexpected byte: %x' % ch)
 
+        return frame_type, channel, payload
+
+
+    def wait(self):
+        frame_type, payload = self.wait_channel(0)
+
         if frame_type == 1:
-            return self.dispatch_method(channel, payload)
+            return self.dispatch_method(0, payload)
+
+
+    def wait_channel(self, channel_id):
+        """
+        Wait for a frame from the server sent to a particular
+        channel.
+
+        """
+        queue = self._get_channel_queue(channel_id)
+        if not queue.empty():
+            return queue.get()
+
+        while True:
+            frame_type, frame_channel, payload = self.wait_frame()
+
+            if frame_channel == channel_id:
+                return frame_type, payload
+
+            self._get_channel_queue(frame_channel).put((frame_type, payload))
+
+
 
     def dispatch_method(self, channel, payload):
         if len(payload) < 4:
@@ -370,12 +404,31 @@ class Channel(object):
         self.channel_id = channel_id
         self.is_open = False
         connection.channels[channel_id] = self
+        self.frame_queue = Queue()
+
         self.open()
 
 
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
+
+    def wait(self):
+        frame_type, payload = self.connection.wait_channel(self.channel_id)
+
+        if frame_type == 1:
+            return self.connection.dispatch_method(self.channel_id, payload)
+        if frame_type == 2:
+            content_header = parse_content_header(payload)
+            body_parts = []
+            body_received = 0
+            while body_received < content_header.body_size:
+                frame_type, payload = self.connection.wait_channel(self.channel_id)
+                if frame_type == 3:
+                    body_parts.append(payload)
+                    body_received += len(payload)
+
+            return content_header, ''.join(body)
 
 
     def send_method_frame(self, class_id, method_id, packed_args):
@@ -413,7 +466,7 @@ class Channel(object):
         args.write_short(class_id)
         args.write_short(method_id)
         self.send_method_frame(20, 40, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _close(self, args):
@@ -440,7 +493,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(20, 41, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _close_ok(self, args):
@@ -468,7 +521,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_bit(active)
         self.send_method_frame(20, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _flow(self, args):
@@ -514,7 +567,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_shortstr(out_of_band)
         self.send_method_frame(20, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _open_ok(self, args):
@@ -559,7 +612,7 @@ class Channel(object):
         args.write_bit(write)
         args.write_bit(read)
         self.send_method_frame(30, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _access_request_ok(self, args):
@@ -608,7 +661,7 @@ class Channel(object):
         self.send_method_frame(40, 10, args.getvalue())
 
         if not nowait:
-            return self.connection.wait()
+            return self.wait()
 
 
     def _exchange_declare_ok(self, args):
@@ -632,7 +685,7 @@ class Channel(object):
         args.write_bit(if_unused)
         args.write_bit(nowait)
         self.send_method_frame(40, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _exchange_delete_ok(self, args):
@@ -661,7 +714,7 @@ class Channel(object):
     #
     #
 
-    def queue_bind(self, ticket, queue, exchange, routing_key, nowait, arguments):
+    def queue_bind(self, ticket, queue, exchange, routing_key='', nowait=False, arguments={}):
         """
         This method binds a queue to an exchange.  Until a queue is
         bound it will not receive any messages.  In a classic messaging
@@ -677,7 +730,7 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self.send_method_frame(50, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _queue_bind_ok(self, args):
@@ -688,11 +741,16 @@ class Channel(object):
         pass
 
 
-    def queue_declare(self, ticket, queue, passive, durable, exclusive, auto_delete, nowait, arguments):
+    def queue_declare(self, ticket, queue='', passive=False, durable=False, exclusive=False, auto_delete=False, nowait=False, arguments={}):
         """
         This method creates or checks a queue.  When creating a new queue
         the client can specify various properties that control the durability
         of the queue and its contents, and the level of sharing for the queue.
+
+        Returns a tuple containing 3 items:
+            the name of the queue (essential for automatically-named queues)
+            message count
+            consumer count
 
         """
         args = _AMQPWriter()
@@ -705,7 +763,7 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self.send_method_frame(50, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _queue_declare_ok(self, args):
@@ -717,6 +775,8 @@ class Channel(object):
         queue = args.read_shortstr()
         message_count = args.read_long()
         consumer_count = args.read_long()
+
+        return queue, message_count, consumer_count
 
 
     def queue_delete(self, ticket, queue, if_unused, if_empty, nowait):
@@ -733,7 +793,7 @@ class Channel(object):
         args.write_bit(if_empty)
         args.write_bit(nowait)
         self.send_method_frame(50, 40, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _queue_delete_ok(self, args):
@@ -756,7 +816,7 @@ class Channel(object):
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self.send_method_frame(50, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _queue_purge_ok(self, args):
@@ -856,7 +916,7 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(60, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _basic_cancel_ok(self, args):
@@ -890,7 +950,7 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(60, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _basic_consume_ok(self, args):
@@ -927,7 +987,7 @@ class Channel(object):
         msg = self.connection.receive_content()
 
 
-    def basic_get(self, ticket, queue, no_ack):
+    def basic_get(self, ticket, queue, no_ack=False):
         """
         This method provides a direct access to the messages in a queue
         using a synchronous dialogue that is designed for specific types of
@@ -940,7 +1000,7 @@ class Channel(object):
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self.send_method_frame(60, 70, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _basic_get_empty(self, args):
@@ -965,6 +1025,8 @@ class Channel(object):
         routing_key = args.read_shortstr()
         message_count = args.read_long()
         msg = self.connection.receive_content()
+
+        return delivery_tag, redelivered, exchange, routing_key, message_count, msg
 
 
     def basic_publish(self, msg, ticket, exchange, routing_key='', mandatory=False, immediate=False):
@@ -1002,7 +1064,7 @@ class Channel(object):
         args.write_short(prefetch_count)
         args.write_bit(a_global)
         self.send_method_frame(60, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _basic_qos_ok(self, args):
@@ -1156,7 +1218,7 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(70, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _file_cancel_ok(self, args):
@@ -1190,7 +1252,7 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(70, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _file_consume_ok(self, args):
@@ -1242,7 +1304,7 @@ class Channel(object):
         args.write_shortstr(identifier)
         args.write_longlong(content_size)
         self.send_method_frame(70, 40, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _file_open(self, args):
@@ -1269,7 +1331,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_longlong(staged_size)
         self.send_method_frame(70, 41, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _file_open_ok(self, args):
@@ -1315,7 +1377,7 @@ class Channel(object):
         args.write_short(prefetch_count)
         args.write_bit(a_global)
         self.send_method_frame(70, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _file_qos_ok(self, args):
@@ -1439,7 +1501,7 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(80, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _stream_cancel_ok(self, args):
@@ -1479,7 +1541,7 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(80, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _stream_consume_ok(self, args):
@@ -1538,7 +1600,7 @@ class Channel(object):
         args.write_long(consume_rate)
         args.write_bit(a_global)
         self.send_method_frame(80, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _stream_qos_ok(self, args):
@@ -1594,7 +1656,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(90, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _tx_commit_ok(self, args):
@@ -1615,7 +1677,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(90, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _tx_rollback_ok(self, args):
@@ -1636,7 +1698,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(90, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _tx_select_ok(self, args):
@@ -1675,7 +1737,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(100, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _dtx_select_ok(self, args):
@@ -1698,7 +1760,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_shortstr(dtx_identifier)
         self.send_method_frame(100, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _dtx_start_ok(self, args):
@@ -1742,7 +1804,7 @@ class Channel(object):
         """
         args = _AMQPWriter()
         self.send_method_frame(120, 40, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_content(self, args):
@@ -1762,7 +1824,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_long(content_checksum)
         self.send_method_frame(120, 41, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_content_ok(self, args):
@@ -1788,7 +1850,7 @@ class Channel(object):
         args.write_longlong(integer_4)
         args.write_octet(operation)
         self.send_method_frame(120, 10, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_integer(self, args):
@@ -1812,7 +1874,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_longlong(result)
         self.send_method_frame(120, 11, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_integer_ok(self, args):
@@ -1834,7 +1896,7 @@ class Channel(object):
         args.write_longstr(string_2)
         args.write_octet(operation)
         self.send_method_frame(120, 20, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_string(self, args):
@@ -1856,7 +1918,7 @@ class Channel(object):
         args = _AMQPWriter()
         args.write_longstr(result)
         self.send_method_frame(120, 21, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_string_ok(self, args):
@@ -1878,7 +1940,7 @@ class Channel(object):
         args.write_octet(integer_op)
         args.write_octet(string_op)
         self.send_method_frame(120, 30, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_table(self, args):
@@ -1901,7 +1963,7 @@ class Channel(object):
         args.write_longlong(integer_result)
         args.write_longstr(string_result)
         self.send_method_frame(120, 31, args.getvalue())
-        return self.connection.wait()
+        return self.wait()
 
 
     def _test_table_ok(self, args):
@@ -1994,18 +2056,90 @@ _METHOD_MAP = {
 }
 
 
+_BASIC_PROPERTIES = [
+    ('content_type', 'shortstr'),
+    ('content_encoding', 'shortstr'),
+    ('headers', 'table'),
+    ('delivery_mode', 'octet'),
+    ('priority', 'octet'),
+    ('correlation_id', 'shortstr'),
+    ('reply_to', 'shortstr'),
+    ('expiration', 'shortstr'),
+    ('message_id', 'shortstr'),
+    ('timestamp', 'timestamp'),
+    ('type', 'shortstr'),
+    ('user_id', 'shortstr'),
+    ('app_id', 'shortstr'),
+    ('cluster_id', 'shortstr')
+    ]
+
+def parse_content_properties(proplist, raw_bytes):
+    r = _AMQPReader(raw_bytes)
+
+    #
+    # Read 16-bit shorts until we get one with a low bit set to zero
+    #
+    flags = []
+    while True:
+        flag_bits = r.read_short()
+        flags.append(flag_bits)
+        if flag_bits & 1 == 0:
+            break
+
+    result = {}
+    shift = 0
+    for key, proptype in proplist:
+        if shift == 0:
+            if not flags:
+                break
+            flag_bits, flags = flags[0], flags[1:]
+            shift = 15
+        if flag_bits & (1 << shift):
+            result[key] = getattr(r, 'read_' + proptype)()
+        shift -= 1
+
+    return result
+
+
+def serialize_content_properties(proplist, d):
+    shift = 15
+    flag_bits = 0
+    flags = []
+    raw_bytes = _AMQPWriter()
+    for key, proptype in proplist:
+        if key in d:
+            print 'found', key, d[key]
+            if shift == 0:
+                flags.append(flag_bits)
+                flag_bits = 0
+                shift = 15
+
+            flag_bits |= (1 << shift)
+            if proptype != 'bit':
+                getattr(raw_bytes, 'write_' + proptype)(d[key])
+
+        shift -= 1
+
+    flags.append(flag_bits)
+    result = _AMQPWriter()
+    for flag_bits in flags:
+        result.write_short(flag_bits)
+    result.write(raw_bytes.getvalue())
+
+    return result.getvalue()
+
+
 class Content(object):
-    def __init__(self, body=None, children=None, properties=None):
+    def __init__(self, body=None, children=None, **properties):
         if isinstance(body, unicode):
             body = body.encode('utf-8')
             body.content_encoding = 'utf-8'
 
+        self.properties = properties
         self.body = body
 
     def serialize(self):
         args = _AMQPWriter()
         args.write_short(0)
-        packed_properties = args.getvalue()
+        packed_properties = serialize_content_properties(_BASIC_PROPERTIES, self.properties)
         return packed_properties, self.body
-
-

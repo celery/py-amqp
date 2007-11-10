@@ -161,7 +161,7 @@ class _AMQPWriter(object):
                     v = v.encode('utf-8')
                 table_data.write('S')
                 table_data.write_longstr(v)
-            elif isinstance(v, [int, long]):
+            elif isinstance(v, (int, long)):
                 table_data.write('I')
                 table_data.write(pack('>i', v))
             elif isinstance(v, decimal):

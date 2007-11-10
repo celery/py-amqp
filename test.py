@@ -12,8 +12,10 @@ def main():
 
     ch.exchange_declare(ticket, 'myfan', 'fanout', auto_delete=True)
 
-    msg = Content('hello from py-amqp')
+    msg = Content('hello from py-amqp', content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
     ch.basic_publish(msg, ticket, 'myfan')
+
+    print ch.queue_declare(ticket)
 
     ch.close()
     conn.close()
