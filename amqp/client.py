@@ -419,16 +419,18 @@ class Channel(object):
         if frame_type == 1:
             return self.connection.dispatch_method(self.channel_id, payload)
         if frame_type == 2:
-            content_header = parse_content_header(payload)
+            class_id, weight, body_size = unpack('>HHQ', payload[:12])
+            content_properties = parse_content_properties(_BASIC_PROPERTIES, payload[12:])
+
             body_parts = []
             body_received = 0
-            while body_received < content_header.body_size:
+            while body_received < body_size:
                 frame_type, payload = self.connection.wait_channel(self.channel_id)
                 if frame_type == 3:
                     body_parts.append(payload)
                     body_received += len(payload)
 
-            return content_header, ''.join(body)
+            return Content(''.join(body_parts), **content_properties)
 
 
     def send_method_frame(self, class_id, method_id, packed_args):
@@ -1024,7 +1026,7 @@ class Channel(object):
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
         message_count = args.read_long()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
         return delivery_tag, redelivered, exchange, routing_key, message_count, msg
 
@@ -2108,7 +2110,6 @@ def serialize_content_properties(proplist, d):
     raw_bytes = _AMQPWriter()
     for key, proptype in proplist:
         if key in d:
-            print 'found', key, d[key]
             if shift == 0:
                 flags.append(flag_bits)
                 flag_bits = 0
@@ -2137,6 +2138,7 @@ class Content(object):
 
         self.properties = properties
         self.body = body
+
 
     def serialize(self):
         args = _AMQPWriter()

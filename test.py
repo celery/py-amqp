@@ -8,14 +8,17 @@ from amqp import Connection, Content
 def main():
     conn = Connection('10.66.0.8')
     ch = conn.channel(1)
-    ticket = ch.access_request('/data', active=True, write=True)
+    ticket = ch.access_request('/data', active=True, write=True, read=True)
 
     ch.exchange_declare(ticket, 'myfan', 'fanout', auto_delete=True)
+    qname, _, _ = ch.queue_declare(ticket)
+    ch.queue_bind(ticket, qname, 'myfan')
 
     msg = Content('hello from py-amqp', content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
     ch.basic_publish(msg, ticket, 'myfan')
 
-    print ch.queue_declare(ticket)
+    msg2 = ch.basic_get(ticket, qname, no_ack=True)[5]
+    print 'received', msg2.body, msg2.properties
 
     ch.close()
     conn.close()

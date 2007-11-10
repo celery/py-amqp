@@ -43,30 +43,48 @@ class _AMQPReader(object):
         else:
             raise ValueError('_AMQPReader needs a file-like object or plain string')
 
+        self.bitcount = self.bits = 0
+
     def read(self, n):
+        self.bitcount = self.bits = 0
         return self.input.read(n)
 
+    def read_bit(self):
+        if not self.bitcount:
+            self.bits = ord(self.input.read(1))
+            self.bitcount = 8
+        result = (self.bits & 1) == 1
+        self.bits >>= 1
+        self.bitcount -= 1
+
     def read_octet(self):
+        self.bitcount = self.bits = 0
         return unpack('B', self.input.read(1))[0]
 
     def read_short(self):
+        self.bitcount = self.bits = 0
         return unpack('>H', self.input.read(2))[0]
 
     def read_long(self):
+        self.bitcount = self.bits = 0
         return unpack('>I', self.input.read(4))[0]
 
     def read_longlong(self):
+        self.bitcount = self.bits = 0
         return unpack('>Q', self.input.read(8))[0]
 
     def read_shortstr(self):
+        self.bitcount = self.bits = 0
         len = unpack('B', self.input.read(1))[0]
         return self.input.read(len).decode('utf-8')
 
     def read_longstr(self):
+        self.bitcount = self.bits = 0
         len = unpack('>I', self.input.read(4))[0]
         return self.input.read(len)
 
     def read_table(self):
+        self.bitcount = self.bits = 0
         len = unpack('>I', self.input.read(4))[0]
         table_data = _AMQPReader(self.input.read(len))
         result = {}
