@@ -94,7 +94,7 @@ class _AMQPReader(object):
             if ftype == 'S':
                 val = table_data.read_longstr()
             elif ftype == 'I':
-                val = unpack('i', table_data.input.read(4))[0]
+                val = unpack('>i', table_data.input.read(4))[0]
             elif ftype == 'D':
                 d = table_data.read_octet()
                 n = table_data.read_long()
