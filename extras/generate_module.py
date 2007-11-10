@@ -141,7 +141,7 @@ def generate_class(spec, class_element, out):
             out.write('\n')
 
             generate_methods(amqp_class, out)
-    
+
 
 def generate_module(spec, out):
     """

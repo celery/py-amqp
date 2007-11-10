@@ -3,7 +3,7 @@
 Test AMQP library.
 
 """
-from client import Connection, Content
+from amqp import Connection, Content
 
 def main():
     conn = Connection('10.66.0.8')
