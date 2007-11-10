@@ -52,16 +52,23 @@ class Connection(object):
         while self.waiting:
             self.wait()
 
+
     def __del__(self):
         if self.input is not None:
             self.close()
 
+
     def channel(self, channel_id):
-        ch = self.channels.get(channel_id, None)
-        if ch is None:
-            self.channels[channel_id] = ch = Channel(self, channel_id)
-        ch.open()
-        return ch
+        """
+        Fetch a Channel object identified by the numeric channel_id, or
+        create that object of it doesn't already exist.
+
+        """
+        if channel_id in self.channels:
+            return self.channels[channel_id]
+
+        return Channel(self, channel_id)
+
 
     def send_content(self, channel, class_id, weight, body_size, packed_properties, body):
         pkt = _AMQPWriter()
@@ -353,25 +360,23 @@ class Channel(object):
 
     """
     def __init__(self, connection, channel_id):
+        """
+        Create a channel bound to a connection and using the specified
+        numeric channel_id, and open on the server.
+
+        """
         print 'channels:', connection.channels
         self.connection = connection
         self.channel_id = channel_id
         self.is_open = False
+        connection.channels[channel_id] = self
+        self.open()
+
 
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
 
-    def dispatch_method(self, class_id, method_id, args):
-        if class_id == 20:
-            if method_id == 11:
-                return self.open_ok(args)
-            if method_id == 41:
-                return self.close_ok(args)
-        if class_id == 30:
-            if method_id == 11:
-                return self.access_request_ok(args)
-        print 'Unknown channel method: ', class_id, method_id
 
     def send_method_frame(self, class_id, method_id, packed_args):
         self.connection.send_method_frame(self.channel_id, class_id, method_id, packed_args)
