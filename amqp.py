@@ -90,6 +90,7 @@ class _AMQPReader(object):
             result[name] = val
         return result
 
+
 class _AMQPWriter(object):
     def __init__(self):
         self.out = StringIO()
@@ -118,7 +119,7 @@ class _AMQPWriter(object):
             self.bits.append(0)
         self.bits[-1] |= (b << shift)
         self.bitcount += 1
-        
+
     def write_octet(self, n):
         self.flushbits()
         self.out.write(pack('B', n))
@@ -232,11 +233,11 @@ class Connection(object):
         class_id = args.read_short()
         method_id = args.read_short()
         self.close_ok()
-        print 'Server closed connection: %d %s, class = %d, method = %d' % (reply_code, reply_text, class_id, method_id)        
-        
+        print 'Server closed connection: %d %s, class = %d, method = %d' % (reply_code, reply_text, class_id, method_id)
+
     def close_ok(self):
         self.send_method_frame(0, 10, 61, '')
-        
+
     def _close_ok(self, args):
         self.input = self.out = None
         print 'Closed Connection!'
@@ -295,13 +296,13 @@ class Connection(object):
         while body:
             payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
             pkt = _AMQPWriter()
-    
+
             pkt.write_octet(3)
             pkt.write_short(channel)
             pkt.write_long(len(payload))
-    
+
             pkt.write(payload)
-    
+
             pkt.write_octet(0xce)
             pkt = pkt.getvalue()
             self.out.write(pkt)
@@ -314,11 +315,11 @@ class Connection(object):
         pkt.write_octet(1)
         pkt.write_short(channel)
         pkt.write_long(len(packed_args)+4)  # 4 = length of class_id and method_id in payload
-        
+
         pkt.write_short(class_id)
         pkt.write_short(method_id)
         pkt.write(packed_args)
-        
+
         pkt.write_octet(0xce)
         pkt = pkt.getvalue()
 #        hexdump(pkt)
@@ -329,10 +330,10 @@ class Connection(object):
         self.channel_max = args.read_short()
         self.frame_max = args.read_long()
         self.heartbeat = args.read_short()
-        
+
         if not self.frame_max:
             self.frame_max = 131072
-            
+
         self.tune_ok(self.channel_max, self.frame_max, 0)
 
     def tune_ok(self, channel_max, frame_max, heartbeat):
@@ -405,10 +406,10 @@ class Channel(object):
         args.write_boolean(passive)
         args.write_boolean(active)
         args.write_boolean(write)
-        args.write_boolean(read)        
+        args.write_boolean(read)
         self.send_method_frame(30, 10, args.getvalue())
         return self.connection.wait()
-    
+
     def access_request_ok(self, args):
         ticket = args.read_short()
         print 'Got ticket', ticket, type(ticket)
@@ -422,9 +423,9 @@ class Channel(object):
         args.write_shortstr(routing_key)
         args.write_boolean(mandatory)
         args.write_boolean(immediate)
-        self.send_method_frame(60, 40, args.getvalue())        
+        self.send_method_frame(60, 40, args.getvalue())
         packed_properties, body = msg.serialize()
-        self.connection.send_content(self.channel_id, 60, 0, len(body), packed_properties, body) 
+        self.connection.send_content(self.channel_id, 60, 0, len(body), packed_properties, body)
 
     def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
         args = _AMQPWriter()
@@ -470,16 +471,15 @@ class Content(object):
         if isinstance(body, unicode):
             body = body.encode('utf-8')
             body.content_encoding = 'utf-8'
-            
+
         self.body = body
-        
+
     def serialize(self):
         args = _AMQPWriter()
         args.write_short(0)
         packed_properties = args.getvalue()
         return packed_properties, self.body
-            
-       
+
 
 def main():
     conn = Connection('10.66.0.8')
