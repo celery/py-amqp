@@ -111,7 +111,7 @@ class _AMQPWriter(object):
         self.flushbits()
         self.out.write(s)
 
-    def write_boolean(self, b):
+    def write_bit(self, b):
         b = 1 if b else 0
         shift = self.bitcount %8
         if shift == 0:

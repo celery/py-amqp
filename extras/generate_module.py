@@ -74,7 +74,10 @@ def generate_docstr(element, indent='', wrap=None):
 
 
 def generate_methods(class_element, out):
-    for amqp_method in class_element.findall('method'):
+    methods = class_element.findall('method')
+    methods.sort(key=lambda x: x.attrib['name'])
+
+    for amqp_method in methods:
         fields = amqp_method.findall('field')
         fieldnames = [_fixup_field_name(x) for x in fields]
         chassis = [x.attrib['name'] for x in amqp_method.findall('chassis')]
@@ -152,6 +155,11 @@ def generate_module(spec, out):
     """
     for domain in spec.findall('domain'):
         domains[domain.attrib['name']] = domain.attrib['type']
+
+    # HACK THE SPEC so that 'access' is handled by 'channel' instead of 'connection'
+    for amqp_class in spec.findall('class'):
+        if amqp_class.attrib['name'] == 'access':
+            amqp_class.attrib['handler'] = 'channel'
 
     for amqp_class in spec.findall('class'):
         if amqp_class.attrib['handler'] == amqp_class.attrib['name']:
