@@ -12,6 +12,8 @@ from util import _AMQPReader, _AMQPWriter, hexdump
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 
+class AMQPException(Exception):
+    pass
 
 class Connection(object):
     """
@@ -64,8 +66,13 @@ class Connection(object):
             return self.frame_queue
         return self.channels[channel_id].frame_queue
 
+    def get_free_channel_id(self):
+        for i in xrange(1, self.channel_max+1):
+            if i not in self.channels:
+                return i
+        raise AMQPException('No free channel ids, current=%d, channel_max=%d' % (len(self.channels), self.channel_max))
 
-    def channel(self, channel_id):
+    def channel(self, channel_id=None):
         """
         Fetch a Channel object identified by the numeric channel_id, or
         create that object of it doesn't already exist.
@@ -110,7 +117,7 @@ class Connection(object):
             self.out.flush()
 
 
-    def send_method_frame(self, channel, class_id, method_id, packed_args):
+    def send_method_frame(self, channel, class_id, method_id, packed_args=''):
         pkt = _AMQPWriter()
 
         pkt.write_octet(1)
@@ -234,7 +241,7 @@ class Connection(object):
         and close the socket.
 
         """
-        self.send_method_frame(0, 10, 61, '')
+        self.send_method_frame(0, 10, 61)
 
 
     def _close_ok(self, args):
@@ -350,12 +357,9 @@ class Connection(object):
         to the client.  The client can accept and/or adjust these.
 
         """
-        self.channel_max = args.read_short()
-        self.frame_max = args.read_long()
+        self.channel_max = args.read_short() or 65535
+        self.frame_max = args.read_long() or 131072
         self.heartbeat = args.read_short()
-
-        if not self.frame_max:
-            self.frame_max = 131072
 
         self.tune_ok(self.channel_max, self.frame_max, 0)
 
@@ -393,14 +397,16 @@ class Channel(object):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    def __init__(self, connection, channel_id):
+    def __init__(self, connection, channel_id=None):
         """
         Create a channel bound to a connection and using the specified
         numeric channel_id, and open on the server.
 
         """
-        print 'channels:', connection.channels
         self.connection = connection
+        if channel_id is None:
+            channel_id = connection.get_free_channel_id()
+        print 'using channel_id', channel_id
         self.channel_id = channel_id
         self.default_ticket = 0
         self.is_open = False
@@ -414,6 +420,17 @@ class Channel(object):
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
+
+    def _do_close(self):
+        """
+        Tear down this object, after we've agreed to close with the server.
+
+        """
+        print 'Closed channel #%d' % self.channel_id
+        self.is_open = False
+        del self.connection.channels[self.channel_id]
+        self.channel_id = self.connection = None
+
 
     def wait(self):
         frame_type, payload = self.connection.wait_channel(self.channel_id)
@@ -435,7 +452,7 @@ class Channel(object):
             return Content(''.join(body_parts), **content_properties)
 
 
-    def send_method_frame(self, class_id, method_id, packed_args):
+    def send_method_frame(self, class_id, method_id, packed_args=''):
         self.connection.send_method_frame(self.channel_id, class_id, method_id, packed_args)
 
     #################
@@ -487,17 +504,18 @@ class Channel(object):
         class_id = args.read_short()
         method_id = args.read_short()
 
+#        self.close_ok()
 
-    def close_ok(self):
-        """
-        This method confirms a Channel.Close method and tells the recipient
-        that it is safe to release resources for the channel and close the
-        socket.
 
-        """
-        args = _AMQPWriter()
-        self.send_method_frame(20, 41, args.getvalue())
-        return self.wait()
+#    def close_ok(self):
+#        """
+#        This method confirms a Channel.Close method and tells the recipient
+#        that it is safe to release resources for the channel and close the
+#        socket.
+#
+#        """
+        self.send_method_frame(20, 41)
+        self._do_close()
 
 
     def _close_ok(self, args):
@@ -507,8 +525,7 @@ class Channel(object):
         socket.
 
         """
-        self.is_open = False
-        print 'Closed Channel!'
+        self._do_close()
 
 
     def flow(self, active):
@@ -1455,8 +1472,7 @@ class Channel(object):
         recipient from the octet offset specified in the Open-Ok method.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(70, 50, args.getvalue())
+        self.send_method_frame(70, 50)
 
 
     def _file_stage(self, args):
@@ -1673,8 +1689,7 @@ class Channel(object):
         after a commit.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(90, 20, args.getvalue())
+        self.send_method_frame(90, 20)
         return self.wait()
 
 
@@ -1694,8 +1709,7 @@ class Channel(object):
         after a rollback.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(90, 30, args.getvalue())
+        self.send_method_frame(90, 30)
         return self.wait()
 
 
@@ -1715,8 +1729,7 @@ class Channel(object):
         using the Commit or Rollback methods.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(90, 10, args.getvalue())
+        self.send_method_frame(90, 10)
         return self.wait()
 
 
@@ -1754,8 +1767,7 @@ class Channel(object):
         using the Start method.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(100, 10, args.getvalue())
+        self.send_method_frame(100, 10)
         return self.wait()
 
 
@@ -1821,8 +1833,7 @@ class Channel(object):
         This method tests the peer's capability to correctly marshal content.
 
         """
-        args = _AMQPWriter()
-        self.send_method_frame(120, 40, args.getvalue())
+        self.send_method_frame(120, 40)
         return self.wait()
 
 

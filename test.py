@@ -14,7 +14,7 @@ def main():
         msg = 'Hello from Python'
 
     conn = Connection('10.66.0.8')
-    ch = conn.channel(1)
+    ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 
     ch.exchange_declare('myfan', 'fanout', auto_delete=True)

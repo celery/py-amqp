@@ -15,7 +15,7 @@ def callback(channel, consumer_tag, delivery_tag, redelivered, exchange, routing
 
 def main():
     conn = Connection('10.66.0.8')
-    ch = conn.channel(1)
+    ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 
     ch.exchange_declare('myfan', 'fanout', auto_delete=True)
