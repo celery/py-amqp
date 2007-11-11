@@ -458,8 +458,10 @@ class Channel(object):
         self.channel_id = channel_id
         self.default_ticket = 0
         self.is_open = False
+        self.active = True # Flow control
         connection.channels[channel_id] = self
         self.frame_queue = Queue()
+        self.alerts = Queue()
         self.callbacks = {}
 
         self.open()
@@ -468,6 +470,7 @@ class Channel(object):
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
+
 
     def _do_close(self):
         """
@@ -519,6 +522,8 @@ class Channel(object):
         reply_code = args.read_short()
         reply_text = args.read_shortstr()
         details = args.read_table()
+
+        self.alerts.put((reply_code, reply_text, details))
 
 
     def close(self, reply_code=0, reply_text='', class_id=0, method_id=0):
@@ -607,7 +612,9 @@ class Channel(object):
         any, and then wait until it receives a Flow restart method.
 
         """
-        active = args.read_bit()
+        self.active = args.read_bit()
+
+        self.flow_ok(self.active)
 
 
     def flow_ok(self, active):
@@ -625,7 +632,7 @@ class Channel(object):
         Confirms to the peer that a flow command was received and processed.
 
         """
-        active = args.read_bit()
+        return args.read_bit()
 
 
     def open(self, out_of_band=''):
@@ -760,7 +767,9 @@ class Channel(object):
         args.write_bit(if_unused)
         args.write_bit(nowait)
         self.send_method_frame(40, 20, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _exchange_delete_ok(self, args):
@@ -805,7 +814,9 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self.send_method_frame(50, 20, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _queue_bind_ok(self, args):
@@ -838,7 +849,9 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self.send_method_frame(50, 10, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _queue_declare_ok(self, args):
@@ -868,7 +881,9 @@ class Channel(object):
         args.write_bit(if_empty)
         args.write_bit(nowait)
         self.send_method_frame(50, 40, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _queue_delete_ok(self, args):
@@ -876,7 +891,7 @@ class Channel(object):
         This method confirms the deletion of a queue.
 
         """
-        message_count = args.read_long()
+        return args.read_long()
 
 
     def queue_purge(self, queue, nowait=False, ticket=None):
@@ -885,13 +900,17 @@ class Channel(object):
         consumers.  Purged messages are deleted without any formal "undo"
         mechanism.
 
+        if nowait is False, returns a message_count
+
         """
         args = _AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self.send_method_frame(50, 30, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _queue_purge_ok(self, args):
@@ -899,7 +918,7 @@ class Channel(object):
         This method confirms the purge of a queue.
 
         """
-        message_count = args.read_long()
+        return args.read_long()
 
 
     #############
@@ -1035,6 +1054,8 @@ class Channel(object):
             consumer_tag = self.wait()
 
         self.callbacks[consumer_tag] = callback
+
+        return consumer_tag
 
 
     def _basic_consume_ok(self, args):
@@ -1309,7 +1330,7 @@ class Channel(object):
         self.send_method_frame(70, 90, args.getvalue())
 
 
-    def file_cancel(self, consumer_tag, nowait):
+    def file_cancel(self, consumer_tag, nowait=False):
         """
         This method cancels a consumer. This does not affect already
         delivered messages, but it does mean the server will not send any
@@ -1320,7 +1341,9 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(70, 30, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _file_cancel_ok(self, args):
@@ -1328,7 +1351,7 @@ class Channel(object):
         This method confirms that the cancellation was completed.
 
         """
-        consumer_tag = args.read_shortstr()
+        return args.read_shortstr()
 
 
     def file_consume(self, queue, consumer_tag, no_local=False, no_ack=False, exclusive=False, nowait=False, ticket=None):
@@ -1354,7 +1377,9 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(70, 20, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _file_consume_ok(self, args):
@@ -1363,7 +1388,7 @@ class Channel(object):
         use in methods that work with the consumer.
 
         """
-        consumer_tag = args.read_shortstr()
+        return args.read_shortstr()
 
 
     def _file_deliver(self, args):
@@ -1429,6 +1454,7 @@ class Channel(object):
         data.  If the message was already partially-staged at a previous
         time the recipient will report the number of octets already staged.
 
+        returns staged_size
         """
         args = _AMQPWriter()
         args.write_longlong(staged_size)
@@ -1443,7 +1469,7 @@ class Channel(object):
         time the recipient will report the number of octets already staged.
 
         """
-        staged_size = args.read_longlong()
+        return args.read_longlong()
 
 
     def file_publish(self, exchange, routing_key, mandatory, immediate, identifier, ticket=None):
@@ -1590,7 +1616,7 @@ class Channel(object):
     #
     #
 
-    def stream_cancel(self, consumer_tag, nowait):
+    def stream_cancel(self, consumer_tag, nowait=False):
         """
         This method cancels a consumer.  Since message delivery is
         asynchronous the client may continue to receive messages for
@@ -1602,7 +1628,9 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(80, 30, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _stream_cancel_ok(self, args):
@@ -1610,7 +1638,7 @@ class Channel(object):
         This method confirms that the cancellation was completed.
 
         """
-        consumer_tag = args.read_shortstr()
+        return args.read_shortstr()
 
 
     def stream_consume(self, queue, consumer_tag, no_local=False, exclusive=False, nowait=False, ticket=None):
@@ -1642,7 +1670,9 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(80, 20, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            return self.wait()
 
 
     def _stream_consume_ok(self, args):
@@ -1651,7 +1681,7 @@ class Channel(object):
         use in methods that work with the consumer.
 
         """
-        consumer_tag = args.read_shortstr()
+        return args.read_shortstr()
 
 
     def _stream_deliver(self, args):
@@ -1930,8 +1960,11 @@ class Channel(object):
 
         """
         content_checksum = args.read_long()
+
         msg = self.wait()
 
+        msg.content_checksum = content_checksum
+        return msg
 
     def test_integer(self, integer_1, integer_2, integer_3, integer_4, operation):
         """
@@ -2069,6 +2102,8 @@ class Channel(object):
         """
         integer_result = args.read_longlong()
         string_result = args.read_longstr()
+
+        return (integer_result, string_result)
 
 
 class Tunnel(object):
