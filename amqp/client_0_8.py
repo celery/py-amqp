@@ -1,5 +1,5 @@
 """
-AMQP Library
+AMQP 0-8 Client Library
 
 """
 # Copyright (C) 2007 Barry Pederson <bp@barryp.org>

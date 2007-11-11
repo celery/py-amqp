@@ -3,7 +3,7 @@
 Test AMQP library.
 
 """
-from amqp import Connection, Content
+import amqp.client_0_8 as amqp
 
 
 def callback(channel, msg):
@@ -14,7 +14,7 @@ def callback(channel, msg):
 
 
 def main():
-    conn = Connection('10.66.0.8')
+    conn = amqp.Connection('10.66.0.8')
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 

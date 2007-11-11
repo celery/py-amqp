@@ -5,7 +5,7 @@ Test AMQP library.
 """
 import sys
 import time
-from amqp import Connection, Content
+import amqp.client_0_8 as amqp
 
 def main():
     if len(sys.argv) > 1:
@@ -13,7 +13,7 @@ def main():
     else:
         msg = 'Hello from Python'
 
-    conn = Connection('10.66.0.8')
+    conn = amqp.Connection('10.66.0.8')
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 
@@ -21,7 +21,7 @@ def main():
     qname, _, _ = ch.queue_declare()
     ch.queue_bind(qname, 'myfan')
 
-    msg = Content(msg, content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
+    msg = amqp.Content(msg, content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
     ch.basic_publish(msg, 'myfan')
 
     msg2 = ch.basic_get(qname, no_ack=True)
