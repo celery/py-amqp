@@ -69,7 +69,7 @@ def generate_docstr(element, indent='', wrap=None):
         result.append(indent)
     if wrap is not None:
         result.append(wrap)
-    return '\n'.join(result) + '\n'
+    return '\n'.join(x.rstrip() for x in result) + '\n'
 
 
 
@@ -80,28 +80,43 @@ def generate_methods(class_element, out):
     for amqp_method in methods:
         fields = amqp_method.findall('field')
         fieldnames = [_fixup_field_name(x) for x in fields]
+
+        # move any 'ticket' arguments to the end of the method declaration
+        # so that they can have a default value.
+        if 'ticket' in fieldnames:
+            fieldnames = [x for x in fieldnames if x != 'ticket'] + ['ticket']
+
         chassis = [x.attrib['name'] for x in amqp_method.findall('chassis')]
         if 'server' in chassis:
             params = ['self']
             if 'content' in amqp_method.attrib:
                 params.append('msg')
+
             out.write('    def %s(%s):\n' %
                 (_fixup_method_name(class_element, amqp_method), ', '.join(params + fieldnames)))
+
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
                 out.write(s)
-            out.write('        args = _AMQPWriter()\n')
+
+            if fields:
+                out.write('        args = _AMQPWriter()\n')
+                smf_arg = ', args.getvalue()'
+            else:
+                smf_arg = ''
             for f in fields:
                 out.write('        args.write_%s(%s)\n' % (_field_type(f), _fixup_field_name(f)))
 
             if class_element.attrib['name'] == 'connection':
-                out.write('        self.send_method_frame(0, %s, %s, args.getvalue())\n' % (class_element.attrib['index'], amqp_method.attrib['index']))
-                if 'synchronous' in amqp_method.attrib:
-                    out.write('        return self.wait()\n')
+                smf_pattern = '        self.send_method_frame(0, %s, %s%s)\n'
             else:
-                out.write('        self.send_method_frame(%s, %s, args.getvalue())\n' % (class_element.attrib['index'], amqp_method.attrib['index']))
-                if 'synchronous' in amqp_method.attrib:
-                    out.write('        return self.connection.wait()\n')
+                smf_pattern = '        self.send_method_frame(%s, %s%s)\n'
+
+            out.write(smf_pattern % (class_element.attrib['index'], amqp_method.attrib['index'], smf_arg))
+
+            if 'synchronous' in amqp_method.attrib:
+                out.write('        return self.wait()\n')
+
             out.write('\n\n')
 
         if 'client' in chassis:
@@ -114,7 +129,7 @@ def generate_methods(class_element, out):
                 out.write('        %s = args.read_%s()\n' % (_fixup_field_name(f), _field_type(f)))
                 need_pass = False
             if 'content' in amqp_method.attrib:
-                out.write('        msg = self.connection.receive_content()\n')
+                out.write('        msg = self.wait()\n')
                 need_pass = False
             if need_pass:
                 out.write('        pass\n')
