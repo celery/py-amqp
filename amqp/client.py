@@ -402,6 +402,7 @@ class Channel(object):
         print 'channels:', connection.channels
         self.connection = connection
         self.channel_id = channel_id
+        self.default_ticket = 0
         self.is_open = False
         connection.channels[channel_id] = self
         self.frame_queue = Queue()
@@ -606,6 +607,9 @@ class Channel(object):
         this causes a connection exception.  Access tickets are a
         per-channel resource.
 
+        The most recently requested ticket is used as the channel's
+        default ticket for any method that requires a ticket.
+
         """
         args = _AMQPWriter()
         args.write_shortstr(realm)
@@ -625,9 +629,8 @@ class Channel(object):
         the channel.
 
         """
-        ticket = args.read_short()
-        print 'Got ticket', ticket, type(ticket)
-        return ticket
+        self.default_ticket = args.read_short()
+        return self.default_ticket
 
 
     #############
@@ -645,14 +648,14 @@ class Channel(object):
     #
     #
 
-    def exchange_declare(self, ticket, exchange, type, passive=False, durable=False, auto_delete=False, internal=False, nowait=False, arguments={}):
+    def exchange_declare(self, exchange, type, passive=False, durable=False, auto_delete=False, internal=False, nowait=False, arguments={}, ticket=None):
         """
         This method creates an exchange if it does not already exist, and if the
         exchange exists, verifies that it is of the correct and expected class.
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
         args.write_bit(passive)
@@ -676,14 +679,14 @@ class Channel(object):
         pass
 
 
-    def exchange_delete(self, ticket, exchange, if_unused, nowait):
+    def exchange_delete(self, exchange, if_unused=False, nowait=False, ticket=None):
         """
         This method deletes an exchange.  When an exchange is deleted all queue
         bindings on the exchange are cancelled.
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
@@ -717,7 +720,7 @@ class Channel(object):
     #
     #
 
-    def queue_bind(self, ticket, queue, exchange, routing_key='', nowait=False, arguments={}):
+    def queue_bind(self, queue, exchange, routing_key='', nowait=False, arguments={}, ticket=None):
         """
         This method binds a queue to an exchange.  Until a queue is
         bound it will not receive any messages.  In a classic messaging
@@ -726,7 +729,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -744,7 +747,7 @@ class Channel(object):
         pass
 
 
-    def queue_declare(self, ticket, queue='', passive=False, durable=False, exclusive=False, auto_delete=False, nowait=False, arguments={}):
+    def queue_declare(self, queue='', passive=False, durable=False, exclusive=False, auto_delete=False, nowait=False, arguments={}, ticket=None):
         """
         This method creates or checks a queue.  When creating a new queue
         the client can specify various properties that control the durability
@@ -757,7 +760,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(passive)
         args.write_bit(durable)
@@ -782,7 +785,7 @@ class Channel(object):
         return queue, message_count, consumer_count
 
 
-    def queue_delete(self, ticket, queue, if_unused, if_empty, nowait):
+    def queue_delete(self, queue, if_unused=False, if_empty=False, nowait=False, ticket=None):
         """
         This method deletes a queue.  When a queue is deleted any pending
         messages are sent to a dead-letter queue if this is defined in the
@@ -790,7 +793,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(if_unused)
         args.write_bit(if_empty)
@@ -807,7 +810,7 @@ class Channel(object):
         message_count = args.read_long()
 
 
-    def queue_purge(self, ticket, queue, nowait):
+    def queue_purge(self, queue, nowait=False, ticket=None):
         """
         This method removes all messages from a queue.  It does not cancel
         consumers.  Purged messages are deleted without any formal "undo"
@@ -815,7 +818,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self.send_method_frame(50, 30, args.getvalue())
@@ -935,7 +938,7 @@ class Channel(object):
         del self.callbacks[consumer_tag]
 
 
-    def basic_consume(self, ticket, queue, consumer_tag='', no_local=False, no_ack=False, exclusive=False, nowait=False, callback=None):
+    def basic_consume(self, queue, consumer_tag='', no_local=False, no_ack=False, exclusive=False, nowait=False, callback=None, ticket=None):
         """
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue. Consumers
@@ -950,7 +953,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -1002,7 +1005,7 @@ class Channel(object):
             self.callbacks[consumer_tag](self, consumer_tag, delivery_tag, redelivered, exchange, routing_key, msg)
 
 
-    def basic_get(self, ticket, queue, no_ack=False):
+    def basic_get(self, queue, no_ack=False, ticket=None):
         """
         This method provides a direct access to the messages in a queue
         using a synchronous dialogue that is designed for specific types of
@@ -1012,7 +1015,7 @@ class Channel(object):
         Non-blocking, returns a message object, or None.
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self.send_method_frame(60, 70, args.getvalue())
@@ -1045,7 +1048,7 @@ class Channel(object):
         return delivery_tag, redelivered, exchange, routing_key, message_count, msg
 
 
-    def basic_publish(self, msg, ticket, exchange, routing_key='', mandatory=False, immediate=False):
+    def basic_publish(self, msg, exchange, routing_key='', mandatory=False, immediate=False, ticket=None):
         """
         This method publishes a message to a specific exchange. The message
         will be routed to queues as defined by the exchange configuration
@@ -1054,7 +1057,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
@@ -1245,7 +1248,7 @@ class Channel(object):
         consumer_tag = args.read_shortstr()
 
 
-    def file_consume(self, ticket, queue, consumer_tag, no_local, no_ack, exclusive, nowait):
+    def file_consume(self, queue, consumer_tag, no_local=False, no_ack=False, exclusive=False, nowait=False, ticket=None):
         """
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue. Consumers
@@ -1260,7 +1263,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -1360,7 +1363,7 @@ class Channel(object):
         staged_size = args.read_longlong()
 
 
-    def file_publish(self, ticket, exchange, routing_key, mandatory, immediate, identifier):
+    def file_publish(self, exchange, routing_key, mandatory, immediate, identifier, ticket=None):
         """
         This method publishes a staged file message to a specific exchange.
         The file message will be routed to queues as defined by the exchange
@@ -1369,7 +1372,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
@@ -1528,7 +1531,7 @@ class Channel(object):
         consumer_tag = args.read_shortstr()
 
 
-    def stream_consume(self, ticket, queue, consumer_tag, no_local, exclusive, nowait):
+    def stream_consume(self, queue, consumer_tag, no_local=False, exclusive=False, nowait=False, ticket=None):
         """
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue. Consumers
@@ -1550,7 +1553,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -1584,7 +1587,7 @@ class Channel(object):
         msg = self.wait()
 
 
-    def stream_publish(self, msg, ticket, exchange, routing_key, mandatory, immediate):
+    def stream_publish(self, msg, exchange, routing_key='', mandatory=False, immediate=False, ticket=None):
         """
         This method publishes a message to a specific exchange. The message
         will be routed to queues as defined by the exchange configuration
@@ -1592,7 +1595,7 @@ class Channel(object):
 
         """
         args = _AMQPWriter()
-        args.write_short(ticket)
+        args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
