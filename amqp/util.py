@@ -61,6 +61,9 @@ class _AMQPReader(object):
 
         self.bitcount = self.bits = 0
 
+    def close(self):
+        self.input.close()
+
     def read(self, n):
         self.bitcount = self.bits = 0
         return self.input.read(n)

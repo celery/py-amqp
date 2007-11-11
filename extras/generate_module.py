@@ -213,6 +213,16 @@ def generate_module(spec, out):
                     amqp_class.attrib['handler'].capitalize(),
                     amqp_class.attrib['handler'].capitalize(),
                     _fixup_method_name(amqp_class, amqp_method)))
+    out.write('}\n\n')
+
+    out.write('_METHOD_NAME_MAP = {\n')
+    for amqp_class in spec.findall('class'):
+        for amqp_method in amqp_class.findall('method'):
+            out.write("    (%s, %s): '%s.%s',\n" % (
+                amqp_class.attrib['index'],
+                amqp_method.attrib['index'],
+                amqp_class.attrib['handler'].capitalize(),
+                _fixup_method_name(amqp_class, amqp_method)))
     out.write('}\n')
 
 

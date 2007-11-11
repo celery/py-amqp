@@ -27,8 +27,30 @@ from util import _AMQPReader, _AMQPWriter, hexdump
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 
+DEBUG = False
+
 class AMQPException(Exception):
+    def __init__(self, reply_code, reply_text, class_id, method_id):
+        self.amqp_reply_code = reply_code
+        self.amqp_reply_text = reply_text
+        self.amqp_class_id = class_id
+        self.amqp_method_id = method_id
+        self.args = (
+            reply_code,
+            reply_text,
+            class_id,
+            method_id,
+            _METHOD_NAME_MAP.get((self.amqp_class_id, self.amqp_method_id), '')
+            )
+
+
+class AMQPConnectionException(AMQPException):
     pass
+
+
+class AMQPChannelException(AMQPException):
+    pass
+
 
 class Connection(object):
     """
@@ -75,6 +97,12 @@ class Connection(object):
     def __del__(self):
         if self.input is not None:
             self.close()
+
+    def _do_close(self):
+        self.input.close()
+        self.out.close()
+        self.input = self.out = None
+
 
     def _get_channel_queue(self, channel_id):
         if channel_id == 0:
@@ -158,7 +186,8 @@ class Connection(object):
         frame_type = self.input.read_octet()
         channel = self.input.read_short()
         size = self.input.read_long()
-        print 'frame_type: %d, channel: %d, size: %d' % (frame_type, channel, size)
+        if DEBUG:
+            print 'frame_type: %d, channel: %d, size: %d' % (frame_type, channel, size)
         payload = self.input.read(size)
 
         ch = self.input.read_octet()
@@ -246,7 +275,8 @@ class Connection(object):
         method_id = args.read_short()
 
         self.close_ok()
-        print 'Server closed connection: %d %s, class = %d, method = %d' % (reply_code, reply_text, class_id, method_id)
+
+        raise AMQPConnectionException(reply_code, reply_text, class_id, method_id)
 
 
     def close_ok(self):
@@ -257,6 +287,7 @@ class Connection(object):
 
         """
         self.send_method_frame(0, 10, 61)
+        self._do_close()
 
 
     def _close_ok(self, args):
@@ -266,8 +297,7 @@ class Connection(object):
         and close the socket.
 
         """
-        self.input = self.out = None
-        print 'Closed Connection!'
+        self._do_close()
 
 
     def open(self, virtual_host, capabilities='', insist=False):
@@ -292,7 +322,8 @@ class Connection(object):
 
         """
         self.known_hosts = args.read_shortstr()
-        print 'Open OK! known_hosts [%s]' % self.known_hosts
+        if DEBUG:
+            print 'Open OK! known_hosts [%s]' % self.known_hosts
         self.waiting = False
 
 
@@ -342,7 +373,8 @@ class Connection(object):
         mechanisms = args.read_longstr().split(' ')
         locales = args.read_longstr().split(' ')
 
-        print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' % (version_major, version_minor, str(server_properties), mechanisms, locales)
+        if DEBUG:
+            print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' % (version_major, version_minor, str(server_properties), mechanisms, locales)
 
         login = _AMQPWriter()
         login.write_table({"LOGIN": "guest", "PASSWORD": "guest"})
@@ -421,7 +453,8 @@ class Channel(object):
         self.connection = connection
         if channel_id is None:
             channel_id = connection.get_free_channel_id()
-        print 'using channel_id', channel_id
+        if DEBUG:
+            print 'using channel_id', channel_id
         self.channel_id = channel_id
         self.default_ticket = 0
         self.is_open = False
@@ -441,7 +474,8 @@ class Channel(object):
         Tear down this object, after we've agreed to close with the server.
 
         """
-        print 'Closed channel #%d' % self.channel_id
+        if DEBUG:
+            print 'Closed channel #%d' % self.channel_id
         self.is_open = False
         del self.connection.channels[self.channel_id]
         self.channel_id = self.connection = None
@@ -532,6 +566,8 @@ class Channel(object):
         self.send_method_frame(20, 41)
         self._do_close()
 
+        raise AMQPChannelException(reply_code, reply_text, class_id, method_id)
+
 
     def _close_ok(self, args):
         """
@@ -612,7 +648,8 @@ class Channel(object):
 
         """
         self.is_open = True
-        print 'Channel open'
+        if DEBUG:
+            print 'Channel open'
 
 
     #############
@@ -2100,6 +2137,97 @@ _METHOD_MAP = {
     (120, 41): (Channel, Channel._test_content_ok),
 }
 
+_METHOD_NAME_MAP = {
+    (10, 10): 'Connection.start',
+    (10, 11): 'Connection.start_ok',
+    (10, 20): 'Connection.secure',
+    (10, 21): 'Connection.secure_ok',
+    (10, 30): 'Connection.tune',
+    (10, 31): 'Connection.tune_ok',
+    (10, 40): 'Connection.open',
+    (10, 41): 'Connection.open_ok',
+    (10, 50): 'Connection.redirect',
+    (10, 60): 'Connection.close',
+    (10, 61): 'Connection.close_ok',
+    (20, 10): 'Channel.open',
+    (20, 11): 'Channel.open_ok',
+    (20, 20): 'Channel.flow',
+    (20, 21): 'Channel.flow_ok',
+    (20, 30): 'Channel.alert',
+    (20, 40): 'Channel.close',
+    (20, 41): 'Channel.close_ok',
+    (30, 10): 'Channel.access_request',
+    (30, 11): 'Channel.access_request_ok',
+    (40, 10): 'Channel.exchange_declare',
+    (40, 11): 'Channel.exchange_declare_ok',
+    (40, 20): 'Channel.exchange_delete',
+    (40, 21): 'Channel.exchange_delete_ok',
+    (50, 10): 'Channel.queue_declare',
+    (50, 11): 'Channel.queue_declare_ok',
+    (50, 20): 'Channel.queue_bind',
+    (50, 21): 'Channel.queue_bind_ok',
+    (50, 30): 'Channel.queue_purge',
+    (50, 31): 'Channel.queue_purge_ok',
+    (50, 40): 'Channel.queue_delete',
+    (50, 41): 'Channel.queue_delete_ok',
+    (60, 10): 'Channel.basic_qos',
+    (60, 11): 'Channel.basic_qos_ok',
+    (60, 20): 'Channel.basic_consume',
+    (60, 21): 'Channel.basic_consume_ok',
+    (60, 30): 'Channel.basic_cancel',
+    (60, 31): 'Channel.basic_cancel_ok',
+    (60, 40): 'Channel.basic_publish',
+    (60, 50): 'Channel.basic_return',
+    (60, 60): 'Channel.basic_deliver',
+    (60, 70): 'Channel.basic_get',
+    (60, 71): 'Channel.basic_get_ok',
+    (60, 72): 'Channel.basic_get_empty',
+    (60, 80): 'Channel.basic_ack',
+    (60, 90): 'Channel.basic_reject',
+    (60, 100): 'Channel.basic_recover',
+    (70, 10): 'Channel.file_qos',
+    (70, 11): 'Channel.file_qos_ok',
+    (70, 20): 'Channel.file_consume',
+    (70, 21): 'Channel.file_consume_ok',
+    (70, 30): 'Channel.file_cancel',
+    (70, 31): 'Channel.file_cancel_ok',
+    (70, 40): 'Channel.file_open',
+    (70, 41): 'Channel.file_open_ok',
+    (70, 50): 'Channel.file_stage',
+    (70, 60): 'Channel.file_publish',
+    (70, 70): 'Channel.file_return',
+    (70, 80): 'Channel.file_deliver',
+    (70, 90): 'Channel.file_ack',
+    (70, 100): 'Channel.file_reject',
+    (80, 10): 'Channel.stream_qos',
+    (80, 11): 'Channel.stream_qos_ok',
+    (80, 20): 'Channel.stream_consume',
+    (80, 21): 'Channel.stream_consume_ok',
+    (80, 30): 'Channel.stream_cancel',
+    (80, 31): 'Channel.stream_cancel_ok',
+    (80, 40): 'Channel.stream_publish',
+    (80, 50): 'Channel.stream_return',
+    (80, 60): 'Channel.stream_deliver',
+    (90, 10): 'Channel.tx_select',
+    (90, 11): 'Channel.tx_select_ok',
+    (90, 20): 'Channel.tx_commit',
+    (90, 21): 'Channel.tx_commit_ok',
+    (90, 30): 'Channel.tx_rollback',
+    (90, 31): 'Channel.tx_rollback_ok',
+    (100, 10): 'Channel.dtx_select',
+    (100, 11): 'Channel.dtx_select_ok',
+    (100, 20): 'Channel.dtx_start',
+    (100, 21): 'Channel.dtx_start_ok',
+    (110, 10): 'Tunnel.request',
+    (120, 10): 'Channel.test_integer',
+    (120, 11): 'Channel.test_integer_ok',
+    (120, 20): 'Channel.test_string',
+    (120, 21): 'Channel.test_string_ok',
+    (120, 30): 'Channel.test_table',
+    (120, 31): 'Channel.test_table_ok',
+    (120, 40): 'Channel.test_content',
+    (120, 41): 'Channel.test_content_ok',
+}
 
 _BASIC_PROPERTIES = [
     ('content_type', 'shortstr'),
