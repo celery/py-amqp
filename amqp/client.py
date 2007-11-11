@@ -1068,10 +1068,17 @@ class Channel(object):
         redelivered = args.read_bit()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
+
         msg = self.wait()
 
+        msg.consumer_tag = consumer_tag
+        msg.delivery_tag = delivery_tag
+        msg.redelivered = redelivered
+        msg.exchange = exchange
+        msg.routing_key = routing_key
+
         if consumer_tag in self.callbacks:
-            self.callbacks[consumer_tag](self, consumer_tag, delivery_tag, redelivered, exchange, routing_key, msg)
+            self.callbacks[consumer_tag](self, msg)
 
 
     def basic_get(self, queue, no_ack=False, ticket=None):
@@ -1112,9 +1119,16 @@ class Channel(object):
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
         message_count = args.read_long()
+
         msg = self.wait()
 
-        return delivery_tag, redelivered, exchange, routing_key, message_count, msg
+        msg.delivery_tag = delivery_tag
+        msg.redelivered = redelivered
+        msg.exchange = exchange
+        msg.routing_key = routing_key
+        msg.message_count = message_count
+
+        return msg
 
 
     def basic_publish(self, msg, exchange, routing_key='', mandatory=False, immediate=False, ticket=None):
@@ -2303,6 +2317,32 @@ def serialize_content_properties(proplist, d):
 
 class Content(object):
     def __init__(self, body=None, children=None, **properties):
+        """
+        Possible properties for a Basic Content object are:
+
+            content_type: string
+            content_encoding: string
+            headers: dict with string keys, and string/int/Decimal/datetime/dict values
+            delivery_mode: Non-persistent=1 or persistent=2
+            priority: 0..9
+            correlation_id: string
+            reply_to: string
+            expiration: string
+            message_id: string
+            timestamp: datetime.datetime
+            type: string
+            user_id: string
+            app_id: string
+            cluster_id: string
+
+        Unicode bodies are converted to utf-8 and the 'content_encoding'
+        property is automatically set to 'utf-8'
+
+        example:
+
+            msg = Content('hello world', content_type='text/plain', headers={'foo': 7})
+
+        """
         if isinstance(body, unicode):
             body = body.encode('utf-8')
             properties['content_encoding'] = 'utf-8'

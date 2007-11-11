@@ -23,11 +23,11 @@ def main():
 
     msg = Content(msg, content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
     ch.basic_publish(msg, 'myfan')
-    
-    msg2 = ch.basic_get(qname, no_ack=True)[5]
+
+    msg2 = ch.basic_get(qname, no_ack=True)
     if 'content_encoding' in msg2.properties:
         msg2.body = msg2.body.decode(msg2.properties['content_encoding'])
-    print 'received', msg2.body, type(msg2.body), msg2.properties
+    print 'received', msg2.body, type(msg2.body), msg2.properties, dir(msg2)
 
     ch.close()
     conn.close()

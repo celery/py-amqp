@@ -6,9 +6,9 @@ Test AMQP library.
 from amqp import Connection, Content
 
 
-def callback(channel, consumer_tag, delivery_tag, redelivered, exchange, routing_key, msg):
+def callback(channel, msg):
     print 'received:', msg.body, msg.properties
-    channel.basic_ack(delivery_tag)
+    channel.basic_ack(msg.delivery_tag)
     if msg.body == 'quit':
         channel.basic_cancel(consumer_tag)
 
