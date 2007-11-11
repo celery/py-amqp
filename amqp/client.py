@@ -886,7 +886,7 @@ class Channel(object):
     #
     #
 
-    def basic_ack(self, delivery_tag, multiple):
+    def basic_ack(self, delivery_tag, multiple=False):
         """
         This method acknowledges one or more messages delivered via the
         Deliver or Get-Ok methods.  The client can ask to confirm a
@@ -1009,6 +1009,7 @@ class Channel(object):
         application where synchronous functionality is more important than
         performance.
 
+        Non-blocking, returns a message object, or None.
         """
         args = _AMQPWriter()
         args.write_short(ticket)
@@ -1025,7 +1026,6 @@ class Channel(object):
 
         """
         cluster_id = args.read_shortstr()
-        print 'GET EMPTY!'
 
 
     def _basic_get_ok(self, args):
@@ -1093,10 +1093,10 @@ class Channel(object):
         pass
 
 
-    def basic_recover(self, requeue):
+    def basic_recover(self, requeue=False):
         """
         This method asks the broker to redeliver all unacknowledged messages on a
-        specifieid channel. Zero or more messages may be redelivered.
+        specified channel. Zero or more messages may be redelivered.
 
         RULE:
 
