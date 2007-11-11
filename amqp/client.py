@@ -405,6 +405,7 @@ class Channel(object):
         self.is_open = False
         connection.channels[channel_id] = self
         self.frame_queue = Queue()
+        self.callbacks = {}
 
         self.open()
 
@@ -899,7 +900,7 @@ class Channel(object):
         self.send_method_frame(60, 80, args.getvalue())
 
 
-    def basic_cancel(self, consumer_tag, nowait):
+    def basic_cancel(self, consumer_tag, nowait=False):
         """
         This method cancels a consumer. This does not affect already
         delivered messages, but it does mean the server will not send any
@@ -918,7 +919,11 @@ class Channel(object):
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame(60, 30, args.getvalue())
-        return self.wait()
+
+        if nowait:
+            del self.callbacks[consumer_tag]
+        else:
+            return self.wait()
 
 
     def _basic_cancel_ok(self, args):
@@ -927,9 +932,10 @@ class Channel(object):
 
         """
         consumer_tag = args.read_shortstr()
+        del self.callbacks[consumer_tag]
 
 
-    def basic_consume(self, ticket, queue, consumer_tag, no_local, no_ack, exclusive, nowait):
+    def basic_consume(self, ticket, queue, consumer_tag='', no_local=False, no_ack=False, exclusive=False, nowait=False, callback=None):
         """
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue. Consumers
@@ -952,7 +958,11 @@ class Channel(object):
         args.write_bit(exclusive)
         args.write_bit(nowait)
         self.send_method_frame(60, 20, args.getvalue())
-        return self.wait()
+
+        if not nowait:
+            consumer_tag = self.wait()
+
+        self.callbacks[consumer_tag] = callback
 
 
     def _basic_consume_ok(self, args):
@@ -961,7 +971,7 @@ class Channel(object):
         by the client for methods called on the consumer at a later stage.
 
         """
-        consumer_tag = args.read_shortstr()
+        return args.read_shortstr()
 
 
     def _basic_deliver(self, args):
@@ -986,7 +996,10 @@ class Channel(object):
         redelivered = args.read_bit()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-        msg = self.connection.receive_content()
+        msg = self.wait()
+
+        if consumer_tag in self.callbacks:
+            self.callbacks[consumer_tag](self, consumer_tag, delivery_tag, redelivered, exchange, routing_key, msg)
 
 
     def basic_get(self, ticket, queue, no_ack=False):
@@ -1012,6 +1025,7 @@ class Channel(object):
 
         """
         cluster_id = args.read_shortstr()
+        print 'GET EMPTY!'
 
 
     def _basic_get_ok(self, args):
@@ -1143,7 +1157,7 @@ class Channel(object):
         reply_text = args.read_shortstr()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     #############
@@ -1429,7 +1443,7 @@ class Channel(object):
         reply_text = args.read_shortstr()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     def file_stage(self, msg):
@@ -1448,7 +1462,7 @@ class Channel(object):
         recipient from the octet offset specified in the Open-Ok method.
 
         """
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     #############
@@ -1567,7 +1581,7 @@ class Channel(object):
         delivery_tag = args.read_longlong()
         exchange = args.read_shortstr()
         queue = args.read_shortstr()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     def stream_publish(self, msg, ticket, exchange, routing_key, mandatory, immediate):
@@ -1627,7 +1641,7 @@ class Channel(object):
         reply_text = args.read_shortstr()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     #############
@@ -1814,7 +1828,7 @@ class Channel(object):
         This method tests the peer's capability to correctly marshal content.
 
         """
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     def test_content_ok(self, msg, content_checksum):
@@ -1836,7 +1850,7 @@ class Channel(object):
 
         """
         content_checksum = args.read_long()
-        msg = self.connection.receive_content()
+        msg = self.wait()
 
 
     def test_integer(self, integer_1, integer_2, integer_3, integer_4, operation):
@@ -2134,7 +2148,7 @@ class Content(object):
     def __init__(self, body=None, children=None, **properties):
         if isinstance(body, unicode):
             body = body.encode('utf-8')
-            body.content_encoding = 'utf-8'
+            properties['content_encoding'] = 'utf-8'
 
         self.properties = properties
         self.body = body
