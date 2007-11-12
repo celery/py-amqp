@@ -73,6 +73,11 @@ class Connection(object):
 
     """
     def __init__(self, host):
+        """
+        Create a connection to the specified host, which should be
+        a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
+        
+        """
         self.channels = {}
         self.frame_queue = Queue()
         self.input = self.out = None
