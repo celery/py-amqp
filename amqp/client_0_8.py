@@ -22,7 +22,7 @@ AMQP 0-8 Client Library
 import socket
 from Queue import Queue
 from struct import unpack
-from util import _AMQPReader, _AMQPWriter, hexdump
+from util import _AMQPReader, _AMQPWriter, parse_content_properties, serialize_content_properties
 
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
@@ -76,7 +76,7 @@ class Connection(object):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
-        
+
         """
         self.channels = {}
         self.frame_queue = Queue()
@@ -2299,60 +2299,6 @@ _BASIC_PROPERTIES = [
     ('app_id', 'shortstr'),
     ('cluster_id', 'shortstr')
     ]
-
-def parse_content_properties(proplist, raw_bytes):
-    r = _AMQPReader(raw_bytes)
-
-    #
-    # Read 16-bit shorts until we get one with a low bit set to zero
-    #
-    flags = []
-    while True:
-        flag_bits = r.read_short()
-        flags.append(flag_bits)
-        if flag_bits & 1 == 0:
-            break
-
-    result = {}
-    shift = 0
-    for key, proptype in proplist:
-        if shift == 0:
-            if not flags:
-                break
-            flag_bits, flags = flags[0], flags[1:]
-            shift = 15
-        if flag_bits & (1 << shift):
-            result[key] = getattr(r, 'read_' + proptype)()
-        shift -= 1
-
-    return result
-
-
-def serialize_content_properties(proplist, d):
-    shift = 15
-    flag_bits = 0
-    flags = []
-    raw_bytes = _AMQPWriter()
-    for key, proptype in proplist:
-        if key in d:
-            if shift == 0:
-                flags.append(flag_bits)
-                flag_bits = 0
-                shift = 15
-
-            flag_bits |= (1 << shift)
-            if proptype != 'bit':
-                getattr(raw_bytes, 'write_' + proptype)(d[key])
-
-        shift -= 1
-
-    flags.append(flag_bits)
-    result = _AMQPWriter()
-    for flag_bits in flags:
-        result.write_short(flag_bits)
-    result.write(raw_bytes.getvalue())
-
-    return result.getvalue()
 
 
 class Content(object):

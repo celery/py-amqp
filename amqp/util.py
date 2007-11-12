@@ -22,7 +22,10 @@ AMQP Helper Library
 
 from calendar import timegm
 from datetime import datetime
+from decimal import Decimal
 from struct import pack, unpack
+from time import gmtime
+
 try:
     from cStringIO import StringIO
 except:
@@ -116,11 +119,11 @@ class _AMQPReader(object):
                 val = unpack('>i', table_data.input.read(4))[0]
             elif ftype == 'D':
                 d = table_data.read_octet()
-                n = table_data.read_long()
-                val = decimal(n) / decimal(10 ** d)
+                n = unpack('>i', table_data.input.read(4))[0]
+                val = Decimal(n) / Decimal(10 ** d)
             elif ftype == 'T':
-                val = datetime.fromtimestamp(table_data.read_longlong())
-                ## FIXME: timezone ?
+                val = gmtime(table_data.read_longlong())[:6]
+                val = datetime(*val)
             elif ftype == 'F':
                 val = table_data.read_table() # recurse
             result[name] = val
@@ -201,13 +204,19 @@ class _AMQPWriter(object):
             elif isinstance(v, (int, long)):
                 table_data.write('I')
                 table_data.write(pack('>i', v))
-            elif isinstance(v, decimal):
+            elif isinstance(v, Decimal):
                 table_data.write('D')
-                table_data.write_octet(4)
-                table_data.write_long(int(v * 10))
+                sign, digits, exponent = v.as_tuple()
+                v = 0
+                for d in digits:
+                    v = (v * 10) + d
+                if sign:
+                    v = -v
+                table_data.write_octet(-exponent)
+                table_data.write(pack('>i', v))
             elif isinstance(v, datetime):
                 table_data.write('T')
-                table_data.write_longlong(v, long(timegm(v.timetuple)))
+                table_data.write_longlong(long(timegm(v.timetuple())))
                 ## FIXME: timezone ?
             elif isinstance(v, dict):
                 table_data.write('F')
@@ -215,3 +224,80 @@ class _AMQPWriter(object):
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
+
+
+def parse_content_properties(proplist, raw_bytes):
+    """
+    proplist : list of (property-name, property-type) tuples
+        for the content we're processing
+
+    raw_bytes : the property flags and property list of a
+        content frame header
+
+    return a dictionary
+
+    """
+    r = _AMQPReader(raw_bytes)
+
+    #
+    # Read 16-bit shorts until we get one with a low bit set to zero
+    #
+    flags = []
+    while True:
+        flag_bits = r.read_short()
+        flags.append(flag_bits)
+        if flag_bits & 1 == 0:
+            break
+
+    result = {}
+    shift = 0
+    for key, proptype in proplist:
+        if shift == 0:
+            if not flags:
+                break
+            flag_bits, flags = flags[0], flags[1:]
+            shift = 15
+        if flag_bits & (1 << shift):
+            result[key] = getattr(r, 'read_' + proptype)()
+        shift -= 1
+
+    return result
+
+
+def serialize_content_properties(proplist, d):
+    """
+    proplist : list of (property-name, property-type) tuples
+        for the content we're processing
+
+    d : dictonary of content properties
+
+    return a string containing the property flags and property
+        list of a content frame header
+
+    """
+    shift = 15
+    flag_bits = 0
+    flags = []
+    raw_bytes = _AMQPWriter()
+    for key, proptype in proplist:
+        if key in d:
+            if shift == 0:
+                flags.append(flag_bits)
+                flag_bits = 0
+                shift = 15
+
+            flag_bits |= (1 << shift)
+            if proptype != 'bit':
+                getattr(raw_bytes, 'write_' + proptype)(d[key])
+
+        shift -= 1
+
+    flags.append(flag_bits)
+    result = _AMQPWriter()
+    for flag_bits in flags:
+        result.write_short(flag_bits)
+    result.write(raw_bytes.getvalue())
+
+    return result.getvalue()
+
+
