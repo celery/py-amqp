@@ -22,7 +22,7 @@ AMQP 0-8 Client Library
 import socket
 from Queue import Queue
 from struct import unpack
-from util import _AMQPReader, _AMQPWriter, parse_content_properties, serialize_content_properties
+from util import _AMQPReader, _AMQPWriter, ContentProperties
 
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
@@ -496,7 +496,7 @@ class Channel(object):
             return self.connection.dispatch_method(self.channel_id, payload)
         if frame_type == 2:
             class_id, weight, body_size = unpack('>HHQ', payload[:12])
-            content_properties = parse_content_properties(_BASIC_PROPERTIES, payload[12:])
+            content_properties = BASIC_CONTENT_PROPERTIES.parse(payload[12:])
 
             body_parts = []
             body_received = 0
@@ -2283,22 +2283,22 @@ _METHOD_NAME_MAP = {
     (120, 41): 'Channel.test_content_ok',
 }
 
-_BASIC_PROPERTIES = [
-    ('content_type', 'shortstr'),
-    ('content_encoding', 'shortstr'),
-    ('headers', 'table'),
-    ('delivery_mode', 'octet'),
-    ('priority', 'octet'),
-    ('correlation_id', 'shortstr'),
-    ('reply_to', 'shortstr'),
-    ('expiration', 'shortstr'),
-    ('message_id', 'shortstr'),
-    ('timestamp', 'timestamp'),
-    ('type', 'shortstr'),
-    ('user_id', 'shortstr'),
-    ('app_id', 'shortstr'),
-    ('cluster_id', 'shortstr')
-    ]
+BASIC_CONTENT_PROPERTIES = ContentProperties([
+        ('content_type', 'shortstr'),
+        ('content_encoding', 'shortstr'),
+        ('headers', 'table'),
+        ('delivery_mode', 'octet'),
+        ('priority', 'octet'),
+        ('correlation_id', 'shortstr'),
+        ('reply_to', 'shortstr'),
+        ('expiration', 'shortstr'),
+        ('message_id', 'shortstr'),
+        ('timestamp', 'timestamp'),
+        ('type', 'shortstr'),
+        ('user_id', 'shortstr'),
+        ('app_id', 'shortstr'),
+        ('cluster_id', 'shortstr')
+        ])
 
 
 class Content(object):
@@ -2340,5 +2340,5 @@ class Content(object):
     def serialize(self):
         args = _AMQPWriter()
         args.write_short(0)
-        packed_properties = serialize_content_properties(_BASIC_PROPERTIES, self.properties)
+        packed_properties = BASIC_CONTENT_PROPERTIES.serialize(self.properties)
         return packed_properties, self.body

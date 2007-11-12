@@ -235,78 +235,81 @@ class _AMQPWriter(object):
         self.out.write(table_data)
 
 
-def parse_content_properties(proplist, raw_bytes):
+class ContentProperties(object):
     """
-    proplist : list of (property-name, property-type) tuples
-        for the content we're processing
-
-    raw_bytes : the property flags and property list of a
-        content frame header
-
-    return a dictionary
+    Helper class for parsing and serializing content properties.
 
     """
-    r = _AMQPReader(raw_bytes)
+    def __init__(self, properties):
+        """
+        Create a helper object based on a list of content properties.
+        The list should be of (property-name, property-type) tuples.
 
-    #
-    # Read 16-bit shorts until we get one with a low bit set to zero
-    #
-    flags = []
-    while True:
-        flag_bits = r.read_short()
-        flags.append(flag_bits)
-        if flag_bits & 1 == 0:
-            break
+        """
+        self.properties = properties
 
-    result = {}
-    shift = 0
-    for key, proptype in proplist:
-        if shift == 0:
-            if not flags:
+
+    def parse(self, raw_bytes):
+        """
+        Given the raw bytes containing the property-flags and property-list
+        from a content-frame-header, parse and return as a dictionary.
+
+        """
+        r = _AMQPReader(raw_bytes)
+
+        #
+        # Read 16-bit shorts until we get one with a low bit set to zero
+        #
+        flags = []
+        while True:
+            flag_bits = r.read_short()
+            flags.append(flag_bits)
+            if flag_bits & 1 == 0:
                 break
-            flag_bits, flags = flags[0], flags[1:]
-            shift = 15
-        if flag_bits & (1 << shift):
-            result[key] = getattr(r, 'read_' + proptype)()
-        shift -= 1
 
-    return result
-
-
-def serialize_content_properties(proplist, d):
-    """
-    proplist : list of (property-name, property-type) tuples
-        for the content we're processing
-
-    d : dictonary of content properties
-
-    return a string containing the property flags and property
-        list of a content frame header
-
-    """
-    shift = 15
-    flag_bits = 0
-    flags = []
-    raw_bytes = _AMQPWriter()
-    for key, proptype in proplist:
-        if key in d:
+        result = {}
+        shift = 0
+        for key, proptype in self.properties:
             if shift == 0:
-                flags.append(flag_bits)
-                flag_bits = 0
+                if not flags:
+                    break
+                flag_bits, flags = flags[0], flags[1:]
                 shift = 15
+            if flag_bits & (1 << shift):
+                result[key] = getattr(r, 'read_' + proptype)()
+            shift -= 1
 
-            flag_bits |= (1 << shift)
-            if proptype != 'bit':
-                getattr(raw_bytes, 'write_' + proptype)(d[key])
-
-        shift -= 1
-
-    flags.append(flag_bits)
-    result = _AMQPWriter()
-    for flag_bits in flags:
-        result.write_short(flag_bits)
-    result.write(raw_bytes.getvalue())
-
-    return result.getvalue()
+        return result
 
 
+    def serialize(self, d):
+        """
+        Given a dictionary of content properties, serialize into
+        the raw bytes making up a set of property flags and a property
+        list, suitable for putting into a content frame header.
+
+        """
+        shift = 15
+        flag_bits = 0
+        flags = []
+        raw_bytes = _AMQPWriter()
+        for key, proptype in self.properties:
+            if key in d:
+                if shift == 0:
+                    flags.append(flag_bits)
+                    flag_bits = 0
+                    shift = 15
+
+                flag_bits |= (1 << shift)
+                if proptype != 'bit':
+                    getattr(raw_bytes, 'write_' + proptype)(d[key])
+
+            shift -= 1
+
+        flags.append(flag_bits)
+        result = _AMQPWriter()
+        for flag_bits in flags:
+            result.write_short(flag_bits)
+        result.write(raw_bytes.getvalue())
+
+        return result.getvalue()

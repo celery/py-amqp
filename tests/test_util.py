@@ -7,8 +7,7 @@ import unittest
 import amqp.client_0_8
 import amqp.util
 from amqp.util import _AMQPReader, _AMQPWriter
-from amqp.util import parse_content_properties, serialize_content_properties
-from amqp.client_0_8 import _BASIC_PROPERTIES
+from amqp.client_0_8 import BASIC_CONTENT_PROPERTIES
 
 class TestAMQPSerialization(unittest.TestCase):
     def test_empty_writer(self):
@@ -309,8 +308,8 @@ class TestContentProperties(unittest.TestCase):
         Check roundtrip processing of a single dictionary.
 
         """
-        raw = serialize_content_properties(_BASIC_PROPERTIES, d)
-        d2 = parse_content_properties(_BASIC_PROPERTIES, raw)
+        raw = BASIC_CONTENT_PROPERTIES.serialize(d)
+        d2 = BASIC_CONTENT_PROPERTIES.parse(raw)
 
         self.assertEqual(d, d2)
 
@@ -356,7 +355,7 @@ class TestContentProperties(unittest.TestCase):
             })
 
     def test_empty_proplist(self):
-        raw = serialize_content_properties(_BASIC_PROPERTIES, {})
+        raw = BASIC_CONTENT_PROPERTIES.serialize({})
         self.assertEqual(raw, '\x00\x00')
 
 
