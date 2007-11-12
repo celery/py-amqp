@@ -78,6 +78,7 @@ class _AMQPReader(object):
         result = (self.bits & 1) == 1
         self.bits >>= 1
         self.bitcount -= 1
+        return result
 
     def read_octet(self):
         self.bitcount = self.bits = 0
@@ -136,7 +137,7 @@ class _AMQPWriter(object):
         self.bits = []
         self.bitcount = 0
 
-    def flushbits(self):
+    def _flushbits(self):
         if self.bits:
             for b in self.bits:
                 self.out.write(pack('B', b))
@@ -144,11 +145,11 @@ class _AMQPWriter(object):
             self.bitcount = 0
 
     def getvalue(self):
-        self.flushbits()
+        self._flushbits()
         return self.out.getvalue()
 
     def write(self, s):
-        self.flushbits()
+        self._flushbits()
         self.out.write(s)
 
     def write_bit(self, b):
@@ -160,23 +161,31 @@ class _AMQPWriter(object):
         self.bitcount += 1
 
     def write_octet(self, n):
-        self.flushbits()
+        if (n < 0) or (n > 255):
+            raise ValueError('Octet out of range 0..255')
+        self._flushbits()
         self.out.write(pack('B', n))
 
     def write_short(self, n):
-        self.flushbits()
+        if (n < 0) or (n > 65535):
+            raise ValueError('Octet out of range 0..65535')
+        self._flushbits()
         self.out.write(pack('>H', n))
 
     def write_long(self, n):
-        self.flushbits()
+        if (n < 0) or (n >= (2**32)):
+            raise ValueError('Octet out of range 0..2**31-1')
+        self._flushbits()
         self.out.write(pack('>I', n))
 
     def write_longlong(self, n):
-        self.flushbits()
+        if (n < 0) or (n >= (2**64)):
+            raise ValueError('Octet out of range 0..2**64-1')
+        self._flushbits()
         self.out.write(pack('>Q', n))
 
     def write_shortstr(self, s):
-        self.flushbits()
+        self._flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         if len(s) > 255:
@@ -185,14 +194,14 @@ class _AMQPWriter(object):
         self.out.write(s)
 
     def write_longstr(self, s):
-        self.flushbits()
+        self._flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         self.write_long(len(s))
         self.out.write(s)
 
     def write_table(self, d):
-        self.flushbits()
+        self._flushbits()
         table_data = _AMQPWriter()
         for k, v in d.items():
             table_data.write_shortstr(k)
@@ -216,7 +225,7 @@ class _AMQPWriter(object):
                 table_data.write(pack('>i', v))
             elif isinstance(v, datetime):
                 table_data.write('T')
-                table_data.write_longlong(long(timegm(v.timetuple())))
+                table_data.write(pack('>q', long(timegm(v.timetuple()))))
                 ## FIXME: timezone ?
             elif isinstance(v, dict):
                 table_data.write('F')
