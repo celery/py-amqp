@@ -25,7 +25,7 @@ def main():
 
     ch.exchange_declare('myfan', 'fanout', auto_delete=True)
 
-    msg = amqp.Content(msg_body, content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
+    msg = amqp.BasicContent(msg_body, content_type='text/plain', headers={'foo': 7, 'bar': 'baz'})
 
     ch.basic_publish(msg, 'myfan')
 

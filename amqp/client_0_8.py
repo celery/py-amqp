@@ -506,7 +506,7 @@ class Channel(object):
                     body_parts.append(payload)
                     body_received += len(payload)
 
-            return Content(''.join(body_parts), **content_properties)
+            return BasicContent(''.join(body_parts), **content_properties)
 
 
     def send_method_frame(self, class_id, method_id, packed_args=''):
@@ -2301,7 +2301,7 @@ BASIC_CONTENT_PROPERTIES = ContentProperties([
         ])
 
 
-class Content(object):
+class BasicContent(object):
     def __init__(self, body=None, children=None, **properties):
         """
         Possible properties for a Basic Content object are:
@@ -2326,7 +2326,7 @@ class Content(object):
 
         example:
 
-            msg = Content('hello world', content_type='text/plain', headers={'foo': 7})
+            msg = BasicContent('hello world', content_type='text/plain', headers={'foo': 7})
 
         """
         if isinstance(body, unicode):
