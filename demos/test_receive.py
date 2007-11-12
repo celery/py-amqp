@@ -23,7 +23,7 @@ def callback(channel, msg):
 
 
 def main():
-    conn = amqp.Connection('10.66.0.8', {"LOGIN": "guest", "PASSWORD": "guest"})
+    conn = amqp.Connection('10.66.0.8', userid='guest', password='guest')
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 

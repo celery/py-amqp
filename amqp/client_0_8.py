@@ -27,6 +27,14 @@ from util import _AMQPReader, _AMQPWriter, ContentProperties
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 
+#
+# Client property info that gets sent to the server on connection startup
+#
+LIBRARY_PROPERTIES = {
+    'library': 'Python amqplib',
+    'library_version': '0.1',
+    }
+
 DEBUG = False
 
 class AMQPException(Exception):
@@ -70,12 +78,13 @@ class Connection(object):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    def __init__(self, host, login, virtual_host='/'):
+    def __init__(self, host, userid=None, password=None, login_method='AMQPLAIN', login_response=None, virtual_host='/', locale='en_US', client_properties={}):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
 
-        login is a dict with 'LOGIN' and 'PASSWORD' keys
+        If a userid and password are specified, a login_response is built up for
+        you.  Otherwise you have to roll your own.
 
         """
         self.channels = {}
@@ -90,6 +99,7 @@ class Connection(object):
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))
+
         self.input = _AMQPReader(sock.makefile('r'))
         self.out = sock.makefile('w')
 
@@ -100,11 +110,15 @@ class Connection(object):
                 (10, 10), # start
                 ])
 
-        login_args = _AMQPWriter()
-        login_args.write_table(login)
-        login_args = login_args.getvalue()[4:]    #Skip the length at the beginning
+        if (userid is not None) and (password is not None):
+            login_response = _AMQPWriter()
+            login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
+            login_response = login_response.getvalue()[4:]    #Skip the length at the beginning
 
-        self.start_ok({'product': 'Python AMQP', 'version': '0.1'}, 'AMQPLAIN', login_args, 'en_US')
+        d = {}
+        d.update(LIBRARY_PROPERTIES)
+        d.update(client_properties)
+        self.start_ok(d, login_method, login_response, locale)
 
         self.waiting = True
         while self.waiting:
