@@ -2,7 +2,7 @@
 """
 Test AMQP library.
 
-Send a message to the corresponding test_receive.py script, any 
+Send a message to the corresponding test_receive.py script, any
 arguments to this program are joined together and sent as a message
 body.  If no arguments, just send 'Hello from Python'
 
@@ -19,7 +19,7 @@ def main():
     else:
         msg_body = 'Hello from Python'
 
-    conn = amqp.Connection('10.66.0.8')
+    conn = amqp.Connection('10.66.0.8', {"LOGIN": "guest", "PASSWORD": "guest"})
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True)
 

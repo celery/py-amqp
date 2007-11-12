@@ -31,6 +31,7 @@ from optparse import OptionParser
 from xml.etree import ElementTree
 
 domains = {}
+method_name_map = {}
 
 def _fixup_method_name(class_element, method_element):
     if class_element.attrib['name'] != class_element.attrib['handler']:
@@ -117,21 +118,26 @@ def generate_methods(class_element, out):
 
             if fields:
                 out.write('        args = _AMQPWriter()\n')
-                smf_arg = ', args.getvalue()'
+                smf_arg = ', args'
             else:
                 smf_arg = ''
             for f in fields:
                 out.write('        args.write_%s(%s)\n' % (_field_type(f), _fixup_field_name(f)))
 
             if class_element.attrib['name'] == 'connection':
-                smf_pattern = '        self.send_method_frame(0, %s, %s%s)\n'
+                smf_pattern = '        self.send_method_frame(0, (%s, %s)%s)\n'
             else:
-                smf_pattern = '        self.send_method_frame(%s, %s%s)\n'
+                smf_pattern = '        self.send_method_frame((%s, %s)%s)\n'
 
             out.write(smf_pattern % (class_element.attrib['index'], amqp_method.attrib['index'], smf_arg))
 
             if 'synchronous' in amqp_method.attrib:
-                out.write('        return self.wait()\n')
+                responses = [x.attrib['name'] for x in amqp_method.findall('response')]
+                out.write('        return self.wait(allowed_methods=[\n')
+                for r in responses:
+                    resp = method_name_map[(class_element.attrib['name'], r)]
+                    out.write('                          (%s, %s),    # %s\n' % resp)
+                out.write('                        ])\n')
 
             out.write('\n\n')
 
@@ -184,13 +190,30 @@ def generate_module(spec, out):
     the skeleton of a Python module.
 
     """
-    for domain in spec.findall('domain'):
-        domains[domain.attrib['name']] = domain.attrib['type']
-
+    #
     # HACK THE SPEC so that 'access' is handled by 'channel' instead of 'connection'
+    #
     for amqp_class in spec.findall('class'):
         if amqp_class.attrib['name'] == 'access':
             amqp_class.attrib['handler'] = 'channel'
+
+    #
+    # Build up some helper dictionaries
+    #
+    for domain in spec.findall('domain'):
+        domains[domain.attrib['name']] = domain.attrib['type']
+
+    for amqp_class in spec.findall('class'):
+        for amqp_method in amqp_class.findall('method'):
+            method_name_map[(amqp_class.attrib['name'], amqp_method.attrib['name'])] = \
+                (
+                    amqp_class.attrib['index'],
+                    amqp_method.attrib['index'],
+                    amqp_class.attrib['handler'].capitalize() + '.' +
+                        _fixup_method_name(amqp_class, amqp_method),
+                )
+
+    #### Actually generate output
 
     for amqp_class in spec.findall('class'):
         if amqp_class.attrib['handler'] == amqp_class.attrib['name']:
