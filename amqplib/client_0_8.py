@@ -24,6 +24,15 @@ from Queue import Queue
 from struct import unpack
 from util_0_8 import AMQPReader, AMQPWriter, ContentProperties
 
+__all__ =  [
+            'Connection',
+            'Channel',      # here mainly so it shows in in pydoc
+            'BasicContent',
+            'AMQPException',
+            'AMQPConnectionException',
+            'AMQPChannelException',
+           ]
+
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 
@@ -118,16 +127,16 @@ class Connection(object):
         d = {}
         d.update(LIBRARY_PROPERTIES)
         d.update(client_properties)
-        self.start_ok(d, login_method, login_response, locale)
+        self._x_start_ok(d, login_method, login_response, locale)
 
-        self.waiting = True
-        while self.waiting:
+        self._wait_tune_ok = True
+        while self._wait_tune_ok:
             self.wait(allowed_methods=[
                 (10, 20), # secure
                 (10, 30), # tune
                 ])
 
-        self.open(virtual_host)
+        self._x_open(virtual_host)
 
 
     def __del__(self):
@@ -145,25 +154,14 @@ class Connection(object):
             return self.frame_queue
         return self.channels[channel_id].frame_queue
 
-    def get_free_channel_id(self):
+    def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max+1):
             if i not in self.channels:
                 return i
         raise AMQPException('No free channel ids, current=%d, channel_max=%d' % (len(self.channels), self.channel_max))
 
-    def channel(self, channel_id=None):
-        """
-        Fetch a Channel object identified by the numeric channel_id, or
-        create that object of it doesn't already exist.
 
-        """
-        if channel_id in self.channels:
-            return self.channels[channel_id]
-
-        return Channel(self, channel_id)
-
-
-    def send_content(self, channel, class_id, weight, body_size, packed_properties, body):
+    def _send_content(self, channel, class_id, weight, body_size, packed_properties, body):
         pkt = AMQPWriter()
 
         pkt.write_octet(2)
@@ -196,7 +194,7 @@ class Connection(object):
             self.out.flush()
 
 
-    def send_method_frame(self, channel, method_sig, args=''):
+    def _send_method_frame(self, channel, method_sig, args=''):
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
@@ -212,7 +210,7 @@ class Connection(object):
 
         pkt.write_octet(0xce)
         pkt = pkt.getvalue()
-#        hexdump(pkt)
+#        _hexdump(pkt)
         self.out.write(pkt)
         self.out.flush()
 
@@ -220,7 +218,7 @@ class Connection(object):
             print '> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig])
 
 
-    def wait_frame(self):
+    def _wait_frame(self):
         """
         Wait for a frame from the server
 
@@ -237,14 +235,7 @@ class Connection(object):
         return frame_type, channel, payload
 
 
-    def wait(self, allowed_methods=None):
-        frame_type, payload = self.wait_channel(0)
-
-        if frame_type == 1:
-            return self.dispatch_method(0, payload, allowed_methods)
-
-
-    def wait_channel(self, channel_id):
+    def _wait_channel(self, channel_id):
         """
         Wait for a frame from the server sent to a particular
         channel.
@@ -255,7 +246,7 @@ class Connection(object):
             return queue.get()
 
         while True:
-            frame_type, frame_channel, payload = self.wait_frame()
+            frame_type, frame_channel, payload = self._wait_frame()
 
             if frame_channel == channel_id:
                 return frame_type, payload
@@ -263,8 +254,7 @@ class Connection(object):
             self._get_channel_queue(frame_channel).put((frame_type, payload))
 
 
-
-    def dispatch_method(self, channel, payload, allowed_methods):
+    def _dispatch_method(self, channel, payload, allowed_methods):
         if len(payload) < 4:
             raise Exception('Method frame too short')
 
@@ -286,6 +276,30 @@ class Connection(object):
 
         raise Exception('Unknown AMQP method (%d, %d)' % amqp_class, amqp_method)
 
+
+    def channel(self, channel_id=None):
+        """
+        Fetch a Channel object identified by the numeric channel_id, or
+        create that object of it doesn't already exist.
+
+        """
+        if channel_id in self.channels:
+            return self.channels[channel_id]
+
+        return Channel(self, channel_id)
+
+
+    def wait(self, allowed_methods=None):
+        """
+        Not sure yet if this should even be a public method.
+
+        """
+        frame_type, payload = self._wait_channel(0)
+
+        if frame_type == 1:
+            return self._dispatch_method(0, payload, allowed_methods)
+
+
     #################
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
@@ -302,7 +316,7 @@ class Connection(object):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
         args.write_short(method_sig[1]) # method_id
-        self.send_method_frame(0, (10, 60), args)
+        self._send_method_frame(0, (10, 60), args)
         return self.wait(allowed_methods=[
                           (10, 61),    # Connection.close_ok
                         ])
@@ -322,19 +336,19 @@ class Connection(object):
         class_id = args.read_short()
         method_id = args.read_short()
 
-        self.close_ok()
+        self._x_close_ok()
 
         raise AMQPConnectionException(reply_code, reply_text, (class_id, method_id))
 
 
-    def close_ok(self):
+    def _x_close_ok(self):
         """
         This method confirms a Connection.Close method and tells the
         recipient that it is safe to release resources for the connection
         and close the socket.
 
         """
-        self.send_method_frame(0, (10, 61))
+        self._send_method_frame(0, (10, 61))
         self._do_close()
 
 
@@ -348,7 +362,7 @@ class Connection(object):
         self._do_close()
 
 
-    def open(self, virtual_host, capabilities='', insist=False):
+    def _x_open(self, virtual_host, capabilities='', insist=False):
         """
         This method opens a connection to a virtual host, which is a
         collection of resources, and acts to separate multiple application
@@ -359,7 +373,7 @@ class Connection(object):
         args.write_shortstr(virtual_host)
         args.write_shortstr(capabilities)
         args.write_bit(insist)
-        self.send_method_frame(0, (10, 40), args)
+        self._send_method_frame(0, (10, 40), args)
         return self.wait(allowed_methods=[
                           (10, 41),    # Connection.open_ok
                           (10, 50),    # Connection.redirect
@@ -397,7 +411,7 @@ class Connection(object):
         challenge = args.read_longstr()
 
 
-    def secure_ok(self, response):
+    def _x_secure_ok(self, response):
         """
         This method attempts to authenticate, passing a block of SASL data
         for the security mechanism at the server side.
@@ -405,7 +419,7 @@ class Connection(object):
         """
         args = AMQPWriter()
         args.write_longstr(response)
-        self.send_method_frame(0, (10, 21), args)
+        self._send_method_frame(0, (10, 21), args)
 
 
     def _start(self, args):
@@ -426,7 +440,7 @@ class Connection(object):
             print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' % (self.version_major, self.version_minor, str(self.server_properties), self.mechanisms, self.locales)
 
 
-    def start_ok(self, client_properties, mechanism, response, locale):
+    def _x_start_ok(self, client_properties, mechanism, response, locale):
         """
         This method selects a SASL security mechanism. ASL uses SASL
         (RFC2222) to negotiate authentication and encryption.
@@ -437,7 +451,7 @@ class Connection(object):
         args.write_shortstr(mechanism)
         args.write_longstr(response)
         args.write_shortstr(locale)
-        self.send_method_frame(0, (10, 11), args)
+        self._send_method_frame(0, (10, 11), args)
 
 
     def _tune(self, args):
@@ -450,10 +464,10 @@ class Connection(object):
         self.frame_max = args.read_long() or 131072
         self.heartbeat = args.read_short()
 
-        self.tune_ok(self.channel_max, self.frame_max, 0)
+        self._x_tune_ok(self.channel_max, self.frame_max, 0)
 
 
-    def tune_ok(self, channel_max, frame_max, heartbeat):
+    def _x_tune_ok(self, channel_max, frame_max, heartbeat):
         """
         This method sends the client's connection tuning parameters to the
         server. Certain fields are negotiated, others provide capability
@@ -464,8 +478,8 @@ class Connection(object):
         args.write_short(channel_max)
         args.write_long(frame_max)
         args.write_short(heartbeat)
-        self.send_method_frame(0, (10, 31), args)
-        self.waiting = False
+        self._send_method_frame(0, (10, 31), args)
+        self._wait_tune_ok = False
 
 
 class Channel(object):
@@ -494,7 +508,7 @@ class Channel(object):
         """
         self.connection = connection
         if channel_id is None:
-            channel_id = connection.get_free_channel_id()
+            channel_id = connection._get_free_channel_id()
         if DEBUG:
             print 'using channel_id', channel_id
         self.channel_id = channel_id
@@ -506,7 +520,7 @@ class Channel(object):
         self.alerts = Queue()
         self.callbacks = {}
 
-        self.open()
+        self._x_open()
 
 
     def __del__(self):
@@ -527,10 +541,10 @@ class Channel(object):
 
 
     def wait(self, allowed_methods=None):
-        frame_type, payload = self.connection.wait_channel(self.channel_id)
+        frame_type, payload = self.connection._wait_channel(self.channel_id)
 
         if frame_type == 1:
-            return self.connection.dispatch_method(self.channel_id, payload, allowed_methods)
+            return self.connection._dispatch_method(self.channel_id, payload, allowed_methods)
         if frame_type == 2:
             class_id, weight, body_size = unpack('>HHQ', payload[:12])
             content_properties = BASIC_CONTENT_PROPERTIES.parse(payload[12:])
@@ -538,7 +552,7 @@ class Channel(object):
             body_parts = []
             body_received = 0
             while body_received < body_size:
-                frame_type, payload = self.connection.wait_channel(self.channel_id)
+                frame_type, payload = self.connection._wait_channel(self.channel_id)
                 if frame_type == 3:
                     body_parts.append(payload)
                     body_received += len(payload)
@@ -546,8 +560,8 @@ class Channel(object):
             return BasicContent(''.join(body_parts), **content_properties)
 
 
-    def send_method_frame(self, method_sig, args=''):
-        self.connection.send_method_frame(self.channel_id, method_sig, args)
+    def _send_method_frame(self, method_sig, args=''):
+        self.connection._send_method_frame(self.channel_id, method_sig, args)
 
     #################
 
@@ -582,7 +596,7 @@ class Channel(object):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
         args.write_short(method_sig[1]) # method_id
-        self.send_method_frame((20, 40), args)
+        self._send_method_frame((20, 40), args)
         return self.wait(allowed_methods=[
                           (20, 41),    # Channel.close_ok
                         ])
@@ -612,7 +626,7 @@ class Channel(object):
 #        socket.
 #
 #        """
-        self.send_method_frame((20, 41))
+        self._send_method_frame((20, 41))
         self._do_close()
 
         raise AMQPChannelException(reply_code, reply_text, (class_id, method_id))
@@ -641,7 +655,7 @@ class Channel(object):
         """
         args = AMQPWriter()
         args.write_bit(active)
-        self.send_method_frame((20, 20), args)
+        self._send_method_frame((20, 20), args)
         return self.wait(allowed_methods=[
                           (20, 21),    # Channel.flow_ok
                         ])
@@ -660,17 +674,17 @@ class Channel(object):
         """
         self.active = args.read_bit()
 
-        self.flow_ok(self.active)
+        self._x_flow_ok(self.active)
 
 
-    def flow_ok(self, active):
+    def _x_flow_ok(self, active):
         """
         Confirms to the peer that a flow command was received and processed.
 
         """
         args = AMQPWriter()
         args.write_bit(active)
-        self.send_method_frame((20, 21), args)
+        self._send_method_frame((20, 21), args)
 
 
     def _flow_ok(self, args):
@@ -681,7 +695,7 @@ class Channel(object):
         return args.read_bit()
 
 
-    def open(self, out_of_band=''):
+    def _x_open(self, out_of_band=''):
         """
         This method opens a virtual connection (a channel).
 
@@ -691,7 +705,7 @@ class Channel(object):
 
         args = AMQPWriter()
         args.write_shortstr(out_of_band)
-        self.send_method_frame((20, 10), args)
+        self._send_method_frame((20, 10), args)
         return self.wait(allowed_methods=[
                           (20, 11),    # Channel.open_ok
                         ])
@@ -742,7 +756,7 @@ class Channel(object):
         args.write_bit(active)
         args.write_bit(write)
         args.write_bit(read)
-        self.send_method_frame((30, 10), args)
+        self._send_method_frame((30, 10), args)
         return self.wait(allowed_methods=[
                           (30, 11),    # Channel.access_request_ok
                         ])
@@ -790,7 +804,7 @@ class Channel(object):
         args.write_bit(internal)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self.send_method_frame((40, 10), args)
+        self._send_method_frame((40, 10), args)
         return self.wait(allowed_methods=[
                           (40, 11),    # Channel.exchange_declare_ok
                         ])
@@ -816,7 +830,7 @@ class Channel(object):
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
-        self.send_method_frame((40, 20), args)
+        self._send_method_frame((40, 20), args)
         return self.wait(allowed_methods=[
                           (40, 21),    # Channel.exchange_delete_ok
                         ])
@@ -863,7 +877,7 @@ class Channel(object):
         args.write_shortstr(routing_key)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self.send_method_frame((50, 20), args)
+        self._send_method_frame((50, 20), args)
         return self.wait(allowed_methods=[
                           (50, 21),    # Channel.queue_bind_ok
                         ])
@@ -898,7 +912,7 @@ class Channel(object):
         args.write_bit(auto_delete)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self.send_method_frame((50, 10), args)
+        self._send_method_frame((50, 10), args)
         return self.wait(allowed_methods=[
                           (50, 11),    # Channel.queue_declare_ok
                         ])
@@ -930,7 +944,7 @@ class Channel(object):
         args.write_bit(if_unused)
         args.write_bit(if_empty)
         args.write_bit(nowait)
-        self.send_method_frame((50, 40), args)
+        self._send_method_frame((50, 40), args)
         return self.wait(allowed_methods=[
                           (50, 41),    # Channel.queue_delete_ok
                         ])
@@ -957,7 +971,7 @@ class Channel(object):
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
-        self.send_method_frame((50, 30), args)
+        self._send_method_frame((50, 30), args)
         return self.wait(allowed_methods=[
                           (50, 31),    # Channel.queue_purge_ok
                         ])
@@ -1038,7 +1052,7 @@ class Channel(object):
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(multiple)
-        self.send_method_frame((60, 80), args)
+        self._send_method_frame((60, 80), args)
 
 
     def basic_cancel(self, consumer_tag, nowait=False):
@@ -1059,7 +1073,7 @@ class Channel(object):
         args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
-        self.send_method_frame((60, 30), args)
+        self._send_method_frame((60, 30), args)
         return self.wait(allowed_methods=[
                           (60, 31),    # Channel.basic_cancel_ok
                         ])
@@ -1096,10 +1110,16 @@ class Channel(object):
         args.write_bit(no_ack)
         args.write_bit(exclusive)
         args.write_bit(nowait)
-        self.send_method_frame((60, 20), args)
-        return self.wait(allowed_methods=[
-                          (60, 21),    # Channel.basic_consume_ok
-                        ])
+        self._send_method_frame((60, 20), args)
+
+        if not nowait:
+            consumer_tag = self.wait(allowed_methods=[
+                              (60, 21),    # Channel.basic_consume_ok
+                            ])
+
+        self.callbacks[consumer_tag] = callback
+
+        return consumer_tag
 
 
     def _basic_consume_ok(self, args):
@@ -1159,7 +1179,7 @@ class Channel(object):
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
-        self.send_method_frame((60, 70), args)
+        self._send_method_frame((60, 70), args)
         return self.wait(allowed_methods=[
                           (60, 71),    # Channel.basic_get_ok
                           (60, 72),    # Channel.basic_get_empty
@@ -1213,10 +1233,10 @@ class Channel(object):
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
         args.write_bit(immediate)
-        self.send_method_frame((60, 40), args)
+        self._send_method_frame((60, 40), args)
 
         packed_properties, body = msg.serialize()
-        self.connection.send_content(self.channel_id, 60, 0, len(body), packed_properties, body)
+        self.connection._send_content(self.channel_id, 60, 0, len(body), packed_properties, body)
 
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
@@ -1233,7 +1253,7 @@ class Channel(object):
         args.write_long(prefetch_size)
         args.write_short(prefetch_count)
         args.write_bit(a_global)
-        self.send_method_frame((60, 10), args)
+        self._send_method_frame((60, 10), args)
         return self.wait(allowed_methods=[
                           (60, 11),    # Channel.basic_qos_ok
                         ])
@@ -1265,7 +1285,7 @@ class Channel(object):
         """
         args = AMQPWriter()
         args.write_bit(requeue)
-        self.send_method_frame((60, 100), args)
+        self._send_method_frame((60, 100), args)
 
 
     def basic_reject(self, delivery_tag, requeue):
@@ -1298,7 +1318,7 @@ class Channel(object):
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(requeue)
-        self.send_method_frame((60, 90), args)
+        self._send_method_frame((60, 90), args)
 
 
     def _basic_return(self, args):
@@ -1342,7 +1362,7 @@ class Channel(object):
         after a commit.
 
         """
-        self.send_method_frame((90, 20))
+        self._send_method_frame((90, 20))
         return self.wait(allowed_methods=[
                           (90, 21),    # Channel.tx_commit_ok
                         ])
@@ -1364,7 +1384,7 @@ class Channel(object):
         after a rollback.
 
         """
-        self.send_method_frame((90, 30))
+        self._send_method_frame((90, 30))
         return self.wait(allowed_methods=[
                           (90, 31),    # Channel.tx_rollback_ok
                         ])
@@ -1386,7 +1406,7 @@ class Channel(object):
         using the Commit or Rollback methods.
 
         """
-        self.send_method_frame((90, 10))
+        self._send_method_frame((90, 10))
         return self.wait(allowed_methods=[
                           (90, 11),    # Channel.tx_select_ok
                         ])
@@ -1509,6 +1529,10 @@ BASIC_CONTENT_PROPERTIES = ContentProperties([
 
 
 class BasicContent(object):
+    """
+    A Message for use with the Channnel.basic_* methods.
+
+    """
     def __init__(self, body=None, children=None, **properties):
         """
         Possible properties for a Basic Content object are:

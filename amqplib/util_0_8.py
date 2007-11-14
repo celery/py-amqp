@@ -32,11 +32,7 @@ except:
     from StringIO import StringIO
 
 
-AMQP_PORT = 5672
-AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
-
-
-def hexdump(s):
+def _hexdump(s):
     while s:
         x, s = s[:16], s[16:]
         for ch in x:
