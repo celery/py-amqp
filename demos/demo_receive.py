@@ -2,7 +2,7 @@
 """
 Test AMQP library.
 
-It repeatedly receives messages from the test_send.py
+It repeatedly receives messages from the demo_send.py
 script, until it receives a message with 'quit' as the body.
 
 2007-11-11 Barry Pederson <bp@barryp.org>
