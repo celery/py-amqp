@@ -21,7 +21,7 @@ def callback(channel, msg):
     # Cancel this callback
     #
     if msg.body == 'quit':
-        channel.basic_cancel(consumer_tag)
+        channel.basic_cancel(msg.consumer_tag)
 
 
 def main():
