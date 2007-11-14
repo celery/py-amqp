@@ -20,11 +20,10 @@ AMQP Helper Library
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-from calendar import timegm
 from datetime import datetime
 from decimal import Decimal
 from struct import pack, unpack
-from time import gmtime
+from time import mktime
 
 try:
     from cStringIO import StringIO
@@ -126,8 +125,7 @@ class AMQPReader(object):
         return result
 
     def read_timestamp(self):
-        val = gmtime(self.read_longlong())[:6]
-        return datetime(*val)
+        return datetime.fromtimestamp(self.read_longlong())
 
 
 class AMQPWriter(object):
@@ -234,7 +232,7 @@ class AMQPWriter(object):
         self.out.write(table_data)
 
     def write_timestamp(self, v):
-        self.out.write(pack('>q', long(timegm(v.timetuple()))))
+        self.out.write(pack('>q', long(mktime(v.timetuple()))))
 
 
 class ContentProperties(object):
