@@ -8,7 +8,7 @@ script, until it receives a message with 'quit' as the body.
 2007-11-11 Barry Pederson <bp@barryp.org>
 
 """
-import amqp.client_0_8 as amqp
+import amqplib.client_0_8 as amqp
 
 
 def callback(channel, msg):

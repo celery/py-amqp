@@ -11,7 +11,7 @@ body.  If no arguments, just send 'Hello from Python'
 """
 import sys
 import time
-import amqp.client_0_8 as amqp
+import amqplib.client_0_8 as amqp
 
 def main():
     if len(sys.argv) > 1:
