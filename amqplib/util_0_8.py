@@ -119,12 +119,15 @@ class AMQPReader(object):
                 n = unpack('>i', table_data.input.read(4))[0]
                 val = Decimal(n) / Decimal(10 ** d)
             elif ftype == 'T':
-                val = gmtime(table_data.read_longlong())[:6]
-                val = datetime(*val)
+                val = table_data.read_timestamp()
             elif ftype == 'F':
                 val = table_data.read_table() # recurse
             result[name] = val
         return result
+
+    def read_timestamp(self):
+        val = gmtime(self.read_longlong())[:6]
+        return datetime(*val)
 
 
 class AMQPWriter(object):
@@ -221,7 +224,7 @@ class AMQPWriter(object):
                 table_data.write(pack('>i', v))
             elif isinstance(v, datetime):
                 table_data.write('T')
-                table_data.write(pack('>q', long(timegm(v.timetuple()))))
+                table_data.write_timestamp(v)
                 ## FIXME: timezone ?
             elif isinstance(v, dict):
                 table_data.write('F')
@@ -229,6 +232,9 @@ class AMQPWriter(object):
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
+
+    def write_timestamp(self, v):
+        self.out.write(pack('>q', long(timegm(v.timetuple()))))
 
 
 class ContentProperties(object):

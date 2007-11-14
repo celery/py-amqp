@@ -326,13 +326,13 @@ class TestContentProperties(unittest.TestCase):
         self.check_proplist({
             'content_type': 'text/plain',
             'content_encoding': 'utf-8',
-            'headers': {'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
+            'application_headers': {'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
             'delivery_mode': 1,
             'priority': 7,
             })
 
         self.check_proplist({
-            'headers': {
+            'application_headers': {
                 'regular': datetime(2007, 11, 12, 12, 34, 56),
                 'dst': datetime(2007, 7, 12, 12, 34, 56),
                 },
@@ -341,15 +341,19 @@ class TestContentProperties(unittest.TestCase):
         n = datetime.now()
         n = n.replace(microsecond=0) # AMQP only does timestamps to 1-second resolution
         self.check_proplist({
-            'headers': {'foo': n},
+            'application_headers': {'foo': n},
             })
 
         self.check_proplist({
-            'headers': {'foo': Decimal('10.1')},
+            'application_headers': {'foo': Decimal('10.1')},
             })
 
         self.check_proplist({
-            'headers': {'foo': Decimal('-1987654.193')},
+            'application_headers': {'foo': Decimal('-1987654.193')},
+            })
+
+        self.check_proplist({
+            'timestamp': datetime(1980, 1, 2, 3, 4, 6),
             })
 
     def test_empty_proplist(self):
