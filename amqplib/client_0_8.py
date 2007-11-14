@@ -67,6 +67,26 @@ class AMQPChannelException(AMQPException):
     pass
 
 
+class _SSLWrap(object):
+    """
+    Helper class just to give a do-nothing
+    'flush' method to SSLObjects
+    """
+    def __init__(self, sock):
+        self.sock = sock
+        self.sslobj = socket.ssl(sock)
+        self.write = self.sslobj.write
+        self.read = self.sslobj.read
+
+    def close(self):
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+
+    def flush(self):
+        pass
+
+
 class Connection(object):
     """
     The connection class provides methods for a client to establish a
@@ -87,7 +107,10 @@ class Connection(object):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    def __init__(self, host, userid=None, password=None, login_method='AMQPLAIN', login_response=None, virtual_host='/', locale='en_US', client_properties={}):
+    def __init__(self, host, userid=None, password=None,
+        login_method='AMQPLAIN', login_response=None,
+        virtual_host='/', locale='en_US', client_properties={},
+        ssl=False):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -109,8 +132,12 @@ class Connection(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))
 
-        self.input = AMQPReader(sock.makefile('r'))
-        self.out = sock.makefile('w')
+        if ssl:
+            self.out = _SSLWrap(sock)
+            self.input = AMQPReader(self.out)
+        else:
+            self.out = sock.makefile('w')
+            self.input = AMQPReader(sock.makefile('r'))
 
         self.out.write(AMQP_PROTOCOL_HEADER)
         self.out.flush()
