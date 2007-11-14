@@ -1,0 +1,10 @@
+Python AMQP (Advanced Message Queuing Protocol) Client library
+
+For more information about AMQP, visit
+
+    http://www.amqp.org
+
+Another Python client library is available at
+
+    http://cwiki.apache.org/qpid/
+    http://cwiki.apache.org/qpid/pythonbrokertest.html
