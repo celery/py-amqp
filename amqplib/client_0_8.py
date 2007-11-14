@@ -35,6 +35,7 @@ __all__ =  [
 
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
+# Yes, Advanced Message Queuing Protocol Protocol is redundant
 
 #
 # Client property info that gets sent to the server on connection startup
@@ -110,7 +111,7 @@ class Connection(object):
     def __init__(self, host, userid=None, password=None,
         login_method='AMQPLAIN', login_response=None,
         virtual_host='/', locale='en_US', client_properties={},
-        ssl=False):
+        ssl=False, **kwargs):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'

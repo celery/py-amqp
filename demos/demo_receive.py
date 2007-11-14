@@ -2,12 +2,14 @@
 """
 Test AMQP library.
 
-It repeatedly receives messages from the demo_send.py
+Repeatedly receive messages from the demo_send.py
 script, until it receives a message with 'quit' as the body.
 
 2007-11-11 Barry Pederson <bp@barryp.org>
 
 """
+from optparse import OptionParser
+
 import amqplib.client_0_8 as amqp
 
 
@@ -23,7 +25,24 @@ def callback(channel, msg):
 
 
 def main():
-    conn = amqp.Connection('10.66.0.8', userid='guest', password='guest')
+    parser = OptionParser()
+    parser.add_option('--host', dest='host',
+                        help='AMQP server to connect to (default: %default)',
+                        default='localhost')
+    parser.add_option('-u', '--userid', dest='userid',
+                        help='userid to authenticate as (default: %default)',
+                        default='guest')
+    parser.add_option('-p', '--password', dest='password',
+                        help='password to authenticate with (default: %default)',
+                        default='guest')
+    parser.add_option('--ssl', dest='ssl', action='store_true',
+                        help='Enable SSL (default: not enabled)',
+                        default=False)
+
+    options, args = parser.parse_args()
+
+    conn = amqp.Connection(options.host, userid=options.userid, password=options.password, ssl=options.ssl)
+
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True, read=True)
 
