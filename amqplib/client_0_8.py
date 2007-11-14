@@ -22,7 +22,7 @@ AMQP 0-8 Client Library
 import socket
 from Queue import Queue
 from struct import unpack
-from util_0_8 import _AMQPReader, _AMQPWriter, ContentProperties
+from util_0_8 import AMQPReader, AMQPWriter, ContentProperties
 
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
@@ -100,7 +100,7 @@ class Connection(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))
 
-        self.input = _AMQPReader(sock.makefile('r'))
+        self.input = AMQPReader(sock.makefile('r'))
         self.out = sock.makefile('w')
 
         self.out.write(AMQP_PROTOCOL_HEADER)
@@ -111,7 +111,7 @@ class Connection(object):
                 ])
 
         if (userid is not None) and (password is not None):
-            login_response = _AMQPWriter()
+            login_response = AMQPWriter()
             login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
             login_response = login_response.getvalue()[4:]    #Skip the length at the beginning
 
@@ -164,7 +164,7 @@ class Connection(object):
 
 
     def send_content(self, channel, class_id, weight, body_size, packed_properties, body):
-        pkt = _AMQPWriter()
+        pkt = AMQPWriter()
 
         pkt.write_octet(2)
         pkt.write_short(channel)
@@ -182,7 +182,7 @@ class Connection(object):
 
         while body:
             payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
-            pkt = _AMQPWriter()
+            pkt = AMQPWriter()
 
             pkt.write_octet(3)
             pkt.write_short(channel)
@@ -197,10 +197,10 @@ class Connection(object):
 
 
     def send_method_frame(self, channel, method_sig, args=''):
-        if isinstance(args, _AMQPWriter):
+        if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        pkt = _AMQPWriter()
+        pkt = AMQPWriter()
 
         pkt.write_octet(1)
         pkt.write_short(channel)
@@ -274,7 +274,7 @@ class Connection(object):
         if allowed_methods and (method_sig not in allowed_methods):
             raise Exception('Received unexpected method: %s, was expecting one of: %s' % (method_sig, allowed_methods))
 
-        args = _AMQPReader(payload[4:])
+        args = AMQPReader(payload[4:])
 
         amqp_class, amqp_method = _METHOD_MAP.get(method_sig, (None, None))
 
@@ -297,7 +297,7 @@ class Connection(object):
         method id of the method which caused the exception.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
@@ -355,7 +355,7 @@ class Connection(object):
         domains within a server.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(virtual_host)
         args.write_shortstr(capabilities)
         args.write_bit(insist)
@@ -403,7 +403,7 @@ class Connection(object):
         for the security mechanism at the server side.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longstr(response)
         self.send_method_frame(0, (10, 21), args)
 
@@ -432,7 +432,7 @@ class Connection(object):
         (RFC2222) to negotiate authentication and encryption.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_table(client_properties)
         args.write_shortstr(mechanism)
         args.write_longstr(response)
@@ -460,7 +460,7 @@ class Connection(object):
         information.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(channel_max)
         args.write_long(frame_max)
         args.write_short(heartbeat)
@@ -577,7 +577,7 @@ class Channel(object):
         method id of the method which caused the exception.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
@@ -639,7 +639,7 @@ class Channel(object):
         any, and then wait until it receives a Flow restart method.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_bit(active)
         self.send_method_frame((20, 20), args)
         return self.wait(allowed_methods=[
@@ -668,7 +668,7 @@ class Channel(object):
         Confirms to the peer that a flow command was received and processed.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_bit(active)
         self.send_method_frame((20, 21), args)
 
@@ -689,7 +689,7 @@ class Channel(object):
         if self.is_open:
             return
 
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(out_of_band)
         self.send_method_frame((20, 10), args)
         return self.wait(allowed_methods=[
@@ -735,7 +735,7 @@ class Channel(object):
         default ticket for any method that requires a ticket.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(realm)
         args.write_bit(exclusive)
         args.write_bit(passive)
@@ -780,7 +780,7 @@ class Channel(object):
         exchange exists, verifies that it is of the correct and expected class.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
@@ -811,7 +811,7 @@ class Channel(object):
         bindings on the exchange are cancelled.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
@@ -856,7 +856,7 @@ class Channel(object):
         and subscription queues are bound to a dest_wild exchange.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
@@ -889,7 +889,7 @@ class Channel(object):
             consumer count
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(passive)
@@ -924,7 +924,7 @@ class Channel(object):
         server configuration, and all consumers on the queue are cancelled.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(if_unused)
@@ -953,7 +953,7 @@ class Channel(object):
         if nowait is False, returns a message_count
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
@@ -1035,7 +1035,7 @@ class Channel(object):
         message.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(multiple)
         self.send_method_frame((60, 80), args)
@@ -1056,7 +1056,7 @@ class Channel(object):
             has no effect.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame((60, 30), args)
@@ -1088,7 +1088,7 @@ class Channel(object):
             except as defined by available resources.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
@@ -1155,7 +1155,7 @@ class Channel(object):
 
         Non-blocking, returns a message object, or None.
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
@@ -1207,7 +1207,7 @@ class Channel(object):
         is committed.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1229,7 +1229,7 @@ class Channel(object):
         only for the server.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_long(prefetch_size)
         args.write_short(prefetch_count)
         args.write_bit(a_global)
@@ -1263,7 +1263,7 @@ class Channel(object):
             The server MUST raise a channel exception if this is called on a transacted channel.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_bit(requeue)
         self.send_method_frame((60, 100), args)
 
@@ -1295,7 +1295,7 @@ class Channel(object):
             not necessarily passed to another client.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(requeue)
         self.send_method_frame((60, 90), args)
@@ -1373,7 +1373,7 @@ class Channel(object):
         a set of messages up to and including a specific message.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(multiple)
         self.send_method_frame((70, 90), args)
@@ -1386,7 +1386,7 @@ class Channel(object):
         more messages for that consumer.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame((70, 30), args)
@@ -1417,7 +1417,7 @@ class Channel(object):
             except as defined by available resources.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
@@ -1476,7 +1476,7 @@ class Channel(object):
         the sender starts to stage it, it can restart from where it left off.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(identifier)
         args.write_longlong(content_size)
         self.send_method_frame((70, 40), args)
@@ -1507,7 +1507,7 @@ class Channel(object):
 
         returns staged_size
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(staged_size)
         self.send_method_frame((70, 41), args)
         return self.wait(allowed_methods=[
@@ -1533,7 +1533,7 @@ class Channel(object):
         transaction, if any, is committed.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1553,7 +1553,7 @@ class Channel(object):
         only for the server.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_long(prefetch_size)
         args.write_short(prefetch_count)
         args.write_bit(a_global)
@@ -1592,7 +1592,7 @@ class Channel(object):
             not necessarily passed to another client.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(requeue)
         self.send_method_frame((70, 100), args)
@@ -1679,7 +1679,7 @@ class Channel(object):
         discard these as appropriate.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
         self.send_method_frame((80, 30), args)
@@ -1717,7 +1717,7 @@ class Channel(object):
             priority-based selective delivery of individual messages.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
@@ -1761,7 +1761,7 @@ class Channel(object):
         and distributed to any active consumers as appropriate.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1780,7 +1780,7 @@ class Channel(object):
         only for the server.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_long(prefetch_size)
         args.write_short(prefetch_count)
         args.write_long(consume_rate)
@@ -1949,7 +1949,7 @@ class Channel(object):
         messages.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(dtx_identifier)
         self.send_method_frame((100, 20), args)
         return self.wait(allowed_methods=[
@@ -2016,7 +2016,7 @@ class Channel(object):
         content checksum and echoes the original content as provided.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_long(content_checksum)
         self.send_method_frame((120, 41), args)
 
@@ -2040,7 +2040,7 @@ class Channel(object):
         data.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_octet(integer_1)
         args.write_short(integer_2)
         args.write_long(integer_3)
@@ -2070,7 +2070,7 @@ class Channel(object):
         This method reports the result of an Integer method.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(result)
         self.send_method_frame((120, 11), args)
 
@@ -2089,7 +2089,7 @@ class Channel(object):
         data.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_shortstr(string_1)
         args.write_longstr(string_2)
         args.write_octet(operation)
@@ -2115,7 +2115,7 @@ class Channel(object):
         This method reports the result of a String method.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longstr(result)
         self.send_method_frame((120, 21), args)
 
@@ -2134,7 +2134,7 @@ class Channel(object):
         table data.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_table(table)
         args.write_octet(integer_op)
         args.write_octet(string_op)
@@ -2160,7 +2160,7 @@ class Channel(object):
         This method reports the result of a Table method.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_longlong(integer_result)
         args.write_longstr(string_result)
         self.send_method_frame((120, 31), args)
@@ -2196,7 +2196,7 @@ class Tunnel(object):
         as the content for the Tunnel.Request method.
 
         """
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_table(meta_data)
         self.send_method_frame((110, 10), args)
 
@@ -2404,7 +2404,7 @@ class BasicContent(object):
 
 
     def serialize(self):
-        args = _AMQPWriter()
+        args = AMQPWriter()
         args.write_short(0)
         packed_properties = BASIC_CONTENT_PROPERTIES.serialize(self.properties)
         return packed_properties, self.body

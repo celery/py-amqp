@@ -117,7 +117,7 @@ def generate_methods(class_element, out):
                 out.write(s)
 
             if fields:
-                out.write('        args = _AMQPWriter()\n')
+                out.write('        args = AMQPWriter()\n')
                 smf_arg = ', args'
             else:
                 smf_arg = ''

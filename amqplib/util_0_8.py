@@ -44,7 +44,7 @@ def hexdump(s):
         print ''
 
 
-class _AMQPReader(object):
+class AMQPReader(object):
     """
     Parse data from AMQP
 
@@ -60,7 +60,7 @@ class _AMQPReader(object):
         elif hasattr(source, 'read'):
             self.input = source
         else:
-            raise ValueError('_AMQPReader needs a file-like object or plain string')
+            raise ValueError('AMQPReader needs a file-like object or plain string')
 
         self.bitcount = self.bits = 0
 
@@ -109,7 +109,7 @@ class _AMQPReader(object):
     def read_table(self):
         self.bitcount = self.bits = 0
         len = unpack('>I', self.input.read(4))[0]
-        table_data = _AMQPReader(self.input.read(len))
+        table_data = AMQPReader(self.input.read(len))
         result = {}
         while table_data.input.tell() < len:
             name = table_data.read_shortstr()
@@ -131,7 +131,7 @@ class _AMQPReader(object):
         return result
 
 
-class _AMQPWriter(object):
+class AMQPWriter(object):
     def __init__(self):
         self.out = StringIO()
         self.bits = []
@@ -202,7 +202,7 @@ class _AMQPWriter(object):
 
     def write_table(self, d):
         self._flushbits()
-        table_data = _AMQPWriter()
+        table_data = AMQPWriter()
         for k, v in d.items():
             table_data.write_shortstr(k)
             if isinstance(v, basestring):
@@ -255,7 +255,7 @@ class ContentProperties(object):
         from a content-frame-header, parse and return as a dictionary.
 
         """
-        r = _AMQPReader(raw_bytes)
+        r = AMQPReader(raw_bytes)
 
         #
         # Read 16-bit shorts until we get one with a low bit set to zero
@@ -292,7 +292,7 @@ class ContentProperties(object):
         shift = 15
         flag_bits = 0
         flags = []
-        raw_bytes = _AMQPWriter()
+        raw_bytes = AMQPWriter()
         for key, proptype in self.properties:
             if key in d:
                 if shift == 0:
@@ -307,7 +307,7 @@ class ContentProperties(object):
             shift -= 1
 
         flags.append(flag_bits)
-        result = _AMQPWriter()
+        result = AMQPWriter()
         for flag_bits in flags:
             result.write_short(flag_bits)
         result.write(raw_bytes.getvalue())
