@@ -27,7 +27,7 @@ from util_0_8 import AMQPReader, AMQPWriter, ContentProperties
 __all__ =  [
             'Connection',
             'Channel',      # here mainly so it shows in in pydoc
-            'BasicContent',
+            'Message',
             'AMQPException',
             'AMQPConnectionException',
             'AMQPChannelException',
@@ -557,7 +557,7 @@ class Channel(object):
                     body_parts.append(payload)
                     body_received += len(payload)
 
-            return BasicContent(''.join(body_parts), **content_properties)
+            return Message(''.join(body_parts), **content_properties)
 
 
     def _send_method_frame(self, method_sig, args=''):
@@ -1525,7 +1525,7 @@ _METHOD_NAME_MAP = {
 BASIC_CONTENT_PROPERTIES = ContentProperties([
         ('content_type', 'shortstr'),
         ('content_encoding', 'shortstr'),
-        ('headers', 'table'),
+        ('application_headers', 'table'),
         ('delivery_mode', 'octet'),
         ('priority', 'octet'),
         ('correlation_id', 'shortstr'),
@@ -1540,7 +1540,7 @@ BASIC_CONTENT_PROPERTIES = ContentProperties([
         ])
 
 
-class BasicContent(object):
+class Message(object):
     """
     A Message for use with the Channnel.basic_* methods.
 
@@ -1551,7 +1551,7 @@ class BasicContent(object):
 
             content_type: string
             content_encoding: string
-            headers: dict with string keys, and string/int/Decimal/datetime/dict values
+            application_headers: dict with string keys, and string/int/Decimal/datetime/dict values
             delivery_mode: Non-persistent=1 or persistent=2
             priority: 0..9
             correlation_id: string
@@ -1564,17 +1564,17 @@ class BasicContent(object):
             app_id: string
             cluster_id: string
 
-        Unicode bodies are converted to utf-8 and the 'content_encoding'
-        property is automatically set to 'utf-8'
+        Unicode bodies are converted to UTF-8 and the 'content_encoding'
+        property is automatically set to 'UTF-8'
 
         example:
 
-            msg = BasicContent('hello world', content_type='text/plain', headers={'foo': 7})
+            msg = Message('hello world', content_type='text/plain', application_headers={'foo': 7})
 
         """
         if isinstance(body, unicode):
-            body = body.encode('utf-8')
-            properties['content_encoding'] = 'utf-8'
+            body = body.encode('UTF-8')
+            properties['content_encoding'] = 'UTF-8'
 
         self.properties = properties
         self.body = body
