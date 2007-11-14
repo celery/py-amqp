@@ -22,7 +22,7 @@ AMQP 0-8 Client Library
 import socket
 from Queue import Queue
 from struct import unpack
-from util import _AMQPReader, _AMQPWriter, ContentProperties
+from util_0_8 import _AMQPReader, _AMQPWriter, ContentProperties
 
 AMQP_PORT = 5672
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'

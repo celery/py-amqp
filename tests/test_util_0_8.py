@@ -4,7 +4,7 @@ from decimal import Decimal
 from random import randint
 import unittest
 
-from amqplib.util import _AMQPReader, _AMQPWriter
+from amqplib.util_0_8 import _AMQPReader, _AMQPWriter
 from amqplib.client_0_8 import BASIC_CONTENT_PROPERTIES
 
 class TestAMQPSerialization(unittest.TestCase):
