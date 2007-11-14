@@ -805,9 +805,11 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method_frame((40, 10), args)
-        return self.wait(allowed_methods=[
-                          (40, 11),    # Channel.exchange_declare_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (40, 11),    # Channel.exchange_declare_ok
+                            ])
 
 
     def _exchange_declare_ok(self, args):
@@ -831,9 +833,11 @@ class Channel(object):
         args.write_bit(if_unused)
         args.write_bit(nowait)
         self._send_method_frame((40, 20), args)
-        return self.wait(allowed_methods=[
-                          (40, 21),    # Channel.exchange_delete_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (40, 21),    # Channel.exchange_delete_ok
+                            ])
 
 
     def _exchange_delete_ok(self, args):
@@ -878,9 +882,11 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method_frame((50, 20), args)
-        return self.wait(allowed_methods=[
-                          (50, 21),    # Channel.queue_bind_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (50, 21),    # Channel.queue_bind_ok
+                            ])
 
 
     def _queue_bind_ok(self, args):
@@ -913,9 +919,11 @@ class Channel(object):
         args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method_frame((50, 10), args)
-        return self.wait(allowed_methods=[
-                          (50, 11),    # Channel.queue_declare_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (50, 11),    # Channel.queue_declare_ok
+                            ])
 
 
     def _queue_declare_ok(self, args):
@@ -945,9 +953,11 @@ class Channel(object):
         args.write_bit(if_empty)
         args.write_bit(nowait)
         self._send_method_frame((50, 40), args)
-        return self.wait(allowed_methods=[
-                          (50, 41),    # Channel.queue_delete_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (50, 41),    # Channel.queue_delete_ok
+                            ])
 
 
     def _queue_delete_ok(self, args):
@@ -972,9 +982,11 @@ class Channel(object):
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self._send_method_frame((50, 30), args)
-        return self.wait(allowed_methods=[
-                          (50, 31),    # Channel.queue_purge_ok
-                        ])
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                              (50, 31),    # Channel.queue_purge_ok
+                            ])
 
 
     def _queue_purge_ok(self, args):
