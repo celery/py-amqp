@@ -1,0 +1,91 @@
+Notes on using Python amqplib
+
+For more detailed descriptions of AMQP concepts, visit
+
+    https://jira.amqp.org/confluence/display/AMQP/Download
+
+This doc just covers some example usages.
+
+
+Importing the client
+--------------------
+This library currently supports the AMQP 0-8 spec, importing a module
+geared towards that spec can be done with something like:
+
+    import amqplib.client_0_8 as amqp
+
+
+Connections
+----------
+A connection object represents a network connection to the server.
+Some examples for creating a Connection object:
+
+    conn = amqp.Connection()
+    conn = amqp.Connection('1.2.3.4')
+    conn = amqp.Connection(host='1.2.3.4:5672', ssl=True)
+    conn = amqp.Connection(userid='foo', password='bar')
+
+Connections are closed with the close() method
+
+    conn.close()
+
+
+Channels
+----------
+Once a Connection is open, one or more Channel objects may be
+opened, acting as virtual connections between peers.  Channels are
+where most of the action is.
+
+    ch = conn.channel(1)  # create and open channel with a specific numeric id
+
+    ch2 = conn.channel()   # let amqplib assign a channel number
+    print 'my channel is', ch2.channel_id
+
+    ch3 = conn.channel(1) # since channel 1 is already created an open, just
+                          # return another reference to that.
+
+Channels have a close() method too, which doesn't affect other channels
+
+    ch2.close()
+
+
+Access Tickets
+--------------
+Before a channel can do much else, it needs an access ticket, specifying
+a 'realm', and the actions it wants to perform on that realm.
+
+    tkt = ch.access_request('/data', active=True, write=True, read=True)
+    ch.exchange_declare('myfan', 'fanout', auto_delete=True, ticket=tkt)
+
+The most recently requested ticket is saved in the Channel object, and
+used as a default value for other methods that require tickets.  So it's
+not necessary to manually keep and pass it around.  A simpler version of the
+above code is:
+
+    ch.access_request('/data', active=True, write=True, read=True)
+    ch.exchange_declare('myfan', 'fanout', auto_delete=True)
+
+
+Messages
+---------
+This library only supports the Basic Content type, although the class was
+named 'Message' based on what's coming in the 0-10 spec.
+
+A Message can be created as simply as
+
+    msg = Message('hello world')
+
+Unicode bodies are converted to UTF-8 and the 'content_encoding' property
+is automatically set to 'UTF-8', so these two Messages are equivalent
+
+    msg1 = Message(u'Unicode hello')
+    msg2 = Message(u'Unicode hello'.encode('utf-8), content_encoding-'UTF-8')
+
+Messages may have a 'application_headers' dictionary (another 0-10ism, 0-8
+just calls the property 'headers'), consisting of string keys and values that
+are strings, integers, Decimal (a bit shaky), datetime.datetime, and other
+dictionaries containing the same types.
+
+    msg = Message('fancy', application_headers={'foo': 7, 'bar': 'baz'})
+
+Messages received from AMQP are of the same class.
