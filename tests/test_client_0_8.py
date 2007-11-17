@@ -5,7 +5,7 @@ from optparse import OptionParser
 
 connect_args = {}
 
-from amqplib.client_0_8 import Connection
+from amqplib.client_0_8 import Connection, Message
 
 class TestConnection(unittest.TestCase):
     def setUp(self):
@@ -30,13 +30,41 @@ class TestChannel(unittest.TestCase):
         self.conn = Connection(**connect_args)
         self.ch = self.conn.channel()
 
+
     def tearDown(self):
         self.ch.close()
         self.conn.close()
 
-    def test_ticket(self):
+
+    def test_publish(self):
         tkt = self.ch.access_request('/data', active=True, write=True)
         self.assertEqual(tkt, self.ch.default_ticket)
+
+        self.ch.exchange_declare('unittest.fanout', 'fanout', auto_delete=True)
+
+        msg = Message('unittest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'})
+
+        self.ch.basic_publish(msg, 'unittest.fanout')
+
+
+    def test_queue(self):
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        my_routing_key = 'unittest.test_queue'
+        msg = Message('unittest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'})
+
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.queue_bind(qname, 'amq.direct', routing_key=my_routing_key)
+
+        self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
+
+        msg2 = self.ch.basic_get(qname, no_ack=True)
+        self.assertEqual(msg.body, msg2.body)
+        self.assertEqual(msg.properties, msg2.properties)
 
 
 def main():

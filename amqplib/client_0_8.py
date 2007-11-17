@@ -289,7 +289,7 @@ class Connection(object):
         method_sig = unpack('>HH', payload[:4])
         if DEBUG:
             print '< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig])
-        if allowed_methods and (method_sig not in allowed_methods):
+        if allowed_methods and (method_sig not in allowed_methods) and (method_sig not in _CLOSE_METHODS):
             raise Exception('Received unexpected method: %s, was expecting one of: %s' % (method_sig, allowed_methods))
 
         args = AMQPReader(payload[4:])
@@ -1493,6 +1493,11 @@ _METHOD_MAP = {
     (90, 21): (Channel, Channel._tx_commit_ok),
     (90, 31): (Channel, Channel._tx_rollback_ok),
 }
+
+_CLOSE_METHODS = [
+    (10, 60), # Connection.close
+    (20, 40), # Channel.close
+    ]
 
 _METHOD_NAME_MAP = {
     (10, 10): 'Connection.start',
