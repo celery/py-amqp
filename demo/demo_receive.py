@@ -14,7 +14,13 @@ import amqplib.client_0_8 as amqp
 
 
 def callback(channel, msg):
-    print 'received:', msg.body, msg.application_headers
+    for propname, _ in msg.PROPERTIES:
+        val = getattr(msg, propname, None)
+        if val:
+            print '%s: %s' % (propname, str(val))
+    print ''
+    print msg.body
+    print '-------'
     channel.basic_ack(msg.delivery_tag)
 
     #
