@@ -576,7 +576,7 @@ class Channel(object):
         if frame_type == 2:
             class_id, weight, body_size = unpack('>HHQ', payload[:12])
             msg = Message()
-            msg._parse_properties(payload[12:])
+            msg._load_properties(payload[12:])
 
             body_parts = []
             body_received = 0
@@ -1198,16 +1198,17 @@ class Channel(object):
 
         msg = self.wait()
 
-        msg.consumer_tag = consumer_tag
-        msg.delivery_tag = delivery_tag
-        msg.redelivered = redelivered
-        msg.exchange = exchange
-        msg.routing_key = routing_key
-
-        msg.RECEIVED_PROPERTIES = BASIC_DELIVER_PROPERTIES
+        msg.received_properties = {
+            'channel': self,
+            'consumer_tag': consumer_tag,
+            'delivery_tag': delivery_tag,
+            'redelivered': redelivered,
+            'exchange': exchange,
+            'routing_key': routing_key,
+            }
 
         if consumer_tag in self.callbacks:
-            self.callbacks[consumer_tag](self, msg)
+            self.callbacks[consumer_tag](msg)
 
 
     def basic_get(self, queue, no_ack=False, ticket=None):
@@ -1254,13 +1255,13 @@ class Channel(object):
 
         msg = self.wait()
 
-        msg.delivery_tag = delivery_tag
-        msg.redelivered = redelivered
-        msg.exchange = exchange
-        msg.routing_key = routing_key
-        msg.message_count = message_count
-
-        msg.RECEIVED_PROPERTIES = BASIC_GET_PROPERTIES
+        msg.received_properties = {
+            'delivery_tag': delivery_tag,
+            'redelivered': redelivered,
+            'exchange': exchange,
+            'routing_key': routing_key,
+            'message_count': message_count
+            }
 
         return msg
 
@@ -1564,24 +1565,6 @@ _METHOD_NAME_MAP = {
 }
 
 
-BASIC_DELIVER_PROPERTIES = [
-        ('consumer_tag', 'shortstr'),
-        ('delivery_tag', 'longlong'),
-        ('redelivered', 'bit'),
-        ('exchange', 'shortstr'),
-        ('routing_key', 'shortstr'),
-]
-
-
-BASIC_GET_PROPERTIES = [
-        ('delivery_tag', 'longlong'),
-        ('redelivered', 'bit'),
-        ('exchange', 'shortstr'),
-        ('routing_key', 'shortstr'),
-        ('message_count','long'),
-]
-
-
 class Message(GenericContent):
     """
     A Message for use with the Channnel.basic_* methods.
@@ -1609,29 +1592,19 @@ class Message(GenericContent):
         ('cluster_id', 'shortstr')
         ]
 
-    def __init__(self, body=None, children=None,
-                    content_type=None,
-                    content_encoding=None,
-                    application_headers=None,
-                    delivery_mode=None,
-                    priority=None,
-                    correlation_id=None,
-                    reply_to=None,
-                    expiration=None,
-                    message_id=None,
-                    timestamp=None,
-                    type=None,
-                    user_id=None,
-                    app_id=None,
-                    cluster_id=None):
+    def __init__(self, body=None, children=None, **properties):
         """
         Expected arg types
 
             body: string
             children: (not supported)
+
+        Keyword properties may include:
+
             content_type: string
             content_encoding: string
-            application_headers: dict with string keys, and string/int/Decimal/datetime/dict values
+            application_headers: dict with string keys, and
+                string/int/Decimal/datetime/dict values
             delivery_mode: Non-persistent=1 or persistent=2
             priority: 0..9
             correlation_id: string
@@ -1644,35 +1617,24 @@ class Message(GenericContent):
             app_id: string
             cluster_id: string
 
-        Unicode bodies are encoded according to the 'content_encoding' argument.
-        If that's None, it's set to 'UTF-8' automatically.
+        Unicode bodies are encoded according to the 'content_encoding'
+        argument. If that's None, it's set to 'UTF-8' automatically.
 
         example:
 
-            msg = Message('hello world', content_type='text/plain', application_headers={'foo': 7})
+            msg = Message('hello world',
+                            content_type='text/plain',
+                            application_headers={'foo': 7})
 
         """
         if isinstance(body, unicode):
-            if content_encoding is None:
-                content_encoding = 'UTF-8'
-            self.body = body.encode(content_encoding)
+            if properties.get('content_encoding', None) is None:
+                properties['content_encoding'] = 'UTF-8'
+            self.body = body.encode(properties['content_encoding'])
         else:
             self.body = body
 
-        self.content_type = content_type
-        self.content_encoding = content_encoding
-        self.application_headers = application_headers
-        self.delivery_mode = delivery_mode
-        self.priority = priority
-        self.correlation_id = correlation_id
-        self.reply_to = reply_to
-        self.expiration = expiration
-        self.message_id = message_id
-        self.timestamp = timestamp
-        self.type = type
-        self.user_id = user_id
-        self.app_id = app_id
-        self.cluster_id = cluster_id
+        super(Message, self).__init__(**properties)
 
 
     def __eq__(self, other):
@@ -1682,4 +1644,4 @@ class Message(GenericContent):
         Received messages may contain other attributes, which aren't compared.
 
         """
-        return GenericContent.__eq__(self, other) and (self.body == other.body)
+        return super(Message, self).__eq__(other) and (self.body == other.body)

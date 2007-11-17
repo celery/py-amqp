@@ -309,7 +309,7 @@ class TestBasicContentProperties(unittest.TestCase):
         raw_properties = msg._serialize_properties()
 
         new_msg = Message()
-        new_msg._parse_properties(raw_properties)
+        new_msg._load_properties(raw_properties)
         new_msg.body = msg.body
 
         self.assertEqual(msg, new_msg)

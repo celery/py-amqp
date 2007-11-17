@@ -13,26 +13,22 @@ from optparse import OptionParser
 import amqplib.client_0_8 as amqp
 
 
-def callback(channel, msg):
-    for propname, _ in msg.PROPERTIES:
-        val = getattr(msg, propname, None)
-        if val:
-            print '%s: %s' % (propname, str(val))
-    for propname, _ in msg.RECEIVED_PROPERTIES:
-        val = getattr(msg, propname, None)
-        if val:
-            print '> %s: %s' % (propname, str(val))
-    
+def callback(msg):
+    for key, val in msg.properties.items():
+        print '%s: %s' % (key, str(val))
+    for key, val in msg.received_properties.items():
+        print '> %s: %s' % (key, str(val))
+
     print ''
     print msg.body
     print '-------'
-    channel.basic_ack(msg.delivery_tag)
+    msg.channel.basic_ack(msg.delivery_tag)
 
     #
     # Cancel this callback
     #
     if msg.body == 'quit':
-        channel.basic_cancel(msg.consumer_tag)
+        msg.channel.basic_cancel(msg.consumer_tag)
 
 
 def main():

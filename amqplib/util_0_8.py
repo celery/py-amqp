@@ -245,29 +245,56 @@ class GenericContent(object):
         ('dummy', 'shortstr'),
         ]
 
+    def __init__(self, **props):
+        d = {}
+        for propname, _ in self.PROPERTIES:
+            if propname in props:
+                d[propname] = props[propname]
+            # FIXME: should we ignore unknown properties?
+
+        self.properties = d
+
+
     def __eq__(self, other):
         """
-        Check if the known attributes of two messages are the same.
+        Check if this object has the same properties as another content
+        object.
 
-        Received messages may contain other attributes, which aren't compared.
+        If both objects have been received, also check their
+        received_properties.
 
         """
-        for attrname, _ in self.PROPERTIES:
-            if getattr(self, attrname) != getattr(other, attrname):
-                return False
+        if self.properties != other.properties:
+            return False
 
-        return self.body == other.body
+        if hasattr(self, 'received_properties') \
+        and hasattr(other, 'received_properties') \
+        and self.received_properties != other.received_properties:
+            return False
+
+        return True
+
+
+    def __getattr__(self, name):
+        if name in self.properties:
+            return self.properties[name]
+
+        if hasattr(self, 'received_properties') \
+        and name in self.received_properties:
+            return self.received_properties[name]
+
+        raise AttributeError(name)
 
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
 
-    def _parse_properties(self, raw_bytes):
+    def _load_properties(self, raw_bytes):
         """
         Given the raw bytes containing the property-flags and property-list
-        from a content-frame-header, parse and insert as attributes
-        into this object.
+        from a content-frame-header, parse and insert into a dictionary
+        stored in this object as an attribute named 'properties'.
 
         """
         r = AMQPReader(raw_bytes)
@@ -283,6 +310,7 @@ class GenericContent(object):
                 break
 
         shift = 0
+        d = {}
         for key, proptype in self.PROPERTIES:
             if shift == 0:
                 if not flags:
@@ -290,15 +318,17 @@ class GenericContent(object):
                 flag_bits, flags = flags[0], flags[1:]
                 shift = 15
             if flag_bits & (1 << shift):
-                setattr(self, key, getattr(r, 'read_' + proptype)())
+                d[key] = getattr(r, 'read_' + proptype)()
             shift -= 1
+
+        self.properties = d
 
 
     def _serialize_properties(self):
         """
-        serialize into the raw bytes making up a set
-        of property flags and a property list, suitable for putting
-        into a content frame header.
+        serialize the 'properties' attribute (a dictionary) into
+        the raw bytes making up a set of property flags and a
+        property list, suitable for putting into a content frame header.
 
         """
         shift = 15
@@ -306,7 +336,8 @@ class GenericContent(object):
         flags = []
         raw_bytes = AMQPWriter()
         for key, proptype in self.PROPERTIES:
-            if hasattr(self, key) and (getattr(self, key) is not None):
+            val = self.properties.get(key, None)
+            if val is not None:
                 if shift == 0:
                     flags.append(flag_bits)
                     flag_bits = 0
@@ -314,7 +345,7 @@ class GenericContent(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    getattr(raw_bytes, 'write_' + proptype)(getattr(self, key))
+                    getattr(raw_bytes, 'write_' + proptype)(val)
 
             shift -= 1
 
