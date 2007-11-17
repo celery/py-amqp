@@ -22,7 +22,7 @@ AMQP 0-8 Client Library
 import socket
 from Queue import Queue
 from struct import unpack
-from util_0_8 import AMQPReader, AMQPWriter, ContentProperties
+from util_0_8 import AMQPReader, AMQPWriter, GenericContent
 
 __all__ =  [
             'Connection',
@@ -576,7 +576,7 @@ class Channel(object):
         if frame_type == 2:
             class_id, weight, body_size = unpack('>HHQ', payload[:12])
             msg = Message()
-            BASIC_CONTENT_PROPERTIES.parse_into(payload[12:], msg)
+            msg._parse_properties(payload[12:])
 
             body_parts = []
             body_received = 0
@@ -1277,8 +1277,10 @@ class Channel(object):
         args.write_bit(immediate)
         self._send_method_frame((60, 40), args)
 
-        packed_properties, body = msg.serialize()
-        self.connection._send_content(self.channel_id, 60, 0, len(body), packed_properties, body)
+        self.connection._send_content(self.channel_id, 60, 0,
+            len(msg.body),
+            msg._serialize_properties(),
+            msg.body)
 
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
@@ -1558,7 +1560,7 @@ _METHOD_NAME_MAP = {
 }
 
 
-class Message(object):
+class Message(GenericContent):
     """
     A Message for use with the Channnel.basic_* methods.
 
@@ -1658,25 +1660,4 @@ class Message(object):
         Received messages may contain other attributes, which aren't compared.
 
         """
-        if not isinstance(other, Message):
-            return False
-
-        for attrname, _ in self.PROPERTIES:
-            if getattr(self, attrname) != getattr(other, attrname):
-                return False
-
-        return self.body == other.body
-
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-
-    def serialize(self):
-        args = AMQPWriter()
-        args.write_short(0)
-        packed_properties = BASIC_CONTENT_PROPERTIES.serialize_object(self)
-        return packed_properties, self.body
-
-
-BASIC_CONTENT_PROPERTIES = ContentProperties(Message.PROPERTIES)
+        return GenericContent.__eq__(self, other) and (self.body == other.body)

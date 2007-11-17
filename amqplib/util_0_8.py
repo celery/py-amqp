@@ -235,25 +235,39 @@ class AMQPWriter(object):
         self.out.write(pack('>q', long(mktime(v.timetuple()))))
 
 
-class ContentProperties(object):
+class GenericContent(object):
     """
-    Helper class for parsing and serializing content properties.
+    Abstract base class for AMQP content.  Subclasses should
+    override the PROPERTIES attribute.
 
     """
-    def __init__(self, properties):
+    PROPERTIES = [
+        ('dummy', 'shortstr'),
+        ]
+
+    def __eq__(self, other):
         """
-        Create a helper object based on a list of content properties.
-        The list should be of (property-name, property-type) tuples.
+        Check if the known attributes of two messages are the same.
+
+        Received messages may contain other attributes, which aren't compared.
 
         """
-        self.properties = properties
+        for attrname, _ in self.PROPERTIES:
+            if getattr(self, attrname) != getattr(other, attrname):
+                return False
+
+        return self.body == other.body
 
 
-    def parse_into(self, raw_bytes, dest_obj):
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+    def _parse_properties(self, raw_bytes):
         """
         Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert as attributes
-        into the supplied object.
+        into this object.
 
         """
         r = AMQPReader(raw_bytes)
@@ -269,21 +283,20 @@ class ContentProperties(object):
                 break
 
         shift = 0
-        for key, proptype in self.properties:
+        for key, proptype in self.PROPERTIES:
             if shift == 0:
                 if not flags:
                     break
                 flag_bits, flags = flags[0], flags[1:]
                 shift = 15
             if flag_bits & (1 << shift):
-                setattr(dest_obj, key, getattr(r, 'read_' + proptype)())
+                setattr(self, key, getattr(r, 'read_' + proptype)())
             shift -= 1
 
 
-    def serialize_object(self, obj):
+    def _serialize_properties(self):
         """
-        Given an object with attributes corresponding to content
-        properties, serialize into the raw bytes making up a set
+        serialize into the raw bytes making up a set
         of property flags and a property list, suitable for putting
         into a content frame header.
 
@@ -292,8 +305,8 @@ class ContentProperties(object):
         flag_bits = 0
         flags = []
         raw_bytes = AMQPWriter()
-        for key, proptype in self.properties:
-            if hasattr(obj, key) and (getattr(obj, key) is not None):
+        for key, proptype in self.PROPERTIES:
+            if hasattr(self, key) and (getattr(self, key) is not None):
                 if shift == 0:
                     flags.append(flag_bits)
                     flag_bits = 0
@@ -301,7 +314,7 @@ class ContentProperties(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    getattr(raw_bytes, 'write_' + proptype)(getattr(obj, key))
+                    getattr(raw_bytes, 'write_' + proptype)(getattr(self, key))
 
             shift -= 1
 

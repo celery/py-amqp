@@ -5,7 +5,7 @@ from random import randint
 import unittest
 
 from amqplib.util_0_8 import AMQPReader, AMQPWriter
-from amqplib.client_0_8 import BASIC_CONTENT_PROPERTIES, Message
+from amqplib.client_0_8 import Message
 
 class TestAMQPSerialization(unittest.TestCase):
     def test_empty_writer(self):
@@ -306,9 +306,11 @@ class TestBasicContentProperties(unittest.TestCase):
         Check roundtrip processing of a single object
 
         """
-        raw = BASIC_CONTENT_PROPERTIES.serialize_object(msg)
+        raw_properties = msg._serialize_properties()
+
         new_msg = Message()
-        BASIC_CONTENT_PROPERTIES.parse_into(raw, new_msg)
+        new_msg._parse_properties(raw_properties)
+        new_msg.body = msg.body
 
         self.assertEqual(msg, new_msg)
 
