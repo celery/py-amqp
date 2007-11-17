@@ -1204,6 +1204,8 @@ class Channel(object):
         msg.exchange = exchange
         msg.routing_key = routing_key
 
+        msg.RECEIVED_PROPERTIES = BASIC_DELIVER_PROPERTIES
+
         if consumer_tag in self.callbacks:
             self.callbacks[consumer_tag](self, msg)
 
@@ -1257,6 +1259,8 @@ class Channel(object):
         msg.exchange = exchange
         msg.routing_key = routing_key
         msg.message_count = message_count
+
+        msg.RECEIVED_PROPERTIES = BASIC_GET_PROPERTIES
 
         return msg
 
@@ -1558,6 +1562,24 @@ _METHOD_NAME_MAP = {
     (90, 30): 'Channel.tx_rollback',
     (90, 31): 'Channel.tx_rollback_ok',
 }
+
+
+BASIC_DELIVER_PROPERTIES = [
+        ('consumer_tag', 'shortstr'),
+        ('delivery_tag', 'longlong'),
+        ('redelivered', 'bit'),
+        ('exchange', 'shortstr'),
+        ('routing_key', 'shortstr'),
+]
+
+
+BASIC_GET_PROPERTIES = [
+        ('delivery_tag', 'longlong'),
+        ('redelivered', 'bit'),
+        ('exchange', 'shortstr'),
+        ('routing_key', 'shortstr'),
+        ('message_count','long'),
+]
 
 
 class Message(GenericContent):

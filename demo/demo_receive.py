@@ -18,6 +18,11 @@ def callback(channel, msg):
         val = getattr(msg, propname, None)
         if val:
             print '%s: %s' % (propname, str(val))
+    for propname, _ in msg.RECEIVED_PROPERTIES:
+        val = getattr(msg, propname, None)
+        if val:
+            print '> %s: %s' % (propname, str(val))
+    
     print ''
     print msg.body
     print '-------'
