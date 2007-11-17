@@ -63,8 +63,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        self.assertEqual(msg.body, msg2.body)
-        self.assertEqual(msg.properties, msg2.properties)
+        self.assertEqual(msg, msg2)
 
 
 def main():

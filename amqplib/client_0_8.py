@@ -575,7 +575,8 @@ class Channel(object):
             return self.connection._dispatch_method(self.channel_id, payload, allowed_methods)
         if frame_type == 2:
             class_id, weight, body_size = unpack('>HHQ', payload[:12])
-            content_properties = BASIC_CONTENT_PROPERTIES.parse(payload[12:])
+            msg = Message()
+            BASIC_CONTENT_PROPERTIES.parse_into(payload[12:], msg)
 
             body_parts = []
             body_received = 0
@@ -585,7 +586,8 @@ class Channel(object):
                     body_parts.append(payload)
                     body_received += len(payload)
 
-            return Message(''.join(body_parts), **content_properties)
+            msg.body = ''.join(body_parts)
+            return msg
 
 
     def _send_method_frame(self, method_sig, args=''):
@@ -1555,7 +1557,18 @@ _METHOD_NAME_MAP = {
     (90, 31): 'Channel.tx_rollback_ok',
 }
 
-BASIC_CONTENT_PROPERTIES = ContentProperties([
+
+class Message(object):
+    """
+    A Message for use with the Channnel.basic_* methods.
+
+    """
+    #
+    # Instances of this class have these attributes, which
+    # are passed back and forth as message properties between
+    # client and server
+    #
+    PROPERTIES = [
         ('content_type', 'shortstr'),
         ('content_encoding', 'shortstr'),
         ('application_headers', 'table'),
@@ -1570,18 +1583,28 @@ BASIC_CONTENT_PROPERTIES = ContentProperties([
         ('user_id', 'shortstr'),
         ('app_id', 'shortstr'),
         ('cluster_id', 'shortstr')
-        ])
+        ]
 
-
-class Message(object):
-    """
-    A Message for use with the Channnel.basic_* methods.
-
-    """
-    def __init__(self, body=None, children=None, **properties):
+    def __init__(self, body=None, children=None,
+                    content_type=None,
+                    content_encoding=None,
+                    application_headers=None,
+                    delivery_mode=None,
+                    priority=None,
+                    correlation_id=None,
+                    reply_to=None,
+                    expiration=None,
+                    message_id=None,
+                    timestamp=None,
+                    type=None,
+                    user_id=None,
+                    app_id=None,
+                    cluster_id=None):
         """
-        Possible properties for a Basic Content object are:
+        Expected arg types
 
+            body: string
+            children: (not supported)
             content_type: string
             content_encoding: string
             application_headers: dict with string keys, and string/int/Decimal/datetime/dict values
@@ -1597,8 +1620,8 @@ class Message(object):
             app_id: string
             cluster_id: string
 
-        Unicode bodies are converted to UTF-8 and the 'content_encoding'
-        property is automatically set to 'UTF-8'
+        Unicode bodies are encoded according to the 'content_encoding' argument.
+        If that's None, it's set to 'UTF-8' automatically.
 
         example:
 
@@ -1606,15 +1629,54 @@ class Message(object):
 
         """
         if isinstance(body, unicode):
-            body = body.encode('UTF-8')
-            properties['content_encoding'] = 'UTF-8'
+            if content_encoding is None:
+                content_encoding = 'UTF-8'
+            self.body = body.encode(content_encoding)
+        else:
+            self.body = body
 
-        self.properties = properties
-        self.body = body
+        self.content_type = content_type
+        self.content_encoding = content_encoding
+        self.application_headers = application_headers
+        self.delivery_mode = delivery_mode
+        self.priority = priority
+        self.correlation_id = correlation_id
+        self.reply_to = reply_to
+        self.expiration = expiration
+        self.message_id = message_id
+        self.timestamp = timestamp
+        self.type = type
+        self.user_id = user_id
+        self.app_id = app_id
+        self.cluster_id = cluster_id
+
+
+    def __eq__(self, other):
+        """
+        Check if the known attributes of two messages are the same.
+
+        Received messages may contain other attributes, which aren't compared.
+
+        """
+        if not isinstance(other, Message):
+            return False
+
+        for attrname, _ in self.PROPERTIES:
+            if getattr(self, attrname) != getattr(other, attrname):
+                return False
+
+        return self.body == other.body
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
     def serialize(self):
         args = AMQPWriter()
         args.write_short(0)
-        packed_properties = BASIC_CONTENT_PROPERTIES.serialize(self.properties)
+        packed_properties = BASIC_CONTENT_PROPERTIES.serialize_object(self)
         return packed_properties, self.body
+
+
+BASIC_CONTENT_PROPERTIES = ContentProperties(Message.PROPERTIES)

@@ -5,7 +5,7 @@ from random import randint
 import unittest
 
 from amqplib.util_0_8 import AMQPReader, AMQPWriter
-from amqplib.client_0_8 import BASIC_CONTENT_PROPERTIES
+from amqplib.client_0_8 import BASIC_CONTENT_PROPERTIES, Message
 
 class TestAMQPSerialization(unittest.TestCase):
     def test_empty_writer(self):
@@ -299,17 +299,18 @@ class TestAMQPSerialization(unittest.TestCase):
 
 
 
-class TestContentProperties(unittest.TestCase):
+class TestBasicContentProperties(unittest.TestCase):
 
-    def check_proplist(self, d):
+    def check_proplist(self, msg):
         """
-        Check roundtrip processing of a single dictionary.
+        Check roundtrip processing of a single object
 
         """
-        raw = BASIC_CONTENT_PROPERTIES.serialize(d)
-        d2 = BASIC_CONTENT_PROPERTIES.parse(raw)
+        raw = BASIC_CONTENT_PROPERTIES.serialize_object(msg)
+        new_msg = Message()
+        BASIC_CONTENT_PROPERTIES.parse_into(raw, new_msg)
 
-        self.assertEqual(d, d2)
+        self.assertEqual(msg, new_msg)
 
 
     def test_roundtrip(self):
@@ -317,48 +318,35 @@ class TestContentProperties(unittest.TestCase):
         Check round-trip processing of content-properties.
 
         """
-        self.check_proplist({})
+        self.check_proplist(Message())
 
-        self.check_proplist({
-            'content_type': 'text/plain',
-            })
+        self.check_proplist(Message(content_type='text/plain'))
 
-        self.check_proplist({
-            'content_type': 'text/plain',
-            'content_encoding': 'utf-8',
-            'application_headers': {'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
-            'delivery_mode': 1,
-            'priority': 7,
-            })
+        self.check_proplist(Message(
+            content_type='text/plain',
+            content_encoding='utf-8',
+            application_headers={'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
+            delivery_mode=1,
+            priority=7))
 
-        self.check_proplist({
-            'application_headers': {
+        self.check_proplist(Message(
+            application_headers={
                 'regular': datetime(2007, 11, 12, 12, 34, 56),
                 'dst': datetime(2007, 7, 12, 12, 34, 56),
-                },
-            })
+                }))
 
         n = datetime.now()
         n = n.replace(microsecond=0) # AMQP only does timestamps to 1-second resolution
-        self.check_proplist({
-            'application_headers': {'foo': n},
-            })
+        self.check_proplist(Message(
+            application_headers={'foo': n}))
 
-        self.check_proplist({
-            'application_headers': {'foo': Decimal('10.1')},
-            })
+        self.check_proplist(Message(
+            application_headers={'foo': Decimal('10.1')}))
 
-        self.check_proplist({
-            'application_headers': {'foo': Decimal('-1987654.193')},
-            })
+        self.check_proplist(Message(
+            application_headers={'foo': Decimal('-1987654.193')}))
 
-        self.check_proplist({
-            'timestamp': datetime(1980, 1, 2, 3, 4, 6),
-            })
-
-    def test_empty_proplist(self):
-        raw = BASIC_CONTENT_PROPERTIES.serialize({})
-        self.assertEqual(raw, '\x00\x00')
+        self.check_proplist(Message(timestamp=datetime(1980, 1, 2, 3, 4, 6)))
 
 
 if __name__ == '__main__':

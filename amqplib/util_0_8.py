@@ -249,10 +249,11 @@ class ContentProperties(object):
         self.properties = properties
 
 
-    def parse(self, raw_bytes):
+    def parse_into(self, raw_bytes, dest_obj):
         """
         Given the raw bytes containing the property-flags and property-list
-        from a content-frame-header, parse and return as a dictionary.
+        from a content-frame-header, parse and insert as attributes
+        into the supplied object.
 
         """
         r = AMQPReader(raw_bytes)
@@ -267,7 +268,6 @@ class ContentProperties(object):
             if flag_bits & 1 == 0:
                 break
 
-        result = {}
         shift = 0
         for key, proptype in self.properties:
             if shift == 0:
@@ -276,17 +276,16 @@ class ContentProperties(object):
                 flag_bits, flags = flags[0], flags[1:]
                 shift = 15
             if flag_bits & (1 << shift):
-                result[key] = getattr(r, 'read_' + proptype)()
+                setattr(dest_obj, key, getattr(r, 'read_' + proptype)())
             shift -= 1
 
-        return result
 
-
-    def serialize(self, d):
+    def serialize_object(self, obj):
         """
-        Given a dictionary of content properties, serialize into
-        the raw bytes making up a set of property flags and a property
-        list, suitable for putting into a content frame header.
+        Given an object with attributes corresponding to content
+        properties, serialize into the raw bytes making up a set
+        of property flags and a property list, suitable for putting
+        into a content frame header.
 
         """
         shift = 15
@@ -294,7 +293,7 @@ class ContentProperties(object):
         flags = []
         raw_bytes = AMQPWriter()
         for key, proptype in self.properties:
-            if key in d:
+            if hasattr(obj, key) and (getattr(obj, key) is not None):
                 if shift == 0:
                     flags.append(flag_bits)
                     flag_bits = 0
@@ -302,7 +301,7 @@ class ContentProperties(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    getattr(raw_bytes, 'write_' + proptype)(d[key])
+                    getattr(raw_bytes, 'write_' + proptype)(getattr(obj, key))
 
             shift -= 1
 
