@@ -1198,7 +1198,7 @@ class Channel(object):
 
         msg = self.wait()
 
-        msg.received_properties = {
+        msg.delivery_info = {
             'channel': self,
             'consumer_tag': consumer_tag,
             'delivery_tag': delivery_tag,
@@ -1255,7 +1255,7 @@ class Channel(object):
 
         msg = self.wait()
 
-        msg.received_properties = {
+        msg.delivery_info = {
             'delivery_tag': delivery_tag,
             'redelivered': redelivered,
             'exchange': exchange,
@@ -1641,7 +1641,8 @@ class Message(GenericContent):
         """
         Check if the known attributes of two messages are the same.
 
-        Received messages may contain other attributes, which aren't compared.
+        Received messages may contain a 'delivery_info' attribute,
+        which isn't compared.
 
         """
         return super(Message, self).__eq__(other) and (self.body == other.body)

@@ -16,7 +16,7 @@ import amqplib.client_0_8 as amqp
 def callback(msg):
     for key, val in msg.properties.items():
         print '%s: %s' % (key, str(val))
-    for key, val in msg.received_properties.items():
+    for key, val in msg.delivery_info.items():
         print '> %s: %s' % (key, str(val))
 
     print ''

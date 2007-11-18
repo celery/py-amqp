@@ -260,28 +260,17 @@ class GenericContent(object):
         Check if this object has the same properties as another content
         object.
 
-        If both objects have been received, also check their
-        received_properties.
-
         """
-        if self.properties != other.properties:
-            return False
-
-        if hasattr(self, 'received_properties') \
-        and hasattr(other, 'received_properties') \
-        and self.received_properties != other.received_properties:
-            return False
-
-        return True
+        return (self.properties == other.properties)
 
 
     def __getattr__(self, name):
         if name in self.properties:
             return self.properties[name]
 
-        if hasattr(self, 'received_properties') \
-        and name in self.received_properties:
-            return self.received_properties[name]
+        if hasattr(self, 'delivery_info') \
+        and name in self.delivery_info:
+            return self.delivery_info[name]
 
         raise AttributeError(name)
 
