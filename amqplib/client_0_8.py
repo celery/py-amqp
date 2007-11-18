@@ -1321,7 +1321,8 @@ class Channel(object):
     def basic_recover(self, requeue=False):
         """
         This method asks the broker to redeliver all unacknowledged messages on a
-        specified channel. Zero or more messages may be redelivered.
+        specified channel. Zero or more messages may be redelivered.  This method
+        is only allowed on non-transacted channels.
 
         RULE:
 
@@ -1329,7 +1330,8 @@ class Channel(object):
 
         RULE:
 
-            The server MUST raise a channel exception if this is called on a transacted channel.
+            The server MUST raise a channel exception if this is called on a
+            transacted channel.
 
         """
         args = AMQPWriter()
@@ -1639,7 +1641,8 @@ class Message(GenericContent):
 
     def __eq__(self, other):
         """
-        Check if the known attributes of two messages are the same.
+        Check if the properties and bodies of this Message and another
+        Message are the same.
 
         Received messages may contain a 'delivery_info' attribute,
         which isn't compared.
