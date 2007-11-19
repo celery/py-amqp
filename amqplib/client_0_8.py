@@ -16,7 +16,7 @@ AMQP 0-8 Client Library
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 
 import socket
@@ -116,8 +116,8 @@ class Connection(object):
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
 
-        If a userid and password are specified, a login_response is built up for
-        you.  Otherwise you have to roll your own.
+        If a userid and password are specified, a login_response is built up
+        for you.  Otherwise you have to roll your own.
 
         """
         self.channels = {}
@@ -150,7 +150,8 @@ class Connection(object):
         if (userid is not None) and (password is not None):
             login_response = AMQPWriter()
             login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
-            login_response = login_response.getvalue()[4:]    #Skip the length at the beginning
+            login_response = login_response.getvalue()[4:]  #Skip the length
+                                                            #at the beginning
 
         d = {}
         d.update(LIBRARY_PROPERTIES)
@@ -186,10 +187,12 @@ class Connection(object):
         for i in xrange(1, self.channel_max+1):
             if i not in self.channels:
                 return i
-        raise AMQPException('No free channel ids, current=%d, channel_max=%d' % (len(self.channels), self.channel_max))
+        raise AMQPException('No free channel ids, current=%d, channel_max=%d'
+            % (len(self.channels), self.channel_max))
 
 
-    def _send_content(self, channel, class_id, weight, body_size, packed_properties, body):
+    def _send_content(self, channel, class_id, weight, body_size,
+                        packed_properties, body):
         pkt = AMQPWriter()
 
         pkt.write_octet(2)
@@ -230,7 +233,8 @@ class Connection(object):
 
         pkt.write_octet(1)
         pkt.write_short(channel)
-        pkt.write_long(len(args)+4)  # 4 = length of class_id and method_id in payload
+        pkt.write_long(len(args)+4)  # 4 = length of class_id and method_id
+                                     # in payload
 
         pkt.write_short(method_sig[0]) # class_id
         pkt.write_short(method_sig[1]) # method_id
@@ -287,10 +291,15 @@ class Connection(object):
             raise Exception('Method frame too short')
 
         method_sig = unpack('>HH', payload[:4])
+
         if DEBUG:
             print '< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig])
-        if allowed_methods and (method_sig not in allowed_methods) and (method_sig not in _CLOSE_METHODS):
-            raise Exception('Received unexpected method: %s, was expecting one of: %s' % (method_sig, allowed_methods))
+
+        if allowed_methods \
+        and (method_sig not in allowed_methods) \
+        and (method_sig not in _CLOSE_METHODS):
+            raise Exception('Received unexpected method: %s, was expecting one of: %s'
+                % (method_sig, allowed_methods))
 
         args = AMQPReader(payload[4:])
 
@@ -302,7 +311,8 @@ class Connection(object):
             ch = self.channels[channel]
             return amqp_method(ch, args)
 
-        raise Exception('Unknown AMQP method (%d, %d)' % amqp_class, amqp_method)
+        raise Exception('Unknown AMQP method (%d, %d)'
+            % amqp_class, amqp_method)
 
 
     def channel(self, channel_id=None):
@@ -465,7 +475,9 @@ class Connection(object):
         self.locales = args.read_longstr().split(' ')
 
         if DEBUG:
-            print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' % (self.version_major, self.version_minor, str(self.server_properties), self.mechanisms, self.locales)
+            print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' \
+                % (self.version_major, self.version_minor,
+                   str(self.server_properties), self.mechanisms, self.locales)
 
 
     def _x_start_ok(self, client_properties, mechanism, response, locale):
@@ -767,7 +779,8 @@ class Channel(object):
     #
     #
 
-    def access_request(self, realm, exclusive=False, passive=False, active=False, write=False, read=False):
+    def access_request(self, realm, exclusive=False,
+        passive=False, active=False, write=False, read=False):
         """
         This method requests an access ticket for an access realm.
         The server responds by granting the access ticket.  If the
@@ -808,8 +821,8 @@ class Channel(object):
     #  Exchange
     #
     #
-    # Exchanges match and distribute messages across queues.  Exchanges can be
-    # configured in the server or created at runtime.
+    # Exchanges match and distribute messages across queues.  Exchanges can
+    # be configured in the server or created at runtime.
     #
     # GRAMMAR:
     #
@@ -818,10 +831,13 @@ class Channel(object):
     #
     #
 
-    def exchange_declare(self, exchange, type, passive=False, durable=False, auto_delete=False, internal=False, nowait=False, arguments={}, ticket=None):
+    def exchange_declare(self, exchange, type, passive=False, durable=False,
+        auto_delete=False, internal=False, nowait=False,
+        arguments={}, ticket=None):
         """
-        This method creates an exchange if it does not already exist, and if the
-        exchange exists, verifies that it is of the correct and expected class.
+        This method creates an exchange if it does not already exist, and if
+        the exchange exists, verifies that it is of the correct and expected
+        class.
 
         """
         args = AMQPWriter()
@@ -851,10 +867,11 @@ class Channel(object):
         pass
 
 
-    def exchange_delete(self, exchange, if_unused=False, nowait=False, ticket=None):
+    def exchange_delete(self, exchange, if_unused=False,
+        nowait=False, ticket=None):
         """
-        This method deletes an exchange.  When an exchange is deleted all queue
-        bindings on the exchange are cancelled.
+        This method deletes an exchange.  When an exchange is deleted all
+        queue bindings on the exchange are cancelled.
 
         """
         args = AMQPWriter()
@@ -883,9 +900,9 @@ class Channel(object):
     #  Queue
     #
     #
-    # Queues store and forward messages.  Queues can be configured in the server
-    # or created at runtime.  Queues must be attached to at least one exchange
-    # in order to receive messages from publishers.
+    # Queues store and forward messages.  Queues can be configured in the
+    # server or created at runtime.  Queues must be attached to at least one
+    # exchange in order to receive messages from publishers.
     #
     # GRAMMAR:
     #
@@ -896,7 +913,8 @@ class Channel(object):
     #
     #
 
-    def queue_bind(self, queue, exchange, routing_key='', nowait=False, arguments={}, ticket=None):
+    def queue_bind(self, queue, exchange, routing_key='',
+        nowait=False, arguments={}, ticket=None):
         """
         This method binds a queue to an exchange.  Until a queue is
         bound it will not receive any messages.  In a classic messaging
@@ -927,11 +945,14 @@ class Channel(object):
         pass
 
 
-    def queue_declare(self, queue='', passive=False, durable=False, exclusive=False, auto_delete=False, nowait=False, arguments={}, ticket=None):
+    def queue_declare(self, queue='', passive=False, durable=False,
+        exclusive=False, auto_delete=False, nowait=False,
+        arguments={}, ticket=None):
         """
         This method creates or checks a queue.  When creating a new queue
-        the client can specify various properties that control the durability
-        of the queue and its contents, and the level of sharing for the queue.
+        the client can specify various properties that control the
+        durability of the queue and its contents, and the level of sharing
+        for the queue.
 
         Returns a tuple containing 3 items:
             the name of the queue (essential for automatically-named queues)
@@ -969,7 +990,8 @@ class Channel(object):
         return queue, message_count, consumer_count
 
 
-    def queue_delete(self, queue, if_unused=False, if_empty=False, nowait=False, ticket=None):
+    def queue_delete(self, queue, if_unused=False, if_empty=False,
+        nowait=False, ticket=None):
         """
         This method deletes a queue.  When a queue is deleted any pending
         messages are sent to a dead-letter queue if this is defined in the
@@ -1049,21 +1071,22 @@ class Channel(object):
     #
     # RULE:
     #
-    #     The server SHOULD respect the persistent property of basic messages
-    #     and SHOULD make a best-effort to hold persistent basic messages on a
-    #     reliable storage mechanism.
+    #     The server SHOULD respect the persistent property of basic
+    #     messages and SHOULD make a best-effort to hold persistent basic
+    #     messages on a reliable storage mechanism.
     #
     # RULE:
     #
-    #     The server MUST NOT discard a persistent basic message in case of a
-    #     queue overflow. The server MAY use the Channel.Flow method to slow
-    #     or stop a basic message publisher when necessary.
+    #     The server MUST NOT discard a persistent basic message in case of
+    #     a queue overflow. The server MAY use the Channel.Flow method to
+    #     slow or stop a basic message publisher when necessary.
     #
     # RULE:
     #
-    #     The server MAY overflow non-persistent basic messages to persistent
-    #     storage and MAY discard or dead-letter non-persistent basic messages
-    #     on a priority basis if the queue size exceeds some configured limit.
+    #     The server MAY overflow non-persistent basic messages to
+    #     persistent storage and MAY discard or dead-letter non-persistent
+    #     basic messages on a priority basis if the queue size exceeds some
+    #     configured limit.
     #
     # RULE:
     #
@@ -1078,8 +1101,8 @@ class Channel(object):
     #
     # RULE:
     #
-    #     The server MUST support both automatic and explicit acknowledgements
-    #     on Basic content.
+    #     The server MUST support both automatic and explicit
+    #     acknowledgements on Basic content.
     #
     #
 
@@ -1107,9 +1130,9 @@ class Channel(object):
 
         RULE:
 
-            If the queue no longer exists when the client sends a cancel command,
-            or the consumer has been cancelled for other reasons, this command
-            has no effect.
+            If the queue no longer exists when the client sends a cancel
+            command, or the consumer has been cancelled for other reasons,
+            this command has no effect.
 
         """
         args = AMQPWriter()
@@ -1130,7 +1153,9 @@ class Channel(object):
         del self.callbacks[consumer_tag]
 
 
-    def basic_consume(self, queue, consumer_tag='', no_local=False, no_ack=False, exclusive=False, nowait=False, callback=None, ticket=None):
+    def basic_consume(self, queue, consumer_tag='', no_local=False,
+        no_ack=False, exclusive=False, nowait=False,
+        callback=None, ticket=None):
         """
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue. Consumers
@@ -1139,9 +1164,9 @@ class Channel(object):
 
         RULE:
 
-            The server SHOULD support at least 16 consumers per queue, unless
-            the queue was declared as private, and ideally, impose no limit
-            except as defined by available resources.
+            The server SHOULD support at least 16 consumers per queue,
+            unless the queue was declared as private, and ideally, impose
+            no limit except as defined by available resources.
 
         """
         args = AMQPWriter()
@@ -1266,12 +1291,13 @@ class Channel(object):
         return msg
 
 
-    def basic_publish(self, msg, exchange, routing_key='', mandatory=False, immediate=False, ticket=None):
+    def basic_publish(self, msg, exchange, routing_key='', mandatory=False,
+        immediate=False, ticket=None):
         """
         This method publishes a message to a specific exchange. The message
         will be routed to queues as defined by the exchange configuration
-        and distributed to any active consumers when the transaction, if any,
-        is committed.
+        and distributed to any active consumers when the transaction, if
+        any, is committed.
 
         """
         args = AMQPWriter()
@@ -1320,13 +1346,14 @@ class Channel(object):
 
     def basic_recover(self, requeue=False):
         """
-        This method asks the broker to redeliver all unacknowledged messages on a
-        specified channel. Zero or more messages may be redelivered.  This method
-        is only allowed on non-transacted channels.
+        This method asks the broker to redeliver all unacknowledged messages
+        on a specified channel. Zero or more messages may be redelivered.
+        This method is only allowed on non-transacted channels.
 
         RULE:
 
-            The server MUST set the redelivered flag on all messages that are resent.
+            The server MUST set the redelivered flag on all messages that
+            are resent.
 
         RULE:
 
@@ -1349,21 +1376,21 @@ class Channel(object):
 
             The server SHOULD be capable of accepting and process the Reject
             method while sending message content with a Deliver or Get-Ok
-            method.  I.e. the server should read and process incoming methods
-            while sending output frames.  To cancel a partially-send content,
-            the server sends a content body frame of size 1 (i.e. with no data
-            except the frame-end octet).
+            method.  I.e. the server should read and process incoming
+            methods while sending output frames.  To cancel a partially-send
+            content, the server sends a content body frame of size 1
+            (i.e. with no data except the frame-end octet).
 
         RULE:
 
-            The server SHOULD interpret this method as meaning that the client
-            is unable to process the message at this time.
+            The server SHOULD interpret this method as meaning that the
+            client is unable to process the message at this time.
 
         RULE:
 
-            A client MUST NOT use this method as a means of selecting messages
-            to process.  A rejected message MAY be discarded or dead-lettered,
-            not necessarily passed to another client.
+            A client MUST NOT use this method as a means of selecting
+            messages to process.  A rejected message MAY be discarded or
+            dead-lettered, not necessarily passed to another client.
 
         """
         args = AMQPWriter()
@@ -1444,7 +1471,8 @@ class Channel(object):
     def _tx_rollback_ok(self, args):
         """
         This method confirms to the client that the rollback succeeded.
-        Note that if an rollback fails, the server raises a channel exception.
+        Note that if an rollback fails, the server raises a
+        channel exception.
 
         """
         pass
@@ -1465,8 +1493,8 @@ class Channel(object):
 
     def _tx_select_ok(self, args):
         """
-        This method confirms to the client that the channel was successfully
-        set to use standard transactions.
+        This method confirms to the client that the channel was
+        successfully set to use standard transactions.
 
         """
         pass
