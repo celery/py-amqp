@@ -32,6 +32,10 @@ except:
 
 
 def _hexdump(s):
+    """
+    Present just for debugging help.
+
+    """
     while s:
         x, s = s[:16], s[16:]
         for ch in x:
@@ -63,10 +67,18 @@ class AMQPReader(object):
         self.input.close()
 
     def read(self, n):
+        """
+        Read n bytes.
+
+        """
         self.bitcount = self.bits = 0
         return self.input.read(n)
 
     def read_bit(self):
+        """
+        Read a single boolean value.
+
+        """
         if not self.bitcount:
             self.bits = ord(self.input.read(1))
             self.bitcount = 8
@@ -76,32 +88,63 @@ class AMQPReader(object):
         return result
 
     def read_octet(self):
+        """
+        Read one byte, return as an integer
+
+        """
         self.bitcount = self.bits = 0
         return unpack('B', self.input.read(1))[0]
 
     def read_short(self):
+        """
+        Read an unsigned 16-bit integer
+
+        """
         self.bitcount = self.bits = 0
         return unpack('>H', self.input.read(2))[0]
 
     def read_long(self):
+        """
+        Read an unsigned 32-bit integer
+
+        """
         self.bitcount = self.bits = 0
         return unpack('>I', self.input.read(4))[0]
 
     def read_longlong(self):
+        """
+        Read an unsigned 64-bit integer
+
+        """
         self.bitcount = self.bits = 0
         return unpack('>Q', self.input.read(8))[0]
 
     def read_shortstr(self):
+        """
+        Read a utf-8 encoded string that's stored in up to
+        255 bytes.  Return it decoded as a Python unicode object.
+
+        """
         self.bitcount = self.bits = 0
         len = unpack('B', self.input.read(1))[0]
         return self.input.read(len).decode('utf-8')
 
     def read_longstr(self):
+        """
+        Read a string that's up to 2**32 bytes, the encoding
+        isn't specified in the AMQP spec, so just return it as
+        a plain Python string.
+
+        """
         self.bitcount = self.bits = 0
         len = unpack('>I', self.input.read(4))[0]
         return self.input.read(len)
 
     def read_table(self):
+        """
+        Read an AMQP table, and return as a Python dictionary.
+
+        """
         self.bitcount = self.bits = 0
         len = unpack('>I', self.input.read(4))[0]
         table_data = AMQPReader(self.input.read(len))
@@ -125,10 +168,20 @@ class AMQPReader(object):
         return result
 
     def read_timestamp(self):
+        """
+        Read and AMQP timestamp, which is a 64-bit integer representing
+        seconds since the Unix epoch in 1-second resolution.  Return as
+        a Python datetime.datetime object, expressed as localtime.
+
+        """
         return datetime.fromtimestamp(self.read_longlong())
 
 
 class AMQPWriter(object):
+    """
+    A StringIO like object for building up encoded AMQP data.
+
+    """
     def __init__(self):
         self.out = StringIO()
         self.bits = []
@@ -142,14 +195,26 @@ class AMQPWriter(object):
             self.bitcount = 0
 
     def getvalue(self):
+        """
+        Get what's been encoded so far.
+
+        """
         self._flushbits()
         return self.out.getvalue()
 
     def write(self, s):
+        """
+        Write a plain Python string, with no special encoding.
+
+        """
         self._flushbits()
         self.out.write(s)
 
     def write_bit(self, b):
+        """
+        Write a boolean value.
+
+        """
         b = 1 if b else 0
         shift = self.bitcount %8
         if shift == 0:
@@ -158,30 +223,51 @@ class AMQPWriter(object):
         self.bitcount += 1
 
     def write_octet(self, n):
+        """
+        Write an integer as an unsigned 8-bit value.
+
+        """
         if (n < 0) or (n > 255):
             raise ValueError('Octet out of range 0..255')
         self._flushbits()
         self.out.write(pack('B', n))
 
     def write_short(self, n):
+        """
+        Write an integer as an unsigned 16-bit value.
+
+        """
         if (n < 0) or (n > 65535):
             raise ValueError('Octet out of range 0..65535')
         self._flushbits()
         self.out.write(pack('>H', n))
 
     def write_long(self, n):
+        """
+        Write an integer as an unsigned2 32-bit value.
+
+        """
         if (n < 0) or (n >= (2**32)):
             raise ValueError('Octet out of range 0..2**31-1')
         self._flushbits()
         self.out.write(pack('>I', n))
 
     def write_longlong(self, n):
+        """
+        Write an integer as an unsigned 64-bit value.
+
+        """
         if (n < 0) or (n >= (2**64)):
             raise ValueError('Octet out of range 0..2**64-1')
         self._flushbits()
         self.out.write(pack('>Q', n))
 
     def write_shortstr(self, s):
+        """
+        Write a string up to 255 bytes long after encoding.  If passed
+        a unicode string, encode as UTF-8.
+
+        """
         self._flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
@@ -191,6 +277,11 @@ class AMQPWriter(object):
         self.out.write(s)
 
     def write_longstr(self, s):
+        """
+        Write a string up to 2**32 bytes long after encoding.  If passed
+        a unicode string, encode as UTF-8.
+
+        """
         self._flushbits()
         if isinstance(s, unicode):
             s = s.encode('utf-8')
@@ -198,6 +289,12 @@ class AMQPWriter(object):
         self.out.write(s)
 
     def write_table(self, d):
+        """
+        Write out a Python dictionary made of up string keys, and values
+        that are strings, signed integers, Decimal, datetime.datetime, or
+        sub-dictionaries following the same constraints.
+
+        """
         self._flushbits()
         table_data = AMQPWriter()
         for k, v in d.items():
@@ -232,6 +329,11 @@ class AMQPWriter(object):
         self.out.write(table_data)
 
     def write_timestamp(self, v):
+        """
+        Write out a Python datetime.datetime object as a 64-bit integer
+        representing seconds since the Unix epoch.
+
+        """
         self.out.write(pack('>q', long(mktime(v.timetuple()))))
 
 
@@ -246,6 +348,11 @@ class GenericContent(object):
         ]
 
     def __init__(self, **props):
+        """
+        Save the properties appropriate to this AMQP content type
+        in a 'properties' dictionary.
+
+        """
         d = {}
         for propname, _ in self.PROPERTIES:
             if propname in props:
@@ -257,14 +364,20 @@ class GenericContent(object):
 
     def __eq__(self, other):
         """
-        Check if this object has the same properties as another content
-        object.
+        Check if this object has the same properties as another
+        content object.
 
         """
         return (self.properties == other.properties)
 
 
     def __getattr__(self, name):
+        """
+        Look for additional properties in the 'properties'
+        dictionary, and if present - the 'delivery_info'
+        dictionary.
+
+        """
         if name in self.properties:
             return self.properties[name]
 
@@ -276,6 +389,10 @@ class GenericContent(object):
 
 
     def __ne__(self, other):
+        """
+        Just return the opposite of __eq__
+
+        """
         return not self.__eq__(other)
 
 
