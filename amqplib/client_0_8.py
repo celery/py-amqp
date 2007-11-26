@@ -264,6 +264,8 @@ class Connection(object):
         if ch != 0xce:
             raise Exception('Framing error, unexpected byte: %x' % ch)
 
+        if DEBUG:
+            print 'received frame, type=', frame_type, 'channel=', channel
         return frame_type, channel, payload
 
 
@@ -279,6 +281,10 @@ class Connection(object):
 
         while True:
             frame_type, frame_channel, payload = self._wait_frame()
+
+            if (frame_type == 1) and (frame_channel == 0) and (channel_id != 0):
+                # probably a close method caused by an error
+                self._dispatch_method(0, payload, [])
 
             if frame_channel == channel_id:
                 return frame_type, payload
