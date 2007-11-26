@@ -1622,7 +1622,7 @@ class Message(GenericContent):
         ('cluster_id', 'shortstr')
         ]
 
-    def __init__(self, body=None, children=None, **properties):
+    def __init__(self, body='', children=None, **properties):
         """
         Expected arg types
 
