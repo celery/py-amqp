@@ -546,10 +546,17 @@ class Channel(object):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    def __init__(self, connection, channel_id=None):
+    def __init__(self, connection, channel_id=None, auto_decode=True):
         """
         Create a channel bound to a connection and using the specified
         numeric channel_id, and open on the server.
+
+        The 'auto_decode' parameter (defaults to True), indicates
+        whether the library should attempt to decode the body
+        of Messages to a Unicode string if there's a 'content_encoding'
+        property for the message.  If there's no 'content_encoding'
+        property, or the decode raises an Exception, the plain string
+        is left as the message body.
 
         """
         self.connection = connection
@@ -565,6 +572,7 @@ class Channel(object):
         self.frame_queue = Queue()
         self.alerts = Queue()
         self.callbacks = {}
+        self.auto_decode = auto_decode
 
         self._x_open()
 
@@ -605,6 +613,13 @@ class Channel(object):
                     body_received += len(payload)
 
             msg.body = ''.join(body_parts)
+
+            if self.auto_decode and hasattr(msg, 'content_encoding'):
+                try:
+                    msg.body = msg.body.decode(msg.content_encoding)
+                except:
+                    pass
+
             return msg
 
 
