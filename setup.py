@@ -17,6 +17,6 @@ setup(name = "amqplib",
       license = "LGPL",
       author = "Barry Pederson",
       author_email = "bp@barryp.org",
-      url = "http://barryp.org/software/py-amqplib",
+      url = "http://barryp.org/software/py-amqplib/",
       packages = ['amqplib']
      )
