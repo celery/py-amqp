@@ -4,7 +4,7 @@ Test AMQP library.
 
 Send a message to the corresponding demo_receive.py script, any
 arguments to this program are joined together and sent as a message
-body.  If no arguments, just send 'Hello from Python'
+body.
 
 2007-11-11 Barry Pederson <bp@barryp.org>
 
@@ -39,7 +39,7 @@ def main():
     msg_body = ' '.join(args)
 
     conn = amqp.Connection(options.host, userid=options.userid, password=options.password, ssl=options.ssl)
-    
+
     ch = conn.channel()
     ch.access_request('/data', active=True, write=True)
 
