@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.1',
+    'library_version': '0.1.1',
     }
 
 DEBUG = False
@@ -111,7 +111,7 @@ class Connection(object):
     def __init__(self, host, userid=None, password=None,
         login_method='AMQPLAIN', login_response=None,
         virtual_host='/', locale='en_US', client_properties={},
-        ssl=False, **kwargs):
+        ssl=False, insist=False, **kwargs):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -165,7 +165,7 @@ class Connection(object):
                 (10, 30), # tune
                 ])
 
-        self._x_open(virtual_host)
+        self._x_open(virtual_host, insist=insist)
 
 
     def __del__(self):
