@@ -120,33 +120,6 @@ class Connection(object):
         for you.  Otherwise you have to roll your own.
 
         """
-        self.channels = {}
-        self.frame_queue = Queue()
-        self.input = self.out = None
-
-        if ':' in host:
-            host, port = host.split(':', 1)
-            port = int(port)
-        else:
-            port = AMQP_PORT
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
-
-        if ssl:
-            self.out = _SSLWrap(sock)
-            self.input = AMQPReader(self.out)
-        else:
-            self.out = sock.makefile('w')
-            self.input = AMQPReader(sock.makefile('r'))
-
-        self.out.write(AMQP_PROTOCOL_HEADER)
-        self.out.flush()
-
-        self.wait(allowed_methods=[
-                (10, 10), # start
-                ])
-
         if (userid is not None) and (password is not None):
             login_response = AMQPWriter()
             login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
@@ -156,21 +129,59 @@ class Connection(object):
         d = {}
         d.update(LIBRARY_PROPERTIES)
         d.update(client_properties)
-        self._x_start_ok(d, login_method, login_response, locale)
 
-        self._wait_tune_ok = True
-        while self._wait_tune_ok:
+        self.known_hosts = ''
+
+        while True:
+            self.channels = {}
+            self.frame_queue = Queue()
+            self.input = self.out = None
+
+            if ':' in host:
+                host, port = host.split(':', 1)
+                port = int(port)
+            else:
+                port = AMQP_PORT
+
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((host, port))
+
+            if ssl:
+                self.out = _SSLWrap(sock)
+                self.input = AMQPReader(self.out)
+            else:
+                self.out = sock.makefile('w')
+                self.input = AMQPReader(sock.makefile('r'))
+
+            self.out.write(AMQP_PROTOCOL_HEADER)
+            self.out.flush()
+
             self.wait(allowed_methods=[
-                (10, 20), # secure
-                (10, 30), # tune
-                ])
+                    (10, 10), # start
+                    ])
 
-        self._x_open(virtual_host, insist=insist)
+            self._x_start_ok(d, login_method, login_response, locale)
+
+            self._wait_tune_ok = True
+            while self._wait_tune_ok:
+                self.wait(allowed_methods=[
+                    (10, 20), # secure
+                    (10, 30), # tune
+                    ])
+
+            host = self._x_open(virtual_host, insist=insist)
+            if host is None:
+                # we weren't redirected
+                return
+
+            # we were redirected, close the socket, loop and try again
+            self._do_close()
 
 
     def __del__(self):
         if self.input is not None:
             self.close()
+
 
     def _do_close(self):
         self.input.close()
@@ -182,6 +193,7 @@ class Connection(object):
         if channel_id == 0:
             return self.frame_queue
         return self.channels[channel_id].frame_queue
+
 
     def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max+1):
@@ -433,6 +445,7 @@ class Connection(object):
         self.known_hosts = args.read_shortstr()
         if DEBUG:
             print 'Open OK! known_hosts [%s]' % self.known_hosts
+        return None
 
 
     def _redirect(self, args):
@@ -442,7 +455,10 @@ class Connection(object):
 
         """
         host = args.read_shortstr()
-        known_hosts = args.read_shortstr()
+        self.known_hosts = args.read_shortstr()
+        if DEBUG:
+            print 'Redirected to [%s], known_hosts [%s]' % (host, self.known_hosts)
+        return host
 
 
     def _secure(self, args):
