@@ -869,7 +869,7 @@ class Channel(object):
     #
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
-        auto_delete=False, internal=False, nowait=False,
+        auto_delete=True, internal=False, nowait=False,
         arguments={}, ticket=None):
         """
         This method creates an exchange if it does not already exist, and if
@@ -983,7 +983,7 @@ class Channel(object):
 
 
     def queue_declare(self, queue='', passive=False, durable=False,
-        exclusive=False, auto_delete=False, nowait=False,
+        exclusive=False, auto_delete=True, nowait=False,
         arguments={}, ticket=None):
         """
         This method creates or checks a queue.  When creating a new queue
