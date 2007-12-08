@@ -1,0 +1,25 @@
+CHANGES
+--------
+
+Version 0.2
+
+    Changed the default value for the auto_delete parameter
+    in the Channel.exchange_declare and Channel.queue_declare
+    methods to True.
+
+    Added an 'insist' parameter to the Connection class
+    constructor, defaulting to False.  Setting it to True
+    indicates to the AMQP server that you don't want to
+    be redirected (you're insisting to connect to the
+    specified server).
+
+    Added support for being redirected to another AMQP
+    server when a Connection is opened.
+
+    Added tests/fake_redirect_0_8.py to help with testing
+    redirect support.
+
+
+Version 0.1
+
+    Initial version
