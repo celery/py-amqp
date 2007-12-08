@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.1.1',
+    'library_version': '0.2',
     }
 
 DEBUG = False
@@ -175,7 +175,7 @@ class Connection(object):
                 return
 
             # we were redirected, close the socket, loop and try again
-            self._do_close()
+            self.close()
 
 
     def __del__(self):
