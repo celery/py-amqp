@@ -30,6 +30,33 @@ import textwrap
 from optparse import OptionParser
 from xml.etree import ElementTree
 
+
+#########
+#
+# Helper code inspired by http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498286
+# described in http://www.agapow.net/programming/python/the-etree-tail-quirk
+#
+def _textlist(self, _addtail=False):
+    '''Returns a list of text strings contained within an element and its sub-elements.
+
+    Helpful for extracting text from prose-oriented XML (such as XHTML or DocBook).
+    '''
+    result = []
+    if (not _addtail) and (self.text is not None):
+        result.append(self.text)
+    for elem in self:
+        result.extend(elem.textlist(True))
+    if _addtail and self.tail is not None:
+        result.append(self.tail)
+    return result
+
+# inject the new method into the ElementTree framework
+ElementTree._Element.textlist = _textlist
+
+#
+#
+#########
+
 domains = {}
 method_name_map = {}
 
@@ -54,6 +81,14 @@ def _field_type(field_element):
 
 
 def _reindent(s, indent):
+    """
+    Remove the existing indentation from each line of a chunk of
+    text, s, and then prefix each line with a new indent string.
+
+    Also removes trailing whitespace from each line, and leading and
+    trailing blank lines.
+
+    """
     s = textwrap.dedent(s)
     s = s.split('\n')
     s = [x.rstrip() for x in s]
@@ -66,7 +101,15 @@ def _reindent(s, indent):
 
 
 def generate_docstr(element, indent='', wrap=None):
-    docs = element.findall('doc')
+    """
+    Generate a Python docstr for a given element in the AMQP
+    XML spec file.  The element could be a class or method
+
+    The 'wrap' parameter is an optional chunk of text that's
+    added to the beginning and end of the resulting docstring.
+
+    """
+    docs = element.findall('doc') + element.findall('rule')
     if not docs:
         return None
 
@@ -76,16 +119,25 @@ def generate_docstr(element, indent='', wrap=None):
         result.append(wrap)
 
     for d in docs:
+        docval = ''.join(d.textlist()).rstrip()
+        if not docval:
+            continue
         if 'name' in d.attrib:
             result.append(indent + d.attrib['name'].upper() + ':')
             result.append(indent)
             extra_indent = '    '
+        elif d.tag == 'rule':
+            result.append(indent + 'RULE:')
+            result.append(indent)
+            extra_indent = '    '
         else:
             extra_indent = ''
-        result.append(_reindent(d.text, indent + extra_indent))
+        result.append(_reindent(docval, indent + extra_indent))
         result.append(indent)
+
     if wrap is not None:
         result.append(wrap)
+
     return '\n'.join(x.rstrip() for x in result) + '\n'
 
 
