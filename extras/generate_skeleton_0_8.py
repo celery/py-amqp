@@ -135,6 +135,17 @@ def generate_docstr(element, indent='', wrap=None):
         result.append(_reindent(docval, indent + extra_indent))
         result.append(indent)
 
+    fields = element.findall('field')
+    if (element.tag != 'class') and fields:
+        result.append(indent + 'PARAMETERS:')
+        for f in fields:
+            result.append(indent + '    ' + _fixup_field_name(f) + ': ' + _field_type(f))
+            field_docs = generate_docstr(f, indent + '        ')
+            if field_docs:
+                result.append(indent)
+                result.append(field_docs)
+            result.append(indent)
+
     if wrap is not None:
         result.append(wrap)
 
