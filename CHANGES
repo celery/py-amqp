@@ -2,9 +2,20 @@ CHANGES
 --------
 
 Current
+
     Improved skeleton generating program to include much more
     information in the Python docstrings that was present in the AMQP
     spec file. Merged in the improved docstrings into the client module.
+
+    After having a better look now at the pydocs, it turns out that in
+    several methods, a default value of '' can be used for queue names
+    and exchange names, so update method signatures to take advantage of
+    that.
+
+    Channel.queue_bind() can also take '' as a queue parameter, but
+    unfortunately we can't set that as a default value because
+    the exchange parameter can't have a default value.  In hindsight
+    those args should have been swapped, but it's too late now.
 
 Version 0.2
 

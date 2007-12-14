@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.2',
+    'library_version': '0.2.1',
     }
 
 DEBUG = False
@@ -1992,7 +1992,7 @@ class Channel(object):
         return queue, message_count, consumer_count
 
 
-    def queue_delete(self, queue, if_unused=False, if_empty=False,
+    def queue_delete(self, queue='', if_unused=False, if_empty=False,
         nowait=False, ticket=None):
         """
         This method deletes a queue.  When a queue is deleted any pending
@@ -2083,7 +2083,7 @@ class Channel(object):
         return args.read_long()
 
 
-    def queue_purge(self, queue, nowait=False, ticket=None):
+    def queue_purge(self, queue='', nowait=False, ticket=None):
         """
         This method removes all messages from a queue.  It does not cancel
         consumers.  Purged messages are deleted without any formal "undo"
@@ -2309,7 +2309,7 @@ class Channel(object):
         del self.callbacks[consumer_tag]
 
 
-    def basic_consume(self, queue, consumer_tag='', no_local=False,
+    def basic_consume(self, queue='', consumer_tag='', no_local=False,
         no_ack=False, exclusive=False, nowait=False,
         callback=None, ticket=None):
         """
@@ -2475,7 +2475,7 @@ class Channel(object):
             self.callbacks[consumer_tag](msg)
 
 
-    def basic_get(self, queue, no_ack=False, ticket=None):
+    def basic_get(self, queue='', no_ack=False, ticket=None):
         """
         This method provides a direct access to the messages in a queue
         using a synchronous dialogue that is designed for specific types of
@@ -2584,8 +2584,8 @@ class Channel(object):
         return msg
 
 
-    def basic_publish(self, msg, exchange, routing_key='', mandatory=False,
-        immediate=False, ticket=None):
+    def basic_publish(self, msg, exchange='', routing_key='',
+        mandatory=False, immediate=False, ticket=None):
         """
         This method publishes a message to a specific exchange. The message
         will be routed to queues as defined by the exchange configuration

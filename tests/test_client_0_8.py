@@ -35,6 +35,35 @@ class TestChannel(unittest.TestCase):
         self.ch.close()
         self.conn.close()
 
+
+    def test_defaults(self):
+        """
+        Test how a queue defaults to being bound to an AMQP default
+        exchange, and how publishing defaults to the default exchange, and
+        basic_get defaults to getting from the most recently declared queue,
+        and queue_delete defaults to deleting the most recently declared
+        queue.
+
+        """
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        msg = Message('unittest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'})
+
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.basic_publish(msg, routing_key=qname)
+
+        msg2 = self.ch.basic_get(no_ack=True)
+        self.assertEqual(msg, msg2)
+
+        n = self.ch.queue_purge()
+        self.assertEqual(n, 0)
+
+        n = self.ch.queue_delete()
+        self.assertEqual(n, 0)
+
+
     def test_encoding(self):
         self.ch.access_request('/data', active=True, write=True, read=True)
 
@@ -127,7 +156,6 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg2.content_encoding, 'latin1')
         self.assertTrue(isinstance(msg2.body, str))
         self.assertEqual(msg2.body, 'hello w\xf6rld')
-
 
 
     def test_publish(self):
