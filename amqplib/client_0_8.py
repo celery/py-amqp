@@ -366,6 +366,39 @@ class Connection(object):
         a close is due to an exception, the sender provides the class and
         method id of the method which caused the exception.
 
+        RULE:
+
+            After sending this method any received method except the
+            Close-OK method MUST be discarded.
+
+        RULE:
+
+            The peer sending this method MAY use a counter or timeout to
+            detect failure of the other peer to respond correctly with
+            the Close-OK method.
+
+        RULE:
+
+            When a server receives the Close method from a client it MUST
+            delete all server-side resources associated with the client's
+            context.  A client CANNOT reconnect to a context after sending
+            or receiving a Close method.
+
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            class_id: short
+
+                When the close is provoked by a method exception, this is
+                the class of the method.
+
+            method_id: short
+
+                When the close is provoked by a method exception, this is
+                the ID of the method.
+
         """
         args = AMQPWriter()
         args.write_short(reply_code)
@@ -386,6 +419,39 @@ class Connection(object):
         a close is due to an exception, the sender provides the class and
         method id of the method which caused the exception.
 
+        RULE:
+
+            After sending this method any received method except the
+            Close-OK method MUST be discarded.
+
+        RULE:
+
+            The peer sending this method MAY use a counter or timeout to
+            detect failure of the other peer to respond correctly with
+            the Close-OK method.
+
+        RULE:
+
+            When a server receives the Close method from a client it MUST
+            delete all server-side resources associated with the client's
+            context.  A client CANNOT reconnect to a context after sending
+            or receiving a Close method.
+
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            class_id: short
+
+                When the close is provoked by a method exception, this is
+                the class of the method.
+
+            method_id: short
+
+                When the close is provoked by a method exception, this is
+                the ID of the method.
+
         """
         reply_code = args.read_short()
         reply_text = args.read_shortstr()
@@ -403,6 +469,11 @@ class Connection(object):
         recipient that it is safe to release resources for the connection
         and close the socket.
 
+        RULE:
+
+            A peer that detects a socket closure without having received a
+            Close-Ok handshake method SHOULD log the error.
+
         """
         self._send_method_frame(0, (10, 61))
         self._do_close()
@@ -414,6 +485,11 @@ class Connection(object):
         recipient that it is safe to release resources for the connection
         and close the socket.
 
+        RULE:
+
+            A peer that detects a socket closure without having received a
+            Close-Ok handshake method SHOULD log the error.
+
         """
         self._do_close()
 
@@ -423,6 +499,57 @@ class Connection(object):
         This method opens a connection to a virtual host, which is a
         collection of resources, and acts to separate multiple application
         domains within a server.
+
+        RULE:
+
+            The client MUST open the context before doing any work on the
+            connection.
+
+        PARAMETERS:
+            virtual_host: shortstr
+
+                The name of the virtual host to work with.
+
+                RULE:
+
+                    If the server supports multiple virtual hosts, it
+                    MUST enforce a full separation of exchanges, queues,
+                    and all associated entities per virtual host. An
+                    application, connected to a specific virtual host,
+                    MUST NOT be able to access resources of another
+                    virtual host.
+
+                RULE:
+
+                    The server SHOULD verify that the client has
+                    permission to access the specified virtual host.
+
+                RULE:
+
+                    The server MAY configure arbitrary limits per
+                    virtual host, such as the number of each type of
+                    entity that may be used, per connection and/or in
+                    total.
+
+            capabilities: shortstr
+
+                The client may specify a number of capability names,
+                delimited by spaces.  The server can use this string to
+                how to process the client's connection request.
+
+            insist: boolean
+
+                In a configuration with multiple load-sharing servers,
+                the server may respond to a Connection.Open method with
+                a Connection.Redirect. The insist option tells the
+                server that the client is insisting on a connection to
+                the specified server.
+
+                RULE:
+
+                    When the client uses the insist option, the server
+                    SHOULD accept the client connection unless it is
+                    technically unable to do so.
 
         """
         args = AMQPWriter()
@@ -441,6 +568,9 @@ class Connection(object):
         This method signals to the client that the connection is ready for
         use.
 
+        PARAMETERS:
+            known_hosts: shortstr
+
         """
         self.known_hosts = args.read_shortstr()
         if DEBUG:
@@ -453,6 +583,24 @@ class Connection(object):
         This method redirects the client to another server, based on the
         requested virtual host and/or capabilities.
 
+        RULE:
+
+            When getting the Connection.Redirect method, the client
+            SHOULD reconnect to the host specified, and if that host is
+            not present, to any of the hosts specified in the
+            known-hosts list.
+
+        PARAMETERS:
+            host: shortstr
+
+                Specifies the server to connect to.  This is an IP
+                address or a DNS name, optionally followed by a colon
+                and a port number. If no port number is specified, the
+                client should use the default port number for the
+                protocol.
+
+            known_hosts: shortstr
+
         """
         host = args.read_shortstr()
         self.known_hosts = args.read_shortstr()
@@ -463,9 +611,16 @@ class Connection(object):
 
     def _secure(self, args):
         """
-        The SASL protocol works by exchanging challenges and responses until
-        both peers have received sufficient information to authenticate each
-        other.  This method challenges the client to provide more information.
+        The SASL protocol works by exchanging challenges and responses
+        until both peers have received sufficient information to
+        authenticate each other.  This method challenges the client to
+        provide more information.
+
+        PARAMETERS:
+            challenge: longstr
+
+                Challenge information, a block of opaque binary data
+                passed to the security mechanism.
 
         """
         challenge = args.read_longstr()
@@ -475,6 +630,13 @@ class Connection(object):
         """
         This method attempts to authenticate, passing a block of SASL data
         for the security mechanism at the server side.
+
+        PARAMETERS:
+            response: longstr
+
+                A block of opaque data passed to the security mechanism.
+                 The contents of this data are defined by the SASL
+                security mechanism.
 
         """
         args = AMQPWriter()
@@ -488,6 +650,50 @@ class Connection(object):
         the client the protocol version that the server proposes, along
         with a list of security mechanisms which the client can use for
         authentication.
+
+        RULE:
+
+            If the client cannot handle the protocol version suggested
+            by the server it MUST close the socket connection.
+
+        RULE:
+
+            The server MUST provide a protocol version that is lower
+            than or equal to that requested by the client in the
+            protocol header. If the server cannot support the specified
+            protocol it MUST NOT send this method, but MUST close the
+            socket connection.
+
+        PARAMETERS:
+            version_major: octet
+
+                The protocol major version that the server agrees to
+                use, which cannot be higher than the client's major
+                version.
+
+            version_minor: octet
+
+                The protocol minor version that the server agrees to
+                use, which cannot be higher than the client's minor
+                version.
+
+            server_properties: table
+
+            mechanisms: longstr
+
+                A list of the security mechanisms that the server
+                supports, delimited by spaces.  Currently ASL supports
+                these mechanisms: PLAIN.
+
+            locales: longstr
+
+                A list of the message locales that the server supports,
+                delimited by spaces.  The locale defines the language in
+                which the server will send reply texts.
+
+                RULE:
+
+                    All servers MUST support at least the en_US locale.
 
         """
         self.version_major = args.read_octet()
@@ -507,6 +713,40 @@ class Connection(object):
         This method selects a SASL security mechanism. ASL uses SASL
         (RFC2222) to negotiate authentication and encryption.
 
+        PARAMETERS:
+            client_properties: table
+
+            mechanism: shortstr
+
+                A single security mechanisms selected by the client,
+                which must be one of those specified by the server.
+
+                RULE:
+
+                    The client SHOULD authenticate using the
+                    highest-level security profile it can handle from
+                    the list provided by the server.
+
+                RULE:
+
+                    The mechanism field MUST contain one of the security
+                    mechanisms proposed by the server in the Start
+                    method. If it doesn't, the server MUST close the
+                    socket.
+
+            response: longstr
+
+                A block of opaque data passed to the security mechanism.
+                The contents of this data are defined by the SASL
+                security mechanism.  For the PLAIN security mechanism
+                this is defined as a field table holding two fields,
+                LOGIN and PASSWORD.
+
+            locale: shortstr
+
+                A single message local selected by the client, which
+                must be one of those specified by the server.
+
         """
         args = AMQPWriter()
         args.write_table(client_properties)
@@ -521,6 +761,35 @@ class Connection(object):
         This method proposes a set of connection configuration values
         to the client.  The client can accept and/or adjust these.
 
+        PARAMETERS:
+            channel_max: short
+
+                The maximum total number of channels that the server
+                allows per connection. Zero means that the server does
+                not impose a fixed limit, but the number of allowed
+                channels may be limited by available server resources.
+
+            frame_max: long
+
+                The largest frame size that the server proposes for the
+                connection. The client can negotiate a lower value.
+                Zero means that the server does not impose any specific
+                limit but may reject very large frames if it cannot
+                allocate resources for them.
+
+                RULE:
+
+                    Until the frame-max has been negotiated, both peers
+                    MUST accept frames of up to 4096 octets large. The
+                    minimum non-zero value for the frame-max field is
+                    4096.
+
+            heartbeat: short
+
+                The delay, in seconds, of the connection heartbeat that
+                the server wants.  Zero means the server does not want a
+                heartbeat.
+
         """
         self.channel_max = args.read_short() or 65535
         self.frame_max = args.read_long() or 131072
@@ -534,6 +803,41 @@ class Connection(object):
         This method sends the client's connection tuning parameters to the
         server. Certain fields are negotiated, others provide capability
         information.
+
+        PARAMETERS:
+            channel_max: short
+
+                The maximum total number of channels that the client
+                will use per connection.  May not be higher than the
+                value specified by the server.
+
+                RULE:
+
+                    The server MAY ignore the channel-max value or MAY
+                    use it for tuning its resource allocation.
+
+            frame_max: long
+
+                The largest frame size that the client and server will
+                use for the connection.  Zero means that the client does
+                not impose any specific limit but may reject very large
+                frames if it cannot allocate resources for them.  Note
+                that the frame-max limit applies principally to content
+                frames, where large contents can be broken into frames
+                of arbitrary size.
+
+                RULE:
+
+                    Until the frame-max has been negotiated, both peers
+                    must accept frames of up to 4096 octets large. The
+                    minimum non-zero value for the frame-max field is
+                    4096.
+
+            heartbeat: short
+
+                The delay, in seconds, of the connection heartbeat that
+                the client wants. Zero means the client does not want a
+                heartbeat.
 
         """
         args = AMQPWriter()
@@ -653,6 +957,17 @@ class Channel(object):
         as channel or connection exceptions; non-fatal errors are sent
         through this method.
 
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            details: table
+
+                A set of fields that provide more information about the
+                problem.  The meaning of these fields are defined on a
+                per-reply-code basis (TO BE DEFINED).
+
         """
         reply_code = args.read_short()
         reply_text = args.read_shortstr()
@@ -668,6 +983,32 @@ class Channel(object):
         due to an error handling a specific method, i.e. an exception.  When
         a close is due to an exception, the sender provides the class and
         method id of the method which caused the exception.
+
+        RULE:
+
+            After sending this method any received method except
+            Channel.Close-OK MUST be discarded.
+
+        RULE:
+
+            The peer sending this method MAY use a counter or timeout to
+            detect failure of the other peer to respond correctly with
+            Channel.Close-OK..
+
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            class_id: short
+
+                When the close is provoked by a method exception, this
+                is the class of the method.
+
+            method_id: short
+
+                When the close is provoked by a method exception, this
+                is the ID of the method.
 
         """
         args = AMQPWriter()
@@ -689,6 +1030,32 @@ class Channel(object):
         a close is due to an exception, the sender provides the class and
         method id of the method which caused the exception.
 
+        RULE:
+
+            After sending this method any received method except
+            Channel.Close-OK MUST be discarded.
+
+        RULE:
+
+            The peer sending this method MAY use a counter or timeout to
+            detect failure of the other peer to respond correctly with
+            Channel.Close-OK
+
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            class_id: short
+
+                When the close is provoked by a method exception, this
+                is the class of the method.
+
+            method_id: short
+
+                When the close is provoked by a method exception, this
+                is the ID of the method.
+
         """
         reply_code = args.read_short()
         reply_text = args.read_shortstr()
@@ -704,6 +1071,11 @@ class Channel(object):
 #        that it is safe to release resources for the channel and close the
 #        socket.
 #
+#        RULE:
+#
+#            A peer that detects a socket closure without having received a
+#            Channel.Close-Ok handshake method SHOULD log the error.
+#
 #        """
         self._send_method_frame((20, 41))
         self._do_close()
@@ -716,6 +1088,11 @@ class Channel(object):
         This method confirms a Channel.Close method and tells the recipient
         that it is safe to release resources for the channel and close the
         socket.
+
+        RULE:
+
+            A peer that detects a socket closure without having received a
+            Channel.Close-Ok handshake method SHOULD log the error.
 
         """
         self._do_close()
@@ -730,6 +1107,36 @@ class Channel(object):
         intended for window control.  The peer that receives a request to
         stop sending content should finish sending the current content, if
         any, and then wait until it receives a Flow restart method.
+
+        RULE:
+
+            When a new channel is opened, it is active.  Some
+            applications assume that channels are inactive until
+            started.  To emulate this behaviour a client MAY open the
+            channel, then pause it.
+
+        RULE:
+
+            When sending content data in multiple frames, a peer SHOULD
+            monitor the channel for incoming methods and respond to a
+            Channel.Flow as rapidly as possible.
+
+        RULE:
+
+            A peer MAY use the Channel.Flow method to throttle incoming
+            content data for internal reasons, for example, when
+            exchangeing data over a slower connection.
+
+        RULE:
+
+            The peer that requests a Channel.Flow method MAY disconnect
+            and/or ban a peer that does not respect the request.
+
+        PARAMETERS:
+            active: boolean
+
+                If True, the peer starts sending content frames.  If
+                False, the peer stops sending content frames.
 
         """
         args = AMQPWriter()
@@ -750,6 +1157,36 @@ class Channel(object):
         stop sending content should finish sending the current content, if
         any, and then wait until it receives a Flow restart method.
 
+        RULE:
+
+            When a new channel is opened, it is active.  Some
+            applications assume that channels are inactive until
+            started.  To emulate this behaviour a client MAY open the
+            channel, then pause it.
+
+        RULE:
+
+            When sending content data in multiple frames, a peer SHOULD
+            monitor the channel for incoming methods and respond to a
+            Channel.Flow as rapidly as possible.
+
+        RULE:
+
+            A peer MAY use the Channel.Flow method to throttle incoming
+            content data for internal reasons, for example, when
+            exchangeing data over a slower connection.
+
+        RULE:
+
+            The peer that requests a Channel.Flow method MAY disconnect
+            and/or ban a peer that does not respect the request.
+
+        PARAMETERS:
+            active: boolean
+
+                If True, the peer starts sending content frames.  If
+                False, the peer stops sending content frames.
+
         """
         self.active = args.read_bit()
 
@@ -759,6 +1196,13 @@ class Channel(object):
     def _x_flow_ok(self, active):
         """
         Confirms to the peer that a flow command was received and processed.
+
+        PARAMETERS:
+            active: boolean
+
+                Confirms the setting of the processed flow method: True
+                means the peer will start sending or continue to send
+                content frames; False means it will not.
 
         """
         args = AMQPWriter()
@@ -770,6 +1214,13 @@ class Channel(object):
         """
         Confirms to the peer that a flow command was received and processed.
 
+        PARAMETERS:
+            active: boolean
+
+                Confirms the setting of the processed flow method: True
+                means the peer will start sending or continue to send
+                content frames; False means it will not.
+
         """
         return args.read_bit()
 
@@ -777,6 +1228,17 @@ class Channel(object):
     def _x_open(self, out_of_band=''):
         """
         This method opens a virtual connection (a channel).
+
+        RULE:
+
+            This method MUST NOT be called when the channel is already open.
+
+        PARAMETERS:
+            out_of_band: shortstr
+
+                Configures out-of-band transfers on this channel.  The
+                syntax and meaning of this field will be formally
+                defined at a later date.
 
         """
         if self.is_open:
@@ -825,6 +1287,60 @@ class Channel(object):
         this causes a connection exception.  Access tickets are a
         per-channel resource.
 
+        RULE:
+
+            The realm name MUST start with either "/data" (for application
+            resources) or "/admin" (for server administration resources).
+            If the realm starts with any other path, the server MUST raise
+            a connection exception with reply code 403 (access refused).
+
+        RULE:
+
+            The server MUST implement the /data realm and MAY implement the
+            /admin realm.  The mapping of resources to realms is not
+            defined in the protocol - this is a server-side configuration
+            issue.
+
+        PARAMETERS:
+            realm: shortstr
+
+                RULE:
+
+                    If the specified realm is not known to the server,
+                    the server must raise a channel exception with reply
+                    code 402 (invalid path).
+
+            exclusive: boolean
+
+                Request exclusive access to the realm. If the server
+                cannot grant this - because there are other active
+                tickets for the realm - it raises a channel exception.
+
+            passive: boolean
+
+                Request message passive access to the specified access
+                realm. Passive access lets a client get information
+                about resources in the realm but not to make any changes
+                to them.
+
+            active: boolean
+
+                Request message active access to the specified access
+                realm. Acvtive access lets a client get create and
+                delete resources in the realm.
+
+            write: boolean
+
+                Request write access to the specified access realm.
+                Write access lets a client publish messages to all
+                exchanges in the realm.
+
+            read: boolean
+
+                Request read access to the specified access realm.  Read
+                access lets a client consume messages from queues in the
+                realm.
+
         The most recently requested ticket is used as the channel's
         default ticket for any method that requires a ticket.
 
@@ -848,6 +1364,19 @@ class Channel(object):
         ticket is valid within the current channel and for the lifespan of
         the channel.
 
+        RULE:
+
+            The client MUST NOT use access tickets except within the same
+            channel as originally granted.
+
+        RULE:
+
+            The server MUST isolate access tickets per channel and treat an
+            attempt by a client to mix these as a connection exception.
+
+        PARAMETERS:
+            ticket: short
+
         """
         self.default_ticket = args.read_short()
         return self.default_ticket
@@ -866,6 +1395,35 @@ class Channel(object):
     #     exchange            = C:DECLARE  S:DECLARE-OK
     #                         / C:DELETE   S:DELETE-OK
     #
+    # RULE:
+    #
+    #     The server MUST implement the direct and fanout exchange types,
+    #     and predeclare the corresponding exchanges named amq.direct and
+    #     amq.fanout in each virtual host. The server MUST also predeclare a
+    #     direct exchange to act as the default exchange for content Publish
+    #     methods and for default queue bindings.
+    #
+    # RULE:
+    #
+    #     The server SHOULD implement the topic exchange type, and
+    #     predeclare the corresponding exchange named amq.topic in each
+    #     virtual host.
+    #
+    # RULE:
+    #
+    #     The server MAY implement the system exchange type, and predeclare
+    #     the corresponding exchanges named amq.system in each virtual host.
+    #     If the client attempts to bind a queue to the system exchange, the
+    #     server MUST raise a connection exception with reply code 507
+    #     (not allowed).
+    #
+    # RULE:
+    #
+    #     The default exchange MUST be defined as internal, and be
+    #     inaccessible to the client except by specifying an empty exchange
+    #     name in a content Publish method. That is, the server MUST NOT let
+    #     clients make explicit bindings to this exchange.
+    #
     #
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
@@ -875,6 +1433,126 @@ class Channel(object):
         This method creates an exchange if it does not already exist, and if
         the exchange exists, verifies that it is of the correct and expected
         class.
+
+        RULE:
+
+            The server SHOULD support a minimum of 16 exchanges per
+            virtual host and ideally, impose no limit except as defined
+            by available resources.
+
+        PARAMETERS:
+            ticket: short
+
+                When a client defines a new exchange, this belongs to
+                the access realm of the ticket used.  All further work
+                done with that exchange must be done with an access
+                ticket for the same realm.
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "active" access to the realm in which the exchange
+                    exists or will be created, or "passive" access if
+                    the if-exists flag is set.
+
+            exchange: shortstr
+
+                RULE:
+
+                    Exchange names starting with "amq." are reserved for
+                    predeclared and standardised exchanges.  If the
+                    client attempts to create an exchange starting with
+                    "amq.", the server MUST raise a channel exception
+                    with reply code 403 (access refused).
+
+            type: shortstr
+
+                Each exchange belongs to one of a set of exchange types
+                implemented by the server.  The exchange types define
+                the functionality of the exchange - i.e. how messages
+                are routed through it.  It is not valid or meaningful to
+                attempt to change the type of an existing exchange.
+
+                RULE:
+
+                    If the exchange already exists with a different
+                    type, the server MUST raise a connection exception
+                    with a reply code 507 (not allowed).
+
+                RULE:
+
+                    If the server does not support the requested
+                    exchange type it MUST raise a connection exception
+                    with a reply code 503 (command invalid).
+
+            passive: boolean
+
+                If set, the server will not create the exchange.  The
+                client can use this to check whether an exchange exists
+                without modifying the server state.
+
+                RULE:
+
+                    If set, and the exchange does not already exist, the
+                    server MUST raise a channel exception with reply
+                    code 404 (not found).
+
+            durable: boolean
+
+                If set when creating a new exchange, the exchange will
+                be marked as durable.  Durable exchanges remain active
+                when a server restarts. Non-durable exchanges (transient
+                exchanges) are purged if/when a server restarts.
+
+                RULE:
+
+                    The server MUST support both durable and transient
+                    exchanges.
+
+                RULE:
+
+                    The server MUST ignore the durable field if the
+                    exchange already exists.
+
+            auto_delete: boolean
+
+                If set, the exchange is deleted when all queues have
+                finished using it.
+
+                RULE:
+
+                    The server SHOULD allow for a reasonable delay
+                    between the point when it determines that an
+                    exchange is not being used (or no longer used), and
+                    the point when it deletes the exchange.  At the
+                    least it must allow a client to create an exchange
+                    and then bind a queue to it, with a small but
+                    non-zero delay between these two actions.
+
+                RULE:
+
+                    The server MUST ignore the auto-delete field if the
+                    exchange already exists.
+
+            internal: boolean
+
+                If set, the exchange may not be used directly by
+                publishers, but only when bound to other exchanges.
+                Internal exchanges are used to construct wiring that is
+                not visible to applications.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
+
+            arguments: table
+
+                A set of arguments for the declaration. The syntax and
+                semantics of these arguments depends on the server
+                implementation.  This field is ignored if passive is True.
 
         """
         args = AMQPWriter()
@@ -909,6 +1587,46 @@ class Channel(object):
         """
         This method deletes an exchange.  When an exchange is deleted all
         queue bindings on the exchange are cancelled.
+
+        PARAMETERS:
+            ticket: short
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "active" access rights to the exchange's access
+                    realm.
+
+            exchange: shortstr
+
+                RULE:
+
+                    The exchange MUST exist. Attempting to delete a
+                    non-existing exchange causes a channel exception.
+
+            if_unused: boolean
+
+                If set, the server will only delete the exchange if it
+                has no queue bindings. If the exchange has queue
+                bindings the server does not delete it but raises a
+                channel exception instead.
+
+                RULE:
+
+                    If set, the server SHOULD delete the exchange but
+                    only if it has no queue bindings.
+
+                RULE:
+
+                    If set, the server SHOULD raise a channel exception
+                    if the exchange is in use.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
 
         """
         args = AMQPWriter()
@@ -948,6 +1666,13 @@ class Channel(object):
     #                         / C:PURGE    S:PURGE-OK
     #                         / C:DELETE   S:DELETE-OK
     #
+    # RULE:
+    #
+    #     A server MUST allow any content class to be sent to any queue, in
+    #     any mix, and queue and delivery these content classes
+    #     independently. Note that all methods that fetch content off queues
+    #     are specific to a given content class.
+    #
     #
 
     def queue_bind(self, queue, exchange, routing_key='',
@@ -957,6 +1682,93 @@ class Channel(object):
         bound it will not receive any messages.  In a classic messaging
         model, store-and-forward queues are bound to a dest exchange
         and subscription queues are bound to a dest_wild exchange.
+
+        RULE:
+
+            A server MUST allow ignore duplicate bindings - that is, two or
+            more bind methods for a specific queue, with identical arguments
+            - without treating these as an error.
+
+        RULE:
+
+            If a bind fails, the server MUST raise a connection exception.
+
+        RULE:
+
+            The server MUST NOT allow a durable queue to bind to a transient
+            exchange. If the client attempts this the server MUST raise a
+            channel exception.
+
+        RULE:
+
+            Bindings for durable queues are automatically durable and the
+            server SHOULD restore such bindings after a server restart.
+
+        RULE:
+
+            If the client attempts to an exchange that was declared as
+            internal, the server MUST raise a connection exception with
+            reply code 530 (not allowed).
+
+        RULE:
+
+            The server SHOULD support at least 4 bindings per queue, and
+            ideally, impose no limit except as defined by available
+            resources.
+
+        PARAMETERS:
+            ticket: short
+
+                The client provides a valid access ticket giving "active"
+                access rights to the queue's access realm.
+
+            queue: shortstr
+
+                Specifies the name of the queue to bind.  If the queue
+                name is empty, refers to the current queue for the
+                channel, which is the last declared queue.
+
+                RULE:
+
+                    If the client did not previously declare a queue,
+                    and the queue name in this method is empty, the
+                    server MUST raise a connection exception with reply
+                    code 530 (not allowed).
+
+                RULE:
+
+                    If the queue does not exist the server MUST raise a
+                    channel exception with reply code 404 (not found).
+
+            exchange: shortstr
+
+                RULE:
+
+                    If the exchange does not exist the server MUST raise
+                    a channel exception with reply code 404 (not found).
+
+            routing_key: shortstr
+
+                Specifies the routing key for the binding.  The routing
+                key is used for routing messages depending on the
+                exchange configuration. Not all exchanges use a routing
+                key - refer to the specific exchange documentation.  If
+                the routing key is empty and the queue name is empty,
+                the routing key will be the current queue for the
+                channel, which is the last declared queue.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
+
+            arguments: table
+
+                A set of arguments for the binding.  The syntax and
+                semantics of these arguments depends on the exchange
+                class.
 
         """
         args = AMQPWriter()
@@ -991,6 +1803,142 @@ class Channel(object):
         durability of the queue and its contents, and the level of sharing
         for the queue.
 
+        RULE:
+
+            The server MUST create a default binding for a newly-created
+            queue to the default exchange, which is an exchange of type
+            'direct'.
+
+        RULE:
+
+            The server SHOULD support a minimum of 256 queues per
+            virtual host and ideally, impose no limit except as defined
+            by available resources.
+
+        PARAMETERS:
+            ticket: short
+
+                When a client defines a new queue, this belongs to the
+                access realm of the ticket used.  All further work done
+                with that queue must be done with an access ticket for
+                the same realm.
+
+                The client provides a valid access ticket giving
+                "active" access to the realm in which the queue exists
+                or will be created, or "passive" access if the if-exists
+                flag is set.
+
+            queue: shortstr
+
+                RULE:
+
+                    The queue name MAY be empty, in which case the
+                    server MUST create a new queue with a unique
+                    generated name and return this to the client in the
+                    Declare-Ok method.
+
+                RULE:
+
+                    Queue names starting with "amq." are reserved for
+                    predeclared and standardised server queues.  If the
+                    queue name starts with "amq." and the passive option
+                    is zero, the server MUST raise a connection
+                    exception with reply code 403 (access refused).
+
+            passive: boolean
+
+                If set, the server will not create the queue.  The
+                client can use this to check whether a queue exists
+                without modifying the server state.
+
+                RULE:
+
+                    If set, and the queue does not already exist, the
+                    server MUST respond with a reply code 404 (not
+                    found) and raise a channel exception.
+
+            durable: boolean
+
+                If set when creating a new queue, the queue will be
+                marked as durable.  Durable queues remain active when a
+                server restarts. Non-durable queues (transient queues)
+                are purged if/when a server restarts.  Note that durable
+                queues do not necessarily hold persistent messages,
+                although it does not make sense to send persistent
+                messages to a transient queue.
+
+                RULE:
+
+                    The server MUST recreate the durable queue after a
+                    restart.
+
+                RULE:
+
+                    The server MUST support both durable and transient
+                    queues.
+
+                RULE:
+
+                    The server MUST ignore the durable field if the
+                    queue already exists.
+
+            exclusive: boolean
+
+                Exclusive queues may only be consumed from by the
+                current connection. Setting the 'exclusive' flag always
+                implies 'auto-delete'.
+
+                RULE:
+
+                    The server MUST support both exclusive (private) and
+                    non-exclusive (shared) queues.
+
+                RULE:
+
+                    The server MUST raise a channel exception if
+                    'exclusive' is specified and the queue already
+                    exists and is owned by a different connection.
+
+            auto_delete: boolean
+
+                If set, the queue is deleted when all consumers have
+                finished using it. Last consumer can be cancelled either
+                explicitly or because its channel is closed. If there
+                was no consumer ever on the queue, it won't be deleted.
+
+                RULE:
+
+                    The server SHOULD allow for a reasonable delay
+                    between the point when it determines that a queue is
+                    not being used (or no longer used), and the point
+                    when it deletes the queue.  At the least it must
+                    allow a client to create a queue and then create a
+                    consumer to read from it, with a small but non-zero
+                    delay between these two actions.  The server should
+                    equally allow for clients that may be disconnected
+                    prematurely, and wish to re-consume from the same
+                    queue without losing messages.  We would recommend a
+                    configurable timeout, with a suitable default value
+                    being one minute.
+
+                RULE:
+
+                    The server MUST ignore the auto-delete field if the
+                    queue already exists.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
+
+            arguments: table
+
+                A set of arguments for the declaration. The syntax and
+                semantics of these arguments depends on the server
+                implementation.  This field is ignored if passive is True.
+
         Returns a tuple containing 3 items:
             the name of the queue (essential for automatically-named queues)
             message count
@@ -1019,6 +1967,23 @@ class Channel(object):
         This method confirms a Declare method and confirms the name of the
         queue, essential for automatically-named queues.
 
+        PARAMETERS:
+            queue: shortstr
+
+                Reports the name of the queue. If the server generated a
+                queue name, this field contains that name.
+
+            message_count: long
+
+                Reports the number of messages in the queue, which will
+                be zero for newly-created queues.
+
+            consumer_count: long
+
+                Reports the number of active consumers for the queue.
+                Note that consumers can suspend activity (Channel.Flow)
+                in which case they do not appear in this count.
+
         """
         queue = args.read_shortstr()
         message_count = args.read_long()
@@ -1033,6 +1998,62 @@ class Channel(object):
         This method deletes a queue.  When a queue is deleted any pending
         messages are sent to a dead-letter queue if this is defined in the
         server configuration, and all consumers on the queue are cancelled.
+
+        RULE:
+
+            The server SHOULD use a dead-letter queue to hold messages that
+            were pending on a deleted queue, and MAY provide facilities for
+            a system administrator to move these messages back to an active
+            queue.
+
+        PARAMETERS:
+            ticket: short
+
+                The client provides a valid access ticket giving "active"
+                access rights to the queue's access realm.
+
+            queue: shortstr
+
+                Specifies the name of the queue to delete. If the queue
+                name is empty, refers to the current queue for the
+                channel, which is the last declared queue.
+
+                RULE:
+
+                    If the client did not previously declare a queue,
+                    and the queue name in this method is empty, the
+                    server MUST raise a connection exception with reply
+                    code 530 (not allowed).
+
+                RULE:
+
+                    The queue must exist. Attempting to delete a
+                    non-existing queue causes a channel exception.
+
+            if_unused: boolean
+
+                If set, the server will only delete the queue if it has
+                no consumers. If the queue has consumers the server does
+                does not delete it but raises a channel exception
+                instead.
+
+                RULE:
+
+                    The server MUST respect the if-unused flag when
+                    deleting a queue.
+
+            if_empty: boolean
+
+                If set, the server will only delete the queue if it has
+                no messages. If the queue is not empty the server raises
+                a channel exception.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
 
         """
         args = AMQPWriter()
@@ -1053,6 +2074,11 @@ class Channel(object):
         """
         This method confirms the deletion of a queue.
 
+        PARAMETERS:
+            message_count: long
+
+                Reports the number of messages purged.
+
         """
         return args.read_long()
 
@@ -1062,6 +2088,62 @@ class Channel(object):
         This method removes all messages from a queue.  It does not cancel
         consumers.  Purged messages are deleted without any formal "undo"
         mechanism.
+
+        RULE:
+
+            A call to purge MUST result in an empty queue.
+
+        RULE:
+
+            On transacted channels the server MUST not purge messages
+            that have already been sent to a client but not yet
+            acknowledged.
+
+        RULE:
+
+            The server MAY implement a purge queue or log that allows
+            system administrators to recover accidentally-purged
+            messages.  The server SHOULD NOT keep purged messages in the
+            same storage spaces as the live messages since the volumes
+            of purged messages may get very large.
+
+        PARAMETERS:
+            ticket: short
+
+                The access ticket must be for the access realm that
+                holds the queue.
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "read" access rights to the queue's access realm.
+                    Note that purging a queue is equivalent to reading
+                    all messages and discarding them.
+
+            queue: shortstr
+
+                Specifies the name of the queue to purge.  If the queue
+                name is empty, refers to the current queue for the
+                channel, which is the last declared queue.
+
+                RULE:
+
+                    If the client did not previously declare a queue,
+                    and the queue name in this method is empty, the
+                    server MUST raise a connection exception with reply
+                    code 530 (not allowed).
+
+                RULE:
+
+                    The queue must exist. Attempting to purge a
+                    non-existing queue causes a channel exception.
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
 
         if nowait is False, returns a message_count
 
@@ -1081,6 +2163,11 @@ class Channel(object):
     def _queue_purge_ok(self, args):
         """
         This method confirms the purge of a queue.
+
+        PARAMETERS:
+            message_count: long
+
+                Reports the number of messages purged.
 
         """
         return args.read_long()
@@ -1150,6 +2237,25 @@ class Channel(object):
         single message or a set of messages up to and including a specific
         message.
 
+        PARAMETERS:
+            delivery_tag: longlong
+
+            multiple: boolean
+
+                If set to True, the delivery tag is treated as "up to
+                and including", so that the client can acknowledge
+                multiple messages with a single method.  If set to
+                False, the delivery tag refers to a single message.  If
+                the multiple field is True, and the delivery tag is
+                zero, tells the server to acknowledge all outstanding
+                mesages.
+
+                RULE:
+
+                    The server MUST validate that a non-zero
+                    delivery-tag refers to an delivered message, and
+                    raise a channel exception if this is not the case.
+
         """
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
@@ -1171,6 +2277,16 @@ class Channel(object):
             command, or the consumer has been cancelled for other reasons,
             this command has no effect.
 
+        PARAMETERS:
+            consumer_tag: shortstr
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
+
         """
         args = AMQPWriter()
         args.write_shortstr(consumer_tag)
@@ -1184,6 +2300,9 @@ class Channel(object):
     def _basic_cancel_ok(self, args):
         """
         This method confirms that the cancellation was completed.
+
+        PARAMETERS:
+            consumer_tag: shortstr
 
         """
         consumer_tag = args.read_shortstr()
@@ -1204,6 +2323,66 @@ class Channel(object):
             The server SHOULD support at least 16 consumers per queue,
             unless the queue was declared as private, and ideally, impose
             no limit except as defined by available resources.
+
+        PARAMETERS:
+            ticket: short
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "read" access rights to the realm for the queue.
+
+            queue: shortstr
+
+                Specifies the name of the queue to consume from.  If the
+                queue name is null, refers to the current queue for the
+                channel, which is the last declared queue.
+
+                RULE:
+
+                    If the client did not previously declare a queue,
+                    and the queue name in this method is empty, the
+                    server MUST raise a connection exception with reply
+                    code 530 (not allowed).
+
+            consumer_tag: shortstr
+
+                Specifies the identifier for the consumer. The consumer
+                tag is local to a connection, so two clients can use the
+                same consumer tags. If this field is empty the server
+                will generate a unique tag.
+
+                RULE:
+
+                    The tag MUST NOT refer to an existing consumer. If
+                    the client attempts to create two consumers with the
+                    same non-empty tag the server MUST raise a
+                    connection exception with reply code 530 (not
+                    allowed).
+
+            no_local: boolean
+
+            no_ack: boolean
+
+            exclusive: boolean
+
+                Request exclusive consumer access, meaning only this
+                consumer can access the queue.
+
+                RULE:
+
+                    If the server cannot grant exclusive access to the
+                    queue when asked, - because there are other
+                    consumers active - it MUST raise a channel exception
+                    with return code 403 (access refused).
+
+            nowait: boolean
+
+                If set, the server will not respond to the method. The
+                client should not wait for a reply method.  If the
+                server could not complete the method it will raise a
+                channel or connection exception.
+
 
         """
         args = AMQPWriter()
@@ -1231,6 +2410,12 @@ class Channel(object):
         The server provides the client with a consumer tag, which is used
         by the client for methods called on the consumer at a later stage.
 
+        PARAMETERS:
+            consumer_tag: shortstr
+
+                Holds the consumer tag specified by the client or
+                provided by the server.
+
         """
         return args.read_shortstr()
 
@@ -1250,6 +2435,23 @@ class Channel(object):
             server SHOULD consider the message to be unprocessable (possibly
             causing client applications to abort), and move the message to a
             dead letter queue.
+
+        PARAMETERS:
+            consumer_tag: shortstr
+
+            delivery_tag: longlong
+
+            redelivered: boolean
+
+            exchange: shortstr
+
+                Specifies the name of the exchange that the message was
+                originally published to.
+
+            routing_key: shortstr
+
+                Specifies the routing key name specified when the
+                message was published.
 
         """
         consumer_tag = args.read_shortstr()
@@ -1280,7 +2482,31 @@ class Channel(object):
         application where synchronous functionality is more important than
         performance.
 
+        PARAMETERS:
+            ticket: short
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "read" access rights to the realm for the queue.
+
+            queue: shortstr
+
+                Specifies the name of the queue to consume from.  If the
+                queue name is null, refers to the current queue for the
+                channel, which is the last declared queue.
+
+                RULE:
+
+                    If the client did not previously declare a queue,
+                    and the queue name in this method is empty, the
+                    server MUST raise a connection exception with reply
+                    code 530 (not allowed).
+
+            no_ack: boolean
+
         Non-blocking, returns a message object, or None.
+
         """
         args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
@@ -1298,6 +2524,12 @@ class Channel(object):
         This method tells the client that the queue has no messages
         available for the client.
 
+        PARAMETERS:
+            cluster_id: shortstr
+
+                For use by cluster applications, should not be used by
+                client applications.
+
         """
         cluster_id = args.read_shortstr()
 
@@ -1307,6 +2539,30 @@ class Channel(object):
         This method delivers a message to the client following a get
         method.  A message delivered by 'get-ok' must be acknowledged
         unless the no-ack option was set in the get method.
+
+        PARAMETERS:
+            delivery_tag: longlong
+
+            redelivered: boolean
+
+            exchange: shortstr
+
+                Specifies the name of the exchange that the message was
+                originally published to.  If empty, the message was
+                published to the default exchange.
+
+            routing_key: shortstr
+
+                Specifies the routing key name specified when the
+                message was published.
+
+            message_count: long
+
+                This field reports the number of messages pending on the
+                queue, excluding the message being delivered.  Note that
+                this figure is indicative, not reliable, and can change
+                arbitrarily as messages are added to the queue and
+                removed by other clients.
 
         """
         delivery_tag = args.read_longlong()
@@ -1336,6 +2592,72 @@ class Channel(object):
         and distributed to any active consumers when the transaction, if
         any, is committed.
 
+        PARAMETERS:
+            ticket: short
+
+                RULE:
+
+                    The client MUST provide a valid access ticket giving
+                    "write" access rights to the access realm for the
+                    exchange.
+
+            exchange: shortstr
+
+                Specifies the name of the exchange to publish to.  The
+                exchange name can be empty, meaning the default
+                exchange.  If the exchange name is specified, and that
+                exchange does not exist, the server will raise a channel
+                exception.
+
+                RULE:
+
+                    The server MUST accept a blank exchange name to mean
+                    the default exchange.
+
+                RULE:
+
+                    If the exchange was declared as an internal
+                    exchange, the server MUST raise a channel exception
+                    with a reply code 403 (access refused).
+
+                RULE:
+
+                    The exchange MAY refuse basic content in which case
+                    it MUST raise a channel exception with reply code
+                    540 (not implemented).
+
+            routing_key: shortstr
+
+                Specifies the routing key for the message.  The routing
+                key is used for routing messages depending on the
+                exchange configuration.
+
+            mandatory: boolean
+
+                This flag tells the server how to react if the message
+                cannot be routed to a queue.  If this flag is True, the
+                server will return an unroutable message with a Return
+                method.  If this flag is False, the server silently
+                drops the message.
+
+                RULE:
+
+                    The server SHOULD implement the mandatory flag.
+
+            immediate: boolean
+
+                This flag tells the server how to react if the message
+                cannot be routed to a queue consumer immediately.  If
+                this flag is True, the server will return an
+                undeliverable message with a Return method. If this flag
+                is False, the server will queue the message, but with no
+                guarantee that it will ever be consumed.
+
+                RULE:
+
+                    The server SHOULD implement the immediate flag.
+
+
         """
         args = AMQPWriter()
         args.write_short(ticket if ticket is not None else self.default_ticket)
@@ -1359,6 +2681,52 @@ class Channel(object):
         always depend on the content class semantics.  Though the qos method
         could in principle apply to both peers, it is currently meaningful
         only for the server.
+
+        PARAMETERS:
+            prefetch_size: long
+
+                The client can request that messages be sent in advance
+                so that when the client finishes processing a message,
+                the following message is already held locally, rather
+                than needing to be sent down the channel.  Prefetching
+                gives a performance improvement. This field specifies
+                the prefetch window size in octets.  The server will
+                send a message in advance if it is equal to or smaller
+                in size than the available prefetch size (and also falls
+                into other prefetch limits). May be set to zero, meaning
+                "no specific limit", although other prefetch limits may
+                still apply. The prefetch-size is ignored if the no-ack
+                option is set.
+
+                RULE:
+
+                    The server MUST ignore this setting when the client
+                    is not processing any messages - i.e. the prefetch
+                    size does not limit the transfer of single messages
+                    to a client, only the sending in advance of more
+                    messages while the client still has one or more
+                    unacknowledged messages.
+
+            prefetch_count: short
+
+                Specifies a prefetch window in terms of whole messages.
+                This field may be used in combination with the
+                prefetch-size field; a message will only be sent in
+                advance if both prefetch windows (and those at the
+                channel and connection level) allow it. The
+                prefetch-count is ignored if the no-ack option is set.
+
+                RULE:
+
+                    The server MAY send less data in advance than
+                    allowed by the client's specified prefetch windows
+                    but it MUST NOT send more.
+
+            a_global: boolean
+
+                By default the QoS settings apply to the current channel
+                only.  If this field is set, they are applied to the
+                entire connection.
 
         """
         args = AMQPWriter()
@@ -1397,6 +2765,14 @@ class Channel(object):
             The server MUST raise a channel exception if this is called on a
             transacted channel.
 
+        PARAMETERS:
+            requeue: boolean
+
+                If this field is False, the message will be redelivered
+                to the original recipient.  If this field is True, the
+                server will attempt to requeue the message, potentially
+                then delivering it to an alternative subscriber.
+
         """
         args = AMQPWriter()
         args.write_bit(requeue)
@@ -1429,6 +2805,27 @@ class Channel(object):
             messages to process.  A rejected message MAY be discarded or
             dead-lettered, not necessarily passed to another client.
 
+        PARAMETERS:
+            delivery_tag: longlong
+
+            requeue: boolean
+
+                If this field is False, the message will be discarded.
+                If this field is True, the server will attempt to
+                requeue the message.
+
+                RULE:
+
+                    The server MUST NOT deliver the message to the same
+                    client within the context of the current channel.
+                    The recommended strategy is to attempt to deliver
+                    the message to an alternative consumer, and if that
+                    is not possible, to move the message to a
+                    dead-letter queue.  The server MAY use more
+                    sophisticated tracking to hold the message on the
+                    queue and redeliver it to the same client at a later
+                    stage.
+
         """
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
@@ -1442,6 +2839,21 @@ class Channel(object):
         with the "immediate" flag set, or an unroutable message published
         with the "mandatory" flag set. The reply code and text provide
         information about the reason that the message was undeliverable.
+
+        PARAMETERS:
+            reply_code: short
+
+            reply_text: shortstr
+
+            exchange: shortstr
+
+                Specifies the name of the exchange that the message was
+                originally published to.
+
+            routing_key: shortstr
+
+                Specifies the routing key name specified when the
+                message was published.
 
         """
         reply_code = args.read_short()
@@ -1467,6 +2879,13 @@ class Channel(object):
     #     tx                  = C:SELECT S:SELECT-OK
     #                         / C:COMMIT S:COMMIT-OK
     #                         / C:ROLLBACK S:ROLLBACK-OK
+    #
+    # RULE:
+    #
+    #     An client using standard transactions SHOULD be able to track all
+    #     messages received within a reasonable period, and thus detect and
+    #     reject duplicates of the same message. It SHOULD NOT pass these to
+    #     the application layer.
     #
     #
 
