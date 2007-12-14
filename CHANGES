@@ -1,6 +1,11 @@
 CHANGES
 --------
 
+Current
+    Improved skeleton generating program to include much more
+    information in the Python docstrings that was present in the AMQP
+    spec file. Merged in the improved docstrings into the client module.
+
 Version 0.2
 
     Changed the default value for the auto_delete parameter
