@@ -80,7 +80,7 @@ def _field_type(field_element):
         return domains[field_element.attrib['domain']]
 
 
-def _reindent(s, indent):
+def _reindent(s, indent, reformat=True):
     """
     Remove the existing indentation from each line of a chunk of
     text, s, and then prefix each line with a new indent string.
@@ -96,8 +96,12 @@ def _reindent(s, indent):
         s = s[1:]
     while s and (not s[-1]):
         s = s[:-1]
-    s = [indent + x for x in s]
-    return '\n'.join(s)
+    if reformat:
+        s = '\n'.join(s)
+        s = textwrap.wrap(s, initial_indent=indent, subsequent_indent=indent)
+    else:
+        s = [indent + x for x in s]
+    return '\n'.join(s) + '\n'
 
 
 def generate_docstr(element, indent='', wrap=None):
@@ -120,17 +124,20 @@ def generate_docstr(element, indent='', wrap=None):
         docval = ''.join(d.textlist()).rstrip()
         if not docval:
             continue
+        reformat = True
         if 'name' in d.attrib:
             result.append(indent + d.attrib['name'].upper() + ':')
             result.append(indent)
             extra_indent = '    '
+            if d.attrib['name'] == 'grammar':
+                reformat = False # Don't want re-indenting to mess this up
         elif d.tag == 'rule':
             result.append(indent + 'RULE:')
             result.append(indent)
             extra_indent = '    '
         else:
             extra_indent = ''
-        result.append(_reindent(docval, indent + extra_indent))
+        result.append(_reindent(docval, indent + extra_indent, reformat))
         result.append(indent)
 
     fields = element.findall('field')
