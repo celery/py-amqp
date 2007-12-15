@@ -109,16 +109,14 @@ def generate_docstr(element, indent='', wrap=None):
     added to the beginning and end of the resulting docstring.
 
     """
-    docs = element.findall('doc') + element.findall('rule')
-    if not docs:
-        return None
-
     result = []
 
-    if wrap is not None:
-        result.append(wrap)
+    txt = element.text and element.text.rstrip()
+    if txt:
+        result.append(_reindent(txt, indent))
+        result.append(indent)
 
-    for d in docs:
+    for d in element.findall('doc') + element.findall('rule'):
         docval = ''.join(d.textlist()).rstrip()
         if not docval:
             continue
@@ -136,7 +134,7 @@ def generate_docstr(element, indent='', wrap=None):
         result.append(indent)
 
     fields = element.findall('field')
-    if (element.tag != 'class') and fields:
+    if fields:
         result.append(indent + 'PARAMETERS:')
         for f in fields:
             result.append(indent + '    ' + _fixup_field_name(f) + ': ' + _field_type(f))
@@ -146,8 +144,11 @@ def generate_docstr(element, indent='', wrap=None):
                 result.append(field_docs)
             result.append(indent)
 
+    if not result:
+        return None
+
     if wrap is not None:
-        result.append(wrap)
+        result = [wrap] + result + [wrap]
 
     return '\n'.join(x.rstrip() for x in result) + '\n'
 
