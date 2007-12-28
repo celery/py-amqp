@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.2.1',
+    'library_version': '0.2.2',
     }
 
 DEBUG = False
@@ -2648,6 +2648,16 @@ class Channel(object):
                 server could not complete the method it will raise a
                 channel or connection exception.
 
+            callback: Python callable
+
+                function/method called with each delivered message
+
+                For each message delivered by the broker, the
+                callable will be called with a Message object
+                as the single argument.  If no callable is specified,
+                messages are quietly discarded, no_ack should probably
+                be set to True in that case.
+
             ticket: short
 
                 RULE:
@@ -2752,8 +2762,9 @@ class Channel(object):
             'routing_key': routing_key,
             }
 
-        if consumer_tag in self.callbacks:
-            self.callbacks[consumer_tag](msg)
+        func = self.callbacks.get(consumer_tag, None)
+        if func is not None:
+            func(msg)
 
 
     def basic_get(self, queue='', no_ack=False, ticket=None):

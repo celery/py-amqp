@@ -13,7 +13,7 @@ from distutils.core import setup
 
 setup(name = "amqplib",
       description = "AMQP Client Library",
-      version = "0.2.1",
+      version = "0.2.2",
       license = "LGPL",
       author = "Barry Pederson",
       author_email = "bp@barryp.org",

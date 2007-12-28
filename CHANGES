@@ -17,6 +17,9 @@ Current
     the exchange parameter can't have a default value.  In hindsight
     those args should have been swapped, but it's too late now.
 
+    Deal with no callback being specified in basic_consume(), it
+    should now quietly discard messages.
+
 Version 0.2
 
     Changed the default value for the auto_delete parameter
