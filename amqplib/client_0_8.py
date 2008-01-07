@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.2.2',
+    'library_version': '0.3',
     }
 
 DEBUG = False

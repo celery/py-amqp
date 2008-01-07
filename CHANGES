@@ -1,7 +1,7 @@
 CHANGES
 --------
 
-Current
+Version 0.3
 
     Improved skeleton generating program to include much more
     information in the Python docstrings that was present in the AMQP
