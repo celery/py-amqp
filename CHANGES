@@ -1,6 +1,24 @@
 CHANGES
 --------
 
+    Added non-blocking client and demo, from
+    Dmitriy Samovskiy <dmitriy.samovskiy@cohesiveft.com>:
+    -----------------------
+
+    We put together an add-on for py-amqplib that implements AMQP client
+    with non-blocking sockets (see NonBlockingConnection class and
+    nbloop() function in nbclient_0_8.py). nbdemo_receive.py is a demo
+    script, and nbclient.zip includes both nbclient_0_8.py and
+    nbdemo_receive.py.
+
+    There are at least 2 scenarios where non-blocking sockets help, and
+    both are applicable to consumers:
+
+    1) when you want to be able to interrupt consumer's event loop without
+       waiting for a next incoming message;
+    2) when you want to consume messages from multiple brokers (or over
+       multiple connections) in a single event loop.
+
 Version 0.3
 
     Improved skeleton generating program to include much more
