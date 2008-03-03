@@ -21,13 +21,14 @@ Non-Blocking Sockets Implementation
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import socket
+import time
+from errno import *
+from Queue import Queue
+from struct import unpack
 
 import client_0_8
 from util_0_8 import AMQPReader, AMQPWriter
-from Queue import Queue
-from struct import unpack
-import socket, time
-from errno import *
 
 __all__ =  [
             'NonBlockingConnection',
@@ -35,23 +36,22 @@ __all__ =  [
            ]
 
 
-class NonBlockingException(Exception): pass
+class NonBlockingException(Exception):
+    pass
+
 
 class NonBlockingSocket:
     def __init__(self, host, port, **kwargs):
-        if kwargs.has_key('ssl') and kwargs['ssl']:
+        if kwargs.get('ssl', False):
             raise ValueError, "NonBlockingSocket does not yet support SSL"
 
-        try: self.connect_timeout = kwargs['nb_connect_timeout']
-        except KeyError: self.connect_timeout = 15.0
-
-        try: self.nb_sleep = kwargs['nb_sleep']
-        except KeyError: self.nb_sleep = 0.1
+        self.connect_timeout = kwargs.get('nb_connect_timeout', 15.0)
+        self.nb_sleep = kwargs.get('nb_sleep', 0.1)
 
         self.host = host
         self.port = port
-        self.write_buf = ""
-        self.read_buf = ""
+        self.write_buf = ''
+        self.read_buf = ''
         self.read_p = 0     # pointer to current postion in read buffer
         self.last_recv = time.time()
 
@@ -78,7 +78,8 @@ class NonBlockingSocket:
                 raise socket.error, (ETIMEDOUT, errorcode[ETIMEDOUT])
 
 
-    def flush(self): pass
+    def flush(self):
+        pass
 
     def write(self, data):
         # detect a potential deadlock.
@@ -211,7 +212,8 @@ class NonBlockingConnection(client_0_8.Connection):
 
 
 def nbloop(channels):
-    if not channels: return
+    if not channels:
+        return
 
     # make sure we have at most 1 channel per connection
     s2ch = { }  # socket -> channel mapping
@@ -243,4 +245,3 @@ def nbloop(channels):
                     sock.with_nb_exc = False
 
 # client_0_8.DEBUG = True
-
