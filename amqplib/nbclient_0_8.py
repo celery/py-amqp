@@ -3,7 +3,7 @@ AMQP 0-8 Client Library
 Non-Blocking Sockets Implementation
 
 """
-# Copyright (C) 2007 Barry Pederson <bp@barryp.org>
+# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 # Copyright (C) 2008 LShift Ltd., Cohesive Financial Technologies LLC.,
 #                    and Rabbit Technologies Ltd.
 #
@@ -22,17 +22,15 @@ Non-Blocking Sockets Implementation
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import socket
-import time
 from errno import *
-from Queue import Queue
-from struct import unpack
+from time import sleep, time
 
-import client_0_8
-from util_0_8 import AMQPReader, AMQPWriter
+from client_0_8 import Connection
+from util_0_8 import AMQPReader
 
 __all__ =  [
             'NonBlockingConnection',
-            'nbloop'
+            'nbloop',
            ]
 
 
@@ -40,43 +38,28 @@ class NonBlockingException(Exception):
     pass
 
 
-class NonBlockingSocket:
-    def __init__(self, host, port, **kwargs):
-        if kwargs.get('ssl', False):
-            raise ValueError, "NonBlockingSocket does not yet support SSL"
+class NonBlockingSocket(object):
+    """
+    Wrap a socket so that its read() and write() methods
+    raise a NonBlockingException if they would block.  Also
+    keep track of the time it last receives data.
 
-        self.connect_timeout = kwargs.get('nb_connect_timeout', 15.0)
+    """
+    def __init__(self, sock, **kwargs):
+        self.sock = sock
+        self.sock.setblocking(0)
+
         self.nb_sleep = kwargs.get('nb_sleep', 0.1)
 
-        self.host = host
-        self.port = port
         self.write_buf = ''
         self.read_buf = ''
         self.read_p = 0     # pointer to current postion in read buffer
-        self.last_recv = time.time()
+        self.last_recv = time()
 
         self.with_nb_exc = False
 
     def close(self):
         self.sock.close()
-
-    def connect(self):
-        # based on implementation in asyncore.py
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setblocking(0)
-
-        first = time.time()
-        while True:
-            err = self.sock.connect_ex((self.host, self.port))
-            if err in (EINPROGRESS, EALREADY, EWOULDBLOCK):
-                time.sleep(self.nb_sleep)
-            elif err in (0, EISCONN):
-                return self
-            else:
-                raise socket.error, (err, errorcode[err])
-            if time.time() - first > self.connect_timeout:
-                raise socket.error, (ETIMEDOUT, errorcode[ETIMEDOUT])
-
 
     def flush(self):
         pass
@@ -103,7 +86,7 @@ class NonBlockingSocket:
                 self.write_buf = self.write_buf[sent:]
             except socket.error, (err, _):
                 if err in (EAGAIN,):
-                    time.sleep(self.nb_sleep)
+                    sleep(self.nb_sleep)
                     if self.with_nb_exc:
                         raise NonBlockingException
                 else:
@@ -113,17 +96,18 @@ class NonBlockingSocket:
     def read(self, n):
         # do not proceed to next read until all data from
         # write buffer are sent to server
-        if self.write_buf: self.__do_write()
+        if self.write_buf:
+            self.__do_write()
 
         # read data from socket into buffer if buffer is not long enough
         while len(self.read_buf) < self.read_p + n:
             try:
                 # try to read as much as we can
                 self.read_buf += self.sock.recv(1024)
-                self.last_recv = time.time()
+                self.last_recv = time()
             except socket.error, (err, _):
                 if err in (EAGAIN,):
-                    time.sleep(self.nb_sleep)
+                    sleep(self.nb_sleep)
                     if self.with_nb_exc:
                         self.read_p = 0
                         raise NonBlockingException
@@ -139,74 +123,33 @@ class NonBlockingSocket:
 #---------------------------------------------------
 
 
-class NonBlockingConnection(client_0_8.Connection):
+class NonBlockingConnection(Connection):
+    """
+    An AMQP connection that uses non-blocking sockets
+    that raise NonBlockingException when they would block.
 
-    def __init__(self, host, userid=None, password=None,
-        login_method='AMQPLAIN', login_response=None,
-        virtual_host='/', locale='en_US', client_properties={},
-        ssl=False, insist=False, **kwargs):
-        """ This method closely resembles Connection.__init__ but
-        there are some differences to support non blocking sockets
+    """
+    def __init__(self, *args, **kwargs):
         """
+        Wrap the client_0_8.Connection.__init__ method
+        to turn the socket into a Non-blocking socket.
+
+        """
+        if kwargs.get('ssl', False):
+            raise ValueError, "NonBlockingConnection does not yet support SSL"
 
         assert 'nb_callback' in kwargs, 'nb_callback is required'
         self.nb_callback = kwargs['nb_callback']
         assert callable(self.nb_callback)
 
-        if (userid is not None) and (password is not None):
-            login_response = AMQPWriter()
-            login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
-            login_response = login_response.getvalue()[4:]  #Skip the length
-                                                            #at the beginning
+        if 'connect_timeout' not in kwargs:
+            kwargs['connect_timeout'] = kwargs.get('nb_connect_timeout', 15.0)
 
-        d = {}
-        d.update(client_0_8.LIBRARY_PROPERTIES)
-        d.update(client_properties)
+        Connection.__init__(self, *args, **kwargs)
 
-        self.known_hosts = ''
-
-        while True:
-            self.channels = {}
-            self.frame_queue = Queue()
-            self.input = self.out = None
-
-            if ':' in host:
-                host, port = host.split(':', 1)
-                port = int(port)
-            else:
-                port = client_0_8.AMQP_PORT
-
-            nb_kwargs = dict([ k for k in kwargs.items()
-                            if k[0].startswith('nb_') ])
-            self.sock = NonBlockingSocket(host, port, **nb_kwargs).connect()
-
-            self.out = self.sock
-            self.input = AMQPReader(self.sock)
-
-            self.out.write(client_0_8.AMQP_PROTOCOL_HEADER)
-            self.out.flush()
-
-            self.wait(allowed_methods=[
-                        (10, 10), # start
-                     ])
-
-            self._x_start_ok(d, login_method, login_response, locale)
-
-            self._wait_tune_ok = True
-            while self._wait_tune_ok:
-                self.wait(allowed_methods=[
-                        (10, 20), # secure
-                        (10, 30), # tune
-                    ])
-
-            host = self._x_open(virtual_host, insist=insist)
-            if host is None:
-                # we weren't redirected
-                return
-
-            # we were redirected, close the socket, loop and try again
-            self.close()
-
+        self.sock = NonBlockingSocket(self.sock, **kwargs)
+        self.out = self.sock
+        self.input = AMQPReader(self.out)
 
 #-------------------------------------------
 
@@ -224,11 +167,13 @@ def nbloop(channels):
             s2ch[ch.connection.sock] = ch
 
     try:
-        for s in s2ch: s.with_nb_exc = True
+        for s in s2ch:
+            s.with_nb_exc = True
         while True:
             for sock,ch in s2ch.items():
                 try:
-                    if ch.callbacks: ch.wait()
+                    if ch.callbacks:
+                        ch.wait()
                 except NonBlockingException:
                     ch.connection.nb_callback(ch)
     finally:
@@ -244,4 +189,4 @@ def nbloop(channels):
                     del(s2ch[sock])
                     sock.with_nb_exc = False
 
-# client_0_8.DEBUG = True
+### EOF ###

@@ -2,7 +2,7 @@
 AMQP 0-8 Client Library
 
 """
-# Copyright (C) 2007 Barry Pederson <bp@barryp.org>
+# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -113,7 +113,7 @@ class Connection(object):
     def __init__(self, host, userid=None, password=None,
         login_method='AMQPLAIN', login_response=None,
         virtual_host='/', locale='en_US', client_properties={},
-        ssl=False, insist=False, **kwargs):
+        ssl=False, insist=False, connect_timeout=None, **kwargs):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -145,15 +145,18 @@ class Connection(object):
             else:
                 port = AMQP_PORT
 
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((host, port))
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            self.sock.settimeout(connect_timeout)
+            self.sock.connect((host, port))
+            self.sock.settimeout(None)
 
             if ssl:
-                self.out = _SSLWrap(sock)
+                self.out = _SSLWrap(self.sock)
                 self.input = AMQPReader(self.out)
             else:
-                self.out = sock.makefile('w')
-                self.input = AMQPReader(sock.makefile('r'))
+                self.out = self.sock.makefile('w')
+                self.input = AMQPReader(self.sock.makefile('r'))
 
             self.out.write(AMQP_PROTOCOL_HEADER)
             self.out.flush()
