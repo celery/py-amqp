@@ -41,7 +41,7 @@ where most of the action is.
     ch2 = conn.channel()   # let amqplib assign a channel number
     print 'my channel is', ch2.channel_id
 
-    ch3 = conn.channel(1) # since channel 1 is already created an open, just
+    ch3 = conn.channel(1) # since channel 1 is already created and open, just
                           # return another reference to that.
 
 Channels have a close() method too, which doesn't affect other channels
@@ -84,7 +84,7 @@ is automatically set to 'UTF-8', so these two Messages are equivalent
 Messages may have a 'application_headers' dictionary (another 0-10ism, 0-8
 just calls the property 'headers'), consisting of string keys and values that
 are strings, integers, Decimal (a bit shaky), datetime.datetime, and other
-dictionaries containing the same types.
+dictionaries containing those same types.
 
     msg = Message('fancy', application_headers={'foo': 7, 'bar': 'baz'})
 
@@ -95,17 +95,18 @@ In the AMQP model, publishers send messages to exchanges, which then
 distribute them to queues, which deliver them to receivers.
 
 AMQP defines some default exchanges such as, 'amq.direct', 'amq.topic',
-'amq.fanout' - which can be used right away
+'amq.fanout' - which can be used right away.  To send to one of
+these default exchanges:
 
     ch.basic_publish(msg, 'amq.fanout')
 
-To declare your own exchange and send to that:
+To declare your own exchange and send it a message:
 
     ch.exchange_declare('myfan', type='fanout')
     ch.basic_publish(msg, 'myfan')
 
 To receive messages, a program must declare a queue, and bind it to an
-exchange.
+exchange:
 
     ch.queue_declare('myqueue')
     ch.queue_bind('myqueue', 'amq.fanout')
@@ -145,9 +146,9 @@ messages to the channel as they're placed into the queue.
     while True:
         ch.wait()
 
-The above will loop forever.  To cancel the 'consume', use basic_cancel()
-with a consumer_tag.  A consumer_tag is a string that's either specified
-when you call basic_consume()
+The above example will loop forever.  To cancel the 'consume', use 
+basic_cancel() with a consumer_tag.  A consumer_tag is a string that's 
+either specified when you call basic_consume()
 
     ch.basic_consume('myqueue', callback=mycallback, consumer_tag='mytag')
     ...
