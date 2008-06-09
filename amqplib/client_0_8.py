@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.3',
+    'library_version': '0.4',
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
@@ -170,7 +170,8 @@ class _AbstractChannel(object):
             if (allowed_methods is None) \
             or (method_sig in allowed_methods):
                 self.method_queue.remove(queued_method)
-                AMQP_LOGGER.debug('Executing queued method: %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
+                AMQP_LOGGER.debug('Executing queued method: %s: %s' %
+                    (str(method_sig), _METHOD_NAME_MAP[method_sig]))
 
                 return self._dispatch(*queued_method)
 
@@ -425,7 +426,7 @@ class Connection(_AbstractChannel):
     def channel(self, channel_id=None):
         """
         Fetch a Channel object identified by the numeric channel_id, or
-        create that object of it doesn't already exist.
+        create that object if it doesn't already exist.
 
         """
         if channel_id in self.channels:

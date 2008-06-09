@@ -1,23 +1,33 @@
 CHANGES
 --------
 
+Version 0.4
+
+    Send debugging output through the standard Python 'logging' module
+    instead of directly printing to the console.
+
+    Reworked the guts of the Connection and Channel classes
+    to untangle the mess that controlled how frames were
+    waited for and queued up.  Should fix problems seen with
+    basic_deliver messages coming when the client is expecting
+    responses to other synchronous calls.
+
     Added non-blocking client and demo, from
     Dmitriy Samovskiy <dmitriy.samovskiy@cohesiveft.com>:
     -----------------------
+        We put together an add-on for py-amqplib that implements AMQP client
+        with non-blocking sockets (see NonBlockingConnection class and
+        nbloop() function in nbclient_0_8.py). nbdemo_receive.py is a demo
+        script, and nbclient.zip includes both nbclient_0_8.py and
+        nbdemo_receive.py.
 
-    We put together an add-on for py-amqplib that implements AMQP client
-    with non-blocking sockets (see NonBlockingConnection class and
-    nbloop() function in nbclient_0_8.py). nbdemo_receive.py is a demo
-    script, and nbclient.zip includes both nbclient_0_8.py and
-    nbdemo_receive.py.
+        There are at least 2 scenarios where non-blocking sockets help, and
+        both are applicable to consumers:
 
-    There are at least 2 scenarios where non-blocking sockets help, and
-    both are applicable to consumers:
-
-    1) when you want to be able to interrupt consumer's event loop without
-       waiting for a next incoming message;
-    2) when you want to consume messages from multiple brokers (or over
-       multiple connections) in a single event loop.
+        1) when you want to be able to interrupt consumer's event loop
+           without waiting for a next incoming message;
+        2) when you want to consume messages from multiple brokers (or over
+           multiple connections) in a single event loop.
 
 Version 0.3
 
