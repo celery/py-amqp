@@ -18,7 +18,7 @@ AMQP 0-8 Client Library
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-
+import logging
 import socket
 from Queue import Queue
 from struct import unpack
@@ -45,7 +45,8 @@ LIBRARY_PROPERTIES = {
     'library_version': '0.3',
     }
 
-DEBUG = False
+AMQP_LOGGER = logging.getLogger('amqplib')
+
 
 class AMQPException(Exception):
     def __init__(self, reply_code, reply_text, method_sig):
@@ -165,8 +166,12 @@ class _AbstractChannel(object):
         # Process deferred methods
         #
         for queued_method in self.method_queue:
-            if (allowed_methods is None) or (queued_method[0] in allowed_methods):
+            method_sig = queued_method[0]
+            if (allowed_methods is None) \
+            or (method_sig in allowed_methods):
                 self.method_queue.remove(queued_method)
+                AMQP_LOGGER.debug('Executing queued method: %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
+
                 return self._dispatch(*queued_method)
 
         #
@@ -183,6 +188,8 @@ class _AbstractChannel(object):
             method_sig = unpack('>HH', payload[:4])
             args = AMQPReader(payload[4:])
 
+            AMQP_LOGGER.debug('> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
+
             if method_sig in _CONTENT_METHODS:
                 content = self._wait_content()
             else:
@@ -194,6 +201,7 @@ class _AbstractChannel(object):
                 return self._dispatch(method_sig, args, content)
 
             # Wasn't what we were looking for? save it for later
+            AMQP_LOGGER.debug('Queueing for later: %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
             self.method_queue.append((method_sig, args, content))
 
 
@@ -368,8 +376,7 @@ class Connection(_AbstractChannel):
         self.out.write(pkt)
         self.out.flush()
 
-        if DEBUG:
-            print '> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig])
+        AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
 
 
     def _wait_frame(self):
@@ -386,8 +393,6 @@ class Connection(_AbstractChannel):
         if ch != 0xce:
             raise Exception('Framing error, unexpected byte: %x' % ch)
 
-        if DEBUG:
-            print 'received frame, type=', frame_type, 'channel=', channel
         return frame_type, channel, payload
 
 
@@ -674,8 +679,7 @@ class Connection(_AbstractChannel):
 
         """
         self.known_hosts = args.read_shortstr()
-        if DEBUG:
-            print 'Open OK! known_hosts [%s]' % self.known_hosts
+        AMQP_LOGGER.debug('Open OK! known_hosts [%s]' % self.known_hosts)
         return None
 
 
@@ -709,8 +713,7 @@ class Connection(_AbstractChannel):
         """
         host = args.read_shortstr()
         self.known_hosts = args.read_shortstr()
-        if DEBUG:
-            print 'Redirected to [%s], known_hosts [%s]' % (host, self.known_hosts)
+        AMQP_LOGGER.debug('Redirected to [%s], known_hosts [%s]' % (host, self.known_hosts))
         return host
 
 
@@ -828,10 +831,9 @@ class Connection(_AbstractChannel):
         self.mechanisms = args.read_longstr().split(' ')
         self.locales = args.read_longstr().split(' ')
 
-        if DEBUG:
-            print 'Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s' \
+        AMQP_LOGGER.debug('Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s'
                 % (self.version_major, self.version_minor,
-                   str(self.server_properties), self.mechanisms, self.locales)
+                   str(self.server_properties), self.mechanisms, self.locales))
 
 
     def _x_start_ok(self, client_properties, mechanism, response, locale):
@@ -1048,8 +1050,7 @@ class Channel(_AbstractChannel):
         """
         if channel_id is None:
             channel_id = connection._get_free_channel_id()
-        if DEBUG:
-            print 'using channel_id', channel_id
+        AMQP_LOGGER.debug('using channel_id: %d' % channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
 
@@ -1073,8 +1074,7 @@ class Channel(_AbstractChannel):
         Tear down this object, after we've agreed to close with the server.
 
         """
-        if DEBUG:
-            print 'Closed channel #%d' % self.channel_id
+        AMQP_LOGGER.debug('Closed channel #%d' % self.channel_id)
         self.is_open = False
         del self.connection.channels[self.channel_id]
         self.channel_id = self.connection = None
@@ -1444,8 +1444,7 @@ class Channel(_AbstractChannel):
 
         """
         self.is_open = True
-        if DEBUG:
-            print 'Channel open'
+        AMQP_LOGGER.debug('Channel open')
 
 
     #############

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import logging
 import sys
 import unittest
 from optparse import OptionParser
@@ -202,8 +203,20 @@ def main():
     parser.add_option('--ssl', dest='ssl', action='store_true',
                         help='Enable SSL (default: not enabled)',
                         default=False)
+    parser.add_option('--debug', dest='debug', action='store_true',
+                        help='Display debugging output',
+                        default=False)
 
     options, args = parser.parse_args()
+
+    if options.debug:
+        console = logging.StreamHandler()
+        console.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+        console.setFormatter(formatter)
+        amqplib_logger = logging.getLogger('amqplib')
+        amqplib_logger.addHandler(console)
+        amqplib_logger.setLevel(logging.DEBUG)
 
     connect_args['host'] = options.host
     connect_args['userid'] = options.userid
