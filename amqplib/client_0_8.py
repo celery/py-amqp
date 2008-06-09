@@ -88,7 +88,116 @@ class _SSLWrap(object):
         pass
 
 
-class Connection(object):
+class _AbstractChannel(object):
+    """
+    Superclass for both the Connection, which is treated
+    as channel 0, and other user-created Channel objects.
+
+    """
+    def __init__(self, connection, channel_id):
+        self.connection = connection
+        self.channel_id = channel_id
+        connection.channels[channel_id] = self
+        self.frame_queue = []  # Lower level queue for frames
+        self.method_queue = [] # Higher level queue for methods
+        self.auto_decode = False
+
+
+    def _dispatch(self, method_sig, args, content):
+        amqp_method = self._METHOD_MAP.get(method_sig, None)
+
+        if amqp_method is None:
+            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+
+        if content is None:
+            return amqp_method(self, args)
+        else:
+            return amqp_method(self, args, content)
+
+
+    def _next_frame(self):
+        if self.frame_queue:
+            return self.frame_queue.pop(0)
+        return self.connection._wait_channel(self.channel_id)
+
+
+    def _send_method_frame(self, method_sig, args=''):
+        self.connection._send_channel_method_frame(self.channel_id, method_sig, args)
+
+
+    def _wait_content(self):
+        frame_type, payload = self._next_frame()
+        if frame_type != 2:
+            raise Exception('Expecting Content header')
+
+        class_id, weight, body_size = unpack('>HHQ', payload[:12])
+        msg = Message()
+        msg._load_properties(payload[12:])
+
+        body_parts = []
+        body_received = 0
+        while body_received < body_size:
+            frame_type, payload = self._next_frame()
+            if frame_type != 3:
+                raise Exception('Expecting Content body, received frame type %d' % frame_type)
+            body_parts.append(payload)
+            body_received += len(payload)
+
+        msg.body = ''.join(body_parts)
+
+        if self.auto_decode and hasattr(msg, 'content_encoding'):
+            try:
+                msg.body = msg.body.decode(msg.content_encoding)
+            except:
+                pass
+
+        return msg
+
+
+    def wait(self, allowed_methods=None):
+        """
+        Wait for some expected AMQP methods and dispatch to them.
+        Unexpected methods are queued up for later calls to this Python
+        method.
+
+        """
+        #
+        # Process deferred methods
+        #
+        for queued_method in self.method_queue:
+            if (allowed_methods is None) or (queued_method[0] in allowed_methods):
+                self.method_queue.remove(queued_method)
+                return self._dispatch(*queued_method)
+
+        #
+        # No deferred methods?  wait for new ones
+        #
+        while True:
+            frame_type, payload = self._next_frame()
+            if frame_type != 1:
+                raise Exception('Expecting AMQP method, received frame type: %d' % frame_type)
+
+            if len(payload) < 4:
+                raise Exception('Method frame too short')
+
+            method_sig = unpack('>HH', payload[:4])
+            args = AMQPReader(payload[4:])
+
+            if method_sig in _CONTENT_METHODS:
+                content = self._wait_content()
+            else:
+                content = None
+
+            if (allowed_methods is None) \
+            or (method_sig in allowed_methods) \
+            or (method_sig in _CLOSE_METHODS):
+                return self._dispatch(method_sig, args, content)
+
+            # Wasn't what we were looking for? save it for later
+            self.method_queue.append((method_sig, args, content))
+
+
+class Connection(_AbstractChannel):
     """
     work with socket connections
 
@@ -136,7 +245,9 @@ class Connection(object):
 
         while True:
             self.channels = {}
-            self.frame_queue = Queue()
+            # The connection object itself is treated as channel 0
+            super(Connection, self).__init__(self, 0)
+
             self.input = self.out = None
 
             if ':' in host:
@@ -194,12 +305,6 @@ class Connection(object):
         self.input = self.out = None
 
 
-    def _get_channel_queue(self, channel_id):
-        if channel_id == 0:
-            return self.frame_queue
-        return self.channels[channel_id].frame_queue
-
-
     def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max+1):
             if i not in self.channels:
@@ -242,7 +347,7 @@ class Connection(object):
             self.out.flush()
 
 
-    def _send_method_frame(self, channel, method_sig, args=''):
+    def _send_channel_method_frame(self, channel, method_sig, args=''):
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
@@ -288,54 +393,28 @@ class Connection(object):
 
     def _wait_channel(self, channel_id):
         """
-        Wait for a frame from the server sent to a particular
-        channel.
+        Wait for a frame from the server destined for
+        a particular channel.
 
         """
-        queue = self._get_channel_queue(channel_id)
-        if not queue.empty():
-            return queue.get()
-
         while True:
             frame_type, frame_channel, payload = self._wait_frame()
-
-            if (frame_type == 1) and (frame_channel == 0) and (channel_id != 0):
-                # probably a close method caused by an error
-                self._dispatch_method(0, payload, [])
-
             if frame_channel == channel_id:
                 return frame_type, payload
 
-            self._get_channel_queue(frame_channel).put((frame_type, payload))
+            #
+            # Not the channel we were looking for.  Queue this frame
+            # for later, when the other channel is looking for frames.
+            #
+            self.channels[frame_channel].frame_queue.append((frame_type, payload))
 
-
-    def _dispatch_method(self, channel, payload, allowed_methods):
-        if len(payload) < 4:
-            raise Exception('Method frame too short')
-
-        method_sig = unpack('>HH', payload[:4])
-
-        if DEBUG:
-            print '< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig])
-
-        if allowed_methods \
-        and (method_sig not in allowed_methods) \
-        and (method_sig not in _CLOSE_METHODS):
-            raise Exception('Received unexpected method: %s, was expecting one of: %s'
-                % (method_sig, allowed_methods))
-
-        args = AMQPReader(payload[4:])
-
-        amqp_class, amqp_method = _METHOD_MAP.get(method_sig, (None, None))
-
-        if amqp_class is Connection:
-            return amqp_method(self, args)
-        if amqp_class is Channel:
-            ch = self.channels[channel]
-            return amqp_method(ch, args)
-
-        raise Exception('Unknown AMQP method (%d, %d)'
-            % amqp_class, amqp_method)
+            #
+            # If we just queued up a method for channel 0 (the Connection
+            # itself) it's probably a close method in reaction to some
+            # error, so deal with it right away.
+            #
+            if (frame_type == 1) and (frame_channel == 0):
+                self.wait()
 
 
     def channel(self, channel_id=None):
@@ -348,17 +427,6 @@ class Connection(object):
             return self.channels[channel_id]
 
         return Channel(self, channel_id)
-
-
-    def wait(self, allowed_methods=None):
-        """
-        Not sure yet if this should even be a public method.
-
-        """
-        frame_type, payload = self._wait_channel(0)
-
-        if frame_type == 1:
-            return self._dispatch_method(0, payload, allowed_methods)
 
 
     #################
@@ -417,7 +485,7 @@ class Connection(object):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
         args.write_short(method_sig[1]) # method_id
-        self._send_method_frame(0, (10, 60), args)
+        self._send_method_frame((10, 60), args)
         return self.wait(allowed_methods=[
                           (10, 61),    # Connection.close_ok
                         ])
@@ -496,7 +564,7 @@ class Connection(object):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method_frame(0, (10, 61))
+        self._send_method_frame((10, 61))
         self._do_close()
 
 
@@ -587,7 +655,7 @@ class Connection(object):
         args.write_shortstr(virtual_host)
         args.write_shortstr(capabilities)
         args.write_bit(insist)
-        self._send_method_frame(0, (10, 40), args)
+        self._send_method_frame((10, 40), args)
         return self.wait(allowed_methods=[
                           (10, 41),    # Connection.open_ok
                           (10, 50),    # Connection.redirect
@@ -686,7 +754,7 @@ class Connection(object):
         """
         args = AMQPWriter()
         args.write_longstr(response)
-        self._send_method_frame(0, (10, 21), args)
+        self._send_method_frame((10, 21), args)
 
 
     def _start(self, args):
@@ -821,7 +889,7 @@ class Connection(object):
         args.write_shortstr(mechanism)
         args.write_longstr(response)
         args.write_shortstr(locale)
-        self._send_method_frame(0, (10, 11), args)
+        self._send_method_frame((10, 11), args)
 
 
     def _tune(self, args):
@@ -928,11 +996,24 @@ class Connection(object):
         args.write_short(channel_max)
         args.write_long(frame_max)
         args.write_short(heartbeat)
-        self._send_method_frame(0, (10, 31), args)
+        self._send_method_frame((10, 31), args)
         self._wait_tune_ok = False
 
 
-class Channel(object):
+    _METHOD_MAP = {
+        (10, 10): _start,
+        (10, 20): _secure,
+        (10, 30): _tune,
+        (10, 41): _open_ok,
+        (10, 50): _redirect,
+        (10, 60): _close,
+        (10, 61): _close_ok,
+        }
+
+
+
+
+class Channel(_AbstractChannel):
     """
     work with channels
 
@@ -965,17 +1046,16 @@ class Channel(object):
         is left as the message body.
 
         """
-        self.connection = connection
         if channel_id is None:
             channel_id = connection._get_free_channel_id()
         if DEBUG:
             print 'using channel_id', channel_id
-        self.channel_id = channel_id
+
+        super(Channel, self).__init__(connection, channel_id)
+
         self.default_ticket = 0
         self.is_open = False
         self.active = True # Flow control
-        connection.channels[channel_id] = self
-        self.frame_queue = Queue()
         self.alerts = Queue()
         self.callbacks = {}
         self.auto_decode = auto_decode
@@ -999,38 +1079,6 @@ class Channel(object):
         del self.connection.channels[self.channel_id]
         self.channel_id = self.connection = None
 
-
-    def wait(self, allowed_methods=None):
-        frame_type, payload = self.connection._wait_channel(self.channel_id)
-
-        if frame_type == 1:
-            return self.connection._dispatch_method(self.channel_id, payload, allowed_methods)
-        if frame_type == 2:
-            class_id, weight, body_size = unpack('>HHQ', payload[:12])
-            msg = Message()
-            msg._load_properties(payload[12:])
-
-            body_parts = []
-            body_received = 0
-            while body_received < body_size:
-                frame_type, payload = self.connection._wait_channel(self.channel_id)
-                if frame_type == 3:
-                    body_parts.append(payload)
-                    body_received += len(payload)
-
-            msg.body = ''.join(body_parts)
-
-            if self.auto_decode and hasattr(msg, 'content_encoding'):
-                try:
-                    msg.body = msg.body.decode(msg.content_encoding)
-                except:
-                    pass
-
-            return msg
-
-
-    def _send_method_frame(self, method_sig, args=''):
-        self.connection._send_method_frame(self.channel_id, method_sig, args)
 
     #################
 
@@ -2708,7 +2756,7 @@ class Channel(object):
         return args.read_shortstr()
 
 
-    def _basic_deliver(self, args):
+    def _basic_deliver(self, args, msg):
         """
         notify the client of a consumer message
 
@@ -2753,8 +2801,6 @@ class Channel(object):
         redelivered = args.read_bit()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-
-        msg = self.wait()
 
         msg.delivery_info = {
             'channel': self,
@@ -2836,7 +2882,7 @@ class Channel(object):
         cluster_id = args.read_shortstr()
 
 
-    def _basic_get_ok(self, args):
+    def _basic_get_ok(self, args, msg):
         """
         provide client with a message
 
@@ -2878,8 +2924,6 @@ class Channel(object):
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
         message_count = args.read_long()
-
-        msg = self.wait()
 
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
@@ -3314,42 +3358,40 @@ class Channel(object):
         pass
 
 
-_METHOD_MAP = {
-    (10, 10): (Connection, Connection._start),
-    (10, 20): (Connection, Connection._secure),
-    (10, 30): (Connection, Connection._tune),
-    (10, 41): (Connection, Connection._open_ok),
-    (10, 50): (Connection, Connection._redirect),
-    (10, 60): (Connection, Connection._close),
-    (10, 61): (Connection, Connection._close_ok),
-    (20, 11): (Channel, Channel._open_ok),
-    (20, 20): (Channel, Channel._flow),
-    (20, 21): (Channel, Channel._flow_ok),
-    (20, 30): (Channel, Channel._alert),
-    (20, 40): (Channel, Channel._close),
-    (20, 41): (Channel, Channel._close_ok),
-    (30, 11): (Channel, Channel._access_request_ok),
-    (40, 11): (Channel, Channel._exchange_declare_ok),
-    (40, 21): (Channel, Channel._exchange_delete_ok),
-    (50, 11): (Channel, Channel._queue_declare_ok),
-    (50, 21): (Channel, Channel._queue_bind_ok),
-    (50, 31): (Channel, Channel._queue_purge_ok),
-    (50, 41): (Channel, Channel._queue_delete_ok),
-    (60, 11): (Channel, Channel._basic_qos_ok),
-    (60, 21): (Channel, Channel._basic_consume_ok),
-    (60, 31): (Channel, Channel._basic_cancel_ok),
-    (60, 50): (Channel, Channel._basic_return),
-    (60, 60): (Channel, Channel._basic_deliver),
-    (60, 71): (Channel, Channel._basic_get_ok),
-    (60, 72): (Channel, Channel._basic_get_empty),
-    (90, 11): (Channel, Channel._tx_select_ok),
-    (90, 21): (Channel, Channel._tx_commit_ok),
-    (90, 31): (Channel, Channel._tx_rollback_ok),
-}
+    _METHOD_MAP = {
+        (20, 11): _open_ok,
+        (20, 20): _flow,
+        (20, 21): _flow_ok,
+        (20, 30): _alert,
+        (20, 40): _close,
+        (20, 41): _close_ok,
+        (30, 11): _access_request_ok,
+        (40, 11): _exchange_declare_ok,
+        (40, 21): _exchange_delete_ok,
+        (50, 11): _queue_declare_ok,
+        (50, 21): _queue_bind_ok,
+        (50, 31): _queue_purge_ok,
+        (50, 41): _queue_delete_ok,
+        (60, 11): _basic_qos_ok,
+        (60, 21): _basic_consume_ok,
+        (60, 31): _basic_cancel_ok,
+        (60, 50): _basic_return,
+        (60, 60): _basic_deliver,
+        (60, 71): _basic_get_ok,
+        (60, 72): _basic_get_empty,
+        (90, 11): _tx_select_ok,
+        (90, 21): _tx_commit_ok,
+        (90, 31): _tx_rollback_ok,
+        }
 
 _CLOSE_METHODS = [
     (10, 60), # Connection.close
     (20, 40), # Channel.close
+    ]
+
+_CONTENT_METHODS = [
+    (60, 60), # Basic.deliver
+    (60, 71), # Basic.get_ok
     ]
 
 _METHOD_NAME_MAP = {
