@@ -1,7 +1,11 @@
 CHANGES
 --------
 
-Version 0.4
+Version 0.4.1
+
+    Get rid of Python 2.5-style conditional expressions, for
+    compatibility with Python 2.4  Thanks to Alexey Timanovsky
+    for pointing this out.
 
     Send debugging output through the standard Python 'logging' module
     instead of directly printing to the console.

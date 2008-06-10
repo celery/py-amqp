@@ -215,8 +215,11 @@ class AMQPWriter(object):
         Write a boolean value.
 
         """
-        b = 1 if b else 0
-        shift = self.bitcount %8
+        if b:
+            b = 1
+        else:
+            b = 0
+        shift = self.bitcount % 8
         if shift == 0:
             self.bits.append(0)
         self.bits[-1] |= (b << shift)

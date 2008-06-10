@@ -42,7 +42,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.4',
+    'library_version': '0.4.1',
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
@@ -1785,7 +1785,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
         args.write_bit(passive)
@@ -1867,7 +1870,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
@@ -2029,7 +2035,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -2222,7 +2231,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(passive)
         args.write_bit(durable)
@@ -2349,7 +2361,11 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
+
         args.write_shortstr(queue)
         args.write_bit(if_unused)
         args.write_bit(if_empty)
@@ -2449,7 +2465,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self._send_method_frame((50, 30), args)
@@ -2719,7 +2738,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -2853,7 +2875,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self._send_method_frame((60, 70), args)
@@ -3019,7 +3044,10 @@ class Channel(_AbstractChannel):
 
         """
         args = AMQPWriter()
-        args.write_short(ticket if ticket is not None else self.default_ticket)
+        if ticket is not None:
+            args.write_short(ticket)
+        else:
+           args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
