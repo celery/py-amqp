@@ -300,7 +300,10 @@ class Connection(_AbstractChannel):
                 return
 
             # we were redirected, close the socket, loop and try again
-            self.close()
+            try:
+                self.close()
+            except:
+                pass
 
 
     def __del__(self):
