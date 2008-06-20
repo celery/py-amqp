@@ -50,6 +50,7 @@ AMQP_LOGGER = logging.getLogger('amqplib')
 
 class AMQPException(Exception):
     def __init__(self, reply_code, reply_text, method_sig):
+        super(AMQPException, self).__init__()
         self.amqp_reply_code = reply_code
         self.amqp_reply_text = reply_text
         self.amqp_method_sig = method_sig
@@ -230,7 +231,7 @@ class Connection(_AbstractChannel):
     """
     def __init__(self, host, userid=None, password=None,
         login_method='AMQPLAIN', login_response=None,
-        virtual_host='/', locale='en_US', client_properties={},
+        virtual_host='/', locale='en_US', client_properties=None,
         ssl=False, insist=False, connect_timeout=None, **kwargs):
         """
         Create a connection to the specified host, which should be
@@ -248,7 +249,8 @@ class Connection(_AbstractChannel):
 
         d = {}
         d.update(LIBRARY_PROPERTIES)
-        d.update(client_properties)
+        if client_properties:
+            d.update(client_properties)
 
         self.known_hosts = ''
 
@@ -258,6 +260,8 @@ class Connection(_AbstractChannel):
             super(Connection, self).__init__(self, 0)
 
             self.input = self.out = None
+            self.channel_max = 65535
+            self.frame_max = 131072
 
             if ':' in host:
                 host, port = host.split(':', 1)
@@ -941,8 +945,8 @@ class Connection(_AbstractChannel):
                 want a heartbeat.
 
         """
-        self.channel_max = args.read_short() or 65535
-        self.frame_max = args.read_long() or 131072
+        self.channel_max = args.read_short() or self.channel_max
+        self.frame_max = args.read_long() or self.frame_max
         self.heartbeat = args.read_short()
 
         self._x_tune_ok(self.channel_max, self.frame_max, 0)
@@ -1641,7 +1645,7 @@ class Channel(_AbstractChannel):
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
         auto_delete=True, internal=False, nowait=False,
-        arguments={}, ticket=None):
+        arguments=None, ticket=None):
         """
         declare exchange, create if needed
 
@@ -1787,11 +1791,14 @@ class Channel(_AbstractChannel):
                     access if the if-exists flag is set.
 
         """
+        if arguments is None:
+            arguments = {}
+
         args = AMQPWriter()
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
         args.write_bit(passive)
@@ -1876,7 +1883,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
@@ -1926,7 +1933,7 @@ class Channel(_AbstractChannel):
     #
 
     def queue_bind(self, queue, exchange, routing_key='',
-        nowait=False, arguments={}, ticket=None):
+        nowait=False, arguments=None, ticket=None):
         """
         bind queue to an exchange
 
@@ -2037,11 +2044,14 @@ class Channel(_AbstractChannel):
                 "active" access rights to the queue's access realm.
 
         """
+        if arguments is None:
+            arguments = {}
+
         args = AMQPWriter()
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -2067,7 +2077,7 @@ class Channel(_AbstractChannel):
 
     def queue_declare(self, queue='', passive=False, durable=False,
         exclusive=False, auto_delete=True, nowait=False,
-        arguments={}, ticket=None):
+        arguments=None, ticket=None):
         """
         declare queue, create if needed
 
@@ -2233,11 +2243,14 @@ class Channel(_AbstractChannel):
             consumer count
 
         """
+        if arguments is None:
+            arguments = {}
+
         args = AMQPWriter()
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(passive)
         args.write_bit(durable)
@@ -2367,7 +2380,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
 
         args.write_shortstr(queue)
         args.write_bit(if_unused)
@@ -2471,7 +2484,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self._send_method_frame((50, 30), args)
@@ -2744,7 +2757,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -2881,7 +2894,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self._send_method_frame((60, 70), args)
@@ -3050,7 +3063,7 @@ class Channel(_AbstractChannel):
         if ticket is not None:
             args.write_short(ticket)
         else:
-           args.write_short(self.default_ticket)
+            args.write_short(self.default_ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)

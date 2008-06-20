@@ -126,8 +126,8 @@ class AMQPReader(object):
 
         """
         self.bitcount = self.bits = 0
-        len = unpack('B', self.input.read(1))[0]
-        return self.input.read(len).decode('utf-8')
+        strlen = unpack('B', self.input.read(1))[0]
+        return self.input.read(strlen).decode('utf-8')
 
     def read_longstr(self):
         """
@@ -137,8 +137,8 @@ class AMQPReader(object):
 
         """
         self.bitcount = self.bits = 0
-        len = unpack('>I', self.input.read(4))[0]
-        return self.input.read(len)
+        strlen = unpack('>I', self.input.read(4))[0]
+        return self.input.read(strlen)
 
     def read_table(self):
         """
@@ -146,8 +146,8 @@ class AMQPReader(object):
 
         """
         self.bitcount = self.bits = 0
-        len = unpack('>I', self.input.read(4))[0]
-        table_data = AMQPReader(self.input.read(len))
+        tablelen = unpack('>I', self.input.read(4))[0]
+        table_data = AMQPReader(self.input.read(tablelen))
         result = {}
         while table_data.input.tell() < len:
             name = table_data.read_shortstr()
