@@ -384,8 +384,8 @@ class GenericContent(object):
         if name in self.properties:
             return self.properties[name]
 
-        if hasattr(self, 'delivery_info') \
-        and name in self.delivery_info:
+        if ('delivery_info' in self.__dict__) \
+        and (name in self.delivery_info):
             return self.delivery_info[name]
 
         raise AttributeError(name)
