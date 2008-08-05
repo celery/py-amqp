@@ -1,7 +1,7 @@
 CHANGES
 --------
 
-Version 0.4.1
+Version 0.5
 
     Get rid of Python 2.5-style conditional expressions, for
     compatibility with Python 2.4  Thanks to Alexey Timanovsky
@@ -32,6 +32,10 @@ Version 0.4.1
            without waiting for a next incoming message;
         2) when you want to consume messages from multiple brokers (or over
            multiple connections) in a single event loop.
+
+    Did some profiling, found a big problem that caused a huge huge
+    number of unnecessary __getattr_ calls.  Ran pylint and found some
+    bad coding style problems.
 
 Version 0.3
 
