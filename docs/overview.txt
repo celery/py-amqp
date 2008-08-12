@@ -73,20 +73,20 @@ named 'Message' based on what's coming in the 0-10 spec.
 
 A Message can be created as simply as
 
-    msg = Message('hello world')
+    msg = amqp.Message('hello world')
 
 Unicode bodies are converted to UTF-8 and the 'content_encoding' property
 is automatically set to 'UTF-8', so these two Messages are equivalent
 
-    msg1 = Message(u'Unicode hello')
-    msg2 = Message(u'Unicode hello'.encode('utf-8), content_encoding-'UTF-8')
+    msg1 = amqp.Message(u'Unicode hello')
+    msg2 = amqp.Message(u'Unicode hello'.encode('utf-8'), content_encoding='UTF-8')
 
-Messages may have a 'application_headers' dictionary (another 0-10ism, 0-8
+Messages may have an 'application_headers' dictionary (another 0-10ism, 0-8
 just calls the property 'headers'), consisting of string keys and values that
 are strings, integers, Decimal (a bit shaky), datetime.datetime, and other
 dictionaries containing those same types.
 
-    msg = Message('fancy', application_headers={'foo': 7, 'bar': 'baz'})
+    msg = amqp.Message('fancy', application_headers={'foo': 7, 'bar': 'baz'})
 
 
 Exchanges & Queues
@@ -133,10 +133,10 @@ None if no messages are available:
         ch.basic_ack(msg.delivery_tag)
 
 Received messages are acknowledged with the Channel.basic_ack() method
-unless we called basic_get with no_ack=True
+unless we called basic_get() with a no_ack=True parameter.
 
 To block and wait for messages, use basic_consume() with a callback
-function, and then wait on the channel.  The AMQP server will deliver
+function, and then wait() on the channel.  The AMQP server will deliver
 messages to the channel as they're placed into the queue.
 
     def mycallback(msg):
