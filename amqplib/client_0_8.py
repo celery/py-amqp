@@ -50,7 +50,7 @@ AMQP_LOGGER = logging.getLogger('amqplib')
 
 class AMQPException(Exception):
     def __init__(self, reply_code, reply_text, method_sig):
-        super(AMQPException, self).__init__()
+        Exception.__init__(self)
         self.amqp_reply_code = reply_code
         self.amqp_reply_text = reply_text
         self.amqp_method_sig = method_sig
