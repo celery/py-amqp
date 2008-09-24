@@ -6,7 +6,7 @@ from optparse import OptionParser
 
 connect_args = {}
 
-from amqplib.client_0_8 import Connection, Message
+from amqplib.client_0_8 import AMQPException, Connection, Message
 
 class TestConnection(unittest.TestCase):
     def setUp(self):
@@ -187,6 +187,16 @@ class TestChannel(unittest.TestCase):
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
+
+
+class TestException(unittest.TestCase):
+    def test_exception(self):
+        exc = AMQPException(7, 'My Error', (10, 10))
+        self.assertEqual(exc.amqp_reply_code, 7)
+        self.assertEqual(exc.amqp_reply_text, 'My Error')
+        self.assertEqual(exc.amqp_method_sig, (10, 10))
+        self.assertEqual(exc.args,
+            (7, 'My Error', (10, 10), 'Connection.start'))
 
 
 def main():
