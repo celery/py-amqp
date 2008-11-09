@@ -55,8 +55,8 @@ def main():
     while True:
         now = datetime.now()
         msg = Message(timestamp=now)
-        topic = now.strftime(TOPIC_PATTERN)
-        ch.basic_publish(msg, EXCHANGE_NAME, routing_key=topic)
+        msg_topic = now.strftime(TOPIC_PATTERN)
+        ch.basic_publish(msg, EXCHANGE_NAME, routing_key=msg_topic)
 
         # Don't know how long the basic_publish took, so
         # grab the time again.
