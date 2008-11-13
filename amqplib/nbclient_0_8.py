@@ -70,7 +70,7 @@ class NonBlockingSocket(object):
         # (i.e., not from read() via __do_write), while not all data
         # have been written yet.
         if data and self.read_p < len(self.read_buf):
-            raise Exception("Deadlock: data='%s' read_buf='%s' read_p='%d'" %
+            raise Exception("Deadlock: data=%r read_buf=%r read_p=%d" %
                 (data, self.read_buf, self.read_p))
         assert self.read_p == len(self.read_buf)
 
