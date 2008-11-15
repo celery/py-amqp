@@ -476,7 +476,13 @@ class Connection(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             class_id: short
 
@@ -536,7 +542,13 @@ class Connection(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             class_id: short
 
@@ -1102,7 +1114,13 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             details: table
 
@@ -1145,7 +1163,13 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             class_id: short
 
@@ -1198,7 +1222,13 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             class_id: short
 
@@ -2584,6 +2614,23 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             delivery_tag: longlong
 
+                server-assigned delivery tag
+
+                The server-assigned and channel-specific delivery tag
+
+                RULE:
+
+                    The delivery tag is valid only within the channel
+                    from which the message was received.  I.e. a client
+                    MUST NOT receive a message on one channel and then
+                    acknowledge it on another.
+
+                RULE:
+
+                    The server MUST NOT use a zero value for delivery
+                    tags.  Zero is reserved for client use, meaning "all
+                    messages so far received".
+
             multiple: boolean
 
                 acknowledge multiple messages
@@ -2628,6 +2675,18 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             consumer_tag: shortstr
 
+                consumer tag
+
+                Identifier for the consumer, valid within the current
+                connection.
+
+                RULE:
+
+                    The consumer tag is valid only within the channel
+                    from which the consumer was created. I.e. a client
+                    MUST NOT create a consumer in one channel and then
+                    use it in another.
+
             nowait: boolean
 
                 do not send a reply method
@@ -2655,6 +2714,18 @@ class Channel(_AbstractChannel):
 
         PARAMETERS:
             consumer_tag: shortstr
+
+                consumer tag
+
+                Identifier for the consumer, valid within the current
+                connection.
+
+                RULE:
+
+                    The consumer tag is valid only within the channel
+                    from which the consumer was created. I.e. a client
+                    MUST NOT create a consumer in one channel and then
+                    use it in another.
 
         """
         consumer_tag = args.read_shortstr()
@@ -2709,7 +2780,22 @@ class Channel(_AbstractChannel):
 
             no_local: boolean
 
+                do not deliver own messages
+
+                If the no-local field is set the server will not send
+                messages to the client that published them.
+
             no_ack: boolean
+
+                no acknowledgement needed
+
+                If this field is set the server does not expect
+                acknowledgments for messages.  That is, when a message
+                is delivered to the client the server automatically and
+                silently acknowledges it on behalf of the client.  This
+                functionality increases performance but at the cost of
+                reliability.  Messages can get lost if a client dies
+                before it can deliver them to the application.
 
             exclusive: boolean
 
@@ -2817,9 +2903,43 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             consumer_tag: shortstr
 
+                consumer tag
+
+                Identifier for the consumer, valid within the current
+                connection.
+
+                RULE:
+
+                    The consumer tag is valid only within the channel
+                    from which the consumer was created. I.e. a client
+                    MUST NOT create a consumer in one channel and then
+                    use it in another.
+
             delivery_tag: longlong
 
+                server-assigned delivery tag
+
+                The server-assigned and channel-specific delivery tag
+
+                RULE:
+
+                    The delivery tag is valid only within the channel
+                    from which the message was received.  I.e. a client
+                    MUST NOT receive a message on one channel and then
+                    acknowledge it on another.
+
+                RULE:
+
+                    The server MUST NOT use a zero value for delivery
+                    tags.  Zero is reserved for client use, meaning "all
+                    messages so far received".
+
             redelivered: boolean
+
+                message is being redelivered
+
+                This indicates that the message has been previously
+                delivered to this or another client.
 
             exchange: shortstr
 
@@ -2879,6 +2999,16 @@ class Channel(_AbstractChannel):
 
             no_ack: boolean
 
+                no acknowledgement needed
+
+                If this field is set the server does not expect
+                acknowledgments for messages.  That is, when a message
+                is delivered to the client the server automatically and
+                silently acknowledges it on behalf of the client.  This
+                functionality increases performance but at the cost of
+                reliability.  Messages can get lost if a client dies
+                before it can deliver them to the application.
+
             ticket: short
 
                 RULE:
@@ -2934,7 +3064,29 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             delivery_tag: longlong
 
+                server-assigned delivery tag
+
+                The server-assigned and channel-specific delivery tag
+
+                RULE:
+
+                    The delivery tag is valid only within the channel
+                    from which the message was received.  I.e. a client
+                    MUST NOT receive a message on one channel and then
+                    acknowledge it on another.
+
+                RULE:
+
+                    The server MUST NOT use a zero value for delivery
+                    tags.  Zero is reserved for client use, meaning "all
+                    messages so far received".
+
             redelivered: boolean
+
+                message is being redelivered
+
+                This indicates that the message has been previously
+                delivered to this or another client.
 
             exchange: shortstr
 
@@ -3232,6 +3384,23 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             delivery_tag: longlong
 
+                server-assigned delivery tag
+
+                The server-assigned and channel-specific delivery tag
+
+                RULE:
+
+                    The delivery tag is valid only within the channel
+                    from which the message was received.  I.e. a client
+                    MUST NOT receive a message on one channel and then
+                    acknowledge it on another.
+
+                RULE:
+
+                    The server MUST NOT use a zero value for delivery
+                    tags.  Zero is reserved for client use, meaning "all
+                    messages so far received".
+
             requeue: boolean
 
                 requeue the message
@@ -3272,7 +3441,13 @@ class Channel(_AbstractChannel):
         PARAMETERS:
             reply_code: short
 
+                The reply code. The AMQ reply codes are defined in AMQ
+                RFC 011.
+
             reply_text: shortstr
+
+                The localised reply text.  This text can be logged as an
+                aid to resolving issues.
 
             exchange: shortstr
 
