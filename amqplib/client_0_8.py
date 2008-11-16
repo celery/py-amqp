@@ -320,6 +320,10 @@ class Connection(_AbstractChannel):
         self.out.close()
         self.input = self.out = None
 
+        temp_list = [x for x in self.channels.values() if x is not self]
+        for ch in temp_list:
+            ch._do_close()
+
 
     def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max+1):
@@ -1098,6 +1102,7 @@ class Channel(_AbstractChannel):
         self.is_open = False
         del self.connection.channels[self.channel_id]
         self.channel_id = self.connection = None
+        self.callbacks = {}
 
 
     #################
