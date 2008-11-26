@@ -45,7 +45,7 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.5',
+    'library_version': '0.6-devel',
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
