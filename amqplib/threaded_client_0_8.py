@@ -20,6 +20,7 @@ AMQP 0-8 Client Library
 
 import logging
 import socket
+from collections import defaultdict
 from Queue import Queue
 from struct import unpack
 from threading import Thread
@@ -92,6 +93,31 @@ class _SSLWrap(object):
         pass
 
 
+class PartialMessage(object):
+    def __init__(self, method_sig, args):
+        self.method_sig = method_sig
+        self.args = args
+
+
+    def add_header(self, payload):
+        class_id, weight, self.body_size = unpack('>HHQ', payload[:12])
+        self.msg = Message()
+        self.msg._load_properties(payload[12:])
+
+        self.body_parts = []
+        self.body_received = 0
+        self.complete = False
+
+
+    def add_payload(self, payload):
+        self.body_parts.append(payload)
+        self.body_received += len(payload)
+
+        if self.body_received == self.body_size:
+            self.msg.body = ''.join(self.body_parts)
+            self.complete = True
+
+
 class ReceiveThread(Thread):
     """
     Helper thread to receive frames from the broker and place them
@@ -108,6 +134,9 @@ class ReceiveThread(Thread):
         Thread.__init__(self)
         self.connection = connection
         self.input = connection.input
+        self.expected_types = defaultdict(lambda:1)
+        self.partial_messages = {}
+
 
     def run(self):
         self.running = True
@@ -117,15 +146,79 @@ class ReceiveThread(Thread):
                 channel = self.input.read_short()
                 size = self.input.read_long()
                 payload = self.input.read(size)
-
                 ch = self.input.read_octet()
-                if ch == 0xce:
-                    self.connection.incoming_queue.put((frame_type, channel, payload))
-                else:
-                    self.connection.incoming_queue.put(Exception('Framing error, unexpected byte: %x' % ch))
             except:
                 self.connection.incoming_queue.put(None)
                 break
+
+            if ch != 0xce:
+                self.connection.incoming_queue.put(AMQPConnectionException('Framing error, unexpected byte: %x' % ch))
+                break
+
+            if self.expected_types[channel] != frame_type:
+                self.connection.incoming_queue.put((channel, AMQPChannelException(channel, 'Received frame type %d while expecting type: %d' % (frame_type, self.expected_types[channel]))))
+            elif frame_type == 1:
+                self.process_method_frame(channel, payload)
+            elif frame_type == 2:
+                self.process_content_header(channel, payload)
+            elif frame_type == 3:
+                self.process_content_body(channel, payload)
+            else:
+                self.connection.incoming_queue.put((channel, AMQPChannelException(channel, 'Unknown frame type: %d' % frame_type)))
+
+
+    def process_method_frame(self, channel, payload):
+        """
+        Process Method frames
+
+        """
+        method_sig = unpack('>HH', payload[:4])
+        args = AMQPReader(payload[4:])
+
+        AMQP_LOGGER.debug('> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
+
+        if method_sig in _CONTENT_METHODS:
+            self.partial_messages[channel] = PartialMessage(method_sig, args)
+            self.expected_types[channel] = 2
+        else:
+            self.connection.incoming_queue.put((channel, method_sig, args, None))
+
+
+    def process_content_header(self, channel, payload):
+        """
+        Process Content Header frames
+
+        """
+        partial = self.partial_messages[channel]
+        partial.add_header(payload)
+
+        if partial.body_size == 0:
+            # a bodyless message
+            self.connection.incoming_queue.put((channel, partial.method_sig, partial.args, partial.msg))
+            del self.partial_messages[channel]
+            self.expected_types[channel] = 1
+        else:
+            # wait for the body
+            self.partial_messages[channel] = partial
+            self.expected_types[channel] = 3
+
+
+    def process_content_body(self, channel, payload):
+        """
+        Process Content Body frames
+
+        """
+        partial = self.partial_messages[channel]
+        partial.add_payload(payload)
+        if partial.complete:
+            #
+            # Stick the message in the queue and go back to
+            # waiting for method frames
+            #
+            self.connection.incoming_queue.put((channel, partial.method_sig, partial.args, partial.msg))
+            del self.partial_messages[channel]
+            self.expected_types[channel] = 1
+
 
 
 class _AbstractChannel(object):
@@ -138,7 +231,6 @@ class _AbstractChannel(object):
         self.connection = connection
         self.channel_id = channel_id
         connection.channels[channel_id] = self
-        self.frame_queue = []  # Lower level queue for frames
         self.method_queue = [] # Higher level queue for methods
         self.auto_decode = False
 
@@ -155,43 +247,14 @@ class _AbstractChannel(object):
             return amqp_method(self, args, content)
 
 
-    def _next_frame(self):
-        if self.frame_queue:
-            return self.frame_queue.pop(0)
-        return self.connection._wait_channel(self.channel_id)
+    def _next_method(self):
+        if self.method_queue:
+            return self.method_queue.pop(0)
+        return self.connection._wait_method(self.channel_id)
 
 
     def _send_method_frame(self, method_sig, args=''):
         self.connection._send_channel_method_frame(self.channel_id, method_sig, args)
-
-
-    def _wait_content(self):
-        frame_type, payload = self._next_frame()
-        if frame_type != 2:
-            raise Exception('Expecting Content header')
-
-        class_id, weight, body_size = unpack('>HHQ', payload[:12])
-        msg = Message()
-        msg._load_properties(payload[12:])
-
-        body_parts = []
-        body_received = 0
-        while body_received < body_size:
-            frame_type, payload = self._next_frame()
-            if frame_type != 3:
-                raise Exception('Expecting Content body, received frame type %d' % frame_type)
-            body_parts.append(payload)
-            body_received += len(payload)
-
-        msg.body = ''.join(body_parts)
-
-        if self.auto_decode and hasattr(msg, 'content_encoding'):
-            try:
-                msg.body = msg.body.decode(msg.content_encoding)
-            except:
-                pass
-
-        return msg
 
 
     def wait(self, allowed_methods=None):
@@ -218,22 +281,14 @@ class _AbstractChannel(object):
         # No deferred methods?  wait for new ones
         #
         while True:
-            frame_type, payload = self._next_frame()
-            if frame_type != 1:
-                raise Exception('Expecting AMQP method, received frame type: %d' % frame_type)
+            method_sig, args, content = self.connection._wait_method(self.channel_id)
 
-            if len(payload) < 4:
-                raise Exception('Method frame too short')
 
-            method_sig = unpack('>HH', payload[:4])
-            args = AMQPReader(payload[4:])
-
-            AMQP_LOGGER.debug('> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
-
-            if method_sig in _CONTENT_METHODS:
-                content = self._wait_content()
-            else:
-                content = None
+            if content and self.auto_decode and hasattr(content, 'content_encoding'):
+                try:
+                    content.body = content.body.decode(content.content_encoding)
+                except:
+                    pass
 
             if (allowed_methods is None) \
             or (method_sig in allowed_methods) \
@@ -436,29 +491,29 @@ class Connection(_AbstractChannel):
         AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
 
 
-    def _wait_channel(self, channel_id):
+    def _wait_method(self, channel_id):
         """
-        Wait for a frame from the server destined for
+        Wait for a method from the server destined for
         a particular channel.
 
         """
         while True:
-            frame_type, frame_channel, payload = self.incoming_queue.get()
-            if frame_channel == channel_id:
-                return frame_type, payload
+            channel, method_sig, args, content = self.incoming_queue.get()
+            if channel == channel_id:
+                return method_sig, args, content
 
             #
             # Not the channel we were looking for.  Queue this frame
             # for later, when the other channel is looking for frames.
             #
-            self.channels[frame_channel].frame_queue.append((frame_type, payload))
+            self.channels[channel].method_queue.append((method_sig, args, content))
 
             #
             # If we just queued up a method for channel 0 (the Connection
             # itself) it's probably a close method in reaction to some
             # error, so deal with it right away.
             #
-            if (frame_type == 1) and (frame_channel == 0):
+            if channel == 0:
                 self.wait()
 
 
