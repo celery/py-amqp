@@ -196,10 +196,13 @@ class TestChannel(unittest.TestCase):
 
 
     def test_wait_timeout(self):
-        if not connect_args['use_threading']:
-            print 'Skipping test for wait timeout'
-            return
+        """
+        Test the timeout option of Channel.wait().  When running
+        in threaded mode, it should timeout in about 5 seconds.  In
+        non-threaded mode an exception should be thrown because that
+        feature is not available.
 
+        """
         my_routing_key = 'unittest.test_wait_timeout'
         self.ch.access_request('/data', active=True, write=True, read=True)
         qname, _, _ = self.ch.queue_declare()
@@ -208,10 +211,14 @@ class TestChannel(unittest.TestCase):
 
         timeout = 5 # seconds
         start = time.time()
-        self.assertRaises(Queue.Empty, self.ch.wait, None, timeout)
-        end = time.time()
-        self.assertTrue(abs((end - start) - timeout) < 0.5)
-
+        if connect_args['use_threading']:
+            self.assertRaises(Queue.Empty, self.ch.wait, None, timeout)
+            end = time.time()
+            self.assertTrue(abs((end - start) - timeout) < 0.5)
+        else:
+            self.assertRaises(Exception, self.ch.wait, None, timeout)
+            end = time.time()
+            self.assertTrue((end - start) < 0.5)
 
 
 class TestException(unittest.TestCase):
