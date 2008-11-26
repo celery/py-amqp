@@ -216,6 +216,9 @@ def main():
     parser.add_option('--debug', dest='debug', action='store_true',
                         help='Display debugging output',
                         default=False)
+    parser.add_option('--use-threading', dest='use_threading', action='store_true',
+                        help='Use threading to allow for non-blocking waits',
+                        default=False)
 
     options, args = parser.parse_args()
 
@@ -232,6 +235,7 @@ def main():
     connect_args['userid'] = options.userid
     connect_args['password'] = options.password
     connect_args['ssl'] = options.ssl
+    connect_args['use_threading'] = options.use_threading
 
     sys.argv = sys.argv[:1]
     unittest.main()
