@@ -120,11 +120,16 @@ class PartialMessage(object):
 
 class ReceiveThread(Thread):
     """
-    Helper thread to receive frames from the broker and place them
-    into a Python Queue held by the Connection object.  Normally a
-    frame is represented as a tuple containing (frame_type, channel, payload).
+    Helper thread to receive frames from the broker, combine them if necessary
+    with content-headers and content-bodies into complete methods, and then
+    and place theminto a Python Queue held by the Connection object.
 
-    In the case of a framing error, an Exception is placed in the queue.
+    Normally a method is represented as a tuple containing (channel, method_sig, args, content).
+
+    In the case of a framing error, an AMQPConnectionException is placed in the queue.
+
+    In the case of unexpected frames, a tuple made up of (channel, AMQPChannelException)
+    is placed in the queue.
 
     If the connection is closed, None is placed in the queue and the thread
     exits.
@@ -148,6 +153,9 @@ class ReceiveThread(Thread):
                 payload = self.input.read(size)
                 ch = self.input.read_octet()
             except:
+                #
+                # Connection was closed?
+                #
                 self.connection.incoming_queue.put(None)
                 break
 
@@ -163,8 +171,6 @@ class ReceiveThread(Thread):
                 self.process_content_header(channel, payload)
             elif frame_type == 3:
                 self.process_content_body(channel, payload)
-            else:
-                self.connection.incoming_queue.put((channel, AMQPChannelException(channel, 'Unknown frame type: %d' % frame_type)))
 
 
     def process_method_frame(self, channel, payload):
@@ -178,6 +184,9 @@ class ReceiveThread(Thread):
         AMQP_LOGGER.debug('> %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
 
         if method_sig in _CONTENT_METHODS:
+            #
+            # Save what we've got so far and wait for the content-header
+            #
             self.partial_messages[channel] = PartialMessage(method_sig, args)
             self.expected_types[channel] = 2
         else:
@@ -193,13 +202,16 @@ class ReceiveThread(Thread):
         partial.add_header(payload)
 
         if partial.body_size == 0:
-            # a bodyless message
+            #
+            # a bodyless message, we're done
+            #
             self.connection.incoming_queue.put((channel, partial.method_sig, partial.args, partial.msg))
             del self.partial_messages[channel]
             self.expected_types[channel] = 1
         else:
-            # wait for the body
-            self.partial_messages[channel] = partial
+            #
+            # wait for the content-body
+            #
             self.expected_types[channel] = 3
 
 
@@ -259,13 +271,15 @@ class _AbstractChannel(object):
 
     def wait(self, allowed_methods=None):
         """
-        Wait for some expected AMQP methods and dispatch to them.
+        Wait for a method that matches our allowed_methods parameter (the
+        default value of None means match any method), and dispatch to it.
+
         Unexpected methods are queued up for later calls to this Python
         method.
 
         """
         #
-        # Process deferred methods
+        # Check any deferred methods
         #
         for queued_method in self.method_queue:
             method_sig = queued_method[0]
@@ -282,7 +296,6 @@ class _AbstractChannel(object):
         #
         while True:
             method_sig, args, content = self.connection._wait_method(self.channel_id)
-
 
             if content and self.auto_decode and hasattr(content, 'content_encoding'):
                 try:
