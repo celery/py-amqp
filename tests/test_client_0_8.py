@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import logging
+import Queue
 import sys
+import time
 import unittest
 from optparse import OptionParser
 
@@ -187,6 +189,29 @@ class TestChannel(unittest.TestCase):
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
+
+
+    def noop_callback(self, msg):
+        pass
+
+
+    def test_wait_timeout(self):
+        if not connect_args['use_threading']:
+            print 'Skipping test for wait timeout'
+            return
+
+        my_routing_key = 'unittest.test_wait_timeout'
+        self.ch.access_request('/data', active=True, write=True, read=True)
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.queue_bind(qname, 'amq.direct', routing_key=my_routing_key)
+        self.ch.basic_consume(qname, callback=self.noop_callback, no_ack=True)
+
+        timeout = 5 # seconds
+        start = time.time()
+        self.assertRaises(Queue.Empty, self.ch.wait, None, timeout)
+        end = time.time()
+        self.assertTrue(abs((end - start) - timeout) < 0.5)
+
 
 
 class TestException(unittest.TestCase):

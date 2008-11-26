@@ -296,17 +296,11 @@ class _AbstractChannel(object):
             return amqp_method(self, args, content)
 
 
-    def _next_method(self):
-        if self.method_queue:
-            return self.method_queue.pop(0)
-        return self.connection._wait_method(self.channel_id)
-
-
     def _send_method_frame(self, method_sig, args=''):
         self.connection._send_channel_method_frame(self.channel_id, method_sig, args)
 
 
-    def wait(self, allowed_methods=None):
+    def wait(self, allowed_methods=None, timeout=None):
         """
         Wait for a method that matches our allowed_methods parameter (the
         default value of None means match any method), and dispatch to it.
@@ -316,7 +310,7 @@ class _AbstractChannel(object):
 
         """
         #
-        # Check any deferred methods
+        # Check for a deferred method
         #
         for queued_method in self.method_queue:
             method_sig = queued_method[0]
@@ -329,10 +323,10 @@ class _AbstractChannel(object):
                 return self._dispatch(*queued_method)
 
         #
-        # No deferred methods?  wait for new ones
+        # No deferred methods?  wait for a new one
         #
         while True:
-            method_sig, args, content = self.connection._wait_method(self.channel_id)
+            method_sig, args, content = self.connection._wait_method(self.channel_id, timeout)
 
             if content and self.auto_decode and hasattr(content, 'content_encoding'):
                 try:
@@ -506,14 +500,14 @@ class Connection(_AbstractChannel):
         AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
 
 
-    def _wait_method(self, channel_id):
+    def _wait_method(self, channel_id, timeout):
         """
         Wait for a method from the server destined for
         a particular channel.
 
         """
         while True:
-            channel, method_sig, args, content = self.method_reader.read_method()
+            channel, method_sig, args, content = self.method_reader.read_method(timeout)
             if channel == channel_id:
                 return method_sig, args, content
 
