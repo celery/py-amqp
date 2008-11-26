@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import logging
-import Queue
 import sys
 import time
 import unittest
@@ -8,7 +7,7 @@ from optparse import OptionParser
 
 connect_args = {}
 
-from amqplib.client_0_8 import AMQPException, Connection, Message
+from amqplib.client_0_8 import AMQPException, Connection, Message, TimeoutException
 
 class TestConnection(unittest.TestCase):
     def setUp(self):
@@ -212,7 +211,7 @@ class TestChannel(unittest.TestCase):
         timeout = 5 # seconds
         start = time.time()
         if connect_args['use_threading']:
-            self.assertRaises(Queue.Empty, self.ch.wait, None, timeout)
+            self.assertRaises(TimeoutException, self.ch.wait, None, timeout)
             end = time.time()
             self.assertTrue(abs((end - start) - timeout) < 0.5)
         else:

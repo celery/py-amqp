@@ -21,7 +21,7 @@ AMQP 0-8 Client Library
 import logging
 import socket
 from collections import defaultdict
-from Queue import Queue
+from Queue import Empty, Queue
 from struct import pack, unpack
 from threading import Thread
 
@@ -34,6 +34,7 @@ __all__ =  [
             'AMQPException',
             'AMQPConnectionException',
             'AMQPChannelException',
+            'TimeoutException',
            ]
 
 AMQP_PORT = 5672
@@ -70,6 +71,14 @@ class AMQPConnectionException(AMQPException):
 
 
 class AMQPChannelException(AMQPException):
+    pass
+
+
+class TimeoutException(Exception):
+    """
+    Used to indicate when Channel.wait() methods timeout.
+
+    """
     pass
 
 
@@ -257,7 +266,10 @@ class _MethodReader(object):
                 raise Exception('non-blocking or timeout read requires threading')
             self._next_method()
 
-        return self.queue.get(blocking, timeout)
+        try:
+            return self.queue.get(blocking, timeout)
+        except Empty:
+            raise TimeoutException
 
 
     def stop(self):
