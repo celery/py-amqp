@@ -94,19 +94,23 @@ class _SSLWrap(object):
 
 
 class _PartialMessage(object):
+    """
+    Helper class to build up a multi-frame method.
+
+    """
     def __init__(self, method_sig, args):
         self.method_sig = method_sig
         self.args = args
+        self.msg = Message()
+        self.body_parts = []
+        self.body_received = 0
+        self.complete = False
 
 
     def add_header(self, payload):
         class_id, weight, self.body_size = unpack('>HHQ', payload[:12])
-        self.msg = Message()
         self.msg._load_properties(payload[12:])
-
-        self.body_parts = []
-        self.body_received = 0
-        self.complete = False
+        self.complete = (self.body_size == 0)
 
 
     def add_payload(self, payload):
@@ -211,7 +215,7 @@ class _MethodReader(object):
         partial = self.partial_messages[channel]
         partial.add_header(payload)
 
-        if partial.body_size == 0:
+        if partial.complete:
             #
             # a bodyless message, we're done
             #
