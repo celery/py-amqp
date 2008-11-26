@@ -93,7 +93,7 @@ class _SSLWrap(object):
         pass
 
 
-class PartialMessage(object):
+class _PartialMessage(object):
     def __init__(self, method_sig, args):
         self.method_sig = method_sig
         self.args = args
@@ -118,54 +118,72 @@ class PartialMessage(object):
             self.complete = True
 
 
-class ReceiveThread(Thread):
+class _MethodReader(object):
     """
-    Helper thread to receive frames from the broker, combine them if necessary
-    with content-headers and content-bodies into complete methods, and then
-    and place theminto a Python Queue held by the Connection object.
+    Helper class to receive frames from the broker, combine them if
+    necessary with content-headers and content-bodies into complete methods.
 
-    Normally a method is represented as a tuple containing (channel, method_sig, args, content).
+    It may be used in both a threaded and non-threaded fashion.  The threaded
+    mode allows for non-blocking waits and timeouts.
 
-    In the case of a framing error, an AMQPConnectionException is placed in the queue.
+    Normally a method is represented as a tuple containing
+    (channel, method_sig, args, content).
 
-    In the case of unexpected frames, a tuple made up of (channel, AMQPChannelException)
-    is placed in the queue.
+    In the case of a framing error, an AMQPConnectionException is placed
+    in the queue.
+
+    In the case of unexpected frames, a tuple made up of
+    (channel, AMQPChannelException) is placed in the queue.
 
     If the connection is closed, None is placed in the queue and the thread
     exits.
 
     """
-    def __init__(self, connection):
-        Thread.__init__(self)
-        self.connection = connection
-        self.input = connection.input
+    def __init__(self, source, use_threading=False):
+        self.source = source
+        self.use_threading = use_threading
+        self.queue = Queue()
+        self.running = False
         self.expected_types = defaultdict(lambda:1)
         self.partial_messages = {}
 
+        if use_threading:
+            self.thread = Thread(group=None, target=self._next_method)
+            self.thread.setDaemon(True)
+            self.running = True
+            self.thread.start()
 
-    def run(self):
-        self.running = True
-        while self.running:
+
+    def _next_method(self):
+        """
+        Read the next method from the source.  In threaded mode it
+        runs repeatedly, placing messages in the internal queue.
+        In non-threaded mode it returns once one complete method has
+        been assembled and placed in the internal queue.
+
+        """
+        while (self.use_threading and self.running) \
+        or (not self.use_threading and self.queue.empty()):
             try:
-                frame_type, channel, payload = self.input.read_frame()
+                frame_type, channel, payload = self.source.read_frame()
             except:
                 #
                 # Connection was closed?  Framing Error?
                 #
-                self.connection.incoming_queue.put(None)
+                self.queue.put(None)
                 break
 
             if self.expected_types[channel] != frame_type:
-                self.connection.incoming_queue.put((channel, AMQPChannelException(channel, 'Received frame type %d while expecting type: %d' % (frame_type, self.expected_types[channel]))))
+                self.queue.put((channel, AMQPChannelException(channel, 'Received frame type %d while expecting type: %d' % (frame_type, self.expected_types[channel]))))
             elif frame_type == 1:
-                self.process_method_frame(channel, payload)
+                self._process_method_frame(channel, payload)
             elif frame_type == 2:
-                self.process_content_header(channel, payload)
+                self._process_content_header(channel, payload)
             elif frame_type == 3:
-                self.process_content_body(channel, payload)
+                self._process_content_body(channel, payload)
 
 
-    def process_method_frame(self, channel, payload):
+    def _process_method_frame(self, channel, payload):
         """
         Process Method frames
 
@@ -179,13 +197,13 @@ class ReceiveThread(Thread):
             #
             # Save what we've got so far and wait for the content-header
             #
-            self.partial_messages[channel] = PartialMessage(method_sig, args)
+            self.partial_messages[channel] = _PartialMessage(method_sig, args)
             self.expected_types[channel] = 2
         else:
-            self.connection.incoming_queue.put((channel, method_sig, args, None))
+            self.queue.put((channel, method_sig, args, None))
 
 
-    def process_content_header(self, channel, payload):
+    def _process_content_header(self, channel, payload):
         """
         Process Content Header frames
 
@@ -197,7 +215,7 @@ class ReceiveThread(Thread):
             #
             # a bodyless message, we're done
             #
-            self.connection.incoming_queue.put((channel, partial.method_sig, partial.args, partial.msg))
+            self.queue.put((channel, partial.method_sig, partial.args, partial.msg))
             del self.partial_messages[channel]
             self.expected_types[channel] = 1
         else:
@@ -207,7 +225,7 @@ class ReceiveThread(Thread):
             self.expected_types[channel] = 3
 
 
-    def process_content_body(self, channel, payload):
+    def _process_content_body(self, channel, payload):
         """
         Process Content Body frames
 
@@ -219,10 +237,33 @@ class ReceiveThread(Thread):
             # Stick the message in the queue and go back to
             # waiting for method frames
             #
-            self.connection.incoming_queue.put((channel, partial.method_sig, partial.args, partial.msg))
+            self.queue.put((channel, partial.method_sig, partial.args, partial.msg))
             del self.partial_messages[channel]
             self.expected_types[channel] = 1
 
+
+    def read_method(self, timeout=None):
+        """
+        Read a method from the peer.
+
+        """
+        blocking = (timeout != 0)
+        if not self.use_threading:
+            if (not blocking) or timeout:
+                raise Exception('non-blocking or timeout read requires threading')
+            self._next_method()
+
+        return self.queue.get(blocking, timeout)
+
+
+    def stop(self):
+        """
+        Stop any helper thread that's running.  Harmless to call if we're
+        not using threading.
+
+        """
+        if self.use_threading:
+            self.running = False
 
 
 class _AbstractChannel(object):
@@ -330,7 +371,8 @@ class Connection(_AbstractChannel):
     def __init__(self, host, userid=None, password=None,
         login_method='AMQPLAIN', login_response=None,
         virtual_host='/', locale='en_US', client_properties=None,
-        ssl=False, insist=False, connect_timeout=None, **kwargs):
+        ssl=False, insist=False, connect_timeout=None, use_threading=False,
+        **kwargs):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -351,7 +393,6 @@ class Connection(_AbstractChannel):
             d.update(client_properties)
 
         self.known_hosts = ''
-        self.incoming_queue = Queue()
 
         while True:
             self.channels = {}
@@ -381,9 +422,7 @@ class Connection(_AbstractChannel):
                 self.out = AMQPWriter(self.sock.makefile('w'))
                 self.input = AMQPReader(self.sock.makefile('r'))
 
-            self.receive_thread = ReceiveThread(self)
-            self.receive_thread.setDaemon(True)
-            self.receive_thread.start()
+            self.method_reader = _MethodReader(self.input, use_threading=use_threading)
 
             self.out.write(AMQP_PROTOCOL_HEADER)
             self.out.flush()
@@ -419,7 +458,7 @@ class Connection(_AbstractChannel):
 
 
     def _do_close(self):
-        self.receive_thread.running = False
+        self.method_reader.stop()
 
         self.input.close()
         self.out.close()
@@ -470,7 +509,7 @@ class Connection(_AbstractChannel):
 
         """
         while True:
-            channel, method_sig, args, content = self.incoming_queue.get()
+            channel, method_sig, args, content = self.method_reader.read_method()
             if channel == channel_id:
                 return method_sig, args, content
 
