@@ -45,12 +45,12 @@ def _hexdump(s):
 
 class AMQPReader(object):
     """
-    Parse data from AMQP
+    Read higher-level AMQP types from a bytestream.
 
     """
     def __init__(self, source):
         """
-        source should be either a file-like object with a read() method, or
+        Source should be either a file-like object with a read() method, or
         a plain (non-unicode) string.
 
         """
@@ -63,8 +63,10 @@ class AMQPReader(object):
 
         self.bitcount = self.bits = 0
 
+
     def close(self):
         self.input.close()
+
 
     def read(self, n):
         """
@@ -73,6 +75,7 @@ class AMQPReader(object):
         """
         self.bitcount = self.bits = 0
         return self.input.read(n)
+
 
     def read_bit(self):
         """
@@ -87,6 +90,21 @@ class AMQPReader(object):
         self.bitcount -= 1
         return result
 
+
+    def read_frame(self):
+        """
+        Read an AMQP frame.
+
+        """
+        frame_type, channel, size = unpack('>BHI', self.input.read(7))
+        payload = self.input.read(size)
+        ch = self.input.read(1)
+        if ch == '\xce':
+            return frame_type, channel, payload
+        else:
+            raise Exception('Framing Error')
+
+
     def read_octet(self):
         """
         Read one byte, return as an integer
@@ -94,6 +112,7 @@ class AMQPReader(object):
         """
         self.bitcount = self.bits = 0
         return unpack('B', self.input.read(1))[0]
+
 
     def read_short(self):
         """
@@ -103,6 +122,7 @@ class AMQPReader(object):
         self.bitcount = self.bits = 0
         return unpack('>H', self.input.read(2))[0]
 
+
     def read_long(self):
         """
         Read an unsigned 32-bit integer
@@ -111,6 +131,7 @@ class AMQPReader(object):
         self.bitcount = self.bits = 0
         return unpack('>I', self.input.read(4))[0]
 
+
     def read_longlong(self):
         """
         Read an unsigned 64-bit integer
@@ -118,6 +139,7 @@ class AMQPReader(object):
         """
         self.bitcount = self.bits = 0
         return unpack('>Q', self.input.read(8))[0]
+
 
     def read_shortstr(self):
         """
@@ -129,6 +151,7 @@ class AMQPReader(object):
         slen = unpack('B', self.input.read(1))[0]
         return self.input.read(slen).decode('utf-8')
 
+
     def read_longstr(self):
         """
         Read a string that's up to 2**32 bytes, the encoding
@@ -139,6 +162,7 @@ class AMQPReader(object):
         self.bitcount = self.bits = 0
         slen = unpack('>I', self.input.read(4))[0]
         return self.input.read(slen)
+
 
     def read_table(self):
         """
@@ -167,6 +191,7 @@ class AMQPReader(object):
             result[name] = val
         return result
 
+
     def read_timestamp(self):
         """
         Read and AMQP timestamp, which is a 64-bit integer representing
@@ -179,13 +204,24 @@ class AMQPReader(object):
 
 class AMQPWriter(object):
     """
-    A StringIO like object for building up encoded AMQP data.
+    Convert higher-level AMQP types to bytestreams.
 
     """
-    def __init__(self):
-        self.out = StringIO()
+    def __init__(self, dest=None):
+        """
+        dest may be a file-type object (with a write() method).  If None
+        then a StringIO is created, and the contents can be accessed with
+        this class's getvalue() method.
+
+        """
+        if dest is None:
+            self.out = StringIO()
+        else:
+            self.out = dest
+
         self.bits = []
         self.bitcount = 0
+
 
     def _flushbits(self):
         if self.bits:
@@ -194,13 +230,33 @@ class AMQPWriter(object):
             self.bits = []
             self.bitcount = 0
 
+
+    def close(self):
+        """
+        Pass through if possible to any file-like destinations.
+
+        """
+        if hasattr(self.out, 'close'):
+            self.out.close()
+
+
+    def flush(self):
+        """
+        Pass through if possible to any file-like destinations.
+
+        """
+        if hasattr(self.out, 'flush'):
+            self.out.flush()
+
+
     def getvalue(self):
         """
-        Get what's been encoded so far.
+        Get what's been encoded so far if we're working with a StringIO.
 
         """
         self._flushbits()
         return self.out.getvalue()
+
 
     def write(self, s):
         """
@@ -209,6 +265,7 @@ class AMQPWriter(object):
         """
         self._flushbits()
         self.out.write(s)
+
 
     def write_bit(self, b):
         """
@@ -225,6 +282,18 @@ class AMQPWriter(object):
         self.bits[-1] |= (b << shift)
         self.bitcount += 1
 
+
+    def write_frame(self, frame_type, channel, payload):
+        """
+        Write out an AMQP frame.
+
+        """
+        size = len(payload)
+        self.out.write(pack('>BHI', frame_type, channel, size))
+        self.out.write(payload)
+        self.out.write('\xce')
+
+
     def write_octet(self, n):
         """
         Write an integer as an unsigned 8-bit value.
@@ -234,6 +303,7 @@ class AMQPWriter(object):
             raise ValueError('Octet out of range 0..255')
         self._flushbits()
         self.out.write(pack('B', n))
+
 
     def write_short(self, n):
         """
@@ -245,6 +315,7 @@ class AMQPWriter(object):
         self._flushbits()
         self.out.write(pack('>H', n))
 
+
     def write_long(self, n):
         """
         Write an integer as an unsigned2 32-bit value.
@@ -255,6 +326,7 @@ class AMQPWriter(object):
         self._flushbits()
         self.out.write(pack('>I', n))
 
+
     def write_longlong(self, n):
         """
         Write an integer as an unsigned 64-bit value.
@@ -264,6 +336,7 @@ class AMQPWriter(object):
             raise ValueError('Octet out of range 0..2**64-1')
         self._flushbits()
         self.out.write(pack('>Q', n))
+
 
     def write_shortstr(self, s):
         """
@@ -279,6 +352,7 @@ class AMQPWriter(object):
         self.write_octet(len(s))
         self.out.write(s)
 
+
     def write_longstr(self, s):
         """
         Write a string up to 2**32 bytes long after encoding.  If passed
@@ -290,6 +364,7 @@ class AMQPWriter(object):
             s = s.encode('utf-8')
         self.write_long(len(s))
         self.out.write(s)
+
 
     def write_table(self, d):
         """
@@ -330,6 +405,7 @@ class AMQPWriter(object):
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
+
 
     def write_timestamp(self, v):
         """

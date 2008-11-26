@@ -147,20 +147,12 @@ class ReceiveThread(Thread):
         self.running = True
         while self.running:
             try:
-                frame_type = self.input.read_octet()
-                channel = self.input.read_short()
-                size = self.input.read_long()
-                payload = self.input.read(size)
-                ch = self.input.read_octet()
+                frame_type, channel, payload = self.input.read_frame()
             except:
                 #
-                # Connection was closed?
+                # Connection was closed?  Framing Error?
                 #
                 self.connection.incoming_queue.put(None)
-                break
-
-            if ch != 0xce:
-                self.connection.incoming_queue.put(AMQPConnectionException('Framing error, unexpected byte: %x' % ch))
                 break
 
             if self.expected_types[channel] != frame_type:
@@ -383,10 +375,10 @@ class Connection(_AbstractChannel):
             self.sock.settimeout(None)
 
             if ssl:
-                self.out = _SSLWrap(self.sock)
+                self.out = AMQPWriter(_SSLWrap(self.sock))
                 self.input = AMQPReader(self.out)
             else:
-                self.out = self.sock.makefile('w')
+                self.out = AMQPWriter(self.sock.makefile('w'))
                 self.input = AMQPReader(self.sock.makefile('r'))
 
             self.receive_thread = ReceiveThread(self)
@@ -448,57 +440,31 @@ class Connection(_AbstractChannel):
 
     def _send_content(self, channel, class_id, weight, body_size,
                         packed_properties, body):
-        pkt = AMQPWriter()
+        payload = AMQPWriter()
+        payload.write_short(class_id)
+        payload.write_short(weight)
+        payload.write_longlong(body_size)
+        payload.write(packed_properties)
 
-        pkt.write_octet(2)
-        pkt.write_short(channel)
-        pkt.write_long(len(packed_properties)+12)
-
-        pkt.write_short(class_id)
-        pkt.write_short(weight)
-        pkt.write_longlong(body_size)
-        pkt.write(packed_properties)
-
-        pkt.write_octet(0xce)
-        pkt = pkt.getvalue()
-        self.out.write(pkt)
-        self.out.flush()
+        self.out.write_frame(2, channel, payload.getvalue())
 
         while body:
             payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
-            pkt = AMQPWriter()
+            self.out.write_frame(3, channel, payload)
 
-            pkt.write_octet(3)
-            pkt.write_short(channel)
-            pkt.write_long(len(payload))
-
-            pkt.write(payload)
-
-            pkt.write_octet(0xce)
-            pkt = pkt.getvalue()
-            self.out.write(pkt)
-            self.out.flush()
+        self.out.flush()
 
 
     def _send_channel_method_frame(self, channel, method_sig, args=''):
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        pkt = AMQPWriter()
+        payload = AMQPWriter()
+        payload.write_short(method_sig[0]) # class_id
+        payload.write_short(method_sig[1]) # method_id
+        payload.write(args)
 
-        pkt.write_octet(1)
-        pkt.write_short(channel)
-        pkt.write_long(len(args)+4)  # 4 = length of class_id and method_id
-                                     # in payload
-
-        pkt.write_short(method_sig[0]) # class_id
-        pkt.write_short(method_sig[1]) # method_id
-        pkt.write(args)
-
-        pkt.write_octet(0xce)
-        pkt = pkt.getvalue()
-#        _hexdump(pkt)
-        self.out.write(pkt)
+        self.out.write_frame(1, channel, payload.getvalue())
         self.out.flush()
 
         AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
