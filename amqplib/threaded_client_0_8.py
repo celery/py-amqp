@@ -22,7 +22,7 @@ import logging
 import socket
 from collections import defaultdict
 from Queue import Queue
-from struct import unpack
+from struct import pack, unpack
 from threading import Thread
 
 from util_0_8 import AMQPReader, AMQPWriter, GenericContent
@@ -438,15 +438,10 @@ class Connection(_AbstractChannel):
             % (len(self.channels), self.channel_max))
 
 
-    def _send_content(self, channel, class_id, weight, body_size,
-                        packed_properties, body):
-        payload = AMQPWriter()
-        payload.write_short(class_id)
-        payload.write_short(weight)
-        payload.write_longlong(body_size)
-        payload.write(packed_properties)
-
-        self.out.write_frame(2, channel, payload.getvalue())
+    def _send_content(self, channel, class_id, weight, packed_properties,
+            body):
+        payload = pack('>HHQ', class_id, weight, len(body)) + packed_properties
+        self.out.write_frame(2, channel, payload)
 
         while body:
             payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
@@ -459,12 +454,10 @@ class Connection(_AbstractChannel):
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        payload = AMQPWriter()
-        payload.write_short(method_sig[0]) # class_id
-        payload.write_short(method_sig[1]) # method_id
-        payload.write(args)
+        # minor optimization here, use pack instead of 3 AMQPWriter calls
+        payload = pack('>HH', method_sig[0], method_sig[1]) + args
 
-        self.out.write_frame(1, channel, payload.getvalue())
+        self.out.write_frame(1, channel, payload)
         self.out.flush()
 
         AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), _METHOD_NAME_MAP[method_sig]))
@@ -3290,7 +3283,6 @@ class Channel(_AbstractChannel):
         self._send_method_frame((60, 40), args)
 
         self.connection._send_content(self.channel_id, 60, 0,
-            len(msg.body),
             msg._serialize_properties(),
             msg.body)
 
