@@ -23,3 +23,4 @@ AMQP Client implementing the 0-8 spec.
 #
 from basic_message import *
 from connection import *
+from exceptions import *
