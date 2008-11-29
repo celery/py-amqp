@@ -54,6 +54,7 @@ class AbstractChannel(object):
     def _dispatch(self, method_sig, args, content):
         """
         Find and call a Python method to handle the given AMQP method.
+
         """
         amqp_method = self._METHOD_MAP.get(method_sig, None)
 
@@ -122,4 +123,8 @@ class AbstractChannel(object):
                 (str(method_sig), METHOD_NAME_MAP[method_sig]))
             self.method_queue.append((method_sig, args, content))
 
+    #
+    # Placeholder, the concrete implementations will have to
+    # supply their own versions of _METHOD_MAP
+    #
     _METHOD_MAP = {}
