@@ -150,7 +150,6 @@ class MethodReader(object):
                 break
 
             if self.expected_types[channel] != frame_type:
-                print frame_type, '!=', self.expected_types[channel]
                 self.queue.put((
                     channel,
                     Exception('Received frame type %s while expecting type: %s' %
