@@ -20,6 +20,8 @@ Code common to Connection and Channel objects.
 
 import logging
 
+from exceptions import METHOD_NAME_MAP
+
 __all__ =  [
             'AbstractChannel',
            ]

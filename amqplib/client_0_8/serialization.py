@@ -1,5 +1,5 @@
 """
-AMQP Helper Library
+Convert between bytestreams and higher-level AMQP types.
 
 2007-11-05 Barry Pederson <bp@barryp.org>
 

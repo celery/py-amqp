@@ -24,3 +24,13 @@ AMQP Client implementing the 0-8 spec.
 from basic_message import *
 from connection import *
 from exceptions import *
+
+__all__ =  [
+            'Connection',
+            'Channel',      # here mainly so it shows in in pydoc
+            'Message',
+            'AMQPException',
+            'AMQPConnectionException',
+            'AMQPChannelException',
+            'TimeoutException',
+           ]

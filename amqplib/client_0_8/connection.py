@@ -25,6 +25,7 @@ from struct import pack
 from abstract_channel import AbstractChannel
 from channel import Channel
 from exceptions import *
+from exceptions import METHOD_NAME_MAP
 from method import MethodReader
 from serialization import AMQPReader, AMQPWriter
 
@@ -69,8 +70,6 @@ class _SSLWrap(object):
 
 class Connection(AbstractChannel):
     """
-    work with socket connections
-
     The connection class provides methods for a client to establish a
     network connection to a server, and for both peers to operate the
     connection thereafter.
