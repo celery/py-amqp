@@ -26,6 +26,7 @@ __all__ =  [
             'AbstractChannel',
            ]
 
+AMQP_LOGGER = logging.getLogger('amqplib')
 
 _CLOSE_METHODS = [
     (10, 60), # Connection.close
@@ -51,6 +52,9 @@ class AbstractChannel(object):
 
 
     def _dispatch(self, method_sig, args, content):
+        """
+        Find and call a Python method to handle the given AMQP method.
+        """
         amqp_method = self._METHOD_MAP.get(method_sig, None)
 
         if amqp_method is None:
@@ -63,7 +67,12 @@ class AbstractChannel(object):
 
 
     def _send_method_frame(self, method_sig, args=''):
-        self.connection._send_channel_method_frame(self.channel_id, method_sig, args)
+        """
+        Send a method frame for our channel.
+
+        """
+        self.connection._send_channel_method_frame(self.channel_id,
+            method_sig, args)
 
 
     def wait(self, allowed_methods=None, timeout=None):
@@ -92,9 +101,12 @@ class AbstractChannel(object):
         # No deferred methods?  wait for a new one
         #
         while True:
-            method_sig, args, content = self.connection._wait_method(self.channel_id, timeout)
+            method_sig, args, content = self.connection._wait_method(
+                self.channel_id, timeout)
 
-            if content and self.auto_decode and hasattr(content, 'content_encoding'):
+            if content \
+            and self.auto_decode \
+            and hasattr(content, 'content_encoding'):
                 try:
                     content.body = content.body.decode(content.content_encoding)
                 except:
@@ -106,5 +118,8 @@ class AbstractChannel(object):
                 return self._dispatch(method_sig, args, content)
 
             # Wasn't what we were looking for? save it for later
-            AMQP_LOGGER.debug('Queueing for later: %s: %s' % (str(method_sig), METHOD_NAME_MAP[method_sig]))
+            AMQP_LOGGER.debug('Queueing for later: %s: %s' %
+                (str(method_sig), METHOD_NAME_MAP[method_sig]))
             self.method_queue.append((method_sig, args, content))
+
+    _METHOD_MAP = {}

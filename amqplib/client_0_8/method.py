@@ -18,10 +18,31 @@ Convert between frames and higher-level AMQP methods
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-from collections import defaultdict
 from Queue import Empty, Queue
-from struct import pack, unpack
+from struct import unpack
 from threading import Thread
+
+try:
+    from collections import defaultdict
+except:
+    class defaultdict(dict):
+        """
+        Mini-implementation of collections.defaultdict that
+        appears in Python 2.5 and up.
+
+        """
+        def __init__(self, default_factory):
+            dict.__init__(self)
+            self.default_factory = default_factory
+
+        def __getitem__(self, key):
+            try:
+                return dict.__getitem__(self, key)
+            except KeyError:
+                result = self.default_factory()
+                dict.__setitem__(self, key, result)
+                return result
+
 
 from basic_message import Message
 from exceptions import *
@@ -31,7 +52,6 @@ __all__ =  [
             'MethodReader',
            ]
 
-
 #
 # MethodReader needs to know which methods are supposed
 # to be followed by content headers and bodies.
@@ -40,6 +60,7 @@ _CONTENT_METHODS = [
     (60, 60), # Basic.deliver
     (60, 71), # Basic.get_ok
     ]
+
 
 
 class _PartialMessage(object):
@@ -53,6 +74,7 @@ class _PartialMessage(object):
         self.msg = Message()
         self.body_parts = []
         self.body_received = 0
+        self.body_size = None
         self.complete = False
 
 
@@ -97,8 +119,9 @@ class MethodReader(object):
         self.use_threading = use_threading
         self.queue = Queue()
         self.running = False
-        self.expected_types = defaultdict(lambda:1) # For each channel, which type is expected next
         self.partial_messages = {}
+        # For each channel, which type is expected next
+        self.expected_types = defaultdict(lambda:1)
 
         if use_threading:
             self.thread = Thread(group=None, target=self._next_method)
@@ -119,7 +142,7 @@ class MethodReader(object):
         or (not self.use_threading and self.queue.empty()):
             try:
                 frame_type, channel, payload = self.source.read_frame()
-            except:
+            except Exception, e:
                 #
                 # Connection was closed?  Framing Error?
                 #
@@ -127,7 +150,13 @@ class MethodReader(object):
                 break
 
             if self.expected_types[channel] != frame_type:
-                self.queue.put((channel, AMQPChannelException(channel, 'Received frame type %d while expecting type: %d' % (frame_type, self.expected_types[channel]))))
+                print frame_type, '!=', self.expected_types[channel]
+                self.queue.put((
+                    channel,
+                    Exception('Received frame type %s while expecting type: %s' %
+                        (frame_type, self.expected_types[channel])
+                        )
+                    ))
             elif frame_type == 1:
                 self._process_method_frame(channel, payload)
             elif frame_type == 2:
@@ -201,7 +230,7 @@ class MethodReader(object):
         blocking = (timeout != 0)
         if not self.use_threading:
             if (not blocking) or timeout:
-                raise Exception('non-blocking or timeout read requires threading')
+                raise Exception('timeout other than None requires threading')
             self._next_method()
 
         try:

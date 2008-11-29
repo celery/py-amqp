@@ -120,8 +120,18 @@ class Connection(AbstractChannel):
             super(Connection, self).__init__(self, 0)
 
             self.input = self.out = None
+
+            # Properties set in the Tune method
             self.channel_max = 65535
             self.frame_max = 131072
+            self.heartbeat = 0
+
+            # Properties set in the Start method
+            self.version_major = 0
+            self.version_minor = 0
+            self.server_properties = {}
+            self.mechanisms = []
+            self.locales = []
 
             if ':' in host:
                 host, port = host.split(':', 1)

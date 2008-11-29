@@ -269,7 +269,8 @@ class Channel(AbstractChannel):
         self._send_method_frame((20, 41))
         self._do_close()
 
-        raise AMQPChannelException(reply_code, reply_text, (class_id, method_id))
+        raise AMQPChannelException(reply_code, reply_text,
+            (class_id, method_id))
 
 
     def _close_ok(self, args):
