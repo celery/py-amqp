@@ -8,24 +8,43 @@ of real AMQP servers.
 2007-12-08 Barry Pederson <bp@barryp.org>
 
 """
+# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+
 import socket
 import sys
 from optparse import OptionParser
 from Queue import Queue
 
 import amqplib.client_0_8 as amqp
-amqp.DEBUG = True
-from amqplib.util_0_8 import AMQPReader, AMQPWriter
+from amqplib.client_0_8.connection import AMQP_PROTOCOL_HEADER, _MethodReader
+from amqplib.client_0_8.serialization import AMQPReader, AMQPWriter
 
 class FakeRedirectConnection(amqp.Connection):
     def __init__(self, sock):
-        self.out = sock.makefile('w')
+        self.channels = {}
+        super(amqp.Connection, self).__init__(self, 0)
+
+        self.out = AMQPWriter(sock.makefile('w'))
         self.input = AMQPReader(sock.makefile('r'))
-        self.frame_queue = Queue()
+        self.method_reader = _MethodReader(self.input)
 
 
     def do_redirect(self, dest):
-        if self.input.read(8) != amqp.AMQP_PROTOCOL_HEADER:
+        if self.input.read(8) != AMQP_PROTOCOL_HEADER:
             print "Didn't receive AMQP 0-8 header"
             return
 
@@ -83,7 +102,7 @@ class FakeRedirectConnection(amqp.Connection):
         args = AMQPWriter()
         args.write_shortstr(host)
         args.write_shortstr(known_hosts)
-        self._send_method_frame(0, (10, 50), args)
+        self._send_channel_method_frame(0, (10, 50), args)
 
 
     def start(self, version_major, version_minor, server_properties,
@@ -94,7 +113,7 @@ class FakeRedirectConnection(amqp.Connection):
         args.write_table(server_properties)
         args.write_longstr(' '.join(mechanisms))
         args.write_longstr(' '.join(locales))
-        self._send_method_frame(0, (10, 10), args)
+        self._send_channel_method_frame(0, (10, 10), args)
 
 
     def tune(self, channel_max, frame_max, heartbeat):
@@ -102,15 +121,15 @@ class FakeRedirectConnection(amqp.Connection):
         args.write_short(channel_max)
         args.write_long(frame_max)
         args.write_short(heartbeat)
-        self._send_method_frame(0, (10, 30), args)
+        self._send_channel_method_frame(0, (10, 30), args)
 
 #
-# Monkeypatch the amqplib.client_0_8 _METHOD_MAP dict to
+# Monkeypatch the amqplib.client_0_8.Connection _METHOD_MAP dict to
 # work with our FakeRedirectConnection
 #
-amqp._METHOD_MAP[(10, 11)] = (amqp.Connection, FakeRedirectConnection.fake_op)
-amqp._METHOD_MAP[(10, 31)] = (amqp.Connection, FakeRedirectConnection.fake_op)
-amqp._METHOD_MAP[(10, 40)] = (amqp.Connection, FakeRedirectConnection._open)
+amqp.Connection._METHOD_MAP[(10, 11)] = FakeRedirectConnection.fake_op
+amqp.Connection._METHOD_MAP[(10, 31)] = FakeRedirectConnection.fake_op
+amqp.Connection._METHOD_MAP[(10, 40)] = FakeRedirectConnection._open
 
 
 def main():
