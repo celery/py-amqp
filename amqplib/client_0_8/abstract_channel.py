@@ -1,5 +1,5 @@
 """
-Code common between Connection and Channel objects.
+Code common to Connection and Channel objects.
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -36,8 +36,8 @@ class AbstractChannel(object):
     Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.
 
-    The subclasses must have a _METHOD_MAP property, mapping
-    between method signatures and callables.
+    The subclasses must have a _METHOD_MAP class property, mapping
+    between AMQP method signatures and Python methods.
 
     """
     def __init__(self, connection, channel_id):
