@@ -21,6 +21,7 @@ Code common to Connection and Channel objects.
 import logging
 
 from exceptions import METHOD_NAME_MAP
+from serialization import AMQPWriter
 
 __all__ =  [
             'AbstractChannel',
@@ -67,13 +68,16 @@ class AbstractChannel(object):
             return amqp_method(self, args, content)
 
 
-    def _send_method_frame(self, method_sig, args=''):
+    def _send_method(self, method_sig, args='', content=None):
         """
-        Send a method frame for our channel.
+        Send a method for our channel.
 
         """
-        self.connection._send_channel_method_frame(self.channel_id,
-            method_sig, args)
+        if isinstance(args, AMQPWriter):
+            args = args.getvalue()
+
+        self.connection.method_writer.write_method(self.channel_id,
+            method_sig, args, content)
 
 
     def wait(self, allowed_methods=None, timeout=None):

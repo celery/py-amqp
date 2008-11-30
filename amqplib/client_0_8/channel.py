@@ -189,7 +189,7 @@ class Channel(AbstractChannel):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
         args.write_short(method_sig[1]) # method_id
-        self._send_method_frame((20, 40), args)
+        self._send_method((20, 40), args)
         return self.wait(allowed_methods=[
                           (20, 41),    # Channel.close_ok
                         ])
@@ -266,7 +266,7 @@ class Channel(AbstractChannel):
 #            the error.
 #
 #        """
-        self._send_method_frame((20, 41))
+        self._send_method((20, 41))
         self._do_close()
 
         raise AMQPChannelException(reply_code, reply_text,
@@ -340,7 +340,7 @@ class Channel(AbstractChannel):
         """
         args = AMQPWriter()
         args.write_bit(active)
-        self._send_method_frame((20, 20), args)
+        self._send_method((20, 20), args)
         return self.wait(allowed_methods=[
                           (20, 21),    # Channel.flow_ok
                         ])
@@ -417,7 +417,7 @@ class Channel(AbstractChannel):
         """
         args = AMQPWriter()
         args.write_bit(active)
-        self._send_method_frame((20, 21), args)
+        self._send_method((20, 21), args)
 
 
     def _flow_ok(self, args):
@@ -466,7 +466,7 @@ class Channel(AbstractChannel):
 
         args = AMQPWriter()
         args.write_shortstr(out_of_band)
-        self._send_method_frame((20, 10), args)
+        self._send_method((20, 10), args)
         return self.wait(allowed_methods=[
                           (20, 11),    # Channel.open_ok
                         ])
@@ -591,7 +591,7 @@ class Channel(AbstractChannel):
         args.write_bit(active)
         args.write_bit(write)
         args.write_bit(read)
-        self._send_method_frame((30, 10), args)
+        self._send_method((30, 10), args)
         return self.wait(allowed_methods=[
                           (30, 11),    # Channel.access_request_ok
                         ])
@@ -836,7 +836,7 @@ class Channel(AbstractChannel):
         args.write_bit(internal)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self._send_method_frame((40, 10), args)
+        self._send_method((40, 10), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -916,7 +916,7 @@ class Channel(AbstractChannel):
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
-        self._send_method_frame((40, 20), args)
+        self._send_method((40, 20), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -1086,7 +1086,7 @@ class Channel(AbstractChannel):
         args.write_shortstr(routing_key)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self._send_method_frame((50, 20), args)
+        self._send_method((50, 20), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -1287,7 +1287,7 @@ class Channel(AbstractChannel):
         args.write_bit(auto_delete)
         args.write_bit(nowait)
         args.write_table(arguments)
-        self._send_method_frame((50, 10), args)
+        self._send_method((50, 10), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -1415,7 +1415,7 @@ class Channel(AbstractChannel):
         args.write_bit(if_unused)
         args.write_bit(if_empty)
         args.write_bit(nowait)
-        self._send_method_frame((50, 40), args)
+        self._send_method((50, 40), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -1516,7 +1516,7 @@ class Channel(AbstractChannel):
             args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
-        self._send_method_frame((50, 30), args)
+        self._send_method((50, 30), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
@@ -1652,7 +1652,7 @@ class Channel(AbstractChannel):
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(multiple)
-        self._send_method_frame((60, 80), args)
+        self._send_method((60, 80), args)
 
 
     def basic_cancel(self, consumer_tag, nowait=False):
@@ -1699,7 +1699,7 @@ class Channel(AbstractChannel):
         args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
-        self._send_method_frame((60, 30), args)
+        self._send_method((60, 30), args)
         return self.wait(allowed_methods=[
                           (60, 31),    # Channel.basic_cancel_ok
                         ])
@@ -1849,7 +1849,7 @@ class Channel(AbstractChannel):
         args.write_bit(no_ack)
         args.write_bit(exclusive)
         args.write_bit(nowait)
-        self._send_method_frame((60, 20), args)
+        self._send_method((60, 20), args)
 
         if not nowait:
             consumer_tag = self.wait(allowed_methods=[
@@ -2026,7 +2026,7 @@ class Channel(AbstractChannel):
             args.write_short(self.default_ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
-        self._send_method_frame((60, 70), args)
+        self._send_method((60, 70), args)
         return self.wait(allowed_methods=[
                           (60, 71),    # Channel.basic_get_ok
                           (60, 72),    # Channel.basic_get_empty
@@ -2219,11 +2219,8 @@ class Channel(AbstractChannel):
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
         args.write_bit(immediate)
-        self._send_method_frame((60, 40), args)
 
-        self.connection._send_content(self.channel_id, 60, 0,
-            msg._serialize_properties(),
-            msg.body)
+        self._send_method((60, 40), args, msg)
 
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
@@ -2295,7 +2292,7 @@ class Channel(AbstractChannel):
         args.write_long(prefetch_size)
         args.write_short(prefetch_count)
         args.write_bit(a_global)
-        self._send_method_frame((60, 10), args)
+        self._send_method((60, 10), args)
         return self.wait(allowed_methods=[
                           (60, 11),    # Channel.basic_qos_ok
                         ])
@@ -2346,7 +2343,7 @@ class Channel(AbstractChannel):
         """
         args = AMQPWriter()
         args.write_bit(requeue)
-        self._send_method_frame((60, 100), args)
+        self._send_method((60, 100), args)
 
 
     def basic_reject(self, delivery_tag, requeue):
@@ -2423,7 +2420,7 @@ class Channel(AbstractChannel):
         args = AMQPWriter()
         args.write_longlong(delivery_tag)
         args.write_bit(requeue)
-        self._send_method_frame((60, 90), args)
+        self._send_method((60, 90), args)
 
 
     def _basic_return(self, args):
@@ -2504,7 +2501,7 @@ class Channel(AbstractChannel):
         after a commit.
 
         """
-        self._send_method_frame((90, 20))
+        self._send_method((90, 20))
         return self.wait(allowed_methods=[
                           (90, 21),    # Channel.tx_commit_ok
                         ])
@@ -2531,7 +2528,7 @@ class Channel(AbstractChannel):
         immediately after a rollback.
 
         """
-        self._send_method_frame((90, 30))
+        self._send_method((90, 30))
         return self.wait(allowed_methods=[
                           (90, 31),    # Channel.tx_rollback_ok
                         ])
@@ -2558,7 +2555,7 @@ class Channel(AbstractChannel):
         before using the Commit or Rollback methods.
 
         """
-        self._send_method_frame((90, 10))
+        self._send_method((90, 10))
         return self.wait(allowed_methods=[
                           (90, 11),    # Channel.tx_select_ok
                         ])

@@ -21,12 +21,13 @@ AMQP 0-8 Connections
 import logging
 import socket
 from struct import pack
+from time import time
 
 from abstract_channel import AbstractChannel
 from channel import Channel
 from exceptions import *
 from exceptions import METHOD_NAME_MAP
-from method import MethodReader
+from method import MethodReader, MethodWriter
 from serialization import AMQPReader, AMQPWriter
 
 __all__ =  [
@@ -153,6 +154,7 @@ class Connection(AbstractChannel):
                 self.input = AMQPReader(self.sock.makefile('r'))
 
             self.method_reader = MethodReader(self.input, use_threading=use_threading)
+            self.method_writer = MethodWriter(self.out, self.frame_max)
 
             self.out.write(AMQP_PROTOCOL_HEADER)
             self.out.flush()
@@ -207,39 +209,32 @@ class Connection(AbstractChannel):
             % (len(self.channels), self.channel_max))
 
 
-    def _send_content(self, channel, class_id, weight, packed_properties,
-            body):
-        payload = pack('>HHQ', class_id, weight, len(body)) + packed_properties
-        self.out.write_frame(2, channel, payload)
-
-        while body:
-            payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
-            self.out.write_frame(3, channel, payload)
-
-        self.out.flush()
-
-
-    def _send_channel_method_frame(self, channel, method_sig, args=''):
-        if isinstance(args, AMQPWriter):
-            args = args.getvalue()
-
-        # minor optimization here, use pack instead of 3 AMQPWriter calls
-        payload = pack('>HH', method_sig[0], method_sig[1]) + args
-
-        self.out.write_frame(1, channel, payload)
-        self.out.flush()
-
-        AMQP_LOGGER.debug('< %s: %s' % (str(method_sig), METHOD_NAME_MAP[method_sig]))
-
-
     def _wait_method(self, channel_id, timeout):
         """
         Wait for a method from the server destined for
         a particular channel.
 
         """
+        if timeout:
+            # Figure out when *this* Python method should give up
+            end_time = time() + timeout
+        else:
+            end_time = None
+
         while True:
-            channel, method_sig, args, content = self.method_reader.read_method(timeout)
+            if end_time:
+                # Figure out when the method we're about to call
+                # should timeout.  We may call it repeatedly, so
+                # with each repetition it has less time before
+                # *this* method should be done.
+                #
+                timeout2 = end_time - time()
+                if timeout2 < 0:
+                    raise TimeoutException()
+            else:
+                timeout2 = timeout
+
+            channel, method_sig, args, content = self.method_reader.read_method(timeout2)
             if channel == channel_id:
                 return method_sig, args, content
 
@@ -332,7 +327,7 @@ class Connection(AbstractChannel):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0]) # class_id
         args.write_short(method_sig[1]) # method_id
-        self._send_method_frame((10, 60), args)
+        self._send_method((10, 60), args)
         return self.wait(allowed_methods=[
                           (10, 61),    # Connection.close_ok
                         ])
@@ -417,7 +412,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method_frame((10, 61))
+        self._send_method((10, 61))
         self._do_close()
 
 
@@ -508,7 +503,7 @@ class Connection(AbstractChannel):
         args.write_shortstr(virtual_host)
         args.write_shortstr(capabilities)
         args.write_bit(insist)
-        self._send_method_frame((10, 40), args)
+        self._send_method((10, 40), args)
         return self.wait(allowed_methods=[
                           (10, 41),    # Connection.open_ok
                           (10, 50),    # Connection.redirect
@@ -605,7 +600,7 @@ class Connection(AbstractChannel):
         """
         args = AMQPWriter()
         args.write_longstr(response)
-        self._send_method_frame((10, 21), args)
+        self._send_method((10, 21), args)
 
 
     def _start(self, args):
@@ -739,7 +734,7 @@ class Connection(AbstractChannel):
         args.write_shortstr(mechanism)
         args.write_longstr(response)
         args.write_shortstr(locale)
-        self._send_method_frame((10, 11), args)
+        self._send_method((10, 11), args)
 
 
     def _tune(self, args):
@@ -787,6 +782,7 @@ class Connection(AbstractChannel):
         """
         self.channel_max = args.read_short() or self.channel_max
         self.frame_max = args.read_long() or self.frame_max
+        self.method_writer.frame_max = self.frame_max
         self.heartbeat = args.read_short()
 
         self._x_tune_ok(self.channel_max, self.frame_max, 0)
@@ -846,7 +842,7 @@ class Connection(AbstractChannel):
         args.write_short(channel_max)
         args.write_long(frame_max)
         args.write_short(heartbeat)
-        self._send_method_frame((10, 31), args)
+        self._send_method((10, 31), args)
         self._wait_tune_ok = False
 
 

@@ -19,7 +19,7 @@ Convert between frames and higher-level AMQP methods
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 from Queue import Empty, Queue
-from struct import unpack
+from struct import pack, unpack
 from threading import Thread
 
 try:
@@ -246,3 +246,27 @@ class MethodReader(object):
         """
         if self.use_threading:
             self.running = False
+
+
+class MethodWriter(object):
+    def __init__(self, dest, frame_max):
+        self.dest = dest
+        self.frame_max = frame_max
+
+    def write_method(self, channel, method_sig, args, content=None):
+        payload = pack('>HH', method_sig[0], method_sig[1]) + args
+
+        self.dest.write_frame(1, channel, payload)
+
+        if content:
+            body = content.body
+            payload = pack('>HHQ', method_sig[0], 0, len(body)) + \
+                content._serialize_properties()
+
+            self.dest.write_frame(2, channel, payload)
+
+            while body:
+                payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
+                self.dest.write_frame(3, channel, payload)
+
+        self.dest.flush()
