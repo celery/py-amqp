@@ -75,6 +75,7 @@ class Channel(AbstractChannel):
         self.is_open = False
         self.active = True # Flow control
         self.alerts = Queue()
+        self.returned_messages = Queue()
         self.callbacks = {}
         self.auto_decode = auto_decode
 
@@ -84,6 +85,40 @@ class Channel(AbstractChannel):
     def __del__(self):
         if self.connection:
             self.close(msg='destroying channel')
+
+
+    def _check_flow(self, timeout=None):
+        """
+        Check if the peer has asked us to stop sending content.
+
+        """
+        #
+        # See if we have any queued Channel.flow methods
+        # don't wait for any new ones.  Could be either
+        # turning flow off or on.
+        #
+        try:
+            self.wait(allowed_methods=[
+                          (20, 20),    # Channel.flow
+                        ], timeout=0)
+        except TimeoutException:
+            pass
+
+        if self.active:
+            #
+            # Good to go
+            #
+            return
+
+        #
+        # Flow has been shut off, wait for the peer to
+        # send another Channel.flow method
+        #
+        self.wait(allowed_methods=[
+                      (20, 20),    # Channel.flow
+                    ], timeout=timeout)
+
+
 
 
     def _do_close(self):
@@ -2129,7 +2164,8 @@ class Channel(AbstractChannel):
 
 
     def basic_publish(self, msg, exchange='', routing_key='',
-        mandatory=False, immediate=False, ticket=None):
+        mandatory=False, immediate=False, ticket=None,
+        timeout=None):
         """
         publish a message
 
@@ -2210,6 +2246,9 @@ class Channel(AbstractChannel):
                     for the exchange.
 
         """
+        if self.connection.use_threading:
+            self._check_flow(timeout=timeout)
+
         args = AMQPWriter()
         if ticket is not None:
             args.write_short(ticket)
@@ -2423,7 +2462,7 @@ class Channel(AbstractChannel):
         self._send_method((60, 90), args)
 
 
-    def _basic_return(self, args):
+    def _basic_return(self, args, msg):
         """
         return a failed message
 
@@ -2461,7 +2500,10 @@ class Channel(AbstractChannel):
         reply_text = args.read_shortstr()
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
-        msg = self.wait()
+
+        self.returned_messages.put(
+            (reply_code, reply_text, exchange, routing_key, msg)
+            )
 
 
     #############

@@ -89,10 +89,19 @@ class Connection(AbstractChannel):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    def __init__(self, host, userid=None, password=None,
-        login_method='AMQPLAIN', login_response=None,
-        virtual_host='/', locale='en_US', client_properties=None,
-        ssl=False, insist=False, connect_timeout=None, use_threading=False,
+    def __init__(self,
+        host,
+        userid=None,
+        password=None,
+        login_method='AMQPLAIN',
+        login_response=None,
+        virtual_host='/',
+        locale='en_US',
+        client_properties=None,
+        ssl=False,
+        insist=False,
+        connect_timeout=None,
+        use_threading=False,
         **kwargs):
         """
         Create a connection to the specified host, which should be
@@ -114,6 +123,7 @@ class Connection(AbstractChannel):
             d.update(client_properties)
 
         self.known_hosts = ''
+        self.use_threading = use_threading
 
         while True:
             self.channels = {}
@@ -153,7 +163,8 @@ class Connection(AbstractChannel):
                 self.out = AMQPWriter(self.sock.makefile('w'))
                 self.input = AMQPReader(self.sock.makefile('r'))
 
-            self.method_reader = MethodReader(self.input, use_threading=use_threading)
+            self.method_reader = MethodReader(self.input,
+                use_threading=use_threading)
             self.method_writer = MethodWriter(self.out, self.frame_max)
 
             self.out.write(AMQP_PROTOCOL_HEADER)
@@ -217,6 +228,11 @@ class Connection(AbstractChannel):
         """
         if timeout:
             # Figure out when *this* Python method should give up
+            #
+            # FIXME: would be better if we could use a monotonically
+            # increasing clock - instead of something that could
+            # be set backwards.
+            #
             end_time = time() + timeout
         else:
             end_time = None

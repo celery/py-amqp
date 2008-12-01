@@ -190,6 +190,45 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg, msg2)
 
 
+    def test_return(self):
+        if not connect_args['use_threading']:
+            return
+
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        my_routing_key = 'unittest.test_return'
+        msg = Message('unittest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'})
+
+        #
+        # Publish to a routing key that shouldn't
+        # correspond to any queue, and make delivery
+        # mandatory - which should cause a return
+        #
+        self.ch.basic_publish(msg, 'amq.direct',
+            routing_key=my_routing_key,
+            mandatory=True)
+
+        # Wait for a basic.return
+        self.ch.wait(allowed_methods=[(60, 50)], timeout=10)
+
+        #
+        # See that a returned message was put in the queue
+        #
+        self.assertEqual(self.ch.returned_messages.qsize(), 1)
+
+        #
+        # Check if the returned message matches what we just sent
+        #
+        reply_code, reply_text, exchange, routing_key2, msg2 = \
+            self.ch.returned_messages.get()
+
+        self.assertEqual(exchange, 'amq.direct')
+        self.assertEqual(my_routing_key, routing_key2)
+        self.assertEqual(msg, msg2)
+
+
     def noop_callback(self, msg):
         pass
 

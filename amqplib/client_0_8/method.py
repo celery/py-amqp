@@ -57,6 +57,7 @@ __all__ =  [
 # to be followed by content headers and bodies.
 #
 _CONTENT_METHODS = [
+    (60, 50), # Basic.return
     (60, 60), # Basic.deliver
     (60, 71), # Basic.get_ok
     ]
