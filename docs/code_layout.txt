@@ -19,25 +19,25 @@ each other:
 channel.py                 |  Channel  |   ...  |  Channel  |
                            +-----------+        +-----------+
                                  ^                    ^
-                                 |                    |
+                                 |      methods       |
                                  V                    V
                         +--------------------------------------+
 connection.py           |               Connection             |
                         +-------+------------------------------+
                                 |                      ^
-                                |                      |
+                                |       methods        |
                                 V                      |
                         +----------------+    +--------+-------+
 method_framing.py       |  MethodWriter  |    |  MethodReader  |
                         +-------+--------+    +----------------+
                                 |                      ^
-                                |                      |
+                                |       frames         |
                                 V                      |
                         +----------------+    +--------+-------+
 serialization.py        |  AMQPWriter    |    |  AMQPReader    |
                         +-------+--------+    +----------------+
                                 |                      ^
-                                |                      |
+                                |       bytes          |
                                 V                      |
                             +--------------------------+--+
                             |TCP Socket, perhaps with SSL |
