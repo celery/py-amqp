@@ -20,13 +20,11 @@ AMQP 0-8 Connections
 
 import logging
 import socket
-from struct import pack
 from time import time
 
 from abstract_channel import AbstractChannel
 from channel import Channel
 from exceptions import *
-from exceptions import METHOD_NAME_MAP
 from method_framing import MethodReader, MethodWriter
 from serialization import AMQPReader, AMQPWriter
 

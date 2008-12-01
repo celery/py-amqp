@@ -20,7 +20,6 @@ Code common to Connection and Channel objects.
 
 import logging
 
-from exceptions import METHOD_NAME_MAP
 from serialization import AMQPWriter
 
 __all__ =  [
