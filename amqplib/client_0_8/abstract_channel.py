@@ -29,11 +29,6 @@ __all__ =  [
 
 AMQP_LOGGER = logging.getLogger('amqplib')
 
-_CLOSE_METHODS = [
-    (10, 60), # Connection.close
-    (20, 40), # Channel.close
-    ]
-
 
 class AbstractChannel(object):
     """
@@ -89,43 +84,19 @@ class AbstractChannel(object):
         method.
 
         """
-        #
-        # Check for a deferred method
-        #
-        for queued_method in self.method_queue:
-            method_sig = queued_method[0]
-            if (allowed_methods is None) \
-            or (method_sig in allowed_methods):
-                self.method_queue.remove(queued_method)
-                AMQP_LOGGER.debug('Executing queued method: %s: %s' %
-                    (str(method_sig), METHOD_NAME_MAP[method_sig]))
+        method_sig, args, content = self.connection._wait_method(
+            self.channel_id, allowed_methods, timeout)
 
-                return self._dispatch(*queued_method)
+        if content \
+        and self.auto_decode \
+        and hasattr(content, 'content_encoding'):
+            try:
+                content.body = content.body.decode(content.content_encoding)
+            except:
+                pass
 
-        #
-        # No deferred methods?  wait for a new one
-        #
-        while True:
-            method_sig, args, content = self.connection._wait_method(
-                self.channel_id, timeout)
+        return self._dispatch(method_sig, args, content)
 
-            if content \
-            and self.auto_decode \
-            and hasattr(content, 'content_encoding'):
-                try:
-                    content.body = content.body.decode(content.content_encoding)
-                except:
-                    pass
-
-            if (allowed_methods is None) \
-            or (method_sig in allowed_methods) \
-            or (method_sig in _CLOSE_METHODS):
-                return self._dispatch(method_sig, args, content)
-
-            # Wasn't what we were looking for? save it for later
-            AMQP_LOGGER.debug('Queueing for later: %s: %s' %
-                (str(method_sig), METHOD_NAME_MAP[method_sig]))
-            self.method_queue.append((method_sig, args, content))
 
     #
     # Placeholder, the concrete implementations will have to

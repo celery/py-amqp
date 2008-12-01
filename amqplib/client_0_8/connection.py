@@ -48,6 +48,13 @@ LIBRARY_PROPERTIES = {
 
 AMQP_LOGGER = logging.getLogger('amqplib')
 
+#
+# Methods we have to deal with right away
+#
+_CLOSE_METHODS = [
+    (10, 60), # Connection.close
+    (20, 40), # Channel.close
+    ]
 
 class _SSLWrap(object):
     """
@@ -220,12 +227,27 @@ class Connection(AbstractChannel):
             % (len(self.channels), self.channel_max))
 
 
-    def _wait_method(self, channel_id, timeout):
+    def _wait_method(self, channel_id, allowed_methods, timeout):
         """
         Wait for a method from the server destined for
         a particular channel.
 
         """
+        #
+        # Check the channel's deferred methods
+        #
+        method_queue = self.channels[channel_id].method_queue
+
+        for queued_method in method_queue:
+            method_sig = queued_method[0]
+            if (allowed_methods is None) \
+            or (method_sig in allowed_methods):
+                method_queue.remove(queued_method)
+                return queued_method
+
+        #
+        # Nothing queued, need to wait for a method from the peer
+        #
         if timeout:
             # Figure out when *this* Python method should give up
             #
@@ -250,13 +272,17 @@ class Connection(AbstractChannel):
             else:
                 timeout2 = timeout
 
-            channel, method_sig, args, content = self.method_reader.read_method(timeout2)
-            if channel == channel_id:
+            channel, method_sig, args, content = \
+                self.method_reader.read_method(timeout2)
+
+            if (channel == channel_id) \
+            and ((allowed_methods is None) \
+                or (method_sig in allowed_methods)):
                 return method_sig, args, content
 
             #
-            # Not the channel we were looking for.  Queue this frame
-            # for later, when the other channel is looking for frames.
+            # Not the channel and/or method we were looking for.  Queue
+            # this frame for later
             #
             self.channels[channel].method_queue.append((method_sig, args, content))
 
