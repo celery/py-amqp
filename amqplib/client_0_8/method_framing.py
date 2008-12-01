@@ -63,7 +63,6 @@ _CONTENT_METHODS = [
     ]
 
 
-
 class _PartialMessage(object):
     """
     Helper class to build up a multi-frame method.
@@ -250,9 +249,15 @@ class MethodReader(object):
 
 
 class MethodWriter(object):
+    """
+    Convert AMQP methods into AMQP frames and send them out
+    to the peer.
+
+    """
     def __init__(self, dest, frame_max):
         self.dest = dest
         self.frame_max = frame_max
+
 
     def write_method(self, channel, method_sig, args, content=None):
         payload = pack('>HH', method_sig[0], method_sig[1]) + args

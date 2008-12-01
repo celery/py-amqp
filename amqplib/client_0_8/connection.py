@@ -27,7 +27,7 @@ from abstract_channel import AbstractChannel
 from channel import Channel
 from exceptions import *
 from exceptions import METHOD_NAME_MAP
-from method import MethodReader, MethodWriter
+from method_framing import MethodReader, MethodWriter
 from serialization import AMQPReader, AMQPWriter
 
 __all__ =  [
