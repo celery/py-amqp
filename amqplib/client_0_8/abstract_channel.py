@@ -47,22 +47,6 @@ class AbstractChannel(object):
         self.auto_decode = False
 
 
-    def _dispatch(self, method_sig, args, content):
-        """
-        Find and call a Python method to handle the given AMQP method.
-
-        """
-        amqp_method = self._METHOD_MAP.get(method_sig, None)
-
-        if amqp_method is None:
-            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
-
-        if content is None:
-            return amqp_method(self, args)
-        else:
-            return amqp_method(self, args, content)
-
-
     def _send_method(self, method_sig, args='', content=None):
         """
         Send a method for our channel.
@@ -80,9 +64,6 @@ class AbstractChannel(object):
         Wait for a method that matches our allowed_methods parameter (the
         default value of None means match any method), and dispatch to it.
 
-        Unexpected methods are queued up for later calls to this Python
-        method.
-
         """
         method_sig, args, content = self.connection._wait_method(
             self.channel_id, allowed_methods, timeout)
@@ -95,7 +76,15 @@ class AbstractChannel(object):
             except:
                 pass
 
-        return self._dispatch(method_sig, args, content)
+        amqp_method = self._METHOD_MAP.get(method_sig, None)
+
+        if amqp_method is None:
+            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+
+        if content is None:
+            return amqp_method(self, args)
+        else:
+            return amqp_method(self, args, content)
 
 
     #
