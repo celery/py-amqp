@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqplib.client_0_8.connection module
+Run all the unittest modules for amqplib.client_0_8
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -19,37 +19,20 @@ Test amqplib.client_0_8.connection module
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-import sys
-import time
 import unittest
 
 import settings
 
-
-from amqplib.client_0_8 import Connection
-
-class TestConnection(unittest.TestCase):
-    def setUp(self):
-        self.conn = Connection(**settings.connect_args)
-
-    def tearDown(self):
-        self.conn.close()
-
-    def test_channel(self):
-        ch = self.conn.channel(1)
-        self.assertEqual(ch.channel_id, 1)
-
-        ch2 = self.conn.channel()
-        self.assertNotEqual(ch2.channel_id, 1)
-
-        ch.close()
-        ch2.close()
-
-
 def main():
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestConnection)
-    unittest.TextTestRunner(**settings.test_args).run(suite)
+    suite = unittest.TestLoader().loadTestsFromNames([
+        'test_exceptions',
+        'test_serialization',
+        'test_basic_message',
+        'test_connection',
+        'test_channel',
+        ])
 
+    unittest.TextTestRunner(**settings.test_args).run(suite)
 
 if __name__ == '__main__':
     main()

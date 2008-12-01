@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqplib.client_0_8.connection module
+Test amqplib.client_0_8.exceptions module
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -19,35 +19,25 @@ Test amqplib.client_0_8.connection module
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-import sys
-import time
 import unittest
 
 import settings
 
+from amqplib.client_0_8.exceptions import *
 
-from amqplib.client_0_8 import Connection
 
-class TestConnection(unittest.TestCase):
-    def setUp(self):
-        self.conn = Connection(**settings.connect_args)
-
-    def tearDown(self):
-        self.conn.close()
-
-    def test_channel(self):
-        ch = self.conn.channel(1)
-        self.assertEqual(ch.channel_id, 1)
-
-        ch2 = self.conn.channel()
-        self.assertNotEqual(ch2.channel_id, 1)
-
-        ch.close()
-        ch2.close()
+class TestException(unittest.TestCase):
+    def test_exception(self):
+        exc = AMQPException(7, 'My Error', (10, 10))
+        self.assertEqual(exc.amqp_reply_code, 7)
+        self.assertEqual(exc.amqp_reply_text, 'My Error')
+        self.assertEqual(exc.amqp_method_sig, (10, 10))
+        self.assertEqual(exc.args,
+            (7, 'My Error', (10, 10), 'Connection.start'))
 
 
 def main():
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestConnection)
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestException)
     unittest.TextTestRunner(**settings.test_args).run(suite)
 
 
