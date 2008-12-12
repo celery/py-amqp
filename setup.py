@@ -18,5 +18,5 @@ setup(name = "amqplib",
       author = "Barry Pederson",
       author_email = "bp@barryp.org",
       url = "http://barryp.org/software/py-amqplib/",
-      packages = ['amqplib']
+      packages = ['amqplib', 'amqplib.client_0_8']
      )
