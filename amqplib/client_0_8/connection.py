@@ -46,13 +46,6 @@ LIBRARY_PROPERTIES = {
 
 AMQP_LOGGER = logging.getLogger('amqplib')
 
-#
-# Methods we have to deal with right away
-#
-_CLOSE_METHODS = [
-    (10, 60), # Connection.close
-    (20, 40), # Channel.close
-    ]
 
 class _SSLWrap(object):
     """
