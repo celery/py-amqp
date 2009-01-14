@@ -27,14 +27,11 @@ from channel import Channel
 from exceptions import *
 from method_framing import MethodReader, MethodWriter
 from serialization import AMQPReader, AMQPWriter
+from transport import SSLTransport, TCPTransport
 
 __all__ =  [
             'Connection',
            ]
-
-AMQP_PORT = 5672
-AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
-# Yes, Advanced Message Queuing Protocol Protocol is redundant
 
 #
 # Client property info that gets sent to the server on connection startup
@@ -45,26 +42,6 @@ LIBRARY_PROPERTIES = {
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
-
-
-class _SSLWrap(object):
-    """
-    Helper class just to give a do-nothing
-    'flush' method to SSLObjects
-    """
-    def __init__(self, sock):
-        self.sock = sock
-        self.sslobj = socket.ssl(sock)
-        self.write = self.sslobj.write
-        self.read = self.sslobj.read
-
-    def close(self):
-        if self.sock is not None:
-            self.sock.close()
-            self.sock = None
-
-    def flush(self):
-        pass
 
 
 class Connection(AbstractChannel):
@@ -128,7 +105,7 @@ class Connection(AbstractChannel):
             # The connection object itself is treated as channel 0
             super(Connection, self).__init__(self, 0)
 
-            self.input = self.out = None
+            self.transport = None
 
             # Properties set in the Tune method
             self.channel_max = 65535
@@ -142,31 +119,15 @@ class Connection(AbstractChannel):
             self.mechanisms = []
             self.locales = []
 
-            if ':' in host:
-                host, port = host.split(':', 1)
-                port = int(port)
-            else:
-                port = AMQP_PORT
-
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-            self.sock.settimeout(connect_timeout)
-            self.sock.connect((host, port))
-            self.sock.settimeout(None)
 
             if ssl:
-                self.out = AMQPWriter(_SSLWrap(self.sock))
-                self.input = AMQPReader(self.out)
+                self.transport = SSLTransport(host, connect_timeout)
             else:
-                self.out = AMQPWriter(self.sock.makefile('w'))
-                self.input = AMQPReader(self.sock.makefile('r'))
+                self.transport = TCPTransport(host, connect_timeout)
 
-            self.method_reader = MethodReader(self.input,
+            self.method_reader = MethodReader(self.transport,
                 use_threading=use_threading)
-            self.method_writer = MethodWriter(self.out, self.frame_max)
-
-            self.out.write(AMQP_PROTOCOL_HEADER)
-            self.out.flush()
+            self.method_writer = MethodWriter(self.transport, self.frame_max)
 
             self.wait(allowed_methods=[
                     (10, 10), # start
@@ -194,16 +155,15 @@ class Connection(AbstractChannel):
 
 
     def __del__(self):
-        if self.input is not None:
+        if self.transport is not None:
             self.close()
 
 
     def _do_close(self):
         self.method_reader.stop()
 
-        self.input.close()
-        self.out.close()
-        self.input = self.out = None
+        self.transport.close()
+        self.transport = None
 
         temp_list = [x for x in self.channels.values() if x is not self]
         for ch in temp_list:
@@ -273,7 +233,7 @@ class Connection(AbstractChannel):
 
             #
             # Not the channel and/or method we were looking for.  Queue
-            # this frame for later
+            # this method for later
             #
             self.channels[channel].method_queue.append((method_sig, args, content))
 

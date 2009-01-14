@@ -20,6 +20,7 @@ Convert between bytestreams and higher-level AMQP types.
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import string
 from datetime import datetime
 from decimal import Decimal
 from struct import pack, unpack
@@ -31,6 +32,8 @@ except:
     from StringIO import StringIO
 
 
+DUMP_CHARS = string.letters + string.digits + string.punctuation
+
 def _hexdump(s):
     """
     Present just for debugging help.
@@ -38,9 +41,18 @@ def _hexdump(s):
     """
     while s:
         x, s = s[:16], s[16:]
+
+        hex = ['%02x' % ord(ch) for ch in x]
+        hex = ' '.join(hex).ljust(50)
+
+        char_dump = []
         for ch in x:
-            print '0x%02x ' % ord(ch),
-        print ''
+            if ch in DUMP_CHARS:
+                char_dump.append(ch)
+            else:
+                char_dump.append('.')
+
+        print hex + ''.join(char_dump)
 
 
 class AMQPReader(object):
@@ -89,20 +101,6 @@ class AMQPReader(object):
         self.bits >>= 1
         self.bitcount -= 1
         return result
-
-
-    def read_frame(self):
-        """
-        Read an AMQP frame.
-
-        """
-        frame_type, channel, size = unpack('>BHI', self.input.read(7))
-        payload = self.input.read(size)
-        ch = self.input.read(1)
-        if ch == '\xce':
-            return frame_type, channel, payload
-        else:
-            raise Exception('Framing Error')
 
 
     def read_octet(self):
@@ -281,17 +279,6 @@ class AMQPWriter(object):
             self.bits.append(0)
         self.bits[-1] |= (b << shift)
         self.bitcount += 1
-
-
-    def write_frame(self, frame_type, channel, payload):
-        """
-        Write out an AMQP frame.
-
-        """
-        size = len(payload)
-        self.out.write(pack('>BHI', frame_type, channel, size))
-        self.out.write(payload)
-        self.out.write('\xce')
 
 
     def write_octet(self, n):

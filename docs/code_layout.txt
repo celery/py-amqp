@@ -33,12 +33,12 @@ method_framing.py       |  MethodWriter  |    |  MethodReader  |
                                 |                      ^
                                 |       frames         |
                                 V                      |
-                        +----------------+    +--------+-------+
-serialization.py        |  AMQPWriter    |    |  AMQPReader    |
-                        +-------+--------+    +----------------+
+                        +------------------------------+-------+
+transport.py            |     TCPTransport or SSLTransport     |
+                        +-------+------------------------------+
                                 |                      ^
                                 |       bytes          |
                                 V                      |
                             +--------------------------+--+
-                            |TCP Socket, perhaps with SSL |
+                            |         TCP Socket          |
                             +-----------------------------+
