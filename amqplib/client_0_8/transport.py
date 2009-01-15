@@ -82,9 +82,8 @@ class _AbstractTransport(object):
 
         """
         size = len(payload)
-        self._write(pack('>BHI', frame_type, channel, size))
-        self._write(payload)
-        self._write('\xce')
+        self._write(pack('>BHI%dsB' % size,
+            frame_type, channel, size, payload, 0xce))
 
 
 class SSLTransport(_AbstractTransport):
