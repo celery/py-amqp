@@ -274,5 +274,3 @@ class MethodWriter(object):
             while body:
                 payload, body = body[:self.frame_max - 8], body[self.frame_max -8:]
                 self.dest.write_frame(3, channel, payload)
-
-        self.dest.flush()

@@ -62,14 +62,6 @@ class _AbstractTransport(object):
             self.sock = None
 
 
-    def flush(self):
-        """
-        Called by MethodWriter to indicate a good time to send all data.
-
-        """
-        pass
-
-
     def read_frame(self):
         """
         Read an AMQP frame.
