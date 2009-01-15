@@ -26,7 +26,7 @@ import unittest
 import settings
 
 
-from amqplib.client_0_8 import AMQPException, Connection, Message, TimeoutException
+from amqplib.client_0_8 import AMQPChannelException, AMQPException, Connection, Message, TimeoutException
 
 
 class TestChannel(unittest.TestCase):
@@ -160,6 +160,14 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg2.content_encoding, 'latin1')
         self.assertTrue(isinstance(msg2.body, str))
         self.assertEqual(msg2.body, 'hello w\xf6rld')
+
+    def test_exception(self):
+        """
+        Check that Channel exceptions are actually raised as Python
+        exceptions.
+
+        """
+        self.assertRaises(AMQPChannelException, self.ch.queue_delete, 'bogus_queue_that_does_not_exist')
 
 
     def test_publish(self):

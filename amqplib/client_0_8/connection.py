@@ -192,7 +192,8 @@ class Connection(AbstractChannel):
         for queued_method in method_queue:
             method_sig = queued_method[0]
             if (allowed_methods is None) \
-            or (method_sig in allowed_methods):
+            or (method_sig in allowed_methods) \
+            or (method_sig == (20, 40)):
                 method_queue.remove(queued_method)
                 return queued_method
 
@@ -228,7 +229,8 @@ class Connection(AbstractChannel):
 
             if (channel == channel_id) \
             and ((allowed_methods is None) \
-                or (method_sig in allowed_methods)):
+                or (method_sig in allowed_methods) \
+                or (method_sig == (20, 40))):
                 return method_sig, args, content
 
             #

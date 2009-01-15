@@ -219,6 +219,10 @@ class Channel(AbstractChannel):
                 is the ID of the method.
 
         """
+        if not self.is_open:
+            # already closed
+            return
+
         args = AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)
