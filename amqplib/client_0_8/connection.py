@@ -27,7 +27,7 @@ from channel import Channel
 from exceptions import *
 from method_framing import MethodReader, MethodWriter
 from serialization import AMQPReader, AMQPWriter
-from transport import SSLTransport, TCPTransport
+from transport import create_transport
 
 __all__ =  [
             'Connection',
@@ -119,11 +119,10 @@ class Connection(AbstractChannel):
             self.mechanisms = []
             self.locales = []
 
-
-            if ssl:
-                self.transport = SSLTransport(host, connect_timeout)
-            else:
-                self.transport = TCPTransport(host, connect_timeout)
+            # Let the transport.py module setup the actual
+            # socket connection to the broker.
+            #
+            self.transport = create_transport(host, connect_timeout, ssl)
 
             self.method_reader = MethodReader(self.transport,
                 use_threading=use_threading)

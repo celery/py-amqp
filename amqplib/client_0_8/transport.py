@@ -21,6 +21,16 @@ Read/Write AMQP frames over network transports.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import socket
+
+#
+# See if Python 2.6+ SSL support is available
+#
+try:
+    import ssl
+    HAVE_PY26_SSL = True
+except:
+    HAVE_PY26_SSL = False
+
 from struct import pack, unpack
 
 AMQP_PORT = 5672
@@ -42,8 +52,8 @@ class _AbstractTransport(object):
             port = AMQP_PORT
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
         self.sock.settimeout(connect_timeout)
+
         self.sock.connect((host, port))
         self.sock.settimeout(None)
 
@@ -142,6 +152,47 @@ class SSLTransport(_AbstractTransport):
         return result
 
 
+class SSLTransport2(_AbstractTransport):
+    """
+    Transport that works over SSL for Python 2.6+
+
+    """
+    def _setup_transport(self):
+        """
+        Wrap the socket in an sslobj, and use that
+        directly for _write().
+
+        """
+        self.sock = ssl.wrap_socket(self.sock)
+        self.sock.do_handshake()
+        self._read_buffer = ''
+
+
+    def _read(self, n):
+        """
+        Read exactly n bytes from the SSL socket
+
+        """
+        while len(self._read_buffer) < n:
+            self._read_buffer += self.sock.read(65536)
+
+        result = self._read_buffer[:n]
+        self._read_buffer = self._read_buffer[n:]
+
+        return result
+
+
+    def _write(self, s):
+        """
+        Write a string out to the SSL socket fully.
+
+        """
+        while s:
+            n = self.sock.write(s)
+            s = s[n:]
+
+
+
 class TCPTransport(_AbstractTransport):
     """
     Transport that deals directly with TCP socket.
@@ -169,3 +220,18 @@ class TCPTransport(_AbstractTransport):
         self._read_buffer = self._read_buffer[n:]
 
         return result
+
+
+def create_transport(host, connect_timeout, ssl=False):
+    """
+    Given a few parameters from the Connection constructor,
+    select and create a subclass of _AbstractTransport.
+
+    """
+    if ssl:
+        if HAVE_PY26_SSL:
+            return SSLTransport2(host, connect_timeout)
+        else:
+            return SSLTransport(host, connect_timeout)
+    else:
+        return TCPTransport(host, connect_timeout)
