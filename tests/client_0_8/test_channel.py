@@ -169,6 +169,25 @@ class TestChannel(unittest.TestCase):
         """
         self.assertRaises(AMQPChannelException, self.ch.queue_delete, 'bogus_queue_that_does_not_exist')
 
+    def test_large(self):
+        """
+        Test sending some extra large messages.
+
+        """
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        qname, _, _ = self.ch.queue_declare()
+
+        for multiplier in [100, 1000, 10000]:
+            msg = Message('unittest message' * multiplier,
+                content_type='text/plain',
+                application_headers={'foo': 7, 'bar': 'baz'})
+
+            self.ch.basic_publish(msg, routing_key=qname)
+
+            msg2 = self.ch.basic_get(no_ack=True)
+            self.assertEqual(msg, msg2)
+
 
     def test_publish(self):
         tkt = self.ch.access_request('/data', active=True, write=True)

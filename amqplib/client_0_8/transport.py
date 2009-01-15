@@ -56,6 +56,31 @@ class _AbstractTransport(object):
         self.close()
 
 
+    def _read(self, n):
+        """
+        Read exactly n bytes from the peer
+
+        """
+        raise NotImplementedError('Must be overriden in subclass')
+
+
+    def _setup_transport(self):
+        """
+        Do any additional initialization of the class (used
+        by the subclasses).
+
+        """
+        pass
+
+
+    def _write(self, s):
+        """
+        Completely write a string to the peer.
+
+        """
+        raise NotImplementedError('Must be overriden in subclass')
+
+
     def close(self):
         if self.sock is not None:
             self.sock.close()
@@ -87,7 +112,16 @@ class _AbstractTransport(object):
 
 
 class SSLTransport(_AbstractTransport):
+    """
+    Transport that works over SSL
+
+    """
     def _setup_transport(self):
+        """
+        Wrap the socket in an sslobj, and use that
+        directly for _read() and _write().
+
+        """
         self.sslobj = socket.ssl(self.sock)
 
         self._read = self.sslobj.read
@@ -95,13 +129,18 @@ class SSLTransport(_AbstractTransport):
 
 
 class TCPTransport(_AbstractTransport):
-    def _setup_transport(self):
-        self._read_buffer = ''
+    """
+    Transport that deals directly with TCP socket.
 
-        #
-        # Make the _write() function a direct call to socket.sendall
-        #
+    """
+    def _setup_transport(self):
+        """
+        Setup to _write() directly to the socket, and
+        do our own buffered reads.
+
+        """
         self._write = self.sock.sendall
+        self._read_buffer = ''
 
 
     def _read(self, n):
@@ -110,6 +149,9 @@ class TCPTransport(_AbstractTransport):
 
         """
         while len(self._read_buffer) < n:
-            self._read_buffer += self.sock.recv(4096)
-        result, self._read_buffer = self._read_buffer[:n], self._read_buffer[n:]
+            self._read_buffer += self.sock.recv(65536)
+
+        result = self._read_buffer[:n]
+        self._read_buffer = self._read_buffer[n:]
+
         return result
