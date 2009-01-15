@@ -49,7 +49,7 @@ class _AbstractTransport(object):
 
         self._setup_transport()
 
-        self.sock.sendall(AMQP_PROTOCOL_HEADER)
+        self._write(AMQP_PROTOCOL_HEADER)
 
 
     def __del__(self):
@@ -98,7 +98,7 @@ class _AbstractTransport(object):
         if ch == '\xce':
             return frame_type, channel, payload
         else:
-            raise Exception('Framing Error')
+            raise Exception('Framing Error, received 0x%02x while expecting 0xce' % ord(ch))
 
 
     def write_frame(self, frame_type, channel, payload):
@@ -119,13 +119,27 @@ class SSLTransport(_AbstractTransport):
     def _setup_transport(self):
         """
         Wrap the socket in an sslobj, and use that
-        directly for _read() and _write().
+        directly for _write().
 
         """
         self.sslobj = socket.ssl(self.sock)
-
-        self._read = self.sslobj.read
         self._write = self.sslobj.write
+
+
+    def _read(self, n):
+        """
+        It seems that SSL Objects read() method may not supply as much
+        as you're asking for, at least with extremely large messages.
+        somewhere > 16K - found this in the test_channel.py test_large
+        unittest.
+
+        """
+        result = self.sslobj.read(n)
+
+        while len(result) < n:
+            result += self.sslobj.read(n - len(result))
+
+        return result
 
 
 class TCPTransport(_AbstractTransport):
