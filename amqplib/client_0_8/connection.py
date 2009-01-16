@@ -65,9 +65,9 @@ class Connection(AbstractChannel):
 
     """
     def __init__(self,
-        host,
-        userid=None,
-        password=None,
+        host='localhost',
+        userid='guest',
+        password='guest',
         login_method='AMQPLAIN',
         login_response=None,
         virtual_host='/',
@@ -81,12 +81,16 @@ class Connection(AbstractChannel):
         """
         Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
+        (defaults to 'localhost', if a port is not specified then
+        5672 is used)
 
-        If a userid and password are specified, a login_response is built up
-        for you.  Otherwise you have to roll your own.
+        If login_response is not specified, one is built up for you from
+        userid and password if they are present.
 
         """
-        if (userid is not None) and (password is not None):
+        if (login_response is None) \
+        and (userid is not None) \
+        and (password is not None):
             login_response = AMQPWriter()
             login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
             login_response = login_response.getvalue()[4:]  #Skip the length
