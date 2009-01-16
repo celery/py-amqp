@@ -128,12 +128,16 @@ class SSLTransport(_AbstractTransport):
     """
     def _setup_transport(self):
         """
-        Wrap the socket in an sslobj, and use that
-        directly for _write().
+        Wrap the socket in an SSL object, either the
+        new Python 2.6 version, or the older Python 2.5 and
+        lower version.
 
         """
-        self.sslobj = socket.ssl(self.sock)
-        self._write = self.sslobj.write
+        if HAVE_PY26_SSL:
+            self.sslobj = ssl.wrap_socket(self.sock)
+            self.sslobj.do_handshake()
+        else:
+            self.sslobj = socket.ssl(self.sock)
 
 
     def _read(self, n):
@@ -152,43 +156,13 @@ class SSLTransport(_AbstractTransport):
         return result
 
 
-class SSLTransport2(_AbstractTransport):
-    """
-    Transport that works over SSL for Python 2.6+
-
-    """
-    def _setup_transport(self):
-        """
-        Wrap the socket in an sslobj, and use that
-        directly for _write().
-
-        """
-        self.sock = ssl.wrap_socket(self.sock)
-        self.sock.do_handshake()
-        self._read_buffer = ''
-
-
-    def _read(self, n):
-        """
-        Read exactly n bytes from the SSL socket
-
-        """
-        while len(self._read_buffer) < n:
-            self._read_buffer += self.sock.read(65536)
-
-        result = self._read_buffer[:n]
-        self._read_buffer = self._read_buffer[n:]
-
-        return result
-
-
     def _write(self, s):
         """
         Write a string out to the SSL socket fully.
 
         """
         while s:
-            n = self.sock.write(s)
+            n = self.sslobj.write(s)
             s = s[n:]
 
 
@@ -229,9 +203,6 @@ def create_transport(host, connect_timeout, ssl=False):
 
     """
     if ssl:
-        if HAVE_PY26_SSL:
-            return SSLTransport2(host, connect_timeout)
-        else:
-            return SSLTransport(host, connect_timeout)
+        return SSLTransport(host, connect_timeout)
     else:
         return TCPTransport(host, connect_timeout)
