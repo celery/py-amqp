@@ -53,6 +53,15 @@ Channels have a close() method too, which doesn't affect other channels
 
     ch2.close()
 
++----------------------------------------------------------------
+|
+|  IMPORTANT!! - be sure to close your channels or connection
+|                if you've been calling async methods like
+|                basic_publish() - to ensure your messages are
+|                actually flushed out the TCP socket before the
+|                program ends, instead of potentially being lost.
+|
++----------------------------------------------------------------
 
 Access Tickets
 --------------
@@ -151,8 +160,8 @@ messages to the channel as they're placed into the queue.
     while True:
         ch.wait()
 
-The above example will loop forever.  To cancel the 'consume', use 
-basic_cancel() with a consumer_tag.  A consumer_tag is a string that's 
+The above example will loop forever.  To cancel the 'consume', use
+basic_cancel() with a consumer_tag.  A consumer_tag is a string that's
 either specified when you call basic_consume()
 
     ch.basic_consume('myqueue', callback=mycallback, consumer_tag='mytag')
