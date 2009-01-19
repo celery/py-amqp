@@ -45,9 +45,6 @@ def parse_args():
     parser.add_option('--debug', dest='debug', action='store_true',
                         help='Display debugging output',
                         default=False)
-    parser.add_option('--use-threading', dest='use_threading', action='store_true',
-                        help='Use threading to allow for non-blocking waits',
-                        default=False)
 
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true',
                         help='Run unittests with increased verbosity',
@@ -68,7 +65,6 @@ def parse_args():
     connect_args['userid'] = options.userid
     connect_args['password'] = options.password
     connect_args['ssl'] = options.ssl
-    connect_args['use_threading'] = options.use_threading
 
     if options.verbose:
         test_args['verbosity'] = 2

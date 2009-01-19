@@ -20,7 +20,6 @@ Convert between frames and higher-level AMQP methods
 
 from Queue import Empty, Queue
 from struct import pack, unpack
-from threading import Thread
 
 try:
     from collections import defaultdict
@@ -98,9 +97,6 @@ class MethodReader(object):
     Helper class to receive frames from the broker, combine them if
     necessary with content-headers and content-bodies into complete methods.
 
-    It may be used in both a threaded and non-threaded fashion.  The threaded
-    mode allows for timeouts or non-blocking waits.
-
     Normally a method is represented as a tuple containing
     (channel, method_sig, args, content).
 
@@ -110,36 +106,23 @@ class MethodReader(object):
     In the case of unexpected frames, a tuple made up of
     (channel, AMQPChannelException) is placed in the queue.
 
-    If the connection is closed, None is placed in the queue and the thread
-    exits.
-
     """
-    def __init__(self, source, use_threading=False):
+    def __init__(self, source):
         self.source = source
-        self.use_threading = use_threading
         self.queue = Queue()
         self.running = False
         self.partial_messages = {}
         # For each channel, which type is expected next
         self.expected_types = defaultdict(lambda:1)
 
-        if use_threading:
-            self.thread = Thread(group=None, target=self._next_method)
-            self.thread.setDaemon(True)
-            self.running = True
-            self.thread.start()
-
 
     def _next_method(self):
         """
-        Read the next method from the source.  In threaded mode it
-        runs repeatedly, placing messages in the internal queue.
-        In non-threaded mode it returns once one complete method has
-        been assembled and placed in the internal queue.
+        Read the next method from the source, once one complete method has
+        been assembled it is placed in the internal queue.
 
         """
-        while (self.use_threading and self.running) \
-        or (not self.use_threading and self.queue.empty()):
+        while self.queue.empty():
             try:
                 frame_type, channel, payload = self.source.read_frame()
             except Exception, e:
@@ -221,31 +204,13 @@ class MethodReader(object):
             self.expected_types[channel] = 1
 
 
-    def read_method(self, timeout=None):
+    def read_method(self):
         """
         Read a method from the peer.
 
         """
-        blocking = (timeout != 0)
-        if not self.use_threading:
-            if (not blocking) or timeout:
-                raise Exception('timeout other than None requires threading')
-            self._next_method()
-
-        try:
-            return self.queue.get(blocking, timeout)
-        except Empty:
-            raise TimeoutException
-
-
-    def stop(self):
-        """
-        Stop any helper thread that's running.  Harmless to call if we're
-        not using threading.
-
-        """
-        if self.use_threading:
-            self.running = False
+        self._next_method()
+        return self.queue.get()
 
 
 class MethodWriter(object):

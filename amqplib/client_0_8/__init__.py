@@ -32,5 +32,4 @@ __all__ =  [
             'AMQPException',
             'AMQPConnectionException',
             'AMQPChannelException',
-            'TimeoutException',
            ]

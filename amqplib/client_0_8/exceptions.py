@@ -23,7 +23,6 @@ __all__ =  [
             'AMQPException',
             'AMQPConnectionException',
             'AMQPChannelException',
-            'TimeoutException',
            ]
 
 
@@ -48,13 +47,6 @@ class AMQPConnectionException(AMQPException):
 class AMQPChannelException(AMQPException):
     pass
 
-
-class TimeoutException(Exception):
-    """
-    Used to indicate when Channel.wait() methods timeout.
-
-    """
-    pass
 
 METHOD_NAME_MAP = {
     (10, 10): 'Connection.start',

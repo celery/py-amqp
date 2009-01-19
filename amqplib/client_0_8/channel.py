@@ -87,40 +87,6 @@ class Channel(AbstractChannel):
             self.close(msg='destroying channel')
 
 
-    def _check_flow(self, timeout=None):
-        """
-        Check if the peer has asked us to stop sending content.
-
-        """
-        #
-        # See if we have any queued Channel.flow methods
-        # don't wait for any new ones.  Could be either
-        # turning flow off or on.
-        #
-        try:
-            self.wait(allowed_methods=[
-                          (20, 20),    # Channel.flow
-                        ], timeout=0)
-        except TimeoutException:
-            pass
-
-        if self.active:
-            #
-            # Good to go
-            #
-            return
-
-        #
-        # Flow has been shut off, wait for the peer to
-        # send another Channel.flow method
-        #
-        self.wait(allowed_methods=[
-                      (20, 20),    # Channel.flow
-                    ], timeout=timeout)
-
-
-
-
     def _do_close(self):
         """
         Tear down this object, after we've agreed to close with the server.
@@ -2168,8 +2134,7 @@ class Channel(AbstractChannel):
 
 
     def basic_publish(self, msg, exchange='', routing_key='',
-        mandatory=False, immediate=False, ticket=None,
-        timeout=None):
+        mandatory=False, immediate=False, ticket=None):
         """
         publish a message
 
@@ -2250,9 +2215,6 @@ class Channel(AbstractChannel):
                     for the exchange.
 
         """
-        if self.connection.use_threading:
-            self._check_flow(timeout=timeout)
-
         args = AMQPWriter()
         if ticket is not None:
             args.write_short(ticket)

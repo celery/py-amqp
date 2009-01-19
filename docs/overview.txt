@@ -25,11 +25,6 @@ Some examples for creating a Connection object:
     conn = amqp.Connection(host='1.2.3.4:5672', ssl=True)
     conn = amqp.Connection(userid='foo', password='bar')
 
-Non-blocking waits, timeouts, and flow-control require that an
-optional threading mode be enabled with: use_threading=True, as in:
-
-    conn = amqp.Connection('1.2.3.4', use_threading=True)
-
 Connections are closed with the close() method
 
     conn.close()

@@ -1,7 +1,7 @@
 CHANGES
 --------
 
-Version 0.6-devel
+Version 0.6
 
     Very large rearrangement of code, breaking the large client_0_8.py
     module into submodules based on the various layers of the AMQP protocol.
@@ -10,26 +10,13 @@ Version 0.6-devel
 
     ----
 
-    Added an optional threaded mode that allows Channel.wait() to have a
-    timeout option.  Threading is enabled when creating a Connection with
-       use_threading=True
-    as a parameter.
-
-    Channel.wait() now has a "timeout" parameter.  The default value
-    is None, which causes wait() to block indefinitely (the old behavior).
-
-    A value of 0 causes wait() to return immediately if no new methods
-    have arrived from the broker, or a positive number representing seconds
-    may be specified.  If no message was processed then wait() throws a
-    TimeoutException.
+    nb_client_0_8.py and demos/nbdemo_receive.py were removed because of
+    the major changes to the main client to lay the groundwork for future
+    non-blocking behaviors (see http://hg.barryp.org/py-amqplib-devel/ )
 
     ----
 
-    nb_client_0_8.py and demos/nbdemo_receive.py were removed because of
-    the major changes to the main client, which itself now has some
-    non-blocking behaviors - although they're not exactly like nb_client_0_8
-    was.
-
+    More unittests added.
 
 Version 0.5
 

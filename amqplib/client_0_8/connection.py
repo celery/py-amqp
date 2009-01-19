@@ -19,8 +19,6 @@ AMQP 0-8 Connections
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import logging
-import socket
-from time import time
 
 from abstract_channel import AbstractChannel
 from channel import Channel
@@ -38,7 +36,7 @@ __all__ =  [
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.6-devel',
+    'library_version': '0.6',
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
@@ -76,7 +74,6 @@ class Connection(AbstractChannel):
         ssl=False,
         insist=False,
         connect_timeout=None,
-        use_threading=False,
         **kwargs):
         """
         Create a connection to the specified host, which should be
@@ -102,7 +99,6 @@ class Connection(AbstractChannel):
             d.update(client_properties)
 
         self.known_hosts = ''
-        self.use_threading = use_threading
 
         while True:
             self.channels = {}
@@ -128,8 +124,7 @@ class Connection(AbstractChannel):
             #
             self.transport = create_transport(host, connect_timeout, ssl)
 
-            self.method_reader = MethodReader(self.transport,
-                use_threading=use_threading)
+            self.method_reader = MethodReader(self.transport)
             self.method_writer = MethodWriter(self.transport, self.frame_max)
 
             self.wait(allowed_methods=[
@@ -163,8 +158,6 @@ class Connection(AbstractChannel):
 
 
     def _do_close(self):
-        self.method_reader.stop()
-
         self.transport.close()
         self.transport = None
 
@@ -181,7 +174,7 @@ class Connection(AbstractChannel):
             % (len(self.channels), self.channel_max))
 
 
-    def _wait_method(self, channel_id, allowed_methods, timeout):
+    def _wait_method(self, channel_id, allowed_methods):
         """
         Wait for a method from the server destined for
         a particular channel.
@@ -203,32 +196,9 @@ class Connection(AbstractChannel):
         #
         # Nothing queued, need to wait for a method from the peer
         #
-        if timeout:
-            # Figure out when *this* Python method should give up
-            #
-            # FIXME: would be better if we could use a monotonically
-            # increasing clock - instead of something that could
-            # be set backwards.
-            #
-            end_time = time() + timeout
-        else:
-            end_time = None
-
         while True:
-            if end_time:
-                # Figure out when the method we're about to call
-                # should timeout.  We may call it repeatedly, so
-                # with each repetition it has less time before
-                # *this* method should be done.
-                #
-                timeout2 = end_time - time()
-                if timeout2 < 0:
-                    raise TimeoutException()
-            else:
-                timeout2 = timeout
-
             channel, method_sig, args, content = \
-                self.method_reader.read_method(timeout2)
+                self.method_reader.read_method()
 
             if (channel == channel_id) \
             and ((allowed_methods is None) \

@@ -26,7 +26,7 @@ import unittest
 import settings
 
 
-from amqplib.client_0_8 import AMQPChannelException, AMQPException, Connection, Message, TimeoutException
+from amqplib.client_0_8 import AMQPChannelException, AMQPException, Connection, Message
 
 
 class TestChannel(unittest.TestCase):
@@ -217,75 +217,6 @@ class TestChannel(unittest.TestCase):
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
-
-
-    def test_return(self):
-        if not settings.connect_args['use_threading']:
-            return
-
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
-        my_routing_key = 'unittest.test_return'
-        msg = Message('unittest message',
-            content_type='text/plain',
-            application_headers={'foo': 7, 'bar': 'baz'})
-
-        #
-        # Publish to a routing key that shouldn't
-        # correspond to any queue, and make delivery
-        # mandatory - which should cause a return
-        #
-        self.ch.basic_publish(msg, 'amq.direct',
-            routing_key=my_routing_key,
-            mandatory=True)
-
-        # Wait for a basic.return
-        self.ch.wait(allowed_methods=[(60, 50)], timeout=10)
-
-        #
-        # See that a returned message was put in the queue
-        #
-        self.assertEqual(self.ch.returned_messages.qsize(), 1)
-
-        #
-        # Check if the returned message matches what we just sent
-        #
-        reply_code, reply_text, exchange, routing_key2, msg2 = \
-            self.ch.returned_messages.get()
-
-        self.assertEqual(exchange, 'amq.direct')
-        self.assertEqual(my_routing_key, routing_key2)
-        self.assertEqual(msg, msg2)
-
-
-    def noop_callback(self, msg):
-        pass
-
-
-    def test_wait_timeout(self):
-        """
-        Test the timeout option of Channel.wait().  When running
-        in threaded mode, it should timeout in about 5 seconds.  In
-        non-threaded mode an exception should be thrown because that
-        feature is not available.
-
-        """
-        my_routing_key = 'unittest.test_wait_timeout'
-        self.ch.access_request('/data', active=True, write=True, read=True)
-        qname, _, _ = self.ch.queue_declare()
-        self.ch.queue_bind(qname, 'amq.direct', routing_key=my_routing_key)
-        self.ch.basic_consume(qname, callback=self.noop_callback, no_ack=True)
-
-        timeout = 5 # seconds
-        start = time.time()
-        if settings.connect_args['use_threading']:
-            self.assertRaises(TimeoutException, self.ch.wait, None, timeout)
-            end = time.time()
-            self.assertTrue(abs((end - start) - timeout) < 0.5)
-        else:
-            self.assertRaises(Exception, self.ch.wait, None, timeout)
-            end = time.time()
-            self.assertTrue((end - start) < 0.5)
 
 
 def main():
