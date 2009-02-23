@@ -58,6 +58,24 @@ Channels have a close() method too, which doesn't affect other channels
 |
 +----------------------------------------------------------------
 
+Connections and Channels will close automatically when used as context
+managers in 'with' statements (available in Python 2.5 or higher).
+For example:
+
+    with Connection('1.2.3.4') as conn:
+        with conn.channel() as ch:
+            #
+            # Do some stuff...
+            #
+            ch.basic_publish(blah, blah, blah)
+
+        # When this point is reached, the Channel will have been
+        # closed for you.
+
+    # When this point is reached, the Connection will have been
+    # closed for you.
+
+
 Access Tickets
 --------------
 Before a channel can do much else, it needs an access ticket, specifying
