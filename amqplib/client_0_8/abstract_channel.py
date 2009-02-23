@@ -42,6 +42,22 @@ class AbstractChannel(object):
         self.auto_decode = False
 
 
+    def __enter__(self):
+        """
+        Support for Python >= 2.5 'with' statements.
+
+        """
+        return self
+
+
+    def __exit__(self, type, value, traceback):
+        """
+        Support for Python >= 2.5 'with' statements.
+
+        """
+        self.close()
+
+
     def _send_method(self, method_sig, args='', content=None):
         """
         Send a method for our channel.
@@ -52,6 +68,15 @@ class AbstractChannel(object):
 
         self.connection.method_writer.write_method(self.channel_id,
             method_sig, args, content)
+
+
+    def close(self):
+        """
+        Close this Channel or Connection
+
+        """
+        raise NotImplementedError('Must be overriden in subclass')
+
 
 
     def wait(self, allowed_methods=None):

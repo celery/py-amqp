@@ -8,6 +8,18 @@ Version 0.6.1-devel
     when closing Connections and Channels, to help garbage collection.
     Thanks for majek04@... for pointing these out.
 
+    Add support for using Connection and Channel objects as context
+    managers for 'with' statements (available in Python >= 2.5), so you
+    can write code like:
+
+        with conn as Connection():
+            with ch as conn.channel()
+                # do stuff with ch and conn
+
+    and have the Channel and Connection objects closed automatically
+    when the blocks exit.
+
+
 Version 0.6
 
     Very large rearrangement of code, breaking the large client_0_8.py

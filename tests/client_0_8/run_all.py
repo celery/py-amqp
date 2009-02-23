@@ -19,19 +19,24 @@ Run all the unittest modules for amqplib.client_0_8
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import sys
 import unittest
 
 import settings
 
-def main():
-    suite = unittest.TestLoader().loadTestsFromNames([
+TEST_NAMES = [
         'test_exceptions',
         'test_serialization',
         'test_basic_message',
         'test_connection',
         'test_channel',
-        ])
+        ]
 
+if sys.version_info >= (2, 5):
+    TEST_NAMES.append('test_with')
+
+def main():
+    suite = unittest.TestLoader().loadTestsFromNames(TEST_NAMES)
     unittest.TextTestRunner(**settings.test_args).run(suite)
 
 if __name__ == '__main__':
