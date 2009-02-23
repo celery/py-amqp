@@ -151,7 +151,10 @@ class SSLTransport(_AbstractTransport):
         result = self.sslobj.read(n)
 
         while len(result) < n:
-            result += self.sslobj.read(n - len(result))
+            s = self.sslobj.read(n - len(result))
+            if not s:
+                raise IOError('Socket closed')
+            result += s
 
         return result
 
@@ -163,6 +166,8 @@ class SSLTransport(_AbstractTransport):
         """
         while s:
             n = self.sslobj.write(s)
+            if not n:
+                raise IOError('Socket closed')
             s = s[n:]
 
 
@@ -188,7 +193,10 @@ class TCPTransport(_AbstractTransport):
 
         """
         while len(self._read_buffer) < n:
-            self._read_buffer += self.sock.recv(65536)
+            s = self.sock.recv(65536)
+            if not s:
+                raise IOError('Socket closed')
+            self._read_buffer += s
 
         result = self._read_buffer[:n]
         self._read_buffer = self._read_buffer[n:]
