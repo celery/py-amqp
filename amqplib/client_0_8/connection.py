@@ -165,6 +165,8 @@ class Connection(AbstractChannel):
         for ch in temp_list:
             ch._do_close()
 
+        self.connection = self.channels = None
+
 
     def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max+1):
@@ -290,6 +292,10 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
+        if self.transport is None:
+            # already closed
+            return
+
         args = AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)

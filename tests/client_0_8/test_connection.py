@@ -46,6 +46,41 @@ class TestConnection(unittest.TestCase):
         ch2.close()
 
 
+    def test_close(self):
+        """
+        Make sure we've broken various references when closing
+        channels and connections, to help with GC.
+
+        """
+        #
+        # Create a channel and make sure it's linked as we'd expect
+        #
+        ch = self.conn.channel()
+        self.assertEqual(1 in self.conn.channels, True)
+        self.assertEqual(ch.connection, self.conn)
+        self.assertEqual(ch.is_open, True)
+
+        #
+        # Close the channel and make sure the references are broken
+        # that we expect.
+        #
+        ch.close()
+        self.assertEqual(ch.connection, None)
+        self.assertEqual(1 in self.conn.channels, False)
+        self.assertEqual(ch.callbacks, {})
+        self.assertEqual(ch.is_open, False)
+
+        #
+        # Close the connection and make sure the references we expect
+        # are gone.
+        #
+        self.conn.close()
+        self.assertEqual(self.conn.connection, None)
+        self.assertEqual(self.conn.channels, None)
+
+
+
+
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestConnection)
     unittest.TextTestRunner(**settings.test_args).run(suite)
