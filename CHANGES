@@ -1,6 +1,13 @@
 CHANGES
 --------
 
+Version 0.6.1-devel
+
+    Fix potential problem with library getting stuck in a loop
+    if the peer closed the socket.  Also, break a few more references
+    when closing Connections and Channels, to help garbage collection.
+    Thanks for majek04@... for pointing these out.
+
 Version 0.6
 
     Very large rearrangement of code, breaking the large client_0_8.py
