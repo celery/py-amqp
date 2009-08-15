@@ -129,7 +129,7 @@ class MethodReader(object):
                 #
                 # Connection was closed?  Framing Error?
                 #
-                self.queue.put(None)
+                self.queue.put(e)
                 break
 
             if self.expected_types[channel] != frame_type:
@@ -210,7 +210,10 @@ class MethodReader(object):
 
         """
         self._next_method()
-        return self.queue.get()
+        m = self.queue.get()
+        if isinstance(m, Exception):
+            raise m
+        return m
 
 
 class MethodWriter(object):
