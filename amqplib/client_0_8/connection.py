@@ -152,11 +152,6 @@ class Connection(AbstractChannel):
                 pass
 
 
-    def __del__(self):
-        if self.transport is not None:
-            self.close()
-
-
     def _do_close(self):
         self.transport.close()
         self.transport = None

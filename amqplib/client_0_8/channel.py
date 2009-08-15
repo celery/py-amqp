@@ -82,11 +82,6 @@ class Channel(AbstractChannel):
         self._x_open()
 
 
-    def __del__(self):
-        if self.connection:
-            self.close(msg='destroying channel')
-
-
     def _do_close(self):
         """
         Tear down this object, after we've agreed to close with the server.
