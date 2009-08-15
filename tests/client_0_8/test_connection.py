@@ -19,6 +19,7 @@ Test amqplib.client_0_8.connection module
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import gc
 import sys
 import time
 import unittest
@@ -33,7 +34,8 @@ class TestConnection(unittest.TestCase):
         self.conn = Connection(**settings.connect_args)
 
     def tearDown(self):
-        self.conn.close()
+        if self.conn:
+            self.conn.close()
 
     def test_channel(self):
         ch = self.conn.channel(1)
@@ -78,7 +80,51 @@ class TestConnection(unittest.TestCase):
         self.assertEqual(self.conn.connection, None)
         self.assertEqual(self.conn.channels, None)
 
+    def test_gc_closed(self):
+        """
+        Make sure we've broken various references when closing
+        channels and connections, to help with GC.
 
+        gc.garbage: http://docs.python.org/library/gc.html#gc.garbage
+            "A list of objects which the collector found to be
+            unreachable but could not be freed (uncollectable objects)."
+        """
+        unreachable_before = len(gc.garbage)
+        #
+        # Create a channel and make sure it's linked as we'd expect
+        #
+        ch = self.conn.channel()
+        self.assertEqual(1 in self.conn.channels, True)
+
+        #
+        # Close the connection and make sure the references we expect
+        # are gone.
+        #
+        self.conn.close()
+
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        self.assertEqual(unreachable_before, len(gc.garbage))
+
+    def test_gc_forget(self):
+        """
+        Make sure the connection gets gc'ed when there is no more
+        references to it.
+        """
+        unreachable_before = len(gc.garbage)
+
+        ch = self.conn.channel()
+        self.assertEqual(1 in self.conn.channels, True)
+
+        # remove all the references
+        self.conn = None
+        ch = None
+
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        self.assertEqual(unreachable_before, len(gc.garbage))
 
 
 def main():
