@@ -50,6 +50,6 @@ Other notable bits of code are:
     exceptions.py       - For indicating when things go wrong.
 
     serialization.py    - Home of AMQPReader and AMQPWriter which are
-                          used are used in many places within the
-                          Channel and Connection classes.
+                          used in many places within the Channel
+                          and Connection classes.
 
