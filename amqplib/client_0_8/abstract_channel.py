@@ -93,7 +93,7 @@ class AbstractChannel(object):
         and hasattr(content, 'content_encoding'):
             try:
                 content.body = content.body.decode(content.content_encoding)
-            except:
+            except Exception:
                 pass
 
         amqp_method = self._METHOD_MAP.get(method_sig, None)

@@ -148,7 +148,7 @@ class Connection(AbstractChannel):
             # we were redirected, close the socket, loop and try again
             try:
                 self.close()
-            except:
+            except Exception:
                 pass
 
 
