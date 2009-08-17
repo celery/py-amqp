@@ -54,7 +54,11 @@ class _AbstractTransport(object):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(connect_timeout)
 
-        self.sock.connect((host, port))
+        try:
+            self.sock.connect((host, port))
+        except socket.error:
+            self.sock.close()
+            raise
         self.sock.settimeout(None)
 
         self._setup_transport()
