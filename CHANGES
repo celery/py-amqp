@@ -1,7 +1,15 @@
 CHANGES
 --------
 
-Version 0.6.1-devel
+Version 0.6.1
+
+    One minor change to watch out for is that low-level errors
+    such as a closed connection now appear as IOExceptions
+    instead of
+
+        TypeError: 'NoneType' object is not iterable
+
+    which never really explained anything.
 
     Fix potential problem with library getting stuck in a loop
     if the peer closed the socket.  Also, break a few more references
@@ -12,8 +20,8 @@ Version 0.6.1-devel
     managers for 'with' statements (available in Python >= 2.5), so you
     can write code like:
 
-        with conn as Connection():
-            with ch as conn.channel()
+        with Connection() as conn:
+            with conn.channel() as ch:
                 # do stuff with ch and conn
 
     and have the Channel and Connection objects closed automatically

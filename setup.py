@@ -13,10 +13,10 @@ from distutils.core import setup
 
 setup(name = "amqplib",
       description = "AMQP Client Library",
-      version = "0.6.1-devel",
+      version = "0.6.1",
       license = "LGPL",
       author = "Barry Pederson",
       author_email = "bp@barryp.org",
-      url = "http://barryp.org/software/py-amqplib/",
+      url = "http://code.google.com/p/py-amqplib/",
       packages = ['amqplib', 'amqplib.client_0_8']
      )
