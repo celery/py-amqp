@@ -139,15 +139,19 @@ class AMQPReader(object):
         return unpack('>Q', self.input.read(8))[0]
 
 
-    def read_shortstr(self):
+    def read_shortstr(self, encoding='utf-8'):
         """
-        Read a utf-8 encoded string that's stored in up to
-        255 bytes.  Return it decoded as a Python unicode object.
+        Read a short string that's stored in up to 255 bytes. Return
+        it as a decoded Python unicode object, under the encoding
+        passed as 'encoding', or as a byte string if 'encoding' is None.
 
         """
         self.bitcount = self.bits = 0
         slen = unpack('B', self.input.read(1))[0]
-        return self.input.read(slen).decode('utf-8')
+        raw = self.input.read(slen)
+        if encoding:
+            return raw.decode(encoding)
+        return raw
 
 
     def read_longstr(self):
@@ -325,15 +329,17 @@ class AMQPWriter(object):
         self.out.write(pack('>Q', n))
 
 
-    def write_shortstr(self, s):
+    def write_shortstr(self, s, encoding='utf-8'):
         """
-        Write a string up to 255 bytes long after encoding.  If passed
-        a unicode string, encode as UTF-8.
+        Write a string up to 255 bytes long (after any encoding).
+
+        If passed a unicode string, encode with the specified
+        encoding (defaults to utf-8).
 
         """
         self._flushbits()
         if isinstance(s, unicode):
-            s = s.encode('utf-8')
+            s = s.encode(encoding)
         if len(s) > 255:
             raise ValueError('String too long')
         self.write_octet(len(s))
