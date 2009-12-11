@@ -1,5 +1,11 @@
 CHANGES
 --------
+Version 0.6.2-devel
+
+    Add an 'encoding' parameter to AMQPWriter.write_shortstr() and
+    AMQPReader.read_shortstr() in serialization.py, the default
+    value of 'utf-8' gives the same behavior as before.
+
 
 Version 0.6.1
 

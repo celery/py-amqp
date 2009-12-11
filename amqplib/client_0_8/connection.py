@@ -36,7 +36,7 @@ __all__ =  [
 #
 LIBRARY_PROPERTIES = {
     'library': 'Python amqplib',
-    'library_version': '0.6.1',
+    'library_version': '0.6.2-devel',
     }
 
 AMQP_LOGGER = logging.getLogger('amqplib')
