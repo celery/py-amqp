@@ -9,7 +9,11 @@ Python Distutils setup for for amqp.  Build and install with
 """
 
 import sys
-from distutils.core import setup
+
+try:
+    from setuptools import setup
+except:
+    from distutils.core import setup
 
 setup(name = "amqplib",
       description = "AMQP Client Library",

@@ -6,6 +6,13 @@ Version 0.6.2-devel
     AMQPReader.read_shortstr() in serialization.py, the default
     value of 'utf-8' gives the same behavior as before.
 
+    Big speedup for sending large messages.  For example, sending
+    a single 100MB message on my machine goes from 90 seconds to
+    around 0.6 seconds.
+
+    Use setuptools if available, for enhanced functionality
+    for packagers.
+
 
 Version 0.6.1
 
