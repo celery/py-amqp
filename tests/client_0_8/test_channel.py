@@ -161,6 +161,7 @@ class TestChannel(unittest.TestCase):
         self.assertTrue(isinstance(msg2.body, str))
         self.assertEqual(msg2.body, 'hello w\xf6rld')
 
+
     def test_exception(self):
         """
         Check that Channel exceptions are actually raised as Python
@@ -168,6 +169,23 @@ class TestChannel(unittest.TestCase):
 
         """
         self.assertRaises(AMQPChannelException, self.ch.queue_delete, 'bogus_queue_that_does_not_exist')
+
+
+    def test_invalid_header(self):
+        """
+        Test sending a message with an unserializable object in the header
+
+        http://code.google.com/p/py-amqplib/issues/detail?id=17
+
+        """
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        qname, _, _ = self.ch.queue_declare()
+
+        msg = Message(application_headers={'test': None})
+
+        self.assertRaises(ValueError, self.ch.basic_publish, msg, routing_key=qname)
+
 
     def test_large(self):
         """

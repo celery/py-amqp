@@ -291,6 +291,16 @@ class TestSerialization(unittest.TestCase):
         self.assertEqual(r.read_table(), val)
 
 
+    def test_table_invalid(self):
+        """
+        Check that an un-serializable table entry raises a ValueError
+
+        """
+        val = {'test': None}
+        w = AMQPWriter()
+        self.assertRaises(ValueError, w.write_table, val)
+
+
     def test_table_multi(self):
         val = {
             'foo': 7,

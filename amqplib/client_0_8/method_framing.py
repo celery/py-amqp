@@ -230,12 +230,17 @@ class MethodWriter(object):
     def write_method(self, channel, method_sig, args, content=None):
         payload = pack('>HH', method_sig[0], method_sig[1]) + args
 
+        if content:
+            # do this early, so we can raise an exception if there's a
+            # problem with the content properties, before sending the
+            # first frame
+            properties = content._serialize_properties()
+
         self.dest.write_frame(1, channel, payload)
 
         if content:
             body = content.body
-            payload = pack('>HHQ', method_sig[0], 0, len(body)) + \
-                content._serialize_properties()
+            payload = pack('>HHQ', method_sig[0], 0, len(body)) + properties
 
             self.dest.write_frame(2, channel, payload)
 

@@ -395,6 +395,8 @@ class AMQPWriter(object):
             elif isinstance(v, dict):
                 table_data.write('F')
                 table_data.write_table(v)
+            else:
+                raise ValueError('%s not serializable in AMQP' % repr(v))
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)

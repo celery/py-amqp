@@ -13,6 +13,10 @@ Version 0.6.2-devel
     Use setuptools if available, for enhanced functionality
     for packagers.
 
+    Raise a ValueError if unserializable objects are present in
+    a Message's application_headers, instead of just quietly failing
+    and causing a connection to close.
+
 
 Version 0.6.1
 
