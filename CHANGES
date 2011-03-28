@@ -17,6 +17,9 @@ Version 0.6.2-devel
     a Message's application_headers, instead of just quietly failing
     and causing a connection to close.
 
+    Message objects can now be pickled/unpickled, previously unpickling
+    raised a RuntimeError: maximum recursion depth exceeded
+
 
 Version 0.6.1
 

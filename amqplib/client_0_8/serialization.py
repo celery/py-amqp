@@ -452,6 +452,10 @@ class GenericContent(object):
         dictionary.
 
         """
+        if name == '__setstate__':
+            # Allows pickling/unpickling to work
+            raise AttributeError('__setstate__')
+
         if name in self.properties:
             return self.properties[name]
 
