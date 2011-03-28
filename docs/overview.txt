@@ -6,6 +6,15 @@ For more detailed descriptions of AMQP concepts, visit
 
 This doc just covers some example usages of the Python library.
 
++----------------------------------------------------------------
+|
+|  IMPORTANT!! - Connections are NOT thread-safe.  A multithreaded
+|                Python program can only use amqplib as long as
+|                each thread has its own Connection object, and
+|                does not try to share amqplib objects such as
+|                Connections or Channels with other threads.
+|
++----------------------------------------------------------------
 
 Importing the client
 --------------------
