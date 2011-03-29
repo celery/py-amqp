@@ -240,15 +240,18 @@ class MethodWriter(object):
             # do this early, so we can raise an exception if there's a
             # problem with the content properties, before sending the
             # first frame
+            body = content.body
+            if isinstance(body, unicode):
+                coding = content.properties.get('content_encoding', None)
+                if coding is None:
+                    coding = content.properties['content_encoding'] = 'UTF-8'
+
+                body = body.encode(coding)
             properties = content._serialize_properties()
 
         self.dest.write_frame(1, channel, payload)
 
         if content:
-            body = content.body
-            if isinstance(body, unicode):
-                body = body.encode(content.properties['content_encoding'])
-
             payload = pack('>HHQ', method_sig[0], 0, len(body)) + properties
 
             self.dest.write_frame(2, channel, payload)
