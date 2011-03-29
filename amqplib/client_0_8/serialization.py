@@ -21,38 +21,34 @@ Convert between bytestreams and higher-level AMQP types.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import string
+import sys
 from datetime import datetime
 from decimal import Decimal
 from struct import pack, unpack
 from time import mktime
 
+IS_PY3K = sys.version_info[0] >= 3
+
+if IS_PY3K:
+    def byte(n):
+        return bytes([n])
+else:
+    byte = chr
+
 try:
-    from cStringIO import StringIO
+    from io import BytesIO
 except:
-    from StringIO import StringIO
+    # Python 2.5 and lower
+    try:
+        from cStringIO import StringIO as BytesIO
+    except:
+        from StringIO import StringIO as BytesIO
 
-
-DUMP_CHARS = string.letters + string.digits + string.punctuation
-
-def _hexdump(s):
-    """
-    Present just for debugging help.
-
-    """
-    while s:
-        x, s = s[:16], s[16:]
-
-        hex = ['%02x' % ord(ch) for ch in x]
-        hex = ' '.join(hex).ljust(50)
-
-        char_dump = []
-        for ch in x:
-            if ch in DUMP_CHARS:
-                char_dump.append(ch)
-            else:
-                char_dump.append('.')
-
-        print hex + ''.join(char_dump)
+try:
+    bytes
+except NameError:
+    # Python 2.5 and lower
+    bytes = str
 
 
 class AMQPReader(object):
@@ -66,8 +62,8 @@ class AMQPReader(object):
         a plain (non-unicode) string.
 
         """
-        if isinstance(source, str):
-            self.input = StringIO(source)
+        if isinstance(source, bytes):
+            self.input = BytesIO(source)
         elif hasattr(source, 'read'):
             self.input = source
         else:
@@ -139,31 +135,30 @@ class AMQPReader(object):
         return unpack('>Q', self.input.read(8))[0]
 
 
-    def read_shortstr(self, encoding='utf-8'):
+    def read_shortstr(self):
         """
-        Read a short string that's stored in up to 255 bytes. Return
-        it as a decoded Python unicode object, under the encoding
-        passed as 'encoding', or as a byte string if 'encoding' is None.
+        Read a short string that's stored in up to 255 bytes.
+
+        The encoding isn't specified in the AMQP spec, so
+        assume it's utf-8
 
         """
         self.bitcount = self.bits = 0
         slen = unpack('B', self.input.read(1))[0]
-        raw = self.input.read(slen)
-        if encoding:
-            return raw.decode(encoding)
-        return raw
+        return self.input.read(slen).decode('utf-8')
 
 
     def read_longstr(self):
         """
-        Read a string that's up to 2**32 bytes, the encoding
-        isn't specified in the AMQP spec, so just return it as
-        a plain Python string.
+        Read a string that's up to 2**32 bytes.
+
+        The encoding isn't specified in the AMQP spec, so
+        assume it's utf-8
 
         """
         self.bitcount = self.bits = 0
         slen = unpack('>I', self.input.read(4))[0]
-        return self.input.read(slen)
+        return self.input.read(slen).decode('utf-8')
 
 
     def read_table(self):
@@ -177,19 +172,21 @@ class AMQPReader(object):
         result = {}
         while table_data.input.tell() < tlen:
             name = table_data.read_shortstr()
-            ftype = table_data.input.read(1)
-            if ftype == 'S':
+            ftype = ord(table_data.input.read(1))
+            if ftype == 83: # 'S'
                 val = table_data.read_longstr()
-            elif ftype == 'I':
+            elif ftype == 73: # 'I'
                 val = unpack('>i', table_data.input.read(4))[0]
-            elif ftype == 'D':
+            elif ftype == 68: # 'D'
                 d = table_data.read_octet()
                 n = unpack('>i', table_data.input.read(4))[0]
                 val = Decimal(n) / Decimal(10 ** d)
-            elif ftype == 'T':
+            elif ftype == 84: # 'T'
                 val = table_data.read_timestamp()
-            elif ftype == 'F':
+            elif ftype == 70: # 'F'
                 val = table_data.read_table() # recurse
+            else:
+                raise ValueError('Unknown table item type: %s' % repr(ftype))
             result[name] = val
         return result
 
@@ -212,12 +209,12 @@ class AMQPWriter(object):
     def __init__(self, dest=None):
         """
         dest may be a file-type object (with a write() method).  If None
-        then a StringIO is created, and the contents can be accessed with
+        then a BytesIO is created, and the contents can be accessed with
         this class's getvalue() method.
 
         """
         if dest is None:
-            self.out = StringIO()
+            self.out = BytesIO()
         else:
             self.out = dest
 
@@ -253,7 +250,7 @@ class AMQPWriter(object):
 
     def getvalue(self):
         """
-        Get what's been encoded so far if we're working with a StringIO.
+        Get what's been encoded so far if we're working with a BytesIO.
 
         """
         self._flushbits()
@@ -262,7 +259,8 @@ class AMQPWriter(object):
 
     def write(self, s):
         """
-        Write a plain Python string, with no special encoding.
+        Write a plain Python string with no special encoding in Python 2.x,
+        or bytes in Python 3.x
 
         """
         self._flushbits()
@@ -329,17 +327,16 @@ class AMQPWriter(object):
         self.out.write(pack('>Q', n))
 
 
-    def write_shortstr(self, s, encoding='utf-8'):
+    def write_shortstr(self, s):
         """
         Write a string up to 255 bytes long (after any encoding).
 
-        If passed a unicode string, encode with the specified
-        encoding (defaults to utf-8).
+        If passed a unicode string, encode with UTF-8.
 
         """
         self._flushbits()
         if isinstance(s, unicode):
-            s = s.encode(encoding)
+            s = s.encode('utf-8')
         if len(s) > 255:
             raise ValueError('String too long')
         self.write_octet(len(s))
@@ -348,8 +345,9 @@ class AMQPWriter(object):
 
     def write_longstr(self, s):
         """
-        Write a string up to 2**32 bytes long after encoding.  If passed
-        a unicode string, encode as UTF-8.
+        Write a string up to 2**32 bytes long after encoding.
+
+        If passed a unicode string, encode as UTF-8.
 
         """
         self._flushbits()
@@ -373,13 +371,13 @@ class AMQPWriter(object):
             if isinstance(v, basestring):
                 if isinstance(v, unicode):
                     v = v.encode('utf-8')
-                table_data.write('S')
+                table_data.write(byte(83)) # 'S'
                 table_data.write_longstr(v)
             elif isinstance(v, (int, long)):
-                table_data.write('I')
+                table_data.write(byte(73)) # 'I'
                 table_data.write(pack('>i', v))
             elif isinstance(v, Decimal):
-                table_data.write('D')
+                table_data.write(byte(68)) # 'D'
                 sign, digits, exponent = v.as_tuple()
                 v = 0
                 for d in digits:
@@ -389,11 +387,11 @@ class AMQPWriter(object):
                 table_data.write_octet(-exponent)
                 table_data.write(pack('>i', v))
             elif isinstance(v, datetime):
-                table_data.write('T')
+                table_data.write(byte(84)) # 'T'
                 table_data.write_timestamp(v)
                 ## FIXME: timezone ?
             elif isinstance(v, dict):
-                table_data.write('F')
+                table_data.write(byte(70)) # 'F'
                 table_data.write_table(v)
             else:
                 raise ValueError('%s not serializable in AMQP' % repr(v))

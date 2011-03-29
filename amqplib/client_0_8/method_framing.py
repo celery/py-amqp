@@ -22,6 +22,12 @@ from Queue import Empty, Queue
 from struct import pack, unpack
 
 try:
+    bytes
+except NameError:
+    # Python 2.5 and lower
+    bytes = str
+
+try:
     from collections import defaultdict
 except:
     class defaultdict(dict):
@@ -88,7 +94,7 @@ class _PartialMessage(object):
         self.body_received += len(payload)
 
         if self.body_received == self.body_size:
-            self.msg.body = ''.join(self.body_parts)
+            self.msg.body = bytes().join(self.body_parts)
             self.complete = True
 
 
@@ -240,6 +246,9 @@ class MethodWriter(object):
 
         if content:
             body = content.body
+            if isinstance(body, unicode):
+                body = body.encode(content.properties['content_encoding'])
+
             payload = pack('>HHQ', method_sig[0], 0, len(body)) + properties
 
             self.dest.write_frame(2, channel, payload)

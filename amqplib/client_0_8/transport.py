@@ -31,12 +31,18 @@ try:
 except:
     HAVE_PY26_SSL = False
 
+try:
+    bytes
+except:
+    # Python 2.5 and lower
+    bytes = str
+
 from struct import pack, unpack
 
 AMQP_PORT = 5672
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
-AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'
+AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'.encode('latin_1')
 
 
 class _AbstractTransport(object):
@@ -108,11 +114,11 @@ class _AbstractTransport(object):
         """
         frame_type, channel, size = unpack('>BHI', self._read(7))
         payload = self._read(size)
-        ch = self._read(1)
-        if ch == '\xce':
+        ch = ord(self._read(1))
+        if ch == 206: # '\xce'
             return frame_type, channel, payload
         else:
-            raise Exception('Framing Error, received 0x%02x while expecting 0xce' % ord(ch))
+            raise Exception('Framing Error, received 0x%02x while expecting 0xce' % ch)
 
 
     def write_frame(self, frame_type, channel, payload):
@@ -188,7 +194,7 @@ class TCPTransport(_AbstractTransport):
 
         """
         self._write = self.sock.sendall
-        self._read_buffer = ''
+        self._read_buffer = bytes()
 
 
     def _read(self, n):

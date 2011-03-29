@@ -61,8 +61,8 @@ class Channel(AbstractChannel):
         whether the library should attempt to decode the body
         of Messages to a Unicode string if there's a 'content_encoding'
         property for the message.  If there's no 'content_encoding'
-        property, or the decode raises an Exception, the plain string
-        is left as the message body.
+        property, or the decode raises an Exception, the message body
+        is left as plain bytes.
 
         """
         if channel_id is None:

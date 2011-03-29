@@ -2,10 +2,6 @@ CHANGES
 --------
 Version 0.6.2-devel
 
-    Add an 'encoding' parameter to AMQPWriter.write_shortstr() and
-    AMQPReader.read_shortstr() in serialization.py, the default
-    value of 'utf-8' gives the same behavior as before.
-
     Big speedup for sending large messages.  For example, sending
     a single 100MB message on my machine goes from 90 seconds to
     around 0.6 seconds.
@@ -19,6 +15,17 @@ Version 0.6.2-devel
 
     Message objects can now be pickled/unpickled, previously unpickling
     raised a RuntimeError: maximum recursion depth exceeded
+
+    PYTHON 3.x COMPATIBILITY
+
+    Code has been tweaked so that when 2to3 is run over the client library
+    and the unittests, the unittests will pass for Python 3.0, 3.1 and 3.2
+
+    There are some subtle behavioral changes to deal with how Python 3.x
+    needs to encode/decode strings and they go/come over the wire.  Message
+    bodies are encoded at transmission time, instead of Message object
+    creation time.  Message application_header strings are assumed to be
+    encoded as UTF-8
 
 
 Version 0.6.1

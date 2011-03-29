@@ -118,9 +118,7 @@ class Message(GenericContent):
         if isinstance(body, unicode):
             if properties.get('content_encoding', None) is None:
                 properties['content_encoding'] = 'UTF-8'
-            self.body = body.encode(properties['content_encoding'])
-        else:
-            self.body = body
+        self.body = body
 
         super(Message, self).__init__(**properties)
 

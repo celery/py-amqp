@@ -20,6 +20,12 @@ Code common to Connection and Channel objects.
 
 from serialization import AMQPWriter
 
+try:
+    bytes
+except NameError:
+    # Python 2.5 and lower
+    bytes = str
+
 __all__ =  [
             'AbstractChannel',
            ]
@@ -58,7 +64,7 @@ class AbstractChannel(object):
         self.close()
 
 
-    def _send_method(self, method_sig, args='', content=None):
+    def _send_method(self, method_sig, args=bytes(), content=None):
         """
         Send a method for our channel.
 
