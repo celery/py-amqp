@@ -136,6 +136,12 @@ class SSLTransport(_AbstractTransport):
     Transport that works over SSL
 
     """
+    def __init__(self, host, connect_timeout, ssl):
+        if isinstance(ssl, dict):
+            self.sslopts = ssl
+
+        super(SSLTransport, self).__init__(host, connect_timeout)
+
     def _setup_transport(self):
         """
         Wrap the socket in an SSL object, either the
@@ -144,7 +150,10 @@ class SSLTransport(_AbstractTransport):
 
         """
         if HAVE_PY26_SSL:
-            self.sslobj = ssl.wrap_socket(self.sock)
+            if hasattr(self, 'sslopts'):
+                self.sslobj = ssl.wrap_socket(self.sock, **self.sslopts)
+            else:
+                self.sslobj = ssl.wrap_socket(self.sock)
             self.sslobj.do_handshake()
         else:
             self.sslobj = socket.ssl(self.sock)
@@ -221,6 +230,6 @@ def create_transport(host, connect_timeout, ssl=False):
 
     """
     if ssl:
-        return SSLTransport(host, connect_timeout)
+        return SSLTransport(host, connect_timeout, ssl)
     else:
         return TCPTransport(host, connect_timeout)

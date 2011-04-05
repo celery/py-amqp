@@ -31,8 +31,19 @@ Some examples for creating a Connection object:
 
     conn = amqp.Connection()
     conn = amqp.Connection('1.2.3.4')
-    conn = amqp.Connection(host='1.2.3.4:5672', ssl=True)
+    conn = amqp.Connection(host='1.2.3.4:5671', ssl=True)
     conn = amqp.Connection(userid='foo', password='bar')
+
+Fancier SSL options are available with Python >= 2.6
+
+    import ssl
+    conn = amqp.Connection(host='1.2.3.4:5671',
+        ssl={
+            'ca_certs': '/path/to/cacert.pem',
+            'keyfile' : '/path/to/key.pem',
+            'certfile': '/path/to/cert.pem',
+            'cert_reqs': ssl.CERT_REQUIRED,
+            })
 
 Connections are closed with the close() method
 

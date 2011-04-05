@@ -84,6 +84,10 @@ class Connection(AbstractChannel):
         If login_response is not specified, one is built up for you from
         userid and password if they are present.
 
+        The 'ssl' parameter may be simply True/False, or for Python >= 2.6
+        a dictionary of options to pass to ssl.wrap_socket() such as
+        requiring certain certificates.
+
         """
         if (login_response is None) \
         and (userid is not None) \
