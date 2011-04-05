@@ -124,15 +124,15 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg2.body, u'hello w\u00f6rld')
 
         #
-        # Plain string with bogus encoding, only allowed with Python 2.x
+        # Plain string (bytes in Python 3.x) with bogus encoding
         #
-        if sys.version_info[0] < 3:
-            msg = Message('hello w\xf6rld', content_encoding='I made this up')
-            self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
-            msg2 = self.ch.basic_get(qname, no_ack=True)
-            self.assertEqual(msg2.content_encoding, 'I made this up')
-            self.assertTrue(isinstance(msg2.body, str))
-            self.assertEqual(msg2.body, 'hello w\xf6rld')
+        test_bytes = u'hello w\xd6rld'.encode('latin_1')  # don't really care about latin_1, just want bytes
+        msg = Message(test_bytes, content_encoding='I made this up')
+        self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
+        msg2 = self.ch.basic_get(qname, no_ack=True)
+        self.assertEqual(msg2.content_encoding, 'I made this up')
+        self.assertTrue(isinstance(msg2.body, bytes))
+        self.assertEqual(msg2.body, test_bytes)
 
         #
         # Turn off auto_decode for remaining tests
