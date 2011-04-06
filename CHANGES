@@ -27,6 +27,9 @@ Version 0.6.2-devel
     creation time.  Message application_header strings are assumed to be
     encoded as UTF-8
 
+    Add support for queue_unbind, since RabbitMQ supports it as an extension
+    to the 0-8 protocol.
+
 
 Version 0.6.1
 

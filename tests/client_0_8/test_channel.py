@@ -245,6 +245,16 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg, msg2)
 
 
+    def test_unbind(self):
+        self.ch.access_request('/data', active=True, write=True, read=True)
+
+        my_routing_key = 'unittest.test_queue'
+
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.queue_bind(qname, 'amq.direct', routing_key=my_routing_key)
+        self.ch.queue_unbind(qname, 'amq.direct', routing_key=my_routing_key)
+
+
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)
     unittest.TextTestRunner(**settings.test_args).run(suite)
