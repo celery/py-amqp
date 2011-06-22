@@ -18,17 +18,24 @@ Version 0.6.2-devel
 
     PYTHON 3.x COMPATIBILITY
 
-    Code has been tweaked so that when 2to3 is run over the client library
-    and the unittests, the unittests will pass for Python 3.0, 3.1 and 3.2
+        Code has been tweaked so that when 2to3 is run over the client
+        library and the unittests, the unittests will pass for Python
+        3.0, 3.1 and 3.2
 
-    There are some subtle behavioral changes to deal with how Python 3.x
-    needs to encode/decode strings and they go/come over the wire.  Message
-    bodies are encoded at transmission time, instead of Message object
-    creation time.  Message application_header strings are assumed to be
-    encoded as UTF-8
+        There are some subtle behavioral changes to deal with how Python
+        3.x needs to encode/decode strings and they go/come over the
+        wire.  Message bodies are encoded at transmission time, instead
+        of Message object creation time.  Message application_header
+        strings are assumed to be encoded as UTF-8
 
     Add support for queue_unbind, since RabbitMQ supports it as an extension
     to the 0-8 protocol.
+
+    Add IPv6 support.  The client uses socket.getaddrinfo(), so you can use
+    domain names with AAAA DNS records, or IPv6 literal addresses.  If you
+    need to specify a port number along with a literal address, put the
+    address in square brackets (see RFC 2732), for example:
+        [::1]:5672
 
 
 Version 0.6.1

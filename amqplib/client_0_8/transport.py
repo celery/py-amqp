@@ -20,6 +20,7 @@ Read/Write AMQP frames over network transports.
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import re
 import socket
 
 #
@@ -44,6 +45,8 @@ AMQP_PORT = 5672
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'.encode('latin_1')
 
+# Match things like: [fe80::1]:5432, from RFC 2732
+IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
 class _AbstractTransport(object):
     """
@@ -51,20 +54,36 @@ class _AbstractTransport(object):
 
     """
     def __init__(self, host, connect_timeout):
-        if ':' in host:
-            host, port = host.split(':', 1)
-            port = int(port)
+        msg = 'socket.getaddrinfo() for %s returned an empty list' % host
+        port = AMQP_PORT
+
+        m = IPV6_LITERAL.match(host)
+        if m:
+            host = m.group(1)
+            if m.group(2):
+                port = int(m.group(2))
         else:
-            port = AMQP_PORT
+            if ':' in host:
+                host, port = host.rsplit(':', 1)
+                port = int(port)
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(connect_timeout)
+        self.sock = None
+        for res in socket.getaddrinfo(host, port, 0, 0, socket.SOL_TCP):
+            af, socktype, proto, canonname, sa = res
+            try:
+                self.sock = socket.socket(af, socktype, proto)
+                self.sock.settimeout(connect_timeout)
+                self.sock.connect(sa)
+            except socket.error, msg:
+                self.sock.close()
+                self.sock = None
+                continue
+            break
 
-        try:
-            self.sock.connect((host, port))
-        except socket.error:
-            self.sock.close()
-            raise
+        if not self.sock:
+            # Didn't connect, return the most recent error message
+            raise socket.error, msg
+
         self.sock.settimeout(None)
 
         self._setup_transport()
