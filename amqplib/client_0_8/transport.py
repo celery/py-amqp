@@ -112,6 +112,14 @@ class _AbstractTransport(object):
         pass
 
 
+    def _shutdown_transport(self):
+        """
+        Do any preliminary work in shutting down the connection.
+
+        """
+        pass
+
+
     def _write(self, s):
         """
         Completely write a string to the peer.
@@ -122,6 +130,11 @@ class _AbstractTransport(object):
 
     def close(self):
         if self.sock is not None:
+            self._shutdown_transport()
+            # Call shutdown first to make sure that pending messages
+            # reach the AMQP broker if the program exits after
+            # calling this method.
+            self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
             self.sock = None
 
@@ -159,7 +172,10 @@ class SSLTransport(_AbstractTransport):
         if isinstance(ssl, dict):
             self.sslopts = ssl
 
+        self.sslobj = None
+
         super(SSLTransport, self).__init__(host, connect_timeout)
+
 
     def _setup_transport(self):
         """
@@ -176,6 +192,16 @@ class SSLTransport(_AbstractTransport):
             self.sslobj.do_handshake()
         else:
             self.sslobj = socket.ssl(self.sock)
+
+
+    def _shutdown_transport(self):
+        """
+        Unwrap a Python 2.6 SSL socket, so we can call shutdown()
+
+        """
+        if HAVE_PY26_SSL and (self.sslobj is not None):
+            self.sock = self.sslobj.unwrap()
+            self.sslobj = None
 
 
     def _read(self, n):
@@ -207,7 +233,6 @@ class SSLTransport(_AbstractTransport):
             if not n:
                 raise IOError('Socket closed')
             s = s[n:]
-
 
 
 class TCPTransport(_AbstractTransport):
