@@ -86,6 +86,7 @@ class _AbstractTransport(object):
 
         self.sock.settimeout(None)
         self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         self._setup_transport()
 
