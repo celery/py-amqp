@@ -255,6 +255,26 @@ class TestChannel(unittest.TestCase):
         self.ch.queue_unbind(qname, 'amq.direct', routing_key=my_routing_key)
 
 
+    def test_basic_return(self):
+        self.ch.access_request('/data', active=True, write=True)
+        self.ch.exchange_declare('unittest.fanout', 'fanout', auto_delete=True)
+
+        msg = Message('unittest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'})
+
+        self.ch.basic_publish(msg, 'unittest.fanout')
+        self.ch.basic_publish(msg, 'unittest.fanout', immediate=True)
+        self.ch.basic_publish(msg, 'unittest.fanout', mandatory=True)
+        self.ch.basic_publish(msg, 'unittest.fanout', immediate=True, mandatory=True)
+        self.ch.close()
+
+        #
+        # 3 of the 4 messages we sent should have been returned
+        #
+        self.assertEqual(self.ch.returned_messages.qsize(), 3)
+
+
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)
     unittest.TextTestRunner(**settings.test_args).run(suite)

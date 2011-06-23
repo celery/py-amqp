@@ -208,6 +208,15 @@ class Connection(AbstractChannel):
                 return method_sig, args, content
 
             #
+            # Certain methods like basic_return should be dispatched
+            # immediately rather than being queued, even if they're not
+            # one of the 'allowed_methods' we're looking for.
+            #
+            if (channel != 0) and (method_sig in Channel._IMMEDIATE_METHODS):
+                self.channels[channel].dispatch_method(method_sig, args, content)
+                continue
+
+            #
             # Not the channel and/or method we were looking for.  Queue
             # this method for later
             #
@@ -828,3 +837,6 @@ class Connection(AbstractChannel):
         (10, 60): _close,
         (10, 61): _close_ok,
         }
+
+
+    _IMMEDIATE_METHODS = []

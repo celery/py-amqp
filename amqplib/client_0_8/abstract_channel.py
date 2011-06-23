@@ -94,6 +94,10 @@ class AbstractChannel(object):
         method_sig, args, content = self.connection._wait_method(
             self.channel_id, allowed_methods)
 
+        return self.dispatch_method(method_sig, args, content)
+
+
+    def dispatch_method(self, method_sig, args, content):
         if content \
         and self.auto_decode \
         and hasattr(content, 'content_encoding'):

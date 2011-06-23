@@ -2688,3 +2688,7 @@ class Channel(AbstractChannel):
         (90, 21): _tx_commit_ok,
         (90, 31): _tx_rollback_ok,
         }
+
+    _IMMEDIATE_METHODS = [
+        (60, 50), # basic_return
+        ]
