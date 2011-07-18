@@ -128,4 +128,5 @@ class Message(GenericContent):
         which isn't compared.
 
         """
-        return super(Message, self).__eq__(other) and (self.body == other.body)
+        return super(Message, self).__eq__(other) \
+        and hasattr(other, 'body') and (self.body == other.body)

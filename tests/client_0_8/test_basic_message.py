@@ -50,6 +50,24 @@ class TestBasicMessage(unittest.TestCase):
         self.assertEqual(msg, new_msg)
 
 
+    def test_eq(self):
+        msg = Message('hello', content_type='text/plain')
+        self.assertNotEqual(msg, None)
+
+        #
+        # Make sure that something that looks vaguely
+        # like a Message doesn't raise an Attribute
+        # error when compared to a Message, and instead
+        # returns False
+        #
+        class FakeMsg(object): pass
+
+        fake_msg = FakeMsg()
+        fake_msg.properties = {'content_type': 'text/plain'}
+
+        self.assertNotEqual(msg, fake_msg)
+
+
     def test_pickle(self):
         msg = Message(
             'some body' * 200000,

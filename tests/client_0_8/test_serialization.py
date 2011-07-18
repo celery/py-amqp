@@ -34,7 +34,7 @@ except NameError:
 
 import settings
 
-from amqplib.client_0_8.serialization import AMQPReader, AMQPWriter
+from amqplib.client_0_8.serialization import AMQPReader, AMQPWriter, GenericContent
 
 class TestSerialization(unittest.TestCase):
     if sys.version_info[0] >= 3:
@@ -346,6 +346,19 @@ class TestSerialization(unittest.TestCase):
 
         r = AMQPReader(s)
         self.assertEqual(r.read_table(), val)
+
+    #
+    # GenericContent
+    #
+    def test_generic_content_eq(self):
+        msg_1 = GenericContent(dummy='foo')
+        msg_2 = GenericContent(dummy='foo')
+        msg_3 = GenericContent(dummy='bar')
+
+        self.assertEqual(msg_1, msg_1)
+        self.assertEqual(msg_1, msg_2)
+        self.assertNotEqual(msg_1, msg_3)
+        self.assertNotEqual(msg_1, None)
 
 
 def main():

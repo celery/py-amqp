@@ -440,7 +440,8 @@ class GenericContent(object):
         content object.
 
         """
-        return (self.properties == other.properties)
+        return hasattr(other, 'properties') \
+        and (self.properties == other.properties)
 
 
     def __getattr__(self, name):
