@@ -1,6 +1,6 @@
 CHANGES
 --------
-Version 0.6.2-devel
+Version 1.0.0
 
     Big speedup for sending large messages.  For example, sending
     a single 100MB message on my machine goes from 90 seconds to
@@ -37,6 +37,9 @@ Version 0.6.2-devel
     address in square brackets (see RFC 2732), for example:
         [::1]:5672
 
+    Some minor TCP changes, enabling keepalive, NODELAY (big speed
+    improvement there), shutting down sockets before closing to keep from
+    losing data (on Windows mainly?)
 
 Version 0.6.1
 
