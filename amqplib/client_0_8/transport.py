@@ -68,7 +68,7 @@ class _AbstractTransport(object):
                 port = int(port)
 
         self.sock = None
-        for res in socket.getaddrinfo(host, port, 0, 0, socket.SOL_TCP):
+        for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM, socket.SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
