@@ -1,5 +1,13 @@
 CHANGES
 --------
+Version 1.0.1
+
+    A one-line change to transport.py to fix a problem older
+    FreeBSDs have with socket.getaddrinfo()
+
+    Otherwise just packaging changes to include more Trove
+    classifiers and docs/tests/etc in the source distribution file.
+
 Version 1.0.0
 
     Big speedup for sending large messages.  For example, sending
