@@ -1,5 +1,10 @@
 CHANGES
 --------
+Version 1.0.2
+
+    Fix a packaging problem for Windows users, no changes
+    to the actual Python code.
+
 Version 1.0.1
 
     A one-line change to transport.py to fix a problem older

@@ -24,7 +24,7 @@ except ImportError:
 
 setup(name = "amqplib",
       description = "AMQP Client Library",
-      version = "1.0.1",
+      version = "1.0.2",
       classifiers=[
           'Programming Language :: Python',
 	  'Programming Language :: Python :: 2',
