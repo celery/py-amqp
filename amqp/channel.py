@@ -76,6 +76,7 @@ class Channel(AbstractChannel):
         self.callbacks = {}
         self.auto_decode = auto_decode
         self.events = defaultdict(list)
+        self.no_ack_consumers = set()
 
         self._x_open()
 
@@ -1673,6 +1674,7 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
+        self.no_ack_consumers.discard(consumer_tag)
         args = AMQPWriter()
         args.write_shortstr(consumer_tag)
         args.write_bit(nowait)
@@ -1827,6 +1829,10 @@ class Channel(AbstractChannel):
             ])
 
         self.callbacks[consumer_tag] = callback
+
+        if no_ack:
+            self.no_ack_consmers.add(consumer_tag)
+
         return consumer_tag
 
     def _basic_consume_ok(self, args):
