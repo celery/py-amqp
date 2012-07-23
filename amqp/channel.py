@@ -1831,7 +1831,7 @@ class Channel(AbstractChannel):
         self.callbacks[consumer_tag] = callback
 
         if no_ack:
-            self.no_ack_consmers.add(consumer_tag)
+            self.no_ack_consumers.add(consumer_tag)
 
         return consumer_tag
 

@@ -32,6 +32,8 @@ from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
 
+HAS_MSG_PEEK = hasattr(socket, 'MSG_PEEK')
+
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 """.strip()
@@ -249,6 +251,21 @@ class Connection(AbstractChannel):
         except KeyError:
             return Channel(self, channel_id)
 
+    def is_alive(self):
+        if HAS_MSG_PEEK:
+            sock = self.sock
+            prev = sock.gettimeout()
+            sock.settimeout(0.0001)
+            try:
+                sock.recv(1, socket.MSG_PEEK)
+            except socket.timeout:
+                pass
+            except socket.error:
+                return False
+            finally:
+                sock.settimeout(prev)
+        return True
+
     def drain_events(self, timeout=None):
         """Wait for an event on a channel."""
         chanmap = self.channels
@@ -279,7 +296,7 @@ class Connection(AbstractChannel):
     def read_timeout(self, timeout=None):
         if timeout is None:
             return self.method_reader.read_method()
-        sock = self.transport.sock
+        sock = self.sock
         prev = sock.gettimeout()
         if prev != timeout:
             sock.settimeout(timeout)
@@ -918,6 +935,10 @@ class Connection(AbstractChannel):
         self._send_method((10, 31), args)
         self._wait_tune_ok = False
 
+    @property
+    def sock(self):
+        return self.transport.sock
+
     _METHOD_MAP = {
         (10, 10): _start,
         (10, 20): _secure,
@@ -929,3 +950,9 @@ class Connection(AbstractChannel):
     }
 
     _IMMEDIATE_METHODS = []
+    connection_errors = (ConnectionError,
+                         socket.error,
+                         IOError,
+                         OSError,
+                         AttributeError)
+    channel_errors = (ChannelError, )
