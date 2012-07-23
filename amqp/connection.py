@@ -18,11 +18,16 @@ from __future__ import absolute_import
 
 import logging
 import socket
+try:
+    from ssl import SSLError
+except ImportError:
+    class SSLError(Exception):  # noqa
+        pass
 
 from . import __version__
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import AMQPError, ConnectionError
+from .exceptions import AMQPError, ChannelError, ConnectionError
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
@@ -108,6 +113,7 @@ class Connection(AbstractChannel):
 
         d = dict(LIBRARY_PROPERTIES, **client_properties or {})
         self.known_hosts = ''
+        self._method_override = {(60, 50): self._dispatch_basic_return}
 
         while 1:
             self.channels = {}
@@ -242,6 +248,101 @@ class Connection(AbstractChannel):
             return self.channels[channel_id]
         except KeyError:
             return Channel(self, channel_id)
+
+    def drain_events(self, timeout=None):
+        """Wait for an event on a channel."""
+        chanmap = self.channels
+        chanid, method_sig, args, content = self._wait_multiple(
+                chanmap, None, timeout=timeout)
+
+        channel = chanmap[chanid]
+
+        if content \
+        and channel.auto_decode \
+        and hasattr(content, 'content_encoding'):
+            try:
+                content.body = content.body.decode(content.content_encoding)
+            except Exception:
+                pass
+
+        amqp_method = self._method_override.get(method_sig) or \
+                        channel._METHOD_MAP.get(method_sig, None)
+
+        if amqp_method is None:
+            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+
+        if content is None:
+            return amqp_method(channel, args)
+        else:
+            return amqp_method(channel, args, content)
+
+    def read_timeout(self, timeout=None):
+        if timeout is None:
+            return self.method_reader.read_method()
+        sock = self.transport.sock
+        prev = sock.gettimeout()
+        if prev != timeout:
+            sock.settimeout(timeout)
+        try:
+            try:
+                return self.method_reader.read_method()
+            except SSLError, exc:
+                # http://bugs.python.org/issue10272
+                if 'timed out' in str(exc):
+                    raise socket.timeout()
+                raise
+        finally:
+            if prev != timeout:
+                sock.settimeout(prev)
+
+    def _wait_multiple(self, channels, allowed_methods, timeout=None):
+        for channel_id, channel in channels.iteritems():
+            method_queue = channel.method_queue
+            for queued_method in method_queue:
+                method_sig = queued_method[0]
+                if (allowed_methods is None) \
+                or (method_sig in allowed_methods) \
+                or (method_sig == (20, 40)):
+                    method_queue.remove(queued_method)
+                    method_sig, args, content = queued_method
+                    return channel_id, method_sig, args, content
+
+        # Nothing queued, need to wait for a method from the peer
+        read_timeout = self.read_timeout
+        wait = self.wait
+        while 1:
+            channel, method_sig, args, content = read_timeout(timeout)
+
+            if (channel in channels) \
+            and ((allowed_methods is None) \
+                or (method_sig in allowed_methods) \
+                or (method_sig == (20, 40))):
+                return channel, method_sig, args, content
+
+            # Not the channel and/or method we were looking for. Queue
+            # this method for later
+            channels[channel].method_queue.append((method_sig, args, content))
+
+            #
+            # If we just queued up a method for channel 0 (the Connection
+            # itself) it's probably a close method in reaction to some
+            # error, so deal with it right away.
+            #
+            if channel == 0:
+                wait()
+
+    def _dispatch_basic_return(self, channel, args, msg):
+        reply_code = args.read_short()
+        reply_text = args.read_shortstr()
+        exchange = args.read_shortstr()
+        routing_key = args.read_shortstr()
+
+        exc = ChannelError('basic.return', reply_code, reply_text, (50, 60))
+        handlers = channel.events.get('basic_return')
+        if not handlers:
+            raise exc
+        for callback in handlers:
+            callback(exc, exchange, routing_key, msg)
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
         """Request a connection close

@@ -18,6 +18,7 @@ from __future__ import absolute_import
 
 import logging
 
+from collections import defaultdict
 from Queue import Queue
 
 from .abstract_channel import AbstractChannel
@@ -74,6 +75,7 @@ class Channel(AbstractChannel):
         self.returned_messages = Queue()
         self.callbacks = {}
         self.auto_decode = auto_decode
+        self.events = defaultdict(list)
 
         self._x_open()
 
