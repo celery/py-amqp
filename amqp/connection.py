@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 
 import logging
+import socket
 
 from . import __version__
 from .abstract_channel import AbstractChannel
@@ -160,14 +161,16 @@ class Connection(AbstractChannel):
                 pass
 
     def _do_close(self):
-        self.transport.close()
-        self.transport = None
+        try:
+            self.transport.close()
 
-        temp_list = [x for x in self.channels.values() if x is not self]
-        for ch in temp_list:
-            ch._do_close()
-
-        self.connection = self.channels = None
+            temp_list = [x for x in self.channels.values() if x is not self]
+            for ch in temp_list:
+                ch._do_close()
+        except socket.error:
+            pass  # connection already closed on the other end
+        finally:
+            self.transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
         for i in xrange(1, self.channel_max + 1):
