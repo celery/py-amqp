@@ -172,15 +172,18 @@ class Channel(AbstractChannel):
         if not self.is_open:
             return
 
-        args = AMQPWriter()
-        args.write_short(reply_code)
-        args.write_shortstr(reply_text)
-        args.write_short(method_sig[0])  # class_id
-        args.write_short(method_sig[1])  # method_id
-        self._send_method((20, 40), args)
-        return self.wait(allowed_methods=[
-            (20, 41),  # Channel.close_ok
-        ])
+        try:
+            args = AMQPWriter()
+            args.write_short(reply_code)
+            args.write_shortstr(reply_text)
+            args.write_short(method_sig[0])  # class_id
+            args.write_short(method_sig[1])  # method_id
+            self._send_method((20, 40), args)
+            return self.wait(allowed_methods=[
+                (20, 41),  # Channel.close_ok
+            ])
+        finally:
+            self.connection = None
 
     def _close(self, args):
         """Request a channel close
