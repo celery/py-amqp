@@ -1,7 +1,4 @@
-"""
-Exceptions used by amqp
-
-"""
+"""Exceptions used by amqp"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -17,18 +14,14 @@ Exceptions used by amqp
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from __future__ import absolute_import
+
+__all__ = ['AMQPError', 'ConnectionError', 'ChannelError']
 
 
-__all__ =  [
-            'AMQPException',
-            'AMQPConnectionException',
-            'AMQPChannelException',
-           ]
+class AMQPError(Exception):
 
-
-class AMQPException(Exception):
     def __init__(self, reply_code, reply_text, method_sig):
-        Exception.__init__(self)
         self.amqp_reply_code = reply_code
         self.amqp_reply_text = reply_text
         self.amqp_method_sig = method_sig
@@ -38,13 +31,14 @@ class AMQPException(Exception):
             method_sig,
             METHOD_NAME_MAP.get(method_sig, '')
             )
+        Exception.__init__(self, reply_code, reply_text, method_sig)
 
 
-class AMQPConnectionException(AMQPException):
+class ConnectionError(AMQPError):
     pass
 
 
-class AMQPChannelException(AMQPException):
+class ChannelError(AMQPError):
     pass
 
 

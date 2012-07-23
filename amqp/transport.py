@@ -19,6 +19,7 @@ Read/Write AMQP frames over network transports.
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from __future__ import absolute_import
 
 import re
 import socket
@@ -40,6 +41,8 @@ except:
 
 from struct import pack, unpack
 
+from .exceptions import AMQPError
+
 AMQP_PORT = 5672
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
@@ -48,11 +51,10 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
-class _AbstractTransport(object):
-    """
-    Common superclass for TCP and SSL transports
 
-    """
+class _AbstractTransport(object):
+    """Common superclass for TCP and SSL transports"""
+
     def __init__(self, host, connect_timeout):
         msg = 'socket.getaddrinfo() for %s returned an empty list' % host
         port = AMQP_PORT
@@ -68,7 +70,8 @@ class _AbstractTransport(object):
                 port = int(port)
 
         self.sock = None
-        for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM, socket.SOL_TCP):
+        for res in socket.getaddrinfo(host, port, 0,
+                                      socket.SOCK_STREAM, socket.SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
@@ -92,43 +95,25 @@ class _AbstractTransport(object):
 
         self._write(AMQP_PROTOCOL_HEADER)
 
-
     def __del__(self):
         self.close()
 
-
     def _read(self, n):
-        """
-        Read exactly n bytes from the peer
-
-        """
+        """Read exactly n bytes from the peer"""
         raise NotImplementedError('Must be overriden in subclass')
-
 
     def _setup_transport(self):
-        """
-        Do any additional initialization of the class (used
-        by the subclasses).
-
-        """
+        """Do any additional initialization of the class (used
+        by the subclasses)."""
         pass
-
 
     def _shutdown_transport(self):
-        """
-        Do any preliminary work in shutting down the connection.
-
-        """
+        """Do any preliminary work in shutting down the connection."""
         pass
 
-
     def _write(self, s):
-        """
-        Completely write a string to the peer.
-
-        """
+        """Completely write a string to the peer."""
         raise NotImplementedError('Must be overriden in subclass')
-
 
     def close(self):
         if self.sock is not None:
@@ -140,52 +125,37 @@ class _AbstractTransport(object):
             self.sock.close()
             self.sock = None
 
-
     def read_frame(self):
-        """
-        Read an AMQP frame.
-
-        """
+        """Read an AMQP frame."""
         frame_type, channel, size = unpack('>BHI', self._read(7))
         payload = self._read(size)
         ch = ord(self._read(1))
-        if ch == 206: # '\xce'
+        if ch == 206:  # '\xce'
             return frame_type, channel, payload
         else:
-            raise Exception('Framing Error, received 0x%02x while expecting 0xce' % ch)
-
+            raise AMQPError(
+                'Framing Error, received 0x%02x while expecting 0xce' % ch)
 
     def write_frame(self, frame_type, channel, payload):
-        """
-        Write out an AMQP frame.
-
-        """
+        """Write out an AMQP frame."""
         size = len(payload)
         self._write(pack('>BHI%dsB' % size,
             frame_type, channel, size, payload, 0xce))
 
 
 class SSLTransport(_AbstractTransport):
-    """
-    Transport that works over SSL
+    """Transport that works over SSL"""
 
-    """
     def __init__(self, host, connect_timeout, ssl):
         if isinstance(ssl, dict):
             self.sslopts = ssl
-
         self.sslobj = None
-
         super(SSLTransport, self).__init__(host, connect_timeout)
 
-
     def _setup_transport(self):
-        """
-        Wrap the socket in an SSL object, either the
+        """Wrap the socket in an SSL object, either the
         new Python 2.6 version, or the older Python 2.5 and
-        lower version.
-
-        """
+        lower version."""
         if HAVE_PY26_SSL:
             if hasattr(self, 'sslopts'):
                 self.sslobj = ssl.wrap_socket(self.sock, **self.sslopts)
@@ -195,25 +165,17 @@ class SSLTransport(_AbstractTransport):
         else:
             self.sslobj = socket.ssl(self.sock)
 
-
     def _shutdown_transport(self):
-        """
-        Unwrap a Python 2.6 SSL socket, so we can call shutdown()
-
-        """
+        """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
         if HAVE_PY26_SSL and (self.sslobj is not None):
             self.sock = self.sslobj.unwrap()
             self.sslobj = None
 
-
     def _read(self, n):
-        """
-        It seems that SSL Objects read() method may not supply as much
+        """It seems that SSL Objects read() method may not supply as much
         as you're asking for, at least with extremely large messages.
         somewhere > 16K - found this in the test_channel.py test_large
-        unittest.
-
-        """
+        unittest."""
         result = self.sslobj.read(n)
 
         while len(result) < n:
@@ -224,12 +186,8 @@ class SSLTransport(_AbstractTransport):
 
         return result
 
-
     def _write(self, s):
-        """
-        Write a string out to the SSL socket fully.
-
-        """
+        """Write a string out to the SSL socket fully."""
         while s:
             n = self.sslobj.write(s)
             if not n:
@@ -238,25 +196,16 @@ class SSLTransport(_AbstractTransport):
 
 
 class TCPTransport(_AbstractTransport):
-    """
-    Transport that deals directly with TCP socket.
+    """Transport that deals directly with TCP socket."""
 
-    """
     def _setup_transport(self):
-        """
-        Setup to _write() directly to the socket, and
-        do our own buffered reads.
-
-        """
+        """Setup to _write() directly to the socket, and
+        do our own buffered reads."""
         self._write = self.sock.sendall
         self._read_buffer = bytes()
 
-
     def _read(self, n):
-        """
-        Read exactly n bytes from the socket
-
-        """
+        """Read exactly n bytes from the socket"""
         while len(self._read_buffer) < n:
             s = self.sock.recv(65536)
             if not s:
@@ -270,11 +219,8 @@ class TCPTransport(_AbstractTransport):
 
 
 def create_transport(host, connect_timeout, ssl=False):
-    """
-    Given a few parameters from the Connection constructor,
-    select and create a subclass of _AbstractTransport.
-
-    """
+    """Given a few parameters from the Connection constructor,
+    select and create a subclass of _AbstractTransport."""
     if ssl:
         return SSLTransport(host, connect_timeout, ssl)
     else:

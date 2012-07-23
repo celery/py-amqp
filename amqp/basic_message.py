@@ -1,7 +1,4 @@
-"""
-Messages for AMQP
-
-"""
+"""Messages for AMQP"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -17,25 +14,19 @@ Messages for AMQP
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from __future__ import absolute_import
 
+from .serialization import GenericContent
 
-from serialization import GenericContent
-
-__all__ =  [
-            'Message',
-           ]
+__all__ = ['Message']
 
 
 class Message(GenericContent):
-    """
-    A Message for use with the Channnel.basic_* methods.
+    """A Message for use with the Channnel.basic_* methods."""
 
-    """
-    #
-    # Instances of this class have these attributes, which
-    # are passed back and forth as message properties between
-    # client and server
-    #
+    #: Instances of this class have these attributes, which
+    #: are passed back and forth as message properties between
+    #: client and server
     PROPERTIES = [
         ('content_type', 'shortstr'),
         ('content_encoding', 'shortstr'),
@@ -51,11 +42,10 @@ class Message(GenericContent):
         ('user_id', 'shortstr'),
         ('app_id', 'shortstr'),
         ('cluster_id', 'shortstr')
-        ]
+    ]
 
     def __init__(self, body='', children=None, **properties):
-        """
-        Expected arg types
+        """Expected arg types
 
             body: string
             children: (not supported)
@@ -108,7 +98,7 @@ class Message(GenericContent):
         Unicode bodies are encoded according to the 'content_encoding'
         argument. If that's None, it's set to 'UTF-8' automatically.
 
-        example:
+        example::
 
             msg = Message('hello world',
                             content_type='text/plain',
@@ -118,15 +108,16 @@ class Message(GenericContent):
         super(Message, self).__init__(**properties)
         self.body = body
 
-
     def __eq__(self, other):
-        """
-        Check if the properties and bodies of this Message and another
+        """Check if the properties and bodies of this Message and another
         Message are the same.
 
         Received messages may contain a 'delivery_info' attribute,
         which isn't compared.
 
         """
-        return super(Message, self).__eq__(other) \
-        and hasattr(other, 'body') and (self.body == other.body)
+        try:
+            return (super(Message, self).__eq__(other) and
+                    self.body == other.body)
+        except AttributeError:
+            return NotImplemented

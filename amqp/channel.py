@@ -1,7 +1,4 @@
-"""
-AMQP 0-8 Channels
-
-"""
+"""AMQP Channels"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -17,24 +14,23 @@ AMQP 0-8 Channels
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from __future__ import absolute_import
 
 import logging
+
 from Queue import Queue
 
-from abstract_channel import AbstractChannel
-from exceptions import *
-from serialization import AMQPWriter
+from .abstract_channel import AbstractChannel
+from .exceptions import ChannelError
+from .serialization import AMQPWriter
 
-__all__ =  [
-            'Channel',      # here mainly so it shows in in pydoc
-           ]
+__all__ = ['Channel']
 
 AMQP_LOGGER = logging.getLogger('amqp')
 
 
 class Channel(AbstractChannel):
-    """
-    work with channels
+    """Work with channels
 
     The channel class provides methods for a client to establish a
     virtual connection - a channel - to a server and for both peers to
@@ -52,9 +48,9 @@ class Channel(AbstractChannel):
                             / S:CLOSE C:CLOSE-OK
 
     """
+
     def __init__(self, connection, channel_id=None, auto_decode=True):
-        """
-        Create a channel bound to a connection and using the specified
+        """Create a channel bound to a connection and using the specified
         numeric channel_id, and open on the server.
 
         The 'auto_decode' parameter (defaults to True), indicates
@@ -67,13 +63,13 @@ class Channel(AbstractChannel):
         """
         if channel_id is None:
             channel_id = connection._get_free_channel_id()
-        AMQP_LOGGER.debug('using channel_id: %d' % channel_id)
+        AMQP_LOGGER.debug('using channel_id: %d', channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
 
         self.default_ticket = 0
         self.is_open = False
-        self.active = True # Flow control
+        self.active = True  # Flow control
         self.alerts = Queue()
         self.returned_messages = Queue()
         self.callbacks = {}
@@ -81,24 +77,17 @@ class Channel(AbstractChannel):
 
         self._x_open()
 
-
     def _do_close(self):
-        """
-        Tear down this object, after we've agreed to close with the server.
-
-        """
-        AMQP_LOGGER.debug('Closed channel #%d' % self.channel_id)
+        """Tear down this object, after we've agreed to close
+        with the server."""
+        AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
         self.is_open = False
-        del self.connection.channels[self.channel_id]
+        self.connection.channels.pop(self.channel_id, None)
         self.channel_id = self.connection = None
         self.callbacks = {}
 
-
-    #################
-
     def _alert(self, args):
-        """
-        This method allows the server to send a non-fatal warning to
+        """This method allows the server to send a non-fatal warning to
         the client.  This is used for methods that are normally
         asynchronous and thus do not have confirmations, and for which
         the server may detect errors that need to be reported.  Fatal
@@ -131,10 +120,8 @@ class Channel(AbstractChannel):
 
         self.alerts.put((reply_code, reply_text, details))
 
-
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
-        """
-        request a channel close
+        """Request a channel close
 
         This method indicates that the sender wants to close the
         channel. This may be due to internal conditions (e.g. a forced
@@ -181,23 +168,20 @@ class Channel(AbstractChannel):
 
         """
         if not self.is_open:
-            # already closed
             return
 
         args = AMQPWriter()
         args.write_short(reply_code)
         args.write_shortstr(reply_text)
-        args.write_short(method_sig[0]) # class_id
-        args.write_short(method_sig[1]) # method_id
+        args.write_short(method_sig[0])  # class_id
+        args.write_short(method_sig[1])  # method_id
         self._send_method((20, 40), args)
         return self.wait(allowed_methods=[
-                          (20, 41),    # Channel.close_ok
-                        ])
-
+            (20, 41),  # Channel.close_ok
+        ])
 
     def _close(self, args):
-        """
-        request a channel close
+        """Request a channel close
 
         This method indicates that the sender wants to close the
         channel. This may be due to internal conditions (e.g. a forced
@@ -248,34 +232,13 @@ class Channel(AbstractChannel):
         class_id = args.read_short()
         method_id = args.read_short()
 
-#        self.close_ok()
-
-
-#    def close_ok(self):
-#        """
-#        confirm a channel close
-#
-#        This method confirms a Channel.Close method and tells the
-#        recipient that it is safe to release resources for the channel
-#        and close the socket.
-#
-#        RULE:
-#
-#            A peer that detects a socket closure without having
-#            received a Channel.Close-Ok handshake method SHOULD log
-#            the error.
-#
-#        """
         self._send_method((20, 41))
         self._do_close()
 
-        raise AMQPChannelException(reply_code, reply_text,
-            (class_id, method_id))
-
+        raise ChannelError(reply_code, reply_text, (class_id, method_id))
 
     def _close_ok(self, args):
-        """
-        confirm a channel close
+        """Confirm a channel close
 
         This method confirms a Channel.Close method and tells the
         recipient that it is safe to release resources for the channel
@@ -290,10 +253,8 @@ class Channel(AbstractChannel):
         """
         self._do_close()
 
-
     def flow(self, active):
-        """
-        enable/disable flow from peer
+        """Enable/disable flow from peer
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
@@ -342,13 +303,11 @@ class Channel(AbstractChannel):
         args.write_bit(active)
         self._send_method((20, 20), args)
         return self.wait(allowed_methods=[
-                          (20, 21),    # Channel.flow_ok
-                        ])
-
+            (20, 21),  # Channel.flow_ok
+        ])
 
     def _flow(self, args):
-        """
-        enable/disable flow from peer
+        """Enable/disable flow from peer
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
@@ -394,13 +353,10 @@ class Channel(AbstractChannel):
 
         """
         self.active = args.read_bit()
-
         self._x_flow_ok(self.active)
 
-
     def _x_flow_ok(self, active):
-        """
-        confirm a flow method
+        """Confirm a flow method
 
         Confirms to the peer that a flow command was received and
         processed.
@@ -419,10 +375,8 @@ class Channel(AbstractChannel):
         args.write_bit(active)
         self._send_method((20, 21), args)
 
-
     def _flow_ok(self, args):
-        """
-        confirm a flow method
+        """Confirm a flow method
 
         Confirms to the peer that a flow command was received and
         processed.
@@ -439,10 +393,8 @@ class Channel(AbstractChannel):
         """
         return args.read_bit()
 
-
     def _x_open(self, out_of_band=''):
-        """
-        open a channel for use
+        """Open a channel for use
 
         This method opens a virtual connection (a channel).
 
@@ -468,13 +420,11 @@ class Channel(AbstractChannel):
         args.write_shortstr(out_of_band)
         self._send_method((20, 10), args)
         return self.wait(allowed_methods=[
-                          (20, 11),    # Channel.open_ok
-                        ])
-
+            (20, 11),  # Channel.open_ok
+        ])
 
     def _open_ok(self, args):
-        """
-        signal that the channel is ready
+        """Signal that the channel is ready
 
         This method signals to the client that the channel is ready
         for use.
@@ -482,7 +432,6 @@ class Channel(AbstractChannel):
         """
         self.is_open = True
         AMQP_LOGGER.debug('Channel open')
-
 
     #############
     #
@@ -503,9 +452,8 @@ class Channel(AbstractChannel):
     #
 
     def access_request(self, realm, exclusive=False,
-        passive=False, active=False, write=False, read=False):
-        """
-        request an access ticket
+            passive=False, active=False, write=False, read=False):
+        """Request an access ticket
 
         This method requests an access ticket for an access realm. The
         server responds by granting the access ticket.  If the client
@@ -593,13 +541,11 @@ class Channel(AbstractChannel):
         args.write_bit(read)
         self._send_method((30, 10), args)
         return self.wait(allowed_methods=[
-                          (30, 11),    # Channel.access_request_ok
-                        ])
-
+            (30, 11),  # Channel.access_request_ok
+        ])
 
     def _access_request_ok(self, args):
-        """
-        grant access to server resources
+        """Grant access to server resources
 
         This method provides the client with an access ticket. The
         access ticket is valid within the current channel and for the
@@ -622,7 +568,6 @@ class Channel(AbstractChannel):
         """
         self.default_ticket = args.read_short()
         return self.default_ticket
-
 
     #############
     #
@@ -673,10 +618,9 @@ class Channel(AbstractChannel):
     #
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
-        auto_delete=True, internal=False, nowait=False,
-        arguments=None, ticket=None):
-        """
-        declare exchange, create if needed
+            auto_delete=True, internal=False, nowait=False,
+            arguments=None, ticket=None):
+        """Declare exchange, create if needed
 
         This method creates an exchange if it does not already exist,
         and if the exchange exists, verifies that it is of the correct
@@ -820,14 +764,9 @@ class Channel(AbstractChannel):
                     access if the if-exists flag is set.
 
         """
-        if arguments is None:
-            arguments = {}
-
+        arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
         args.write_bit(passive)
@@ -840,13 +779,11 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (40, 11),    # Channel.exchange_declare_ok
-                            ])
-
+                (40, 11),  # Channel.exchange_declare_ok
+            ])
 
     def _exchange_declare_ok(self, args):
-        """
-        confirms an exchange declaration
+        """Confirms an exchange declaration
 
         This method confirms a Declare method and confirms the name of
         the exchange, essential for automatically-named exchanges.
@@ -854,11 +791,9 @@ class Channel(AbstractChannel):
         """
         pass
 
-
     def exchange_delete(self, exchange, if_unused=False,
-        nowait=False, ticket=None):
-        """
-        delete an exchange
+            nowait=False, ticket=None):
+        """Delete an exchange
 
         This method deletes an exchange.  When an exchange is deleted
         all queue bindings on the exchange are cancelled.
@@ -909,10 +844,7 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
@@ -920,19 +852,16 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (40, 21),    # Channel.exchange_delete_ok
-                            ])
-
+                (40, 21),  # Channel.exchange_delete_ok
+            ])
 
     def _exchange_delete_ok(self, args):
-        """
-        confirm deletion of an exchange
+        """Confirm deletion of an exchange
 
         This method confirms the deletion of an exchange.
 
         """
         pass
-
 
     #############
     #
@@ -962,9 +891,8 @@ class Channel(AbstractChannel):
     #
 
     def queue_bind(self, queue, exchange, routing_key='',
-        nowait=False, arguments=None, ticket=None):
-        """
-        bind queue to an exchange
+            nowait=False, arguments=None, ticket=None):
+        """Bind queue to an exchange
 
         This method binds a queue to an exchange.  Until a queue is
         bound it will not receive any messages.  In a classic
@@ -1073,14 +1001,9 @@ class Channel(AbstractChannel):
                 "active" access rights to the queue's access realm.
 
         """
-        if arguments is None:
-            arguments = {}
-
+        arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1090,27 +1013,25 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (50, 21),    # Channel.queue_bind_ok
-                            ])
-
+                (50, 21),  # Channel.queue_bind_ok
+            ])
 
     def _queue_bind_ok(self, args):
-        """
-        confirm bind successful
+        """Confirm bind successful
 
         This method confirms that the bind was successful.
 
         """
         pass
 
-
     def queue_unbind(self, queue, exchange, routing_key='',
-        nowait=False, arguments=None, ticket=None):
-        """
-        NOTE::::This is not part of AMQP 0-8, but RabbitMQ supports this as
-        an extension
+            nowait=False, arguments=None, ticket=None):
+        """Unbind a queue from an exchange
 
-        unbind a queue from an exchange
+        .. note::
+
+            This is not part of AMQP 0-8, but RabbitMQ supports this as
+            an extension
 
         This method unbinds a queue from an exchange.
 
@@ -1160,14 +1081,9 @@ class Channel(AbstractChannel):
                 Specifies the arguments of the binding to unbind.
 
         """
-        if arguments is None:
-            arguments = {}
-
+        arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1177,25 +1093,21 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (50, 51),    # Channel.queue_unbind_ok
-                            ])
-
+                (50, 51),  # Channel.queue_unbind_ok
+            ])
 
     def _queue_unbind_ok(self, args):
-        """
-        confirm unbind successful
+        """Confirm unbind successful
 
         This method confirms that the unbind was successful.
 
         """
         pass
 
-
     def queue_declare(self, queue='', passive=False, durable=False,
-        exclusive=False, auto_delete=True, nowait=False,
-        arguments=None, ticket=None):
-        """
-        declare queue, create if needed
+            exclusive=False, auto_delete=True, nowait=False,
+            arguments=None, ticket=None):
+        """Declare queue, create if needed
 
         This method creates or checks a queue.  When creating a new
         queue the client can specify various properties that control
@@ -1359,14 +1271,9 @@ class Channel(AbstractChannel):
             consumer count
 
         """
-        if arguments is None:
-            arguments = {}
-
+        arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_bit(passive)
         args.write_bit(durable)
@@ -1378,13 +1285,11 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (50, 11),    # Channel.queue_declare_ok
-                            ])
-
+                (50, 11),  # Channel.queue_declare_ok
+            ])
 
     def _queue_declare_ok(self, args):
-        """
-        confirms a queue definition
+        """Confirms a queue definition
 
         This method confirms a Declare method and confirms the name of
         the queue, essential for automatically-named queues.
@@ -1415,14 +1320,11 @@ class Channel(AbstractChannel):
         queue = args.read_shortstr()
         message_count = args.read_long()
         consumer_count = args.read_long()
-
         return queue, message_count, consumer_count
 
-
     def queue_delete(self, queue='', if_unused=False, if_empty=False,
-        nowait=False, ticket=None):
-        """
-        delete a queue
+            nowait=False, ticket=None):
+        """Delete a queue
 
         This method deletes a queue.  When a queue is deleted any
         pending messages are sent to a dead-letter queue if this is
@@ -1493,11 +1395,7 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
-
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_bit(if_unused)
         args.write_bit(if_empty)
@@ -1506,13 +1404,11 @@ class Channel(AbstractChannel):
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (50, 41),    # Channel.queue_delete_ok
-                            ])
-
+                (50, 41),  # Channel.queue_delete_ok
+            ])
 
     def _queue_delete_ok(self, args):
-        """
-        confirm deletion of a queue
+        """Confirm deletion of a queue
 
         This method confirms the deletion of a queue.
 
@@ -1526,10 +1422,8 @@ class Channel(AbstractChannel):
         """
         return args.read_long()
 
-
     def queue_purge(self, queue='', nowait=False, ticket=None):
-        """
-        purge a queue
+        """Purge a queue
 
         This method removes all messages from a queue.  It does not
         cancel consumers.  Purged messages are deleted without any
@@ -1597,23 +1491,18 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self._send_method((50, 30), args)
 
         if not nowait:
             return self.wait(allowed_methods=[
-                              (50, 31),    # Channel.queue_purge_ok
-                            ])
-
+                (50, 31),  # Channel.queue_purge_ok
+            ])
 
     def _queue_purge_ok(self, args):
-        """
-        confirms a queue purge
+        """Confirms a queue purge
 
         This method confirms the purge of a queue.
 
@@ -1626,7 +1515,6 @@ class Channel(AbstractChannel):
 
         """
         return args.read_long()
-
 
     #############
     #
@@ -1689,8 +1577,7 @@ class Channel(AbstractChannel):
     #
 
     def basic_ack(self, delivery_tag, multiple=False):
-        """
-        acknowledge one or more messages
+        """Acknowledge one or more messages
 
         This method acknowledges one or more messages delivered via
         the Deliver or Get-Ok methods.  The client can ask to confirm
@@ -1741,10 +1628,8 @@ class Channel(AbstractChannel):
         args.write_bit(multiple)
         self._send_method((60, 80), args)
 
-
     def basic_cancel(self, consumer_tag, nowait=False):
-        """
-        end a queue consumer
+        """End a queue consumer
 
         This method cancels a consumer. This does not affect already
         delivered messages, but it does mean the server will not send
@@ -1788,13 +1673,11 @@ class Channel(AbstractChannel):
         args.write_bit(nowait)
         self._send_method((60, 30), args)
         return self.wait(allowed_methods=[
-                          (60, 31),    # Channel.basic_cancel_ok
-                        ])
-
+            (60, 31),  # Channel.basic_cancel_ok
+        ])
 
     def _basic_cancel_ok(self, args):
-        """
-        confirm a cancelled consumer
+        """Confirm a cancelled consumer
 
         This method confirms that the cancellation was completed.
 
@@ -1815,14 +1698,12 @@ class Channel(AbstractChannel):
 
         """
         consumer_tag = args.read_shortstr()
-        del self.callbacks[consumer_tag]
-
+        self.callbacks.pop(consumer_tag, None)
 
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
-        no_ack=False, exclusive=False, nowait=False,
-        callback=None, ticket=None):
-        """
-        start a queue consumer
+            no_ack=False, exclusive=False, nowait=False,
+            callback=None, ticket=None):
+        """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue.
@@ -1926,10 +1807,7 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -1940,17 +1818,14 @@ class Channel(AbstractChannel):
 
         if not nowait:
             consumer_tag = self.wait(allowed_methods=[
-                              (60, 21),    # Channel.basic_consume_ok
-                            ])
+                (60, 21),  # Channel.basic_consume_ok
+            ])
 
         self.callbacks[consumer_tag] = callback
-
         return consumer_tag
 
-
     def _basic_consume_ok(self, args):
-        """
-        confirm a new consumer
+        """Confirm a new consumer
 
         The server provides the client with a consumer tag, which is
         used by the client for methods called on the consumer at a
@@ -1965,10 +1840,8 @@ class Channel(AbstractChannel):
         """
         return args.read_shortstr()
 
-
     def _basic_deliver(self, args, msg):
-        """
-        notify the client of a consumer message
+        """Notify the client of a consumer message
 
         This method delivers a message to the client, via a consumer.
         In the asynchronous message delivery model, the client starts
@@ -2053,16 +1926,14 @@ class Channel(AbstractChannel):
             'redelivered': redelivered,
             'exchange': exchange,
             'routing_key': routing_key,
-            }
+        }
 
-        func = self.callbacks.get(consumer_tag, None)
-        if func is not None:
-            func(msg)
-
+        fun = self.callbacks.get(consumer_tag, None)
+        if fun is not None:
+            fun(msg)
 
     def basic_get(self, queue='', no_ack=False, ticket=None):
-        """
-        direct access to a queue
+        """Direct access to a queue
 
         This method provides a direct access to the messages in a
         queue using a synchronous dialogue that is designed for
@@ -2107,22 +1978,17 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self._send_method((60, 70), args)
         return self.wait(allowed_methods=[
-                          (60, 71),    # Channel.basic_get_ok
-                          (60, 72),    # Channel.basic_get_empty
-                        ])
-
+            (60, 71),  # Channel.basic_get_ok
+            (60, 72),  # Channel.basic_get_empty
+        ])
 
     def _basic_get_empty(self, args):
-        """
-        indicate no messages available
+        """Indicate no messages available
 
         This method tells the client that the queue has no messages
         available for the client.
@@ -2136,12 +2002,10 @@ class Channel(AbstractChannel):
                 client applications.
 
         """
-        cluster_id = args.read_shortstr()
-
+        cluster_id = args.read_shortstr()  # noqa
 
     def _basic_get_ok(self, args, msg):
-        """
-        provide client with a message
+        """Provide client with a message
 
         This method delivers a message to the client following a get
         method.  A message delivered by 'get-ok' must be acknowledged
@@ -2210,15 +2074,12 @@ class Channel(AbstractChannel):
             'exchange': exchange,
             'routing_key': routing_key,
             'message_count': message_count
-            }
-
+        }
         return msg
 
-
     def basic_publish(self, msg, exchange='', routing_key='',
-        mandatory=False, immediate=False, ticket=None):
-        """
-        publish a message
+            mandatory=False, immediate=False, ticket=None):
+        """Publish a message
 
         This method publishes a message to a specific exchange. The
         message will be routed to queues as defined by the exchange
@@ -2298,10 +2159,7 @@ class Channel(AbstractChannel):
 
         """
         args = AMQPWriter()
-        if ticket is not None:
-            args.write_short(ticket)
-        else:
-            args.write_short(self.default_ticket)
+        args.write_short(self.default_ticket if ticket is None else ticket)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
@@ -2309,10 +2167,8 @@ class Channel(AbstractChannel):
 
         self._send_method((60, 40), args, msg)
 
-
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
-        """
-        specify quality of service
+        """Specify quality of service
 
         This method requests a specific quality of service.  The QoS
         can be specified for the current channel or for all channels
@@ -2381,13 +2237,11 @@ class Channel(AbstractChannel):
         args.write_bit(a_global)
         self._send_method((60, 10), args)
         return self.wait(allowed_methods=[
-                          (60, 11),    # Channel.basic_qos_ok
-                        ])
-
+            (60, 11),  # Channel.basic_qos_ok
+        ])
 
     def _basic_qos_ok(self, args):
-        """
-        confirm the requested qos
+        """Confirm the requested qos
 
         This method tells the client that the requested QoS levels
         could be handled by the server.  The requested QoS applies to
@@ -2396,10 +2250,8 @@ class Channel(AbstractChannel):
         """
         pass
 
-
     def basic_recover(self, requeue=False):
-        """
-        redeliver unacknowledged messages
+        """Redeliver unacknowledged messages
 
         This method asks the broker to redeliver all unacknowledged
         messages on a specified channel. Zero or more messages may be
@@ -2432,10 +2284,8 @@ class Channel(AbstractChannel):
         args.write_bit(requeue)
         self._send_method((60, 100), args)
 
-
     def basic_reject(self, delivery_tag, requeue):
-        """
-        reject an incoming message
+        """Reject an incoming message
 
         This method allows a client to reject a message.  It can be
         used to interrupt and cancel large incoming messages, or
@@ -2509,10 +2359,8 @@ class Channel(AbstractChannel):
         args.write_bit(requeue)
         self._send_method((60, 90), args)
 
-
     def _basic_return(self, args, msg):
-        """
-        return a failed message
+        """Return a failed message
 
         This method returns an undeliverable message that was
         published with the "immediate" flag set, or an unroutable
@@ -2551,8 +2399,7 @@ class Channel(AbstractChannel):
 
         self.returned_messages.put(
             (reply_code, reply_text, exchange, routing_key, msg)
-            )
-
+        )
 
     #############
     #
@@ -2583,8 +2430,7 @@ class Channel(AbstractChannel):
     #
 
     def tx_commit(self):
-        """
-        commit the current transaction
+        """Commit the current transaction
 
         This method commits all messages published and acknowledged in
         the current transaction.  A new transaction starts immediately
@@ -2593,13 +2439,11 @@ class Channel(AbstractChannel):
         """
         self._send_method((90, 20))
         return self.wait(allowed_methods=[
-                          (90, 21),    # Channel.tx_commit_ok
-                        ])
-
+            (90, 21),  # Channel.tx_commit_ok
+        ])
 
     def _tx_commit_ok(self, args):
-        """
-        confirm a successful commit
+        """Confirm a successful commit
 
         This method confirms to the client that the commit succeeded.
         Note that if a commit fails, the server raises a channel
@@ -2608,10 +2452,8 @@ class Channel(AbstractChannel):
         """
         pass
 
-
     def tx_rollback(self):
-        """
-        abandon the current transaction
+        """Abandon the current transaction
 
         This method abandons all messages published and acknowledged
         in the current transaction.  A new transaction starts
@@ -2620,13 +2462,11 @@ class Channel(AbstractChannel):
         """
         self._send_method((90, 30))
         return self.wait(allowed_methods=[
-                          (90, 31),    # Channel.tx_rollback_ok
-                        ])
-
+            (90, 31),  # Channel.tx_rollback_ok
+        ])
 
     def _tx_rollback_ok(self, args):
-        """
-        confirm a successful rollback
+        """Confirm a successful rollback
 
         This method confirms to the client that the rollback
         succeeded. Note that if an rollback fails, the server raises a
@@ -2635,10 +2475,8 @@ class Channel(AbstractChannel):
         """
         pass
 
-
     def tx_select(self):
-        """
-        select standard transaction mode
+        """Select standard transaction mode
 
         This method sets the channel to use standard transactions.
         The client must use this method at least once on a channel
@@ -2647,20 +2485,17 @@ class Channel(AbstractChannel):
         """
         self._send_method((90, 10))
         return self.wait(allowed_methods=[
-                          (90, 11),    # Channel.tx_select_ok
-                        ])
-
+            (90, 11),  # Channel.tx_select_ok
+        ])
 
     def _tx_select_ok(self, args):
-        """
-        confirm transaction mode
+        """Confirm transaction mode
 
         This method confirms to the client that the channel was
         successfully set to use standard transactions.
 
         """
         pass
-
 
     _METHOD_MAP = {
         (20, 11): _open_ok,
@@ -2690,5 +2525,5 @@ class Channel(AbstractChannel):
         }
 
     _IMMEDIATE_METHODS = [
-        (60, 50), # basic_return
-        ]
+        (60, 50),  # basic_return
+    ]

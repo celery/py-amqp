@@ -1,7 +1,4 @@
-"""
-Code common to Connection and Channel objects.
-
-"""
+"""Code common to Connection and Channel objects."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -17,8 +14,10 @@ Code common to Connection and Channel objects.
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from __future__ import absolute_import
 
-from serialization import AMQPWriter
+from .exceptions import AMQPError
+from .serialization import AMQPWriter
 
 try:
     bytes
@@ -26,14 +25,11 @@ except NameError:
     # Python 2.5 and lower
     bytes = str
 
-__all__ =  [
-            'AbstractChannel',
-           ]
+__all__ = ['AbstractChannel']
 
 
 class AbstractChannel(object):
-    """
-    Superclass for both the Connection, which is treated
+    """Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.
 
     The subclasses must have a _METHOD_MAP class property, mapping
@@ -44,81 +40,54 @@ class AbstractChannel(object):
         self.connection = connection
         self.channel_id = channel_id
         connection.channels[channel_id] = self
-        self.method_queue = [] # Higher level queue for methods
+        self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
-
+        self._write_method = self.connection.method_writer.write_method
 
     def __enter__(self):
-        """
-        Support for Python >= 2.5 'with' statements.
-
-        """
         return self
 
-
-    def __exit__(self, type, value, traceback):
-        """
-        Support for Python >= 2.5 'with' statements.
-
-        """
+    def __exit__(self, *exc_info):
         self.close()
 
-
     def _send_method(self, method_sig, args=bytes(), content=None):
-        """
-        Send a method for our channel.
-
-        """
+        """Send a method for our channel."""
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        self.connection.method_writer.write_method(self.channel_id,
-            method_sig, args, content)
-
+        self._write_method(self.channel_id, method_sig, args, content)
 
     def close(self):
-        """
-        Close this Channel or Connection
-
-        """
+        """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-
-
     def wait(self, allowed_methods=None):
-        """
-        Wait for a method that matches our allowed_methods parameter (the
-        default value of None means match any method), and dispatch to it.
-
-        """
+        """Wait for a method that matches our allowed_methods parameter (the
+        default value of None means match any method), and dispatch to it."""
         method_sig, args, content = self.connection._wait_method(
             self.channel_id, allowed_methods)
 
         return self.dispatch_method(method_sig, args, content)
 
-
     def dispatch_method(self, method_sig, args, content):
-        if content \
-        and self.auto_decode \
-        and hasattr(content, 'content_encoding'):
+        if content and \
+                self.auto_decode and \
+                hasattr(content, 'content_encoding'):
             try:
                 content.body = content.body.decode(content.content_encoding)
             except Exception:
                 pass
 
-        amqp_method = self._METHOD_MAP.get(method_sig, None)
-
-        if amqp_method is None:
-            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+        try:
+            amqp_method = self._METHOD_MAP[method_sig]
+        except KeyError:
+            raise AMQPError('Unknown AMQP method %r' % method_sig)
 
         if content is None:
             return amqp_method(self, args)
         else:
             return amqp_method(self, args, content)
 
-
-    #
-    # Placeholder, the concrete implementations will have to
-    # supply their own versions of _METHOD_MAP
-    #
+    #: Placeholder, the concrete implementations will have to
+    #: supply their own versions of _METHOD_MAP
     _METHOD_MAP = {}
