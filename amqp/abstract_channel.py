@@ -42,7 +42,6 @@ class AbstractChannel(object):
         connection.channels[channel_id] = self
         self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
-        self._write_method = self.connection.method_writer.write_method
 
     def __enter__(self):
         return self
@@ -55,7 +54,8 @@ class AbstractChannel(object):
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        self._write_method(self.channel_id, method_sig, args, content)
+        self.connection.method_writer.write_method(
+                self.channel_id, method_sig, args, content)
 
     def close(self):
         """Close this Channel or Connection"""
