@@ -91,6 +91,8 @@ class MethodReader(object):
         self.partial_messages = {}
         # For each channel, which type is expected next
         self.expected_types = defaultdict(lambda: 1)
+        # not an actual byte count, just incremented whenever we receive
+        self.bytes_recv = 0
 
     def _next_method(self):
         """Read the next method from the source, once one complete method has
@@ -107,7 +109,9 @@ class MethodReader(object):
                 self.queue.put(e)
                 break
 
-            if self.expected_types[channel] != frame_type:
+            self.bytes_recv += 1
+
+            if frame_type not in (self.expected_types[channel], 8):
                 self.queue.put((
                     channel,
                     AMQPError(
@@ -120,6 +124,14 @@ class MethodReader(object):
                 self._process_content_header(channel, payload)
             elif frame_type == 3:
                 self._process_content_body(channel, payload)
+            elif frame_type == 8:
+                self._process_heartbeat(channel, payload)
+
+    def _process_heartbeat(self, channel, payload):
+        pass
+
+    def send_heartbeat(self):
+        self.source.write_frame(8, 0, bytes())
 
     def _process_method_frame(self, channel, payload):
         """Process Method frames"""
@@ -184,6 +196,7 @@ class MethodWriter(object):
     def __init__(self, dest, frame_max):
         self.dest = dest
         self.frame_max = frame_max
+        self.bytes_sent = 0
 
     def write_method(self, channel, method_sig, args, content=None):
         write_frame = self.dest.write_frame
@@ -212,3 +225,7 @@ class MethodWriter(object):
             chunk_size = self.frame_max - 8
             for i in xrange(0, len(body), chunk_size):
                 write_frame(3, channel, body[i:i + chunk_size])
+        self.bytes_sent += 1
+
+    def send_heartbeat(self):
+        self.dest.write_frame(8, 0, bytes())

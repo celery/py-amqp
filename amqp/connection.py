@@ -62,6 +62,10 @@ class Connection(AbstractChannel):
                             / S:CLOSE C:CLOSE-OK
 
     """
+    prev_sent = None
+    prev_recv = None
+    missed_heartbeats = 0
+
     def __init__(self,
         host='localhost',
         userid='guest',
@@ -74,6 +78,9 @@ class Connection(AbstractChannel):
         ssl=False,
         insist=False,
         connect_timeout=None,
+        channel_max=None,
+        frame_max=None,
+        heartbeat=0,
         **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -88,6 +95,8 @@ class Connection(AbstractChannel):
         requiring certain certificates.
 
         """
+        channel_max = channel_max or 65535
+        frame_max = frame_max or 131072
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
@@ -107,9 +116,9 @@ class Connection(AbstractChannel):
             self.transport = None
 
             # Properties set in the Tune method
-            self.channel_max = 65535
-            self.frame_max = 131072
-            self.heartbeat = 0
+            self.channel_max = channel_max
+            self.frame_max = frame_max
+            self.heartbeat = heartbeat
 
             # Properties set in the Start method
             self.version_major = 0
@@ -728,9 +737,26 @@ class Connection(AbstractChannel):
         self.channel_max = args.read_short() or self.channel_max
         self.frame_max = args.read_long() or self.frame_max
         self.method_writer.frame_max = self.frame_max
-        self.heartbeat = args.read_short()
+        heartbeat = args.read_short()  # noqa
 
-        self._x_tune_ok(self.channel_max, self.frame_max, 0)
+        self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
+
+    def heartbeat_tick(self):
+        sent_now = self.method_writer.bytes_sent
+        recv_now = self.method_reader.bytes_recv
+
+        if self.prev_sent is not None and self.prev_sent == sent_now:
+            self.method_writer.send_heartbeat()
+
+        if self.prev_recv is not None and self.prev_recv == recv_now:
+            self.missed_heartbeats += 1
+        else:
+            self.missed_heartbeats = 0
+
+        self.prev_sent, self.prev_recv = sent_now, recv_now
+
+        if self.missed_heartbeats >= 2:
+            raise ConnectionError('Too many heartbeats missed')
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):
         """Negotiate connection tuning parameters
@@ -784,7 +810,7 @@ class Connection(AbstractChannel):
         args = AMQPWriter()
         args.write_short(channel_max)
         args.write_long(frame_max)
-        args.write_short(heartbeat)
+        args.write_short(heartbeat or 0)
         self._send_method((10, 31), args)
         self._wait_tune_ok = False
 

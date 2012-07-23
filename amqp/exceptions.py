@@ -21,7 +21,8 @@ __all__ = ['AMQPError', 'ConnectionError', 'ChannelError']
 
 class AMQPError(Exception):
 
-    def __init__(self, reply_code, reply_text, method_sig):
+    def __init__(self, msg, reply_code=None, reply_text=None, method_sig=None):
+        self.message = msg
         self.amqp_reply_code = reply_code
         self.amqp_reply_text = reply_text
         self.amqp_method_sig = method_sig
@@ -31,7 +32,7 @@ class AMQPError(Exception):
             method_sig,
             METHOD_NAME_MAP.get(method_sig, '')
             )
-        Exception.__init__(self, reply_code, reply_text, method_sig)
+        Exception.__init__(self, msg, reply_code, reply_text, method_sig)
 
 
 class ConnectionError(AMQPError):
