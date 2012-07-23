@@ -29,7 +29,7 @@ __all__ =  [
             'Channel',      # here mainly so it shows in in pydoc
            ]
 
-AMQP_LOGGER = logging.getLogger('amqplib')
+AMQP_LOGGER = logging.getLogger('amqp')
 
 
 class Channel(AbstractChannel):

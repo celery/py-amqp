@@ -24,7 +24,7 @@ import unittest
 
 import settings
 
-from amqplib.client_0_8 import Connection, Message
+from amqp import Connection, Message
 
 
 class TestChannel(unittest.TestCase):

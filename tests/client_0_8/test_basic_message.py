@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test the amqplib.client_0_8.basic_message module.
+Test the amqp.basic_message module.
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -31,7 +31,7 @@ except:
 
 import settings
 
-from amqplib.client_0_8.basic_message import Message
+from amqp.basic_message import Message
 
 
 class TestBasicMessage(unittest.TestCase):

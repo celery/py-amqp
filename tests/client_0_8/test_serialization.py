@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqplib.client_0_8.serialization, checking conversions
+Test amqp.serialization, checking conversions
 between byte streams and higher level objects.
 
 """
@@ -34,7 +34,7 @@ except NameError:
 
 import settings
 
-from amqplib.client_0_8.serialization import AMQPReader, AMQPWriter, GenericContent
+from amqp.serialization import AMQPReader, AMQPWriter, GenericContent
 
 class TestSerialization(unittest.TestCase):
     if sys.version_info[0] >= 3:

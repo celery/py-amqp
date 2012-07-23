@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run all the unittest modules for amqplib.client_0_8
+Run all the unittest modules for amqp
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>

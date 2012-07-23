@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqplib.client_0_8.exceptions module
+Test amqp.exceptions module
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -23,7 +23,7 @@ import unittest
 
 import settings
 
-from amqplib.client_0_8.exceptions import *
+from amqp.exceptions import *
 
 
 class TestException(unittest.TestCase):

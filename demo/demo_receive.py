@@ -10,7 +10,7 @@ script, until it receives a message with 'quit' as the body.
 """
 from optparse import OptionParser
 
-import amqplib.client_0_8 as amqp
+import amqp
 
 
 def callback(msg):

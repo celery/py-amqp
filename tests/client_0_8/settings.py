@@ -57,9 +57,9 @@ def parse_args():
         console.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
         console.setFormatter(formatter)
-        amqplib_logger = logging.getLogger('amqplib')
-        amqplib_logger.addHandler(console)
-        amqplib_logger.setLevel(logging.DEBUG)
+        amqp_logger = logging.getLogger('amqp')
+        amqp_logger.addHandler(console)
+        amqp_logger.setLevel(logging.DEBUG)
 
     connect_args['host'] = options.host
     connect_args['userid'] = options.userid

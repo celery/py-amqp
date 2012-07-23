@@ -13,7 +13,7 @@ import sys
 import time
 from optparse import OptionParser
 
-import amqplib.client_0_8 as amqp
+import amqp
 
 def main():
     parser = OptionParser(usage='usage: %prog [options] message\nexample: %prog hello world')

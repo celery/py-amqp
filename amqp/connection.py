@@ -35,11 +35,11 @@ __all__ =  [
 # Client property info that gets sent to the server on connection startup
 #
 LIBRARY_PROPERTIES = {
-    'library': 'Python amqplib',
+    'library': 'py-amqp',
     'library_version': '1.0.2',
     }
 
-AMQP_LOGGER = logging.getLogger('amqplib')
+AMQP_LOGGER = logging.getLogger('amqp')
 
 
 class Connection(AbstractChannel):

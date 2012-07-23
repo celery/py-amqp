@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqplib.client_0_8.channel module
+Test amqp.channel module
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -32,7 +32,7 @@ except NameError:
 import settings
 
 
-from amqplib.client_0_8 import AMQPChannelException, AMQPException, Connection, Message
+from amqp import AMQPChannelException, AMQPException, Connection, Message
 
 
 class TestChannel(unittest.TestCase):

@@ -18,7 +18,7 @@ from datetime import datetime
 from optparse import OptionParser
 from time import sleep
 
-import amqplib.client_0_8 as amqp
+import amqp
 Message = amqp.Message
 
 EXCHANGE_NAME = 'clock'

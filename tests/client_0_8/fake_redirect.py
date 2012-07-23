@@ -29,9 +29,9 @@ import sys
 from optparse import OptionParser
 from Queue import Queue
 
-import amqplib.client_0_8 as amqp
-from amqplib.client_0_8.connection import AMQP_PROTOCOL_HEADER, _MethodReader
-from amqplib.client_0_8.serialization import AMQPReader, AMQPWriter
+import amqp
+from amqp.connection import AMQP_PROTOCOL_HEADER, _MethodReader
+from amqp.serialization import AMQPReader, AMQPWriter
 
 class FakeRedirectConnection(amqp.Connection):
     def __init__(self, sock):
@@ -124,7 +124,7 @@ class FakeRedirectConnection(amqp.Connection):
         self._send_channel_method_frame(0, (10, 30), args)
 
 #
-# Monkeypatch the amqplib.client_0_8.Connection _METHOD_MAP dict to
+# Monkeypatch the amqp.Connection _METHOD_MAP dict to
 # work with our FakeRedirectConnection
 #
 amqp.Connection._METHOD_MAP[(10, 11)] = FakeRedirectConnection.fake_op

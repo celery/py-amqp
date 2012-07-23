@@ -1,5 +1,5 @@
 """
-Exceptions used by amqplib.client_0_8
+Exceptions used by amqp
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>

@@ -1,5 +1,14 @@
 CHANGES
---------
+=======
+
+Version 1.1
+-----------
+
+py-amqp is fork of amqplib used by Kombu containing additional features and improvements.
+
+amqplib Changelog
+-----------------
+
 Version 1.0.2
 
     Fix a packaging problem for Windows users, no changes
