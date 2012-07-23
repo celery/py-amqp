@@ -96,7 +96,12 @@ class _AbstractTransport(object):
         self._write(AMQP_PROTOCOL_HEADER)
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except socket.error:
+            pass
+        finally:
+            self.sock = None
 
     def _read(self, n):
         """Read exactly n bytes from the peer"""
