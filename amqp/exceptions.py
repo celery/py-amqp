@@ -68,7 +68,6 @@ METHOD_NAME_MAP = {
     (20, 11): 'Channel.open_ok',
     (20, 20): 'Channel.flow',
     (20, 21): 'Channel.flow_ok',
-    (20, 30): 'Channel.alert',
     (20, 40): 'Channel.close',
     (20, 41): 'Channel.close_ok',
     (40, 10): 'Channel.exchange_declare',

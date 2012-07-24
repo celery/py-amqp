@@ -44,7 +44,6 @@ class Channel(AbstractChannel):
         open-channel        = C:OPEN S:OPEN-OK
         use-channel         = C:FLOW S:FLOW-OK
                             / S:FLOW C:FLOW-OK
-                            / S:ALERT
                             / functional-class
         close-channel       = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
@@ -71,7 +70,6 @@ class Channel(AbstractChannel):
 
         self.is_open = False
         self.active = True  # Flow control
-        self.alerts = Queue()
         self.returned_messages = Queue()
         self.callbacks = {}
         self.cancel_callbacks = {}
@@ -89,40 +87,6 @@ class Channel(AbstractChannel):
         self.connection.channels.pop(self.channel_id, None)
         self.channel_id = self.connection = None
         self.callbacks = {}
-
-    def _alert(self, args):
-        """This method allows the server to send a non-fatal warning to
-        the client.  This is used for methods that are normally
-        asynchronous and thus do not have confirmations, and for which
-        the server may detect errors that need to be reported.  Fatal
-        errors are handled as channel or connection exceptions; non-
-        fatal errors are sent through this method.
-
-        PARAMETERS:
-            reply_code: short
-
-                The reply code. The AMQ reply codes are defined in AMQ
-                RFC 011.
-
-            reply_text: shortstr
-
-                The localised reply text.  This text can be logged as an
-                aid to resolving issues.
-
-            details: table
-
-                detailed information for warning
-
-                A set of fields that provide more information about
-                the problem.  The meaning of these fields are defined
-                on a per-reply-code basis (TO BE DEFINED).
-
-        """
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        details = args.read_table()
-
-        self.alerts.put((reply_code, reply_text, details))
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
         """Request a channel close
@@ -2324,7 +2288,6 @@ class Channel(AbstractChannel):
         (20, 11): _open_ok,
         (20, 20): _flow,
         (20, 21): _flow_ok,
-        (20, 30): _alert,
         (20, 40): _close,
         (20, 41): _close_ok,
         (40, 11): _exchange_declare_ok,
