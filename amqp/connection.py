@@ -120,47 +120,46 @@ class Connection(AbstractChannel):
         self.known_hosts = ''
         self._method_override = {(60, 50): self._dispatch_basic_return}
 
-        while 1:
-            self.channels = {}
-            # The connection object itself is treated as channel 0
-            super(Connection, self).__init__(self, 0)
+        self.channels = {}
+        # The connection object itself is treated as channel 0
+        super(Connection, self).__init__(self, 0)
 
-            self.transport = None
+        self.transport = None
 
-            # Properties set in the Tune method
-            self.channel_max = channel_max
-            self.frame_max = frame_max
-            self.heartbeat = heartbeat
+        # Properties set in the Tune method
+        self.channel_max = channel_max
+        self.frame_max = frame_max
+        self.heartbeat = heartbeat
 
-            # Properties set in the Start method
-            self.version_major = 0
-            self.version_minor = 0
-            self.server_properties = {}
-            self.mechanisms = []
-            self.locales = []
+        # Properties set in the Start method
+        self.version_major = 0
+        self.version_minor = 0
+        self.server_properties = {}
+        self.mechanisms = []
+        self.locales = []
 
-            # Let the transport.py module setup the actual
-            # socket connection to the broker.
-            #
-            self.transport = create_transport(host, connect_timeout, ssl)
+        # Let the transport.py module setup the actual
+        # socket connection to the broker.
+        #
+        self.transport = create_transport(host, connect_timeout, ssl)
 
-            self.method_reader = MethodReader(self.transport)
-            self.method_writer = MethodWriter(self.transport, self.frame_max)
+        self.method_reader = MethodReader(self.transport)
+        self.method_writer = MethodWriter(self.transport, self.frame_max)
 
+        self.wait(allowed_methods=[
+            (10, 10),  # start
+        ])
+
+        self._x_start_ok(d, login_method, login_response, locale)
+
+        self._wait_tune_ok = True
+        while self._wait_tune_ok:
             self.wait(allowed_methods=[
-                (10, 10),  # start
+                (10, 20),  # secure
+                (10, 30),  # tune
             ])
 
-            self._x_start_ok(d, login_method, login_response, locale)
-
-            self._wait_tune_ok = True
-            while self._wait_tune_ok:
-                self.wait(allowed_methods=[
-                    (10, 20),  # secure
-                    (10, 30),  # tune
-                ])
-
-            return self._x_open(virtual_host, insist=insist)
+        return self._x_open(virtual_host, insist=insist)
 
     def _do_close(self):
         try:
