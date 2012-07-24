@@ -581,7 +581,7 @@ class Channel(AbstractChannel):
         self._send_method((40, 10), args)
 
         if auto_delete:
-            warn(DeperecationWarning(
+            warn(DeprecationWarning(
                 'auto_delete exchanges has been deprecated'))
 
         if not nowait:
@@ -2253,6 +2253,39 @@ class Channel(AbstractChannel):
         """
         pass
 
+    def confirm_select(self, nowait=False):
+        """Enables publisher confirms for this channel (an RabbitMQ
+        extension).
+
+        Can now be used if the channel is in transactional mode.
+
+        :param nowait:
+            If set, the server will not respond to the method.
+            The client should not wait for a reply method. If the
+            server could not complete the method it will raise a channel
+            or connection exception.
+
+        """
+        args = AMQPWriter()
+        args.write_bit(nowait)
+
+        self._send_method((85, 10), args)
+        if not nowait:
+            self.wait(allowed_methods=[
+                (85, 11),  # Confirm.select_ok
+            ])
+
+    def _confirm_select_ok(self, args):
+        """With this method the broker confirms to the client that
+        the channel is now using publisher confirms."""
+        pass
+
+    def _basic_ack_recv(self, args):
+        delivery_tag = args.read_longlong()
+        multiple = args.read_bit()
+        for callback in self.handlers['basic_ack']:
+            callback(delivery_tag, multiple)
+
     _METHOD_MAP = {
         (20, 11): _open_ok,
         (20, 20): _flow,
@@ -2274,7 +2307,9 @@ class Channel(AbstractChannel):
         (60, 60): _basic_deliver,
         (60, 71): _basic_get_ok,
         (60, 72): _basic_get_empty,
+        (60, 80): _basic_ack_recv,
         (60, 111): _basic_recover_ok,
+        (85, 11): _confirm_select_ok,
         (90, 11): _tx_select_ok,
         (90, 21): _tx_commit_ok,
         (90, 31): _tx_rollback_ok,
