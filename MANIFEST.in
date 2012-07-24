@@ -2,5 +2,5 @@ include README.rsts TODO CHANGES INSTALL LICENSE
 recursive-include docs *.txt
 recursive-include demo *.py
 recursive-include extra README *.py
-recursive-include tests *.py
+recursive-include funtests *.py
 recursive-include requirements *.txt

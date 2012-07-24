@@ -21,18 +21,17 @@ __all__ = ['AMQPError', 'ConnectionError', 'ChannelError']
 
 class AMQPError(Exception):
 
-    def __init__(self, msg, reply_code=None, reply_text=None, method_sig=None):
+    def __init__(self, msg, reply_code=None, reply_text=None, method_sig=None,
+            method_name=None):
         self.message = msg
         self.amqp_reply_code = reply_code
         self.amqp_reply_text = reply_text
         self.amqp_method_sig = method_sig
-        self.args = (
-            reply_code,
-            reply_text,
-            method_sig,
-            METHOD_NAME_MAP.get(method_sig, '')
-            )
-        Exception.__init__(self, msg, reply_code, reply_text, method_sig)
+        self.method_name = method_name or ''
+        if method_sig and not self.method_name:
+            self.method_name = METHOD_NAME_MAP.get(method_sig, '')
+        Exception.__init__(self, msg, reply_code,
+                           reply_text, method_sig, self.method_name)
 
     def __str__(self):
         if self.amqp_reply_code:

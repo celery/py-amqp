@@ -1,4 +1,4 @@
-"""Pure python AMQP client (fork of amqplib)"""
+"""Low-level AMQP client for Python (fork of amqplib)"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or

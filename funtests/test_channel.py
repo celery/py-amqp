@@ -32,7 +32,7 @@ except NameError:
 import settings
 
 
-from amqp import AMQPChannelException, AMQPException, Connection, Message
+from amqp import ChannelError, AMQPError, Connection, Message
 
 
 class TestChannel(unittest.TestCase):
@@ -172,8 +172,8 @@ class TestChannel(unittest.TestCase):
         exceptions.
 
         """
-        self.assertRaises(AMQPChannelException, self.ch.queue_delete, 'bogus_queue_that_does_not_exist')
-
+        with self.assertRaises(ChannelError):
+            self.ch.queue_delete('bogus_queue_that_does_not_exist')
 
     def test_invalid_header(self):
         """

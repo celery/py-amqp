@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqp.exceptions module
+Run all the unittest modules for amqp
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -19,27 +19,23 @@ Test amqp.exceptions module
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
+import sys
 import unittest
 
 import settings
 
-from amqp.exceptions import *
-
-
-class TestException(unittest.TestCase):
-    def test_exception(self):
-        exc = AMQPException(7, 'My Error', (10, 10))
-        self.assertEqual(exc.amqp_reply_code, 7)
-        self.assertEqual(exc.amqp_reply_text, 'My Error')
-        self.assertEqual(exc.amqp_method_sig, (10, 10))
-        self.assertEqual(exc.args,
-            (7, 'My Error', (10, 10), 'Connection.start'))
-
+TEST_NAMES = [
+        'test_exceptions',
+        'test_serialization',
+        'test_basic_message',
+        'test_connection',
+        'test_channel',
+        'test_with',
+        ]
 
 def main():
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestException)
+    suite = unittest.TestLoader().loadTestsFromNames(TEST_NAMES)
     unittest.TextTestRunner(**settings.test_args).run(suite)
-
 
 if __name__ == '__main__':
     main()

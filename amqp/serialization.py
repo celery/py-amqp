@@ -363,10 +363,6 @@ class GenericContent(object):
 
         raise AttributeError(name)
 
-    def __ne__(self, other):
-        """Just return the opposite of __eq__"""
-        return not self.__eq__(other)
-
     def _load_properties(self, raw_bytes):
         """Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert into a dictionary
