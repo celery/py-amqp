@@ -26,10 +26,20 @@ Version 0.9.1
     - ``Channel.access_request`` and ``ticket`` arguments to methods
       **removed**.
     - Supports the ``arguments`` argument to ``basic_consume``.
+    - ``internal`` argument to ``exchange_declare`` removed.
+    - ``auto_delete`` argument to ``exchange_declare`` deprecated
+    - ``insist`` argument to ``Connection`` removed.
+    - ``Channel.alerts`` has been removed.
+    - Support for ``Channel.basic_recover_async``.
+    - ``Channel.basic_recover`` deprecated.
 - Exceptions renamed to have idiomatic names:
     - ``AMQPException`` -> ``AMQPError``
     - ``AMQPConnectionException`` -> ConnectionError``
     - ``AMQPChannelException`` -> ChannelError``
+    - ``Connection.known_hosts`` removed.
+    - ``Connection`` no longer supports redirects.
+    - ``exchange`` argument to ``queue_bind`` can now be empty
+      to use the "default exchange".
 - Adds ``Connection.is_alive`` that tries to detect
   whether the connection can still be used.
 - Adds ``Connection.connection_errors`` and ``.channel_errors``,
