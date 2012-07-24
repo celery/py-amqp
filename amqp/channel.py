@@ -2098,6 +2098,15 @@ class Channel(AbstractChannel):
         args.write_bit(requeue)
         self._send_method((60, 110), args)
 
+    def basic_recover_async(self, requeue=False):
+        args = AMQPWriter()
+        args.write_bit(requeue)
+        self._send_method((60, 100), args)
+
+    def _basic_recover_ok(self, args):
+        """In 0-9-1 the deprecated recover solicits a response."""
+        pass
+
     def basic_reject(self, delivery_tag, requeue):
         """Reject an incoming message
 
@@ -2333,6 +2342,7 @@ class Channel(AbstractChannel):
         (60, 60): _basic_deliver,
         (60, 71): _basic_get_ok,
         (60, 72): _basic_get_empty,
+        (60, 111): _basic_recover_ok,
         (90, 11): _tx_select_ok,
         (90, 21): _tx_commit_ok,
         (90, 31): _tx_rollback_ok,
