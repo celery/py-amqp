@@ -84,9 +84,13 @@ class Channel(AbstractChannel):
         with the server."""
         AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
         self.is_open = False
-        self.connection.channels.pop(self.channel_id, None)
+        if self.connection:
+            self.connection.channels.pop(self.channel_id, None)
         self.channel_id = self.connection = None
-        self.callbacks = {}
+        self.callbacks.clear()
+        self.cancel_callbacks.clear()
+        self.events.clear()
+        self.no_ack_consumers.clear()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
         """Request a channel close
