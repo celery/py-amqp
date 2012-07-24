@@ -46,7 +46,7 @@ __all__ = ['Connection']
 LIBRARY_PROPERTIES = {
     'product': 'py-amqp',
     'product_version': __version__,
-    'capabilities': {'consumer_cancel_notify': True},
+    'capabilities': {},
 }
 
 AMQP_LOGGER = logging.getLogger('amqp')
@@ -750,6 +750,8 @@ class Connection(AbstractChannel):
                 must be one of those specified by the server.
 
         """
+        if self.server_capabilities.get('consumer_cancel_notify'):
+            client_properties['consumer_cancel_notify'] = True
         args = AMQPWriter()
         args.write_table(client_properties)
         args.write_shortstr(mechanism)
@@ -882,6 +884,10 @@ class Connection(AbstractChannel):
     @property
     def sock(self):
         return self.transport.sock
+
+    @property
+    def server_capabilities(self):
+        return self.server_properties.get('capabilities') or {}
 
     _METHOD_MAP = {
         (10, 10): _start,
