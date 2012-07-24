@@ -32,7 +32,12 @@ __docformat__ = 'restructuredtext'
 from .basic_message import Message
 from .channel import Channel
 from .connection import Connection
-from .exceptions import AMQPError, ConnectionError, ChannelError
+from .exceptions import (
+    AMQPError,
+    ConnectionError,
+    ChannelError,
+    ConsumerCancel,
+)
 
 __all__ = [
     'Connection',
@@ -41,4 +46,5 @@ __all__ = [
     'AMQPError',
     'ConnectionError',
     'ChannelError',
+    'ConsumerCancel',
 ]

@@ -22,7 +22,7 @@ from collections import defaultdict
 from Queue import Queue
 
 from .abstract_channel import AbstractChannel
-from .exceptions import ChannelError
+from .exceptions import ChannelError, ConsumerCancel
 from .serialization import AMQPWriter
 
 __all__ = ['Channel']
@@ -74,6 +74,7 @@ class Channel(AbstractChannel):
         self.alerts = Queue()
         self.returned_messages = Queue()
         self.callbacks = {}
+        self.cancel_callbacks = {}
         self.auto_decode = auto_decode
         self.events = defaultdict(list)
         self.no_ack_consumers = set()
@@ -1683,6 +1684,18 @@ class Channel(AbstractChannel):
             (60, 31),  # Channel.basic_cancel_ok
         ])
 
+    def _basic_cancel_notify(self, args):
+        """Consumer cancelled by server.
+
+        Most likely the queue was deleted.
+
+        """
+        consumer_tag = args.read_shortstr()
+        callback = self._on_cancel(consumer_tag)
+        if callback:
+            callback(consumer_tag)
+        raise ConsumerCancel('tag %r' % (consumer_tag, ))
+
     def _basic_cancel_ok(self, args):
         """Confirm a cancelled consumer
 
@@ -1705,11 +1718,15 @@ class Channel(AbstractChannel):
 
         """
         consumer_tag = args.read_shortstr()
+        self._on_cancel(consumer_tag)
+
+    def _on_cancel(self, consumer_tag):
         self.callbacks.pop(consumer_tag, None)
+        return self.cancel_callbacks.pop(consumer_tag, None)
 
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
             no_ack=False, exclusive=False, nowait=False,
-            callback=None, ticket=None):
+            callback=None, ticket=None, arguments=None, on_cancel=None):
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
@@ -1821,6 +1838,7 @@ class Channel(AbstractChannel):
         args.write_bit(no_ack)
         args.write_bit(exclusive)
         args.write_bit(nowait)
+        args.write_table(arguments or {})
         self._send_method((60, 20), args)
 
         if not nowait:
@@ -1830,6 +1848,8 @@ class Channel(AbstractChannel):
 
         self.callbacks[consumer_tag] = callback
 
+        if on_cancel:
+            self.cancel_callbacks[consumer_tag] = on_cancel
         if no_ack:
             self.no_ack_consumers.add(consumer_tag)
 
@@ -2524,6 +2544,7 @@ class Channel(AbstractChannel):
         (50, 51): _queue_unbind_ok,
         (60, 11): _basic_qos_ok,
         (60, 21): _basic_consume_ok,
+        (60, 30): _basic_cancel_notify,
         (60, 31): _basic_cancel_ok,
         (60, 50): _basic_return,
         (60, 60): _basic_deliver,

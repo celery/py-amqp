@@ -147,6 +147,8 @@ class AMQPReader(object):
                 val = table_data.read_timestamp()
             elif ftype == 70:  # 'F'
                 val = table_data.read_table()  # recurse
+            elif ftype == 116:
+                val = table_data.read_bit()
             else:
                 raise ValueError('Unknown table item type: %s' % repr(ftype))
             result[name] = val
@@ -283,6 +285,8 @@ class AMQPWriter(object):
                     v = v.encode('utf-8')
                 table_data.write(byte(83))  # 'S'
                 table_data.write_longstr(v)
+            elif isinstance(v, bool):
+                table_data.write(pack('>cB', 't', int(v)))
             elif isinstance(v, (int, long)):
                 table_data.write(byte(73))  # 'I'
                 table_data.write(pack('>i', v))

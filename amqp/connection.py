@@ -44,8 +44,9 @@ __all__ = ['Connection']
 # Client property info that gets sent to the server on connection startup
 #
 LIBRARY_PROPERTIES = {
-    'library': 'py-amqp',
-    'library_version': __version__,
+    'product': 'py-amqp',
+    'product_version': __version__,
+    'capabilities': {'consumer_cancel_notify': True},
 }
 
 AMQP_LOGGER = logging.getLogger('amqp')
@@ -63,13 +64,15 @@ class Connection(AbstractChannel):
                               S:START C:START-OK
                               *challenge
                               S:TUNE C:TUNE-OK
-                              C:OPEN S:OPEN-OK | S:REDIRECT
+                              C:OPEN S:OPEN-OK
         challenge           = S:SECURE C:SECURE-OK
         use-connection      = *channel
         close-connection    = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
 
     """
+    Channel = Channel
+
     prev_sent = None
     prev_recv = None
     missed_heartbeats = 0
@@ -157,16 +160,7 @@ class Connection(AbstractChannel):
                     (10, 30),  # tune
                 ])
 
-            host = self._x_open(virtual_host, insist=insist)
-            if host is None:
-                # we weren't redirected
-                return
-
-            # we were redirected, close the socket, loop and try again
-            try:
-                self.close()
-            except Exception:
-                pass
+            return self._x_open(virtual_host, insist=insist)
 
     def _do_close(self):
         try:
@@ -222,7 +216,7 @@ class Connection(AbstractChannel):
             # immediately rather than being queued, even if they're not
             # one of the 'allowed_methods' we're looking for.
             #
-            if channel and method_sig in Channel._IMMEDIATE_METHODS:
+            if channel and method_sig in self.Channel._IMMEDIATE_METHODS:
                 self.channels[channel].dispatch_method(
                         method_sig, args, content)
                 continue
@@ -249,7 +243,7 @@ class Connection(AbstractChannel):
         try:
             return self.channels[channel_id]
         except KeyError:
-            return Channel(self, channel_id)
+            return self.Channel(self, channel_id)
 
     def is_alive(self):
         if HAS_MSG_PEEK:
@@ -330,10 +324,10 @@ class Connection(AbstractChannel):
         while 1:
             channel, method_sig, args, content = read_timeout(timeout)
 
-            if (channel in channels) \
-            and ((allowed_methods is None) \
-                or (method_sig in allowed_methods) \
-                or (method_sig == (20, 40))):
+            if channel in channels and \
+                    (allowed_methods is None or \
+                            method_sig in allowed_methods or \
+                            method_sig == (20, 40)):
                 return channel, method_sig, args, content
 
             # Not the channel and/or method we were looking for. Queue
@@ -571,22 +565,6 @@ class Connection(AbstractChannel):
                 delimited by spaces.  The server can use this string
                 to how to process the client's connection request.
 
-            insist: boolean
-
-                insist on connecting to server
-
-                In a configuration with multiple load-sharing servers,
-                the server may respond to a Connection.Open method
-                with a Connection.Redirect. The insist option tells
-                the server that the client is insisting on a
-                connection to the specified server.
-
-                RULE:
-
-                    When the client uses the insist option, the server
-                    SHOULD accept the client connection unless it is
-                    technically unable to do so.
-
         """
         args = AMQPWriter()
         args.write_shortstr(virtual_host)
@@ -595,7 +573,6 @@ class Connection(AbstractChannel):
         self._send_method((10, 40), args)
         return self.wait(allowed_methods=[
             (10, 41),    # Connection.open_ok
-            (10, 50),    # Connection.redirect
         ])
 
     def _open_ok(self, args):
@@ -610,39 +587,6 @@ class Connection(AbstractChannel):
         """
         self.known_hosts = args.read_shortstr()
         AMQP_LOGGER.debug('Open OK! known_hosts [%s]', self.known_hosts)
-
-    def _redirect(self, args):
-        """Asks the client to use a different server
-
-        This method redirects the client to another server, based on
-        the requested virtual host and/or capabilities.
-
-        RULE:
-
-            When getting the Connection.Redirect method, the client
-            SHOULD reconnect to the host specified, and if that host
-            is not present, to any of the hosts specified in the
-            known-hosts list.
-
-        PARAMETERS:
-            host: shortstr
-
-                server to connect to
-
-                Specifies the server to connect to.  This is an IP
-                address or a DNS name, optionally followed by a colon
-                and a port number. If no port number is specified, the
-                client should use the default port number for the
-                protocol.
-
-            known_hosts: shortstr
-
-        """
-        host = args.read_shortstr()
-        self.known_hosts = args.read_shortstr()
-        AMQP_LOGGER.debug('Redirected to [%s], known_hosts [%s]',
-                          host, self.known_hosts)
-        return host
 
     def _secure(self, args):
         """Security mechanism challenge
@@ -944,9 +888,8 @@ class Connection(AbstractChannel):
         (10, 20): _secure,
         (10, 30): _tune,
         (10, 41): _open_ok,
-        (10, 50): _redirect,
-        (10, 60): _close,
-        (10, 61): _close_ok,
+        (10, 50): _close,
+        (10, 51): _close_ok,
     }
 
     _IMMEDIATE_METHODS = []

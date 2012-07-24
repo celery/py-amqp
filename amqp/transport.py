@@ -46,7 +46,7 @@ from .exceptions import AMQPError
 AMQP_PORT = 5672
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
-AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x09\x01'.encode('latin_1')
+AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')

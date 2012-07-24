@@ -34,12 +34,23 @@ class AMQPError(Exception):
             )
         Exception.__init__(self, msg, reply_code, reply_text, method_sig)
 
+    def __str__(self):
+        if self.amqp_reply_code:
+            return '%s: (%s, %s, %s)' % (
+                self.message, self.amqp_reply_code, self.amqp_reply_text,
+                self.amqp_method_sig)
+        return self.message
+
 
 class ConnectionError(AMQPError):
     pass
 
 
 class ChannelError(AMQPError):
+    pass
+
+
+class ConsumerCancel(ChannelError):
     pass
 
 
@@ -52,9 +63,8 @@ METHOD_NAME_MAP = {
     (10, 31): 'Connection.tune_ok',
     (10, 40): 'Connection.open',
     (10, 41): 'Connection.open_ok',
-    (10, 50): 'Connection.redirect',
-    (10, 60): 'Connection.close',
-    (10, 61): 'Connection.close_ok',
+    (10, 50): 'Connection.close',
+    (10, 51): 'Connection.close_ok',
     (20, 10): 'Channel.open',
     (20, 11): 'Channel.open_ok',
     (20, 20): 'Channel.flow',
