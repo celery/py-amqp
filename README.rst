@@ -1,13 +1,29 @@
-CHANGES
-=======
-py-amqp is fork of amqplib used by Kombu containing additional features and improvements.
-The previous amqplib changelog is here:
-http://code.google.com/p/py-amqplib/source/browse/CHANGES
+=====================================================================
+ Python AMQP 0.9.1 client library
+=====================================================================
 
-.. _version-0.9.1:
+:Version: 0.9.1
+:Web: http://amqp.readthedocs.org/
+:Download: http://pypi.python.org/pypi/amqp/
+:Source: http://github.com/celery/py-amqp/
+:Keywords: amqp, rabbitmq
 
-Version 0.9.1
-=============
+About
+=====
+
+This is a fork of amqplib_ which was originally written by Barry Pederson.
+It is maintained by the Celery_ project, and used by `kombu`_ as a pure python
+alternative when `librabbitmq`_ is not available.
+
+This library should be API compatible with `librabbitmq`_.
+
+.. _amqplib: http://pypi.python.org/pypi/amqplib
+.. _Celery: http://celeryproject.org/
+.. _kombu: http://kombu.readthedocs.org/
+.. _librabbitmq: http://pypi.python.org/pypi/librabbitmq
+
+Differences from `amqplib`_
+===========================
 
 - Supports draining events from multiple channels (``Connection.drain_events``)
 - Support for timeouts
@@ -38,3 +54,27 @@ Version 0.9.1
 - Adds ``Channel.no_ack_consumers`` to keep track of consumer tags
   that set the no_ack flag.
 - Slightly better at error recovery
+
+Further
+=======
+
+- Differences between AMQP 0.8 and 0.9.1
+
+    http://www.rabbitmq.com/amqp-0-8-to-0-9-1.html
+
+- AMQP 0.9.1 Quick Reference
+
+    http://www.rabbitmq.com/amqp-0-9-1-quickref.html
+
+- RabbitMQ Extensions
+
+    http://www.rabbitmq.com/extensions.html
+
+- For more information about AMQP, visit
+
+    http://www.amqp.org
+
+- For other Python client libraries see:
+
+    http://www.rabbitmq.com/devtools.html#python-dev
+

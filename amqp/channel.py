@@ -37,7 +37,7 @@ class Channel(AbstractChannel):
     virtual connection - a channel - to a server and for both peers to
     operate the virtual connection thereafter.
 
-    GRAMMAR:
+    GRAMMAR::
 
         channel             = open-channel *use-channel close-channel
         open-channel        = C:OPEN S:OPEN-OK
@@ -170,10 +170,10 @@ class Channel(AbstractChannel):
                 is the ID of the method.
 
         """
-        if not self.is_open:
-            return
-
         try:
+            if not self.is_open:
+                return
+
             args = AMQPWriter()
             args.write_short(reply_code)
             args.write_shortstr(reply_text)
@@ -450,7 +450,7 @@ class Channel(AbstractChannel):
     # Exchanges match and distribute messages across queues.
     # Exchanges can be configured in the server or created at runtime.
     #
-    # GRAMMAR:
+    # GRAMMAR::
     #
     #     exchange            = C:DECLARE  S:DECLARE-OK
     #                         / C:DELETE   S:DELETE-OK
@@ -723,7 +723,7 @@ class Channel(AbstractChannel):
     # the server or created at runtime.  Queues must be attached to at
     # least one exchange in order to receive messages from publishers.
     #
-    # GRAMMAR:
+    # GRAMMAR::
     #
     #     queue               = C:DECLARE  S:DECLARE-OK
     #                         / C:BIND     S:BIND-OK
@@ -1335,7 +1335,7 @@ class Channel(AbstractChannel):
     # The Basic class provides methods that support an industry-
     # standard messaging model.
     #
-    # GRAMMAR:
+    # GRAMMAR::
     #
     #     basic               = C:QOS S:QOS-OK
     #                         / C:CONSUME S:CONSUME-OK
@@ -1496,7 +1496,8 @@ class Channel(AbstractChannel):
         callback = self._on_cancel(consumer_tag)
         if callback:
             callback(consumer_tag)
-        raise ConsumerCancel('tag %r' % (consumer_tag, ))
+        else:
+            raise ConsumerCancel('tag %r' % (consumer_tag, ))
 
     def _basic_cancel_ok(self, args):
         """Confirm a cancelled consumer
@@ -2222,7 +2223,7 @@ class Channel(AbstractChannel):
     # Applications that use standard transactions must be able to
     # detect and ignore duplicate messages.
     #
-    # GRAMMAR:
+    # GRAMMAR::
     #
     #     tx                  = C:SELECT S:SELECT-OK
     #                         / C:COMMIT S:COMMIT-OK

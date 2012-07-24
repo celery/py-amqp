@@ -57,7 +57,7 @@ class Connection(AbstractChannel):
     network connection to a server, and for both peers to operate the
     connection thereafter.
 
-    GRAMMAR:
+    GRAMMAR::
 
         connection          = open-connection *use-connection close-connection
         open-connection     = C:protocol-header
@@ -808,12 +808,23 @@ class Connection(AbstractChannel):
 
         self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
-    def heartbeat_tick(self):
+    def send_heartbeat(self):
+        self.transport.write_frame(8, 0, bytes())
+
+    def heartbeat_tick(self, rate=2):
+        """Verify that hartbeats are sent and received.
+
+        :keyword rate: Rate is how often the tick is called
+            compared to the actual heartbeat value.  E.g. if
+            the heartbeat is set to 3 seconds, and the tick
+            is called every 3 / 2 seconds, then the rate is 2.
+
+        """
         sent_now = self.method_writer.bytes_sent
         recv_now = self.method_reader.bytes_recv
 
         if self.prev_sent is not None and self.prev_sent == sent_now:
-            self.method_writer.send_heartbeat()
+            self.send_heartbeat()
 
         if self.prev_recv is not None and self.prev_recv == recv_now:
             self.missed_heartbeats += 1
@@ -822,7 +833,7 @@ class Connection(AbstractChannel):
 
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
-        if self.missed_heartbeats >= 2:
+        if self.missed_heartbeats >= rate:
             raise ConnectionError('Too many heartbeats missed')
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):

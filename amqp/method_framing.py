@@ -89,6 +89,7 @@ class MethodReader(object):
         self.queue = Queue()
         self.running = False
         self.partial_messages = {}
+        self.heartbeats = 0
         # For each channel, which type is expected next
         self.expected_types = defaultdict(lambda: 1)
         # not an actual byte count, just incremented whenever we receive
@@ -128,10 +129,7 @@ class MethodReader(object):
                 self._process_heartbeat(channel, payload)
 
     def _process_heartbeat(self, channel, payload):
-        pass
-
-    def send_heartbeat(self):
-        self.source.write_frame(8, 0, bytes())
+        self.heartbeats += 1
 
     def _process_method_frame(self, channel, payload):
         """Process Method frames"""
@@ -226,6 +224,3 @@ class MethodWriter(object):
             for i in xrange(0, len(body), chunk_size):
                 write_frame(3, channel, body[i:i + chunk_size])
         self.bytes_sent += 1
-
-    def send_heartbeat(self):
-        self.dest.write_frame(8, 0, bytes())
