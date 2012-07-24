@@ -365,7 +365,7 @@ class Channel(AbstractChannel):
         """
         return args.read_bit()
 
-    def _x_open(self, out_of_band=''):
+    def _x_open(self):
         """Open a channel for use
 
         This method opens a virtual connection (a channel).
@@ -376,7 +376,7 @@ class Channel(AbstractChannel):
             open.
 
         PARAMETERS:
-            out_of_band: shortstr
+            out_of_band: shortstr (DEPRECATED)
 
                 out-of-band settings
 
@@ -389,7 +389,7 @@ class Channel(AbstractChannel):
             return
 
         args = AMQPWriter()
-        args.write_shortstr(out_of_band)
+        args.write_shortstr('')  # out_of_band: deprecated
         self._send_method((20, 10), args)
         return self.wait(allowed_methods=[
             (20, 11),  # Channel.open_ok
