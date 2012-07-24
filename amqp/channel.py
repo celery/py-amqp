@@ -738,7 +738,7 @@ class Channel(AbstractChannel):
     #
     #
 
-    def queue_bind(self, queue, exchange, routing_key='',
+    def queue_bind(self, queue, exchange='', routing_key='',
             nowait=False, arguments=None):
         """Bind queue to an exchange
 
