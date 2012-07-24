@@ -443,19 +443,9 @@ class Channel(AbstractChannel):
     #     the system exchange, the server MUST raise a connection
     #     exception with reply code 507 (not allowed).
     #
-    # RULE:
-    #
-    #     The default exchange MUST be defined as internal, and be
-    #     inaccessible to the client except by specifying an empty
-    #     exchange name in a content Publish method. That is, the
-    #     server MUST NOT let clients make explicit bindings to this
-    #     exchange.
-    #
-    #
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
-            auto_delete=True, internal=False, nowait=False,
-            arguments=None):
+            auto_delete=True, nowait=False, arguments=None):
         """Declare exchange, create if needed
 
         This method creates an exchange if it does not already exist,
@@ -558,15 +548,6 @@ class Channel(AbstractChannel):
                     The server MUST ignore the auto-delete field if
                     the exchange already exists.
 
-            internal: boolean
-
-                create internal exchange
-
-                If set, the exchange may not be used directly by
-                publishers, but only when bound to other exchanges.
-                Internal exchanges are used to construct wiring that
-                is not visible to applications.
-
             nowait: boolean
 
                 do not send a reply method
@@ -594,7 +575,7 @@ class Channel(AbstractChannel):
         args.write_bit(passive)
         args.write_bit(durable)
         args.write_bit(auto_delete)
-        args.write_bit(internal)
+        args.write_bit(False)  # internal: deprecated
         args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method((40, 10), args)
@@ -740,12 +721,6 @@ class Channel(AbstractChannel):
             Bindings for durable queues are automatically durable and
             the server SHOULD restore such bindings after a server
             restart.
-
-        RULE:
-
-            If the client attempts to an exchange that was declared as
-            internal, the server MUST raise a connection exception
-            with reply code 530 (not allowed).
 
         RULE:
 
@@ -1885,12 +1860,6 @@ class Channel(AbstractChannel):
 
                     The server MUST accept a blank exchange name to
                     mean the default exchange.
-
-                RULE:
-
-                    If the exchange was declared as an internal
-                    exchange, the server MUST raise a channel
-                    exception with a reply code 403 (access refused).
 
                 RULE:
 
