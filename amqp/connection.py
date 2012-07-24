@@ -87,7 +87,6 @@ class Connection(AbstractChannel):
         locale='en_US',
         client_properties=None,
         ssl=False,
-        insist=False,
         connect_timeout=None,
         channel_max=None,
         frame_max=None,
@@ -158,7 +157,7 @@ class Connection(AbstractChannel):
                 (10, 30),  # tune
             ])
 
-        return self._x_open(virtual_host, insist=insist)
+        return self._x_open(virtual_host)
 
     def _do_close(self):
         try:
@@ -516,7 +515,7 @@ class Connection(AbstractChannel):
         """
         self._do_close()
 
-    def _x_open(self, virtual_host, capabilities='', insist=False):
+    def _x_open(self, virtual_host, capabilities=''):
         """Open connection to virtual host
 
         This method opens a connection to a virtual host, which is a
@@ -568,7 +567,7 @@ class Connection(AbstractChannel):
         args = AMQPWriter()
         args.write_shortstr(virtual_host)
         args.write_shortstr(capabilities)
-        args.write_bit(insist)
+        args.write_bit(False)
         self._send_method((10, 40), args)
         return self.wait(allowed_methods=[
             (10, 41),    # Connection.open_ok
