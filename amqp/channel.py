@@ -2096,7 +2096,7 @@ class Channel(AbstractChannel):
         """
         args = AMQPWriter()
         args.write_bit(requeue)
-        self._send_method((60, 100), args)
+        self._send_method((60, 110), args)
 
     def basic_reject(self, delivery_tag, requeue):
         """Reject an incoming message
