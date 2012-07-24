@@ -20,6 +20,7 @@ import logging
 
 from collections import defaultdict
 from Queue import Queue
+from warnings import warn
 
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancel
@@ -633,6 +634,10 @@ class Channel(AbstractChannel):
         args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method((40, 10), args)
+
+        if auto_delete:
+            warn(DeperecationWarning(
+                'auto_delete exchanges has been deprecated'))
 
         if not nowait:
             return self.wait(allowed_methods=[
