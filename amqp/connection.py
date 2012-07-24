@@ -117,7 +117,6 @@ class Connection(AbstractChannel):
                                                             # at the beginning
 
         d = dict(LIBRARY_PROPERTIES, **client_properties or {})
-        self.known_hosts = ''
         self._method_override = {(60, 50): self._dispatch_basic_return}
 
         self.channels = {}
@@ -582,11 +581,10 @@ class Connection(AbstractChannel):
         for use.
 
         PARAMETERS:
-            known_hosts: shortstr
+            known_hosts: shortstr (deprecated)
 
         """
-        self.known_hosts = args.read_shortstr()
-        AMQP_LOGGER.debug('Open OK! known_hosts [%s]', self.known_hosts)
+        AMQP_LOGGER.debug('Open OK!')
 
     def _secure(self, args):
         """Security mechanism challenge
