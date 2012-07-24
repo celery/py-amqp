@@ -417,9 +417,10 @@ class Connection(AbstractChannel):
         args.write_shortstr(reply_text)
         args.write_short(method_sig[0])  # class_id
         args.write_short(method_sig[1])  # method_id
-        self._send_method((10, 60), args)
+        self._send_method((10, 50), args)
         return self.wait(allowed_methods=[
-            (10, 61),  # Connection.close_ok
+            (10, 50),  # Connection.close
+            (10, 51),  # Connection.close_ok
         ])
 
     def _close(self, args):
@@ -498,7 +499,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method((10, 61))
+        self._send_method((10, 51))
         self._do_close()
 
     def _close_ok(self, args):

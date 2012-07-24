@@ -181,6 +181,7 @@ class Channel(AbstractChannel):
             args.write_short(method_sig[1])  # method_id
             self._send_method((20, 40), args)
             return self.wait(allowed_methods=[
+                (20, 40),  # Channel.close
                 (20, 41),  # Channel.close_ok
             ])
         finally:
