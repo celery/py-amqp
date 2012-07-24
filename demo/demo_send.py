@@ -41,9 +41,7 @@ def main():
     conn = amqp.Connection(options.host, userid=options.userid, password=options.password, ssl=options.ssl)
 
     ch = conn.channel()
-    ch.access_request('/data', active=True, write=True)
-
-    ch.exchange_declare('myfan', 'fanout', auto_delete=True)
+    ch.exchange_declare('myfan', 'fanout')
 
     msg = amqp.Message(msg_body, content_type='text/plain', application_headers={'foo': 7, 'bar': 'baz'})
 

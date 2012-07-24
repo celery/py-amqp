@@ -55,8 +55,6 @@ class TestChannel(unittest.TestCase):
         queue.
 
         """
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         msg = Message('unittest message',
             content_type='text/plain',
             application_headers={'foo': 7, 'bar': 'baz'})
@@ -75,8 +73,6 @@ class TestChannel(unittest.TestCase):
 
 
     def test_encoding(self):
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         my_routing_key = 'unittest.test_queue'
 
         qname, _, _ = self.ch.queue_declare()
@@ -186,8 +182,6 @@ class TestChannel(unittest.TestCase):
         http://code.google.com/p/py-amqplib/issues/detail?id=17
 
         """
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         qname, _, _ = self.ch.queue_declare()
 
         msg = Message(application_headers={'test': None})
@@ -200,8 +194,6 @@ class TestChannel(unittest.TestCase):
         Test sending some extra large messages.
 
         """
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         qname, _, _ = self.ch.queue_declare()
 
         for multiplier in [100, 1000, 10000]:
@@ -216,9 +208,6 @@ class TestChannel(unittest.TestCase):
 
 
     def test_publish(self):
-        tkt = self.ch.access_request('/data', active=True, write=True)
-        self.assertEqual(tkt, self.ch.default_ticket)
-
         self.ch.exchange_declare('unittest.fanout', 'fanout', auto_delete=True)
 
         msg = Message('unittest message',
@@ -229,8 +218,6 @@ class TestChannel(unittest.TestCase):
 
 
     def test_queue(self):
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         my_routing_key = 'unittest.test_queue'
         msg = Message('unittest message',
             content_type='text/plain',
@@ -246,8 +233,6 @@ class TestChannel(unittest.TestCase):
 
 
     def test_unbind(self):
-        self.ch.access_request('/data', active=True, write=True, read=True)
-
         my_routing_key = 'unittest.test_queue'
 
         qname, _, _ = self.ch.queue_declare()
@@ -256,7 +241,6 @@ class TestChannel(unittest.TestCase):
 
 
     def test_basic_return(self):
-        self.ch.access_request('/data', active=True, write=True)
         self.ch.exchange_declare('unittest.fanout', 'fanout', auto_delete=True)
 
         msg = Message('unittest message',

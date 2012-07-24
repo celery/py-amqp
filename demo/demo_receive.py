@@ -51,9 +51,8 @@ def main():
     conn = amqp.Connection(options.host, userid=options.userid, password=options.password, ssl=options.ssl)
 
     ch = conn.channel()
-    ch.access_request('/data', active=True, read=True)
 
-    ch.exchange_declare('myfan', 'fanout', auto_delete=True)
+    ch.exchange_declare('myfan', 'fanout')
     qname, _, _ = ch.queue_declare()
     ch.queue_bind(qname, 'myfan')
     ch.basic_consume(qname, callback=callback)

@@ -43,7 +43,6 @@ def main():
 
     conn = amqp.Connection(options.host, options.userid, options.password)
     ch = conn.channel()
-    ch.access_request('/data', write=True, active=True)
     ch.exchange_declare(EXCHANGE_NAME, type='topic')
 
     # Make sure our first message is close to the beginning

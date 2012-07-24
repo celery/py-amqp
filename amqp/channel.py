@@ -68,7 +68,6 @@ class Channel(AbstractChannel):
 
         super(Channel, self).__init__(connection, channel_id)
 
-        self.default_ticket = 0
         self.is_open = False
         self.active = True  # Flow control
         self.alerts = Queue()
@@ -442,142 +441,6 @@ class Channel(AbstractChannel):
 
     #############
     #
-    #  Access
-    #
-    #
-    # work with access tickets
-    #
-    # The protocol control access to server resources using access
-    # tickets. A client must explicitly request access tickets before
-    # doing work. An access ticket grants a client the right to use a
-    # specific set of resources - called a "realm" - in specific ways.
-    #
-    # GRAMMAR:
-    #
-    #     access              = C:REQUEST S:REQUEST-OK
-    #
-    #
-
-    def access_request(self, realm, exclusive=False,
-            passive=False, active=False, write=False, read=False):
-        """Request an access ticket
-
-        This method requests an access ticket for an access realm. The
-        server responds by granting the access ticket.  If the client
-        does not have access rights to the requested realm this causes
-        a connection exception.  Access tickets are a per-channel
-        resource.
-
-        RULE:
-
-            The realm name MUST start with either "/data" (for
-            application resources) or "/admin" (for server
-            administration resources). If the realm starts with any
-            other path, the server MUST raise a connection exception
-            with reply code 403 (access refused).
-
-        RULE:
-
-            The server MUST implement the /data realm and MAY
-            implement the /admin realm.  The mapping of resources to
-            realms is not defined in the protocol - this is a server-
-            side configuration issue.
-
-        PARAMETERS:
-            realm: shortstr
-
-                name of requested realm
-
-                RULE:
-
-                    If the specified realm is not known to the server,
-                    the server must raise a channel exception with
-                    reply code 402 (invalid path).
-
-            exclusive: boolean
-
-                request exclusive access
-
-                Request exclusive access to the realm. If the server
-                cannot grant this - because there are other active
-                tickets for the realm - it raises a channel exception.
-
-            passive: boolean
-
-                request passive access
-
-                Request message passive access to the specified access
-                realm. Passive access lets a client get information
-                about resources in the realm but not to make any
-                changes to them.
-
-            active: boolean
-
-                request active access
-
-                Request message active access to the specified access
-                realm. Acvtive access lets a client get create and
-                delete resources in the realm.
-
-            write: boolean
-
-                request write access
-
-                Request write access to the specified access realm.
-                Write access lets a client publish messages to all
-                exchanges in the realm.
-
-            read: boolean
-
-                request read access
-
-                Request read access to the specified access realm.
-                Read access lets a client consume messages from queues
-                in the realm.
-
-        The most recently requested ticket is used as the channel's
-        default ticket for any method that requires a ticket.
-
-        """
-        args = AMQPWriter()
-        args.write_shortstr(realm)
-        args.write_bit(exclusive)
-        args.write_bit(passive)
-        args.write_bit(active)
-        args.write_bit(write)
-        args.write_bit(read)
-        self._send_method((30, 10), args)
-        return self.wait(allowed_methods=[
-            (30, 11),  # Channel.access_request_ok
-        ])
-
-    def _access_request_ok(self, args):
-        """Grant access to server resources
-
-        This method provides the client with an access ticket. The
-        access ticket is valid within the current channel and for the
-        lifespan of the channel.
-
-        RULE:
-
-            The client MUST NOT use access tickets except within the
-            same channel as originally granted.
-
-        RULE:
-
-            The server MUST isolate access tickets per channel and
-            treat an attempt by a client to mix these as a connection
-            exception.
-
-        PARAMETERS:
-            ticket: short
-
-        """
-        self.default_ticket = args.read_short()
-        return self.default_ticket
-
-    #############
-    #
     #  Exchange
     #
     #
@@ -626,7 +489,7 @@ class Channel(AbstractChannel):
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
             auto_delete=True, internal=False, nowait=False,
-            arguments=None, ticket=None):
+            arguments=None):
         """Declare exchange, create if needed
 
         This method creates an exchange if it does not already exist,
@@ -756,24 +619,10 @@ class Channel(AbstractChannel):
                 implementation.  This field is ignored if passive is
                 True.
 
-            ticket: short
-
-                When a client defines a new exchange, this belongs to
-                the access realm of the ticket used.  All further work
-                done with that exchange must be done with an access
-                ticket for the same realm.
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "active" access to the realm in which the
-                    exchange exists or will be created, or "passive"
-                    access if the if-exists flag is set.
-
         """
         arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(exchange)
         args.write_shortstr(type)
         args.write_bit(passive)
@@ -799,7 +648,7 @@ class Channel(AbstractChannel):
         pass
 
     def exchange_delete(self, exchange, if_unused=False,
-            nowait=False, ticket=None):
+            nowait=False):
         """Delete an exchange
 
         This method deletes an exchange.  When an exchange is deleted
@@ -841,17 +690,9 @@ class Channel(AbstractChannel):
                 server could not complete the method it will raise a
                 channel or connection exception.
 
-            ticket: short
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "active" access rights to the exchange's
-                    access realm.
-
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(exchange)
         args.write_bit(if_unused)
         args.write_bit(nowait)
@@ -898,7 +739,7 @@ class Channel(AbstractChannel):
     #
 
     def queue_bind(self, queue, exchange, routing_key='',
-            nowait=False, arguments=None, ticket=None):
+            nowait=False, arguments=None):
         """Bind queue to an exchange
 
         This method binds a queue to an exchange.  Until a queue is
@@ -1001,16 +842,10 @@ class Channel(AbstractChannel):
                 A set of arguments for the binding.  The syntax and
                 semantics of these arguments depends on the exchange
                 class.
-
-            ticket: short
-
-                The client provides a valid access ticket giving
-                "active" access rights to the queue's access realm.
-
         """
         arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1032,13 +867,8 @@ class Channel(AbstractChannel):
         pass
 
     def queue_unbind(self, queue, exchange, routing_key='',
-            nowait=False, arguments=None, ticket=None):
+            nowait=False, arguments=None):
         """Unbind a queue from an exchange
-
-        .. note::
-
-            This is not part of AMQP 0-8, but RabbitMQ supports this as
-            an extension
 
         This method unbinds a queue from an exchange.
 
@@ -1090,7 +920,7 @@ class Channel(AbstractChannel):
         """
         arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
@@ -1113,7 +943,7 @@ class Channel(AbstractChannel):
 
     def queue_declare(self, queue='', passive=False, durable=False,
             exclusive=False, auto_delete=True, nowait=False,
-            arguments=None, ticket=None):
+            arguments=None):
         """Declare queue, create if needed
 
         This method creates or checks a queue.  When creating a new
@@ -1260,18 +1090,6 @@ class Channel(AbstractChannel):
                 implementation.  This field is ignored if passive is
                 True.
 
-            ticket: short
-
-                When a client defines a new queue, this belongs to the
-                access realm of the ticket used.  All further work
-                done with that queue must be done with an access
-                ticket for the same realm.
-
-                The client provides a valid access ticket giving
-                "active" access to the realm in which the queue exists
-                or will be created, or "passive" access if the if-
-                exists flag is set.
-
         Returns a tuple containing 3 items:
             the name of the queue (essential for automatically-named queues)
             message count
@@ -1280,7 +1098,7 @@ class Channel(AbstractChannel):
         """
         arguments = {} if arguments is None else arguments
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_bit(passive)
         args.write_bit(durable)
@@ -1330,7 +1148,7 @@ class Channel(AbstractChannel):
         return queue, message_count, consumer_count
 
     def queue_delete(self, queue='', if_unused=False, if_empty=False,
-            nowait=False, ticket=None):
+            nowait=False):
         """Delete a queue
 
         This method deletes a queue.  When a queue is deleted any
@@ -1395,14 +1213,9 @@ class Channel(AbstractChannel):
                 server could not complete the method it will raise a
                 channel or connection exception.
 
-            ticket: short
-
-                The client provides a valid access ticket giving
-                "active" access rights to the queue's access realm.
-
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_bit(if_unused)
         args.write_bit(if_empty)
@@ -1429,7 +1242,7 @@ class Channel(AbstractChannel):
         """
         return args.read_long()
 
-    def queue_purge(self, queue='', nowait=False, ticket=None):
+    def queue_purge(self, queue='', nowait=False):
         """Purge a queue
 
         This method removes all messages from a queue.  It does not
@@ -1482,23 +1295,11 @@ class Channel(AbstractChannel):
                 server could not complete the method it will raise a
                 channel or connection exception.
 
-            ticket: short
-
-                The access ticket must be for the access realm that
-                holds the queue.
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "read" access rights to the queue's access
-                    realm.  Note that purging a queue is equivalent to
-                    reading all messages and discarding them.
-
         if nowait is False, returns a message_count
 
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_bit(nowait)
         self._send_method((50, 30), args)
@@ -1726,7 +1527,7 @@ class Channel(AbstractChannel):
 
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
             no_ack=False, exclusive=False, nowait=False,
-            callback=None, ticket=None, arguments=None, on_cancel=None):
+            callback=None, arguments=None, on_cancel=None):
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
@@ -1821,17 +1622,9 @@ class Channel(AbstractChannel):
                 messages are quietly discarded, no_ack should probably
                 be set to True in that case.
 
-            ticket: short
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "read" access rights to the realm for the
-                    queue.
-
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_shortstr(consumer_tag)
         args.write_bit(no_local)
@@ -1962,7 +1755,7 @@ class Channel(AbstractChannel):
         if fun is not None:
             fun(msg)
 
-    def basic_get(self, queue='', no_ack=False, ticket=None):
+    def basic_get(self, queue='', no_ack=False):
         """Direct access to a queue
 
         This method provides a direct access to the messages in a
@@ -1996,19 +1789,11 @@ class Channel(AbstractChannel):
                 reliability.  Messages can get lost if a client dies
                 before it can deliver them to the application.
 
-            ticket: short
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "read" access rights to the realm for the
-                    queue.
-
         Non-blocking, returns a message object, or None.
 
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(queue)
         args.write_bit(no_ack)
         self._send_method((60, 70), args)
@@ -2108,7 +1893,7 @@ class Channel(AbstractChannel):
         return msg
 
     def basic_publish(self, msg, exchange='', routing_key='',
-            mandatory=False, immediate=False, ticket=None):
+            mandatory=False, immediate=False):
         """Publish a message
 
         This method publishes a message to a specific exchange. The
@@ -2179,17 +1964,9 @@ class Channel(AbstractChannel):
 
                     The server SHOULD implement the immediate flag.
 
-            ticket: short
-
-                RULE:
-
-                    The client MUST provide a valid access ticket
-                    giving "write" access rights to the access realm
-                    for the exchange.
-
         """
         args = AMQPWriter()
-        args.write_short(self.default_ticket if ticket is None else ticket)
+        args.write_short(0)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
         args.write_bit(mandatory)
@@ -2534,7 +2311,6 @@ class Channel(AbstractChannel):
         (20, 30): _alert,
         (20, 40): _close,
         (20, 41): _close_ok,
-        (30, 11): _access_request_ok,
         (40, 11): _exchange_declare_ok,
         (40, 21): _exchange_delete_ok,
         (50, 11): _queue_declare_ok,
