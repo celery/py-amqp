@@ -748,7 +748,9 @@ class Connection(AbstractChannel):
 
         """
         if self.server_capabilities.get('consumer_cancel_notify'):
-            client_properties['consumer_cancel_notify'] = True
+            if 'capabilities' not in client_properties:
+                client_properties['capabilities'] = {}
+            client_properties['capabilities']['consumer_cancel_notify'] = True
         args = AMQPWriter()
         args.write_table(client_properties)
         args.write_shortstr(mechanism)
