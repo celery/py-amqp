@@ -4,6 +4,15 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-0.9.2:
+
+Version 0.9.2
+=============
+
+- Consumer cancel notification support was broken (Issue #1)
+
+    Fix contributed by Andrew Grangaard
+
 .. _version-0.9.1:
 
 Version 0.9.1
