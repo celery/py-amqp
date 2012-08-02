@@ -1,0 +1,5 @@
+## This file only lists authors since the fork of the original amqplib
+## library, written by Barry Pederson.
+
+Ask Solem <ask@celeryproject.org>
+Andrew Grangaard <Andrew.Grangaard@demandmedia.com>
