@@ -9,11 +9,12 @@ script, until it receives a message with 'quit' as the body.
 
 """
 from optparse import OptionParser
+from functools import partial
 
 import amqp
 
 
-def callback(msg):
+def callback(channel, msg):
     for key, val in msg.properties.items():
         print ('%s: %s' % (key, str(val)))
     for key, val in msg.delivery_info.items():
@@ -22,14 +23,14 @@ def callback(msg):
     print ('')
     print (msg.body)
     print ('-------')
-    msg.channel.basic_ack(msg.delivery_tag)
+    print msg.delivery_tag
+    channel.basic_ack(msg.delivery_tag)
 
     #
     # Cancel this callback
     #
     if msg.body == 'quit':
-        msg.channel.basic_cancel(msg.consumer_tag)
-
+        channel.basic_cancel(msg.consumer_tag)
 
 def main():
     parser = OptionParser()
@@ -55,7 +56,9 @@ def main():
     ch.exchange_declare('myfan', 'fanout')
     qname, _, _ = ch.queue_declare()
     ch.queue_bind(qname, 'myfan')
-    ch.basic_consume(qname, callback=callback)
+    ch.basic_consume(qname, callback=partial(callback, ch))
+    
+    #pyamqp://
 
     #
     # Loop as long as the channel has callbacks registered
