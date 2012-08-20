@@ -105,6 +105,7 @@ def _reindent(s, indent, reformat=True):
 
 
 def generate_docstr(element, indent='', wrap=None):
+    print 'Generate objects'
     """
     Generate a Python docstr for a given element in the AMQP
     XML spec file.  The element could be a class or method
@@ -119,8 +120,28 @@ def generate_docstr(element, indent='', wrap=None):
     if txt:
         result.append(_reindent(txt, indent))
         result.append(indent)
-
-    for d in element.findall('doc') + element.findall('rule'):
+    extra_indent = ''
+    """
+    rules = element.findall('rule')
+    if rules:
+        result.append(indent + 'RULES:')
+        for r in rules:
+            result.append(indent + 'RULE:')
+            result.append(indent)
+            extra_indent = '    '
+            rule_docs = generate_docstr(r, indent + '        ')
+            if rule_docs:
+                result.append(extra_indent)
+                result.append(rule_docs)
+            result.append(indent)
+    """
+    for d in element.findall('doc') + element.findall('rule'):        
+        if d.tag == 'rule':
+                result.append(indent + 'RULE:')
+                result.append(indent)
+                extra_indent = '    '
+                d = d.findall('doc')[0]
+                
         docval = ''.join(d.textlist()).rstrip()
         if not docval:
             continue
@@ -131,12 +152,8 @@ def generate_docstr(element, indent='', wrap=None):
             extra_indent = '    '
             if d.attrib['name'] == 'grammar':
                 reformat = False # Don't want re-indenting to mess this up
-        elif d.tag == 'rule':
-            result.append(indent + 'RULE:')
-            result.append(indent)
-            extra_indent = '    '
-        else:
-            extra_indent = ''
+        #else:
+        #    extra_indent = ''
         result.append(_reindent(docval, indent + extra_indent, reformat))
         result.append(indent)
 
@@ -158,8 +175,6 @@ def generate_docstr(element, indent='', wrap=None):
         result = [wrap] + result + [wrap]
 
     return '\n'.join(x.rstrip() for x in result) + '\n'
-
-
 
 def generate_methods(class_element, out):
     methods = class_element.findall('method')
@@ -228,7 +243,6 @@ def generate_methods(class_element, out):
                 out.write('        pass\n')
             out.write('\n\n')
 
-
 def generate_class(spec, class_element, out):
     out.write('class %s(object):\n' % class_element.attrib['name'].capitalize())
     s = generate_docstr(class_element, '    ', '    """')
@@ -252,7 +266,6 @@ def generate_class(spec, class_element, out):
             out.write('\n')
 
             generate_methods(amqp_class, out)
-
 
 def generate_module(spec, out):
     """
