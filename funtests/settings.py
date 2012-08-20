@@ -45,8 +45,11 @@ def parse_args():
     parser.add_option('--debug', dest='debug', action='store_true',
                         help='Display debugging output',
                         default=False)
+    parser.add_option('--port', dest='port', 
+                        help='port for the broker',
+                        default=5672)
 
-    parser.add_option('-v', '--verbose', dest='verbose', action='store_true',
+    parser.add_option('-v', '--verbosity', dest='verbose', action='store_true',
                         help='Run unittests with increased verbosity',
                         default=False)
 
