@@ -665,8 +665,181 @@ class Channel(AbstractChannel):
 
         """
         pass
+    
+    def exchange_bind(self, destination, source='', routing_key = '',
+                      nowait=False, arguments=None):
+        """
+        This method binds an exchange to an exchange.
 
-    #############
+        RULE:
+
+            A server MUST allow and ignore duplicate bindings - that
+            is, two or more bind methods for a specific exchanges,
+            with identical arguments - without treating these as an
+            error.
+
+        RULE:
+
+            A server MUST allow cycles of exchange bindings to be
+            created including allowing an exchange to be bound to
+            itself.
+
+        RULE:
+
+            A server MUST not deliver the same message more than once
+            to a destination exchange, even if the topology of
+            exchanges and bindings results in multiple (even infinite)
+            routes to that exchange.
+
+        PARAMETERS:
+            reserved-1: short
+
+            destination: shortstr
+
+                Specifies the name of the destination exchange to
+                bind.
+
+                RULE:
+
+                    A client MUST NOT be allowed to bind a non-
+                    existent destination exchange.
+
+                RULE:
+
+                    The server MUST accept a blank exchange name to
+                    mean the default exchange.
+
+            source: shortstr
+
+                Specifies the name of the source exchange to bind.
+
+                RULE:
+
+                    A client MUST NOT be allowed to bind a non-
+                    existent source exchange.
+
+                RULE:
+
+                    The server MUST accept a blank exchange name to
+                    mean the default exchange.
+
+            routing-key: shortstr
+
+                Specifies the routing key for the binding. The routing
+                key is used for routing messages depending on the
+                exchange configuration. Not all exchanges use a
+                routing key - refer to the specific exchange
+                documentation.
+
+            no-wait: bit
+
+            arguments: table
+
+                A set of arguments for the binding. The syntax and
+                semantics of these arguments depends on the exchange
+                class.
+
+        """
+        arguments = {} if arguments is None else arguments
+        args = AMQPWriter()
+        args.write_short(0)
+        args.write_shortstr(destination)
+        args.write_shortstr(source)
+        args.write_shortstr(routing_key)
+        args.write_bit(nowait)
+        args.write_table(arguments)
+        self._send_method((40, 30), args)
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                (40, 31),  # Channel.exchange_bind_ok
+            ])
+    
+    def exchange_unbind(self, destination, source='', routing_key = '',
+                      nowait=False, arguments=None):
+        """
+        This method unbinds an exchange from an exchange.
+
+        RULE:
+
+            If a unbind fails, the server MUST raise a connection
+            exception.
+
+        PARAMETERS:
+            reserved-1: short
+
+            destination: shortstr
+
+                Specifies the name of the destination exchange to
+                unbind.
+
+                RULE:
+
+                    The client MUST NOT attempt to unbind an exchange
+                    that does not exist from an exchange.
+
+                RULE:
+
+                    The server MUST accept a blank exchange name to
+                    mean the default exchange.
+
+            source: shortstr
+
+                Specifies the name of the source exchange to unbind.
+
+                RULE:
+
+                    The client MUST NOT attempt to unbind an exchange
+                    from an exchange that does not exist.
+
+                RULE:
+
+                    The server MUST accept a blank exchange name to
+                    mean the default exchange.
+
+            routing-key: shortstr
+
+                Specifies the routing key of the binding to unbind.
+
+            no-wait: bit
+
+            arguments: table
+
+                Specifies the arguments of the binding to unbind.
+
+        """
+        arguments = {} if arguments is None else arguments
+        args = AMQPWriter()
+        args.write_short(0)
+        args.write_shortstr(destination)
+        args.write_shortstr(source)
+        args.write_shortstr(routing_key)
+        args.write_bit(nowait)
+        args.write_table(arguments)
+        self._send_method((40, 40), args)
+
+        if not nowait:
+            return self.wait(allowed_methods=[
+                (40, 51),  # Channel.exchange_unbind_ok
+            ])
+    
+    def _exchange_bind_ok(self, args):
+        """Confirm bind successful
+
+        This method confirms that the bind was successful.
+
+        """
+        pass
+    
+    def _exchange_unbind_ok(self, args):
+        """Confirm unbind successful
+
+        This method confirms that the unbind was successful.
+
+        """
+        pass
+    
+        #############
     #
     #  Queue
     #
@@ -691,8 +864,7 @@ class Channel(AbstractChannel):
     #     classes independently. Note that all methods that fetch
     #     content off queues are specific to a given content class.
     #
-    #
-
+     
     def queue_bind(self, queue, exchange='', routing_key='',
             nowait=False, arguments=None):
         """Bind queue to an exchange
@@ -806,7 +978,7 @@ class Channel(AbstractChannel):
             return self.wait(allowed_methods=[
                 (50, 21),  # Channel.queue_bind_ok
             ])
-
+   
     def _queue_bind_ok(self, args):
         """Confirm bind successful
 
@@ -2298,6 +2470,8 @@ class Channel(AbstractChannel):
         (20, 41): _close_ok,
         (40, 11): _exchange_declare_ok,
         (40, 21): _exchange_delete_ok,
+        (40, 31): _exchange_bind_ok,
+        (40, 51): _exchange_unbind_ok,
         (50, 11): _queue_declare_ok,
         (50, 21): _queue_bind_ok,
         (50, 31): _queue_purge_ok,
