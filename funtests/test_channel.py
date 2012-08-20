@@ -22,6 +22,7 @@ Test amqp.channel module
 import sys
 import time
 import unittest
+from pipes import SOURCE
 
 try:
     bytes
@@ -257,8 +258,64 @@ class TestChannel(unittest.TestCase):
         # 3 of the 4 messages we sent should have been returned
         #
         self.assertEqual(self.ch.returned_messages.qsize(), 3)
-
-
+        
+    def test_exchange_bind(self):
+        """Test exchange binding.
+        Network configuration is as follows (-> is forwards to :
+        source_exchange -> dest_exchange -> queue
+        The test checks that once the message is publish to the
+        destination exchange(unittest.topic_dest) it is delivered to the queue.   
+        """
+        
+        test_routing_key = 'unit_test__key'
+        dest_exchange = 'unittest.topic_dest_bind'
+        source_exchange = 'unittest.topic_source_bind' 
+        
+        self.ch.exchange_declare(dest_exchange, 'topic', auto_delete=True)
+        self.ch.exchange_declare(source_exchange, 'topic', auto_delete=True)
+      
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.exchange_bind(destination = dest_exchange, 
+                              source = source_exchange, 
+                              routing_key = test_routing_key)
+        
+        self.ch.queue_bind(qname, dest_exchange, 
+                           routing_key=test_routing_key)
+        
+        msg = Message('unittest message',
+                      content_type='text/plain',
+                      application_headers={'foo': 7, 'bar': 'baz'})
+        
+        
+        self.ch.basic_publish(msg, source_exchange, 
+                              routing_key = test_routing_key)
+        
+        msg2 = self.ch.basic_get(qname, no_ack=True)
+        self.assertEqual(msg, msg2)
+        
+        self.ch.exchange_unbind(destination = dest_exchange, 
+                                source = source_exchange, 
+                                routing_key = test_routing_key)
+        
+          
+    def test_exchange_unbind(self):
+        dest_exchange = 'unittest.topic_dest_unbind'
+        source_exchange = 'unittest.topic_source_unbind'
+        test_routing_key = 'unit_test__key'
+        
+        self.ch.exchange_declare(dest_exchange, 
+                                  'topic', auto_delete=True)
+        self.ch.exchange_declare(source_exchange, 
+                                  'topic', auto_delete=True)
+        
+        self.ch.exchange_bind(destination = dest_exchange, 
+                              source = source_exchange, 
+                              routing_key = test_routing_key)
+        
+        self.ch.exchange_unbind(destination = dest_exchange, 
+                                source = source_exchange,
+                                routing_key = test_routing_key)
+        
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)
     unittest.TextTestRunner(**settings.test_args).run(suite)
