@@ -292,11 +292,6 @@ class TestChannel(unittest.TestCase):
         
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
-        
-        self.ch.exchange_unbind(destination = dest_exchange, 
-                                source = source_exchange, 
-                                routing_key = test_routing_key)
-        
           
     def test_exchange_unbind(self):
         dest_exchange = 'unittest.topic_dest_unbind'
