@@ -221,28 +221,28 @@ class AMQPWriter(object):
     def write_octet(self, n):
         """Write an integer as an unsigned 8-bit value."""
         if n < 0 or n > 255:
-            raise ValueError('Octet out of range 0..255')
+            raise ValueError('Octet %r out of range 0..255' % (n, ))
         self._flushbits()
         self.out.write(pack('B', n))
 
     def write_short(self, n):
         """Write an integer as an unsigned 16-bit value."""
         if n < 0 or n > 65535:
-            raise ValueError('Octet out of range 0..65535')
+            raise ValueError('Octet %r out of range 0..65535' % (n, ))
         self._flushbits()
         self.out.write(pack('>H', n))
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
         if n < 0 or n >= 2 ** 32:
-            raise ValueError('Octet out of range 0..2**31-1')
+            raise ValueError('Octet %r out of range 0..2**31-1' % (n, ))
         self._flushbits()
         self.out.write(pack('>I', n))
 
     def write_longlong(self, n):
         """Write an integer as an unsigned 64-bit value."""
         if n < 0 or n >= 2 ** 64:
-            raise ValueError('Octet out of range 0..2**64-1')
+            raise ValueError('Octet %r out of range 0..2**64-1' % (n, ))
         self._flushbits()
         self.out.write(pack('>Q', n))
 
@@ -256,7 +256,7 @@ class AMQPWriter(object):
         if isinstance(s, unicode):
             s = s.encode('utf-8')
         if len(s) > 255:
-            raise ValueError('String too long')
+            raise ValueError('String too long (%r)' % (len(s), ))
         self.write_octet(len(s))
         self.out.write(s)
 
@@ -308,7 +308,7 @@ class AMQPWriter(object):
                 table_data.write(byte(70))  # 'F'
                 table_data.write_table(v)
             else:
-                raise ValueError('%s not serializable in AMQP' % repr(v))
+                raise ValueError('%r not serializable in AMQP' % (v, ))
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
