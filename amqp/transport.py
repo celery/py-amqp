@@ -21,6 +21,7 @@ Read/Write AMQP frames over network transports.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import errno
 import re
 import socket
 
@@ -103,7 +104,7 @@ class _AbstractTransport(object):
         finally:
             self.sock = None
 
-    def _read(self, n):
+    def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
         raise NotImplementedError('Must be overriden in subclass')
 
@@ -132,7 +133,7 @@ class _AbstractTransport(object):
 
     def read_frame(self):
         """Read an AMQP frame."""
-        frame_type, channel, size = unpack('>BHI', self._read(7))
+        frame_type, channel, size = unpack('>BHI', self._read(7, True))
         payload = self._read(size)
         ch = ord(self._read(1))
         if ch == 206:  # '\xce'
@@ -176,15 +177,20 @@ class SSLTransport(_AbstractTransport):
             self.sock = self.sslobj.unwrap()
             self.sslobj = None
 
-    def _read(self, n):
+    def _read(self, n, initial=False):
         """It seems that SSL Objects read() method may not supply as much
         as you're asking for, at least with extremely large messages.
         somewhere > 16K - found this in the test_channel.py test_large
         unittest."""
-        result = self.sslobj.read(n)
+        result = ''
 
         while len(result) < n:
-            s = self.sslobj.read(n - len(result))
+            try:
+                s = self.sslobj.read(n - len(result))
+            except socket.error, exc:
+                if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
+                    continue
+                raise
             if not s:
                 raise IOError('Socket closed')
             result += s
@@ -209,10 +215,15 @@ class TCPTransport(_AbstractTransport):
         self._write = self.sock.sendall
         self._read_buffer = bytes()
 
-    def _read(self, n):
+    def _read(self, n, initial=False):
         """Read exactly n bytes from the socket"""
         while len(self._read_buffer) < n:
-            s = self.sock.recv(65536)
+            try:
+                s = self.sock.recv(65536)
+            except socket.error, exc:
+                if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
+                    continue
+                raise
             if not s:
                 raise IOError('Socket closed')
             self._read_buffer += s
