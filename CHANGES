@@ -4,6 +4,16 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-0.9.3:
+
+Version 0.9.3
+=============
+
+- Fixed bug that could cause the consumer to crash when reading
+  large message payloads asynchronously.
+
+- Serialization error messages now include the invalid value.
+
 .. _version-0.9.2:
 
 Version 0.9.2
