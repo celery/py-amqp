@@ -39,7 +39,8 @@ class TestChannel(unittest.TestCase):
                 #
                 # Do something with the channel
                 #
-                ch.exchange_declare('unittest.fanout', 'fanout', auto_delete=True)
+                ch.exchange_declare('unittest.fanout', 'fanout',
+                                    auto_delete=True)
 
                 msg = Message('unittest message',
                     content_type='text/plain',

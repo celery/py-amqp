@@ -32,24 +32,30 @@ def callback(channel, msg):
     if msg.body == 'quit':
         channel.basic_cancel(msg.consumer_tag)
 
+
 def main():
     parser = OptionParser()
     parser.add_option('--host', dest='host',
-                        help='AMQP server to connect to (default: %default)',
-                        default='localhost')
+        help='AMQP server to connect to (default: %default)',
+        default='localhost',
+    )
     parser.add_option('-u', '--userid', dest='userid',
-                        help='userid to authenticate as (default: %default)',
-                        default='guest')
+        help='userid to authenticate as (default: %default)',
+        default='guest',
+    )
     parser.add_option('-p', '--password', dest='password',
-                        help='password to authenticate with (default: %default)',
-                        default='guest')
+        help='password to authenticate with (default: %default)',
+        default='guest',
+    )
     parser.add_option('--ssl', dest='ssl', action='store_true',
-                        help='Enable SSL (default: not enabled)',
-                        default=False)
+        help='Enable SSL (default: not enabled)',
+        default=False,
+    )
 
     options, args = parser.parse_args()
 
-    conn = amqp.Connection(options.host, userid=options.userid, password=options.password, ssl=options.ssl)
+    conn = amqp.Connection(options.host, userid=options.userid,
+                           password=options.password, ssl=options.ssl)
 
     ch = conn.channel()
 
@@ -57,7 +63,7 @@ def main():
     qname, _, _ = ch.queue_declare()
     ch.queue_bind(qname, 'myfan')
     ch.basic_consume(qname, callback=partial(callback, ch))
-    
+
     #pyamqp://
 
     #

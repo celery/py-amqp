@@ -36,8 +36,11 @@ import settings
 
 from amqp.serialization import AMQPReader, AMQPWriter, GenericContent
 
+
 class TestSerialization(unittest.TestCase):
+
     if sys.version_info[0] >= 3:
+
         def assertEqualBinary(self, b, s):
             """
             Helper for Py3k Compatibility
@@ -46,7 +49,6 @@ class TestSerialization(unittest.TestCase):
             self.assertEqual(b, s.encode('latin_1'))
     else:
         assertEqualBinary = unittest.TestCase.assertEqual
-
 
     def test_empty_writer(self):
         w = AMQPWriter()
@@ -81,7 +83,6 @@ class TestSerialization(unittest.TestCase):
         self.assertEqual(r.read_bit(), True)
         self.assertEqual(r.read_bit(), False)
         self.assertEqual(r.read_bit(), True)
-
 
     def test_multiple_bits2(self):
         """
@@ -171,7 +172,7 @@ class TestSerialization(unittest.TestCase):
     #
     def test_long(self):
         for i in range(256):
-            val = randint(0, (2**32) - 1)
+            val = randint(0, (2 ** 32) - 1)
             w = AMQPWriter()
             w.write_long(val)
             s = w.getvalue()
@@ -185,14 +186,14 @@ class TestSerialization(unittest.TestCase):
 
     def test_long_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_long, 2**32)
+        self.assertRaises(ValueError, w.write_long, 2 ** 32)
 
     #
     # LongLongs
     #
     def test_longlong(self):
         for i in range(256):
-            val = randint(0, (2**64) - 1)
+            val = randint(0, (2 ** 64) - 1)
             w = AMQPWriter()
             w.write_longlong(val)
             s = w.getvalue()
@@ -206,7 +207,7 @@ class TestSerialization(unittest.TestCase):
 
     def test_longlong_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_longlong, 2**64)
+        self.assertRaises(ValueError, w.write_longlong, 2 ** 64)
 
     #
     # Shortstr
@@ -247,10 +248,10 @@ class TestSerialization(unittest.TestCase):
         w = AMQPWriter()
         self.assertRaises(ValueError, w.write_shortstr, u'\u0100' * 128)
 
-
     #
     # Longstr
     #
+
     def test_empty_longstr(self):
         w = AMQPWriter()
         w.write_longstr('')
@@ -308,7 +309,6 @@ class TestSerialization(unittest.TestCase):
         r = AMQPReader(s)
         self.assertEqual(r.read_table(), val)
 
-
     def test_table_invalid(self):
         """
         Check that an un-serializable table entry raises a ValueError
@@ -317,7 +317,6 @@ class TestSerialization(unittest.TestCase):
         val = {'test': None}
         w = AMQPWriter()
         self.assertRaises(ValueError, w.write_table, val)
-
 
     def test_table_multi(self):
         val = {

@@ -22,7 +22,8 @@ import amqp
 Message = amqp.Message
 
 EXCHANGE_NAME = 'clock'
-TOPIC_PATTERN = '%Y.%m.%d.%w.%H.%M' # Python datetime.strftime() pattern
+TOPIC_PATTERN = '%Y.%m.%d.%w.%H.%M'  # Python datetime.strftime() pattern
+
 
 def main():
     parser = OptionParser()
@@ -30,14 +31,17 @@ def main():
                         help='AMQP server to connect to (default: %default)',
                         default='localhost')
     parser.add_option('-u', '--userid', dest='userid',
-                        help='AMQP userid to authenticate as (default: %default)',
-                        default='guest')
+        help='AMQP userid to authenticate as (default: %default)',
+        default='guest',
+    )
     parser.add_option('-p', '--password', dest='password',
-                        help='AMQP password to authenticate with (default: %default)',
-                        default='guest')
+        help='AMQP password to authenticate with (default: %default)',
+        default='guest',
+    )
     parser.add_option('--ssl', dest='ssl', action='store_true',
-                        help='Enable SSL with AMQP server (default: not enabled)',
-                        default=False)
+        help='Enable SSL with AMQP server (default: not enabled)',
+        default=False,
+    )
 
     options, args = parser.parse_args()
 

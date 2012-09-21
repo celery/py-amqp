@@ -23,23 +23,27 @@ to be run once.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+# MA  02110-1301  USA
 
 import sys
 import textwrap
-from optparse import OptionParser
+
 from xml.etree import ElementTree
 
 
 #########
 #
-# Helper code inspired by http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498286
+# Helper code inspired by
+# http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498286
 # described in http://www.agapow.net/programming/python/the-etree-tail-quirk
 #
 def _textlist(self, _addtail=False):
-    '''Returns a list of text strings contained within an element and its sub-elements.
+    '''Returns a list of text strings contained within
+    an element and its sub-elements.
 
-    Helpful for extracting text from prose-oriented XML (such as XHTML or DocBook).
+    Helpful for extracting text from prose-oriented XML
+    (such as XHTML or DocBook).
     '''
     result = []
     if (not _addtail) and (self.text is not None):
@@ -60,6 +64,7 @@ ElementTree._Element.textlist = _textlist
 domains = {}
 method_name_map = {}
 
+
 def _fixup_method_name(class_element, method_element):
     if class_element.attrib['name'] != class_element.attrib['handler']:
         prefix = '%s_' % class_element.attrib['name']
@@ -67,11 +72,13 @@ def _fixup_method_name(class_element, method_element):
         prefix = ''
     return ('%s%s' % (prefix, method_element.attrib['name'])).replace('-', '_')
 
+
 def _fixup_field_name(field_element):
     result = field_element.attrib['name'].replace(' ', '_')
     if result == 'global':
         result = 'a_global'
     return result
+
 
 def _field_type(field_element):
     if 'type' in field_element.attrib:
@@ -135,13 +142,13 @@ def generate_docstr(element, indent='', wrap=None):
                 result.append(rule_docs)
             result.append(indent)
     """
-    for d in element.findall('doc') + element.findall('rule'):        
+    for d in element.findall('doc') + element.findall('rule'):
         if d.tag == 'rule':
                 result.append(indent + 'RULE:')
                 result.append(indent)
                 extra_indent = '    '
                 d = d.findall('doc')[0]
-                
+
         docval = ''.join(d.textlist()).rstrip()
         if not docval:
             continue
@@ -151,7 +158,7 @@ def generate_docstr(element, indent='', wrap=None):
             result.append(indent)
             extra_indent = '    '
             if d.attrib['name'] == 'grammar':
-                reformat = False # Don't want re-indenting to mess this up
+                reformat = False  # Don't want re-indenting to mess this up
         #else:
         #    extra_indent = ''
         result.append(_reindent(docval, indent + extra_indent, reformat))
@@ -161,7 +168,8 @@ def generate_docstr(element, indent='', wrap=None):
     if fields:
         result.append(indent + 'PARAMETERS:')
         for f in fields:
-            result.append(indent + '    ' + _fixup_field_name(f) + ': ' + _field_type(f))
+            result.append(indent + '    ' + _fixup_field_name(f) +
+                          ': ' + _field_type(f))
             field_docs = generate_docstr(f, indent + '        ')
             if field_docs:
                 result.append(indent)
@@ -175,6 +183,7 @@ def generate_docstr(element, indent='', wrap=None):
         result = [wrap] + result + [wrap]
 
     return '\n'.join(x.rstrip() for x in result) + '\n'
+
 
 def generate_methods(class_element, out):
     methods = class_element.findall('method')
@@ -196,7 +205,8 @@ def generate_methods(class_element, out):
                 params.append('msg')
 
             out.write('    def %s(%s):\n' %
-                (_fixup_method_name(class_element, amqp_method), ', '.join(params + fieldnames)))
+                (_fixup_method_name(class_element, amqp_method),
+                 ', '.join(params + fieldnames)))
 
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
@@ -208,33 +218,39 @@ def generate_methods(class_element, out):
             else:
                 smf_arg = ''
             for f in fields:
-                out.write('        args.write_%s(%s)\n' % (_field_type(f), _fixup_field_name(f)))
+                out.write('        args.write_%s(%s)\n' % (
+                    _field_type(f), _fixup_field_name(f)))
 
             if class_element.attrib['name'] == 'connection':
                 smf_pattern = '        self.send_method_frame(0, (%s, %s)%s)\n'
             else:
                 smf_pattern = '        self.send_method_frame((%s, %s)%s)\n'
 
-            out.write(smf_pattern % (class_element.attrib['index'], amqp_method.attrib['index'], smf_arg))
+            out.write(smf_pattern % (class_element.attrib['index'],
+                                     amqp_method.attrib['index'], smf_arg))
 
             if 'synchronous' in amqp_method.attrib:
-                responses = [x.attrib['name'] for x in amqp_method.findall('response')]
+                responses = [x.attrib['name']
+                                for x in amqp_method.findall('response')]
                 out.write('        return self.wait(allowed_methods=[\n')
                 for r in responses:
                     resp = method_name_map[(class_element.attrib['name'], r)]
-                    out.write('                          (%s, %s),    # %s\n' % resp)
+                    out.write(
+                        '                          (%s, %s),    # %s\n' % resp)
                 out.write('                        ])\n')
 
             out.write('\n\n')
 
         if 'client' in chassis:
-            out.write('    def _%s(self, args):\n' % _fixup_method_name(class_element, amqp_method))
+            out.write('    def _%s(self, args):\n' % (
+                _fixup_method_name(class_element, amqp_method), ))
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
                 out.write(s)
             need_pass = True
             for f in fields:
-                out.write('        %s = args.read_%s()\n' % (_fixup_field_name(f), _field_type(f)))
+                out.write('        %s = args.read_%s()\n' % (
+                    _fixup_field_name(f), _field_type(f)))
                 need_pass = False
             if 'content' in amqp_method.attrib:
                 out.write('        msg = self.wait()\n')
@@ -243,8 +259,10 @@ def generate_methods(class_element, out):
                 out.write('        pass\n')
             out.write('\n\n')
 
+
 def generate_class(spec, class_element, out):
-    out.write('class %s(object):\n' % class_element.attrib['name'].capitalize())
+    out.write('class %s(object):\n' % (
+        class_element.attrib['name'].capitalize(), ))
     s = generate_docstr(class_element, '    ', '    """')
     if s:
         out.write(s)
@@ -255,7 +273,8 @@ def generate_class(spec, class_element, out):
     # Generate methods for handled classes
     #
     for amqp_class in spec.findall('class'):
-        if (amqp_class.attrib['handler'] == class_element.attrib['name']) and (amqp_class.attrib['name'] != class_element.attrib['name']):
+        if (amqp_class.attrib['handler'] == class_element.attrib['name']) and \
+            (amqp_class.attrib['name'] != class_element.attrib['name']):
             out.write('    #############\n')
             out.write('    #\n')
             out.write('    #  %s\n' % amqp_class.attrib['name'].capitalize())
@@ -267,6 +286,7 @@ def generate_class(spec, class_element, out):
 
             generate_methods(amqp_class, out)
 
+
 def generate_module(spec, out):
     """
     Given an AMQP spec parsed into an xml.etree.ElemenTree,
@@ -275,7 +295,8 @@ def generate_module(spec, out):
 
     """
     #
-    # HACK THE SPEC so that 'access' is handled by 'channel' instead of 'connection'
+    # HACK THE SPEC so that 'access' is handled by
+    # 'channel' instead of 'connection'
     #
     for amqp_class in spec.findall('class'):
         if amqp_class.attrib['name'] == 'access':
@@ -289,7 +310,8 @@ def generate_module(spec, out):
 
     for amqp_class in spec.findall('class'):
         for amqp_method in amqp_class.findall('method'):
-            method_name_map[(amqp_class.attrib['name'], amqp_method.attrib['name'])] = \
+            method_name_map[(amqp_class.attrib['name'],
+                             amqp_method.attrib['name'])] = \
                 (
                     amqp_class.attrib['index'],
                     amqp_method.attrib['index'],
@@ -312,7 +334,8 @@ def generate_module(spec, out):
 #            print '  ', amqp_method.attrib
 #            for chassis in amqp_method.findall('chassis'):
 #                print '      ', chassis.attrib
-            chassis = [x.attrib['name'] for x in amqp_method.findall('chassis')]
+            chassis = [x.attrib['name']
+                        for x in amqp_method.findall('chassis')]
             if 'client' in chassis:
                 out.write("    (%s, %s): (%s, %s._%s),\n" % (
                     amqp_class.attrib['index'],
@@ -338,7 +361,7 @@ def main(argv=None):
         argv = sys.argv
 
     if len(argv) < 2:
-        print 'Usage: %s <amqp-spec> [<output-file>]' % argv[0]
+        print('Usage: %s <amqp-spec> [<output-file>]' % argv[0])
         return 1
 
     spec = ElementTree.parse(argv[1])
