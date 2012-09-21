@@ -665,11 +665,10 @@ class Channel(AbstractChannel):
 
         """
         pass
-    
-    def exchange_bind(self, destination, source='', routing_key = '',
-                      nowait=False, arguments=None):
-        """
-        This method binds an exchange to an exchange.
+
+    def exchange_bind(self, destination, source='', routing_key='',
+            nowait=False, arguments=None):
+        """This method binds an exchange to an exchange.
 
         RULE:
 
@@ -754,11 +753,10 @@ class Channel(AbstractChannel):
             return self.wait(allowed_methods=[
                 (40, 31),  # Channel.exchange_bind_ok
             ])
-    
-    def exchange_unbind(self, destination, source='', routing_key = '',
-                      nowait=False, arguments=None):
-        """
-        This method unbinds an exchange from an exchange.
+
+    def exchange_unbind(self, destination, source='', routing_key='',
+            nowait=False, arguments=None):
+        """This method unbinds an exchange from an exchange.
 
         RULE:
 
@@ -822,7 +820,7 @@ class Channel(AbstractChannel):
             return self.wait(allowed_methods=[
                 (40, 51),  # Channel.exchange_unbind_ok
             ])
-    
+
     def _exchange_bind_ok(self, args):
         """Confirm bind successful
 
@@ -830,7 +828,7 @@ class Channel(AbstractChannel):
 
         """
         pass
-    
+
     def _exchange_unbind_ok(self, args):
         """Confirm unbind successful
 
@@ -838,8 +836,8 @@ class Channel(AbstractChannel):
 
         """
         pass
-    
-        #############
+
+    #############
     #
     #  Queue
     #
@@ -864,7 +862,7 @@ class Channel(AbstractChannel):
     #     classes independently. Note that all methods that fetch
     #     content off queues are specific to a given content class.
     #
-     
+
     def queue_bind(self, queue, exchange='', routing_key='',
             nowait=False, arguments=None):
         """Bind queue to an exchange
@@ -978,7 +976,7 @@ class Channel(AbstractChannel):
             return self.wait(allowed_methods=[
                 (50, 21),  # Channel.queue_bind_ok
             ])
-   
+
     def _queue_bind_ok(self, args):
         """Confirm bind successful
 
