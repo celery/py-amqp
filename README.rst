@@ -37,6 +37,7 @@ Differences from `amqplib`_
         - by default a cancel results in ``ChannelError`` being raised
         - but not if a ``on_cancel`` callback is passed to ``basic_consume``.
     - Publisher confirms
+    - Exchange-to-exchange bindings: ``exchange_bind`` / ``exchange_unbind``.
 - Support for ``basic_return``
 - Uses AMQP 0-9-1 instead of 0-8.
     - ``Channel.access_request`` and ``ticket`` arguments to methods
