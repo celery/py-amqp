@@ -184,6 +184,8 @@ class MethodReader(object):
         m = self.queue.get()
         if isinstance(m, Exception):
             raise m
+        if isinstance(m, tuple) and isinstance(m[1], AMQPError):
+            raise m[1]
         return m
 
 

@@ -13,6 +13,10 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Connection errors does no longer include :exc:`AttributeError`.
 
+- Fixed problem with using the SSL transport in a non-blocking context.
+
+    Fix contributed by Mher Movsisyan.
+
 
 .. _version-1.0.0:
 
