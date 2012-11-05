@@ -1,8 +1,18 @@
-CHANGES
+Changes
 =======
+
 py-amqp is fork of amqplib used by Kombu containing additional features and improvements.
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
+
+.. _version-1.0.1:
+
+1.0.1
+=====
+:release-date: 2012-11-05 01:00 P.M UTC
+
+- Connection errors does no longer include :exc:`AttributeError`.
+
 
 .. _version-1.0.0:
 
