@@ -2,7 +2,7 @@
  Python AMQP 0.9.1 client library
 =====================================================================
 
-:Version: 0.9.4
+:Version: 1.0.0
 :Web: http://amqp.readthedocs.org/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
@@ -26,6 +26,8 @@ Differences from `amqplib`_
 ===========================
 
 - Supports draining events from multiple channels (``Connection.drain_events``)
+- Channels revive after channel error, instead of having to close the
+  connection.
 - Support for timeouts
 - Support for heartbeats
 

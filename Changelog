@@ -4,6 +4,15 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.0.0:
+
+1.0.0
+=====
+:release-date: 2012-11-05 01:00 P.M UTC
+
+- Channels are now restored on channel error, so that the connection does not
+  have to closed.
+
 .. _version-0.9.4:
 
 Version 0.9.4
