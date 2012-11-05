@@ -912,6 +912,5 @@ class Connection(AbstractChannel):
     connection_errors = (ConnectionError,
                          socket.error,
                          IOError,
-                         OSError,
-                         AttributeError)
+                         OSError)
     channel_errors = (ChannelError, )
