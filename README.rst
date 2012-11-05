@@ -26,9 +26,9 @@ Differences from `amqplib`_
 ===========================
 
 - Supports draining events from multiple channels (``Connection.drain_events``)
-- Channels revive after channel error, instead of having to close the
-  connection.
 - Support for timeouts
+- Channels are restored after channel error, instead of having to close the
+  connection.
 - Support for heartbeats
 
     - ``Connection.heartbeat_tick(rate=2)`` must called at regular intervals
@@ -39,7 +39,15 @@ Differences from `amqplib`_
         - by default a cancel results in ``ChannelError`` being raised
         - but not if a ``on_cancel`` callback is passed to ``basic_consume``.
     - Publisher confirms
+        - ``Channel.confirm_select()`` enables publisher confirms.
+        - ``Channel.events['basic_ack'].append(my_callback)`` adds a callback
+          to be called when a message is confirmed. This callback is then
+          called with the signature ``(delivery_tag, multiple)``.
     - Exchange-to-exchange bindings: ``exchange_bind`` / ``exchange_unbind``.
+        - ``Channel.confirm_select()`` enables publisher confirms.
+        - ``Channel.events['basic_ack'].append(my_callback)`` adds a callback
+          to be called when a message is confirmed. This callback is then
+          called with the signature ``(delivery_tag, multiple)``.
 - Support for ``basic_return``
 - Uses AMQP 0-9-1 instead of 0-8.
     - ``Channel.access_request`` and ``ticket`` arguments to methods
