@@ -92,6 +92,10 @@ class Channel(AbstractChannel):
         self.events.clear()
         self.no_ack_consumers.clear()
 
+    def _do_revive(self):
+        self.is_open = False
+        self._x_open()
+
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
         """Request a channel close
 
@@ -203,13 +207,14 @@ class Channel(AbstractChannel):
                 is the ID of the method.
 
         """
+
         reply_code = args.read_short()
         reply_text = args.read_shortstr()
         class_id = args.read_short()
         method_id = args.read_short()
 
         self._send_method((20, 41))
-        self._do_close()
+        self._do_revive()
 
         raise ChannelError(reply_code, reply_text, (class_id, method_id))
 
