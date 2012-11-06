@@ -287,9 +287,10 @@ class AMQPWriter(object):
                 table_data.write_longstr(v)
             elif isinstance(v, bool):
                 table_data.write(pack('>cB', 't', int(v)))
+            elif isinstance(v, float):
+                table_data.write(pack('>cd', 'd', v))
             elif isinstance(v, (int, long)):
-                table_data.write(byte(73))  # 'I'
-                table_data.write(pack('>i', v))
+                table_data.write(pack('>ci', 'I', v))
             elif isinstance(v, Decimal):
                 table_data.write(byte(68))  # 'D'
                 sign, digits, exponent = v.as_tuple()
