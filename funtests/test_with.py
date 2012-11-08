@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test support for 'with' statements in Python >= 2.5
+Test support for 'with' statements
 
 """
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
@@ -19,7 +19,6 @@ Test support for 'with' statements in Python >= 2.5
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-from __future__ import with_statement
 import unittest
 
 import settings

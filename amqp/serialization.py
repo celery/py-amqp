@@ -28,6 +28,8 @@ from decimal import Decimal
 from struct import pack, unpack
 from time import mktime
 
+from .five import int_types, long_t, string, string_t, items
+
 IS_PY3K = sys.version_info[0] >= 3
 
 if IS_PY3K:
@@ -260,7 +262,7 @@ class AMQPWriter(object):
 
         """
         self._flushbits()
-        if isinstance(s, unicode):
+        if isinstance(s, string):
             s = s.encode('utf-8')
         if len(s) > 255:
             raise ValueError('String too long (%r)' % (len(s), ))
@@ -274,7 +276,7 @@ class AMQPWriter(object):
 
         """
         self._flushbits()
-        if isinstance(s, unicode):
+        if isinstance(s, string):
             s = s.encode('utf-8')
         self.write_long(len(s))
         self.out.write(s)
@@ -285,10 +287,10 @@ class AMQPWriter(object):
         sub-dictionaries following the same constraints."""
         self._flushbits()
         table_data = AMQPWriter()
-        for k, v in d.iteritems():
+        for k, v in items(d):
             table_data.write_shortstr(k)
-            if isinstance(v, basestring):
-                if isinstance(v, unicode):
+            if isinstance(v, (string_t, bytes)):
+                if isinstance(v, string):
                     v = v.encode('utf-8')
                 table_data.write(byte(83))  # 'S'
                 table_data.write_longstr(v)
@@ -296,7 +298,7 @@ class AMQPWriter(object):
                 table_data.write(pack('>cB', b't', int(v)))
             elif isinstance(v, float):
                 table_data.write(pack('>cd', b'd', v))
-            elif isinstance(v, (int, long)):
+            elif isinstance(v, int_types):
                 table_data.write(pack('>ci', b'I', v))
             elif isinstance(v, Decimal):
                 table_data.write(byte(68))  # 'D'
@@ -324,7 +326,7 @@ class AMQPWriter(object):
     def write_timestamp(self, v):
         """Write out a Python datetime.datetime object as a 64-bit integer
         representing seconds since the Unix epoch."""
-        self.out.write(pack('>q', long(mktime(v.timetuple()))))
+        self.out.write(pack('>q', long_t(mktime(v.timetuple()))))
 
 
 class GenericContent(object):

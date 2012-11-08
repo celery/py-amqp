@@ -18,7 +18,6 @@ from __future__ import absolute_import
 
 from collections import defaultdict
 from struct import pack, unpack
-from Queue import Queue
 
 try:
     bytes
@@ -28,6 +27,7 @@ except NameError:
 
 from .basic_message import Message
 from .exceptions import AMQPError
+from .five import Queue, range, string
 from .serialization import AMQPReader
 
 __all__ = ['MethodReader']
@@ -103,11 +103,11 @@ class MethodReader(object):
         while empty():
             try:
                 frame_type, channel, payload = read_frame()
-            except Exception, e:
+            except Exception as exc:
                 #
                 # Connection was closed?  Framing Error?
                 #
-                self.queue.put(e)
+                self.queue.put(exc)
                 break
 
             self.bytes_recv += 1
@@ -207,7 +207,7 @@ class MethodWriter(object):
             # problem with the content properties, before sending the
             # first frame
             body = content.body
-            if isinstance(body, unicode):
+            if isinstance(body, string):
                 coding = content.properties.get('content_encoding', None)
                 if coding is None:
                     coding = content.properties['content_encoding'] = 'UTF-8'
@@ -223,6 +223,6 @@ class MethodWriter(object):
             write_frame(2, channel, payload)
 
             chunk_size = self.frame_max - 8
-            for i in xrange(0, len(body), chunk_size):
+            for i in range(0, len(body), chunk_size):
                 write_frame(3, channel, body[i:i + chunk_size])
         self.bytes_sent += 1

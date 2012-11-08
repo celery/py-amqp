@@ -19,11 +19,11 @@ from __future__ import absolute_import
 import logging
 
 from collections import defaultdict
-from Queue import Queue
 from warnings import warn
 
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancel
+from .five import Queue
 from .serialization import AMQPWriter
 
 __all__ = ['Channel']

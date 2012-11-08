@@ -78,7 +78,7 @@ class _AbstractTransport(object):
                 self.sock = socket.socket(af, socktype, proto)
                 self.sock.settimeout(connect_timeout)
                 self.sock.connect(sa)
-            except socket.error, msg:
+            except socket.error as msg:
                 self.sock.close()
                 self.sock = None
                 continue
@@ -86,7 +86,7 @@ class _AbstractTransport(object):
 
         if not self.sock:
             # Didn't connect, return the most recent error message
-            raise socket.error, msg
+            raise socket.error(msg)
 
         self.sock.settimeout(None)
         self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
@@ -187,7 +187,7 @@ class SSLTransport(_AbstractTransport):
         while len(result) < n:
             try:
                 s = self.sslobj.read(n - len(result))
-            except socket.error, exc:
+            except socket.error as exc:
                 if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
                     continue
                 raise
@@ -220,7 +220,7 @@ class TCPTransport(_AbstractTransport):
         while len(self._read_buffer) < n:
             try:
                 s = self.sock.recv(65536)
-            except socket.error, exc:
+            except socket.error as exc:
                 if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
                     continue
                 raise

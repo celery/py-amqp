@@ -43,11 +43,6 @@ classes = """
 """
 classifiers = [s.strip() for s in classes.split('\n') if s]
 
-# -*- Python 3 -*-
-is_py3k = sys.version_info[0] == 3
-if is_py3k:
-    extra.update(use_2to3=True)
-
 # -*- Distribution Meta -*-
 
 import re

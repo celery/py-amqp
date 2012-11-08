@@ -28,6 +28,7 @@ from . import __version__
 from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import AMQPError, ChannelError, ConnectionError
+from .five import items, range, values
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
@@ -163,7 +164,7 @@ class Connection(AbstractChannel):
         try:
             self.transport.close()
 
-            temp_list = [x for x in self.channels.values() if x is not self]
+            temp_list = [x for x in values(self.channels) if x is not self]
             for ch in temp_list:
                 ch._do_close()
         except socket.error:
@@ -172,7 +173,7 @@ class Connection(AbstractChannel):
             self.transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
-        for i in xrange(1, self.channel_max + 1):
+        for i in range(1, self.channel_max + 1):
             if i not in self.channels:
                 return i
         raise AMQPError(
@@ -294,7 +295,7 @@ class Connection(AbstractChannel):
         try:
             try:
                 return self.method_reader.read_method()
-            except SSLError, exc:
+            except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
                     raise socket.timeout()
@@ -307,7 +308,7 @@ class Connection(AbstractChannel):
                 sock.settimeout(prev)
 
     def _wait_multiple(self, channels, allowed_methods, timeout=None):
-        for channel_id, channel in channels.iteritems():
+        for channel_id, channel in items(channels):
             method_queue = channel.method_queue
             for queued_method in method_queue:
                 method_sig = queued_method[0]
