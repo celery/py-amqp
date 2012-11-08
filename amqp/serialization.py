@@ -230,7 +230,7 @@ class AMQPWriter(object):
         if n < 0 or n > 65535:
             raise ValueError('Octet %r out of range 0..65535' % (n, ))
         self._flushbits()
-        self.out.write(pack('>H', n))
+        self.out.write(pack('>H', int(n)))
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
@@ -286,11 +286,11 @@ class AMQPWriter(object):
                 table_data.write(byte(83))  # 'S'
                 table_data.write_longstr(v)
             elif isinstance(v, bool):
-                table_data.write(pack('>cB', 't', int(v)))
+                table_data.write(pack('>cB', b't', int(v)))
             elif isinstance(v, float):
-                table_data.write(pack('>cd', 'd', v))
+                table_data.write(pack('>cd', b'd', v))
             elif isinstance(v, (int, long)):
-                table_data.write(pack('>ci', 'I', v))
+                table_data.write(pack('>ci', b'I', v))
             elif isinstance(v, Decimal):
                 table_data.write(byte(68))  # 'D'
                 sign, digits, exponent = v.as_tuple()
