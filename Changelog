@@ -5,6 +5,20 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.1.0:
+
+1.1.0
+=====
+:release-date: 2012-11-08 10:36 P.M UTC
+
+- No longer supports Pyhton 2.5
+
+- Fixed receiving of float table values.
+
+- Now Supports Python 3 and Python 2.6+ in the same source code.
+
+- Python 3 related fixes.
+
 .. _version-1.0.2:
 
 1.0.2
