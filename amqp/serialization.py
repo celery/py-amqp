@@ -104,6 +104,11 @@ class AMQPReader(object):
         self.bitcount = self.bits = 0
         return unpack('>Q', self.input.read(8))[0]
 
+    def read_float(self):
+        """Read float value."""
+        self.bitcount = self.bits = 0
+        return unpack('>d', self.input.read(8))[0]
+
     def read_shortstr(self):
         """Read a short string that's stored in up to 255 bytes.
 
@@ -149,6 +154,8 @@ class AMQPReader(object):
                 val = table_data.read_table()  # recurse
             elif ftype == 116:
                 val = table_data.read_bit()
+            elif ftype == 100:
+                val = table_data.read_float()
             else:
                 raise ValueError('Unknown table item type: %s' % repr(ftype))
             result[name] = val
