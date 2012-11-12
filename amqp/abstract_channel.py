@@ -1,5 +1,5 @@
 """Code common to Connection and Channel objects."""
-# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
+# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>)
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-from .exceptions import AMQPError
+from .exceptions import AMQPNotImplementedError
 from .serialization import AMQPWriter
 
 try:
@@ -81,7 +81,8 @@ class AbstractChannel(object):
         try:
             amqp_method = self._METHOD_MAP[method_sig]
         except KeyError:
-            raise AMQPError('Unknown AMQP method %r' % method_sig)
+            raise AMQPNotImplementedError(
+                'Unknown AMQP method %r' % method_sig, method_sig)
 
         if content is None:
             return amqp_method(self, args)

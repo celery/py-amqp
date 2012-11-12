@@ -29,7 +29,10 @@ except ImportError:
 from . import __version__
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import AMQPError, ChannelError, ConnectionError
+from .exceptions import (
+    AMQPNotImplementedError, ChannelError, ResourceError,
+    ConnectionForced, ConnectionError, error_for_code,
+)
 from .five import items, range, values
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
@@ -282,7 +285,8 @@ class Connection(AbstractChannel):
                         channel._METHOD_MAP.get(method_sig, None)
 
         if amqp_method is None:
-            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+            raise AMQPNotImplementedError(
+                'Unknown AMQP method %r' % method_sig, method_sig)
 
         if content is None:
             return amqp_method(channel, args)
@@ -353,7 +357,7 @@ class Connection(AbstractChannel):
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
 
-        exc = ChannelError('basic.return', reply_code, reply_text, (50, 60))
+        exc = error_for_code(reply_code, reply_text, (50, 60), ChannelError)
         handlers = channel.events.get('basic_return')
         if not handlers:
             raise exc
@@ -490,7 +494,8 @@ class Connection(AbstractChannel):
 
         self._x_close_ok()
 
-        raise ConnectionError(reply_code, reply_text, (class_id, method_id))
+        raise error_for_code(reply_code, reply_text,
+                             (class_id, method_id), ConnectionError)
 
     def _x_close_ok(self):
         """Confirm a connection close
@@ -841,7 +846,7 @@ class Connection(AbstractChannel):
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         if self.missed_heartbeats >= rate:
-            raise ConnectionError('Too many heartbeats missed')
+            raise ConnectionForced('Too many heartbeats missed')
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):
         """Negotiate connection tuning parameters

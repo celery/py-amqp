@@ -22,7 +22,7 @@ from collections import defaultdict
 from warnings import warn
 
 from .abstract_channel import AbstractChannel
-from .exceptions import ChannelError, ConsumerCancel
+from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
 from .serialization import AMQPWriter
 
@@ -218,7 +218,8 @@ class Channel(AbstractChannel):
         self._send_method((20, 41))
         self._do_revive()
 
-        raise ChannelError(reply_code, reply_text, (class_id, method_id))
+        raise error_for_code(reply_code, reply_text,
+                (class_id, method_id), ChannelError)
 
     def _close_ok(self, args):
         """Confirm a channel close
@@ -1622,7 +1623,7 @@ class Channel(AbstractChannel):
         if callback:
             callback(consumer_tag)
         else:
-            raise ConsumerCancel('tag %r' % (consumer_tag, ))
+            raise ConsumerCancelled(consumer_tag, (60, 30))
 
     def _basic_cancel_ok(self, args):
         """Confirm a cancelled consumer

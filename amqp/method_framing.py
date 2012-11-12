@@ -26,7 +26,7 @@ except NameError:
     bytes = str
 
 from .basic_message import Message
-from .exceptions import AMQPError
+from .exceptions import AMQPError, UnexpectedFrame
 from .five import Queue, range, string
 from .serialization import AMQPReader
 
@@ -115,7 +115,7 @@ class MethodReader(object):
             if frame_type not in (self.expected_types[channel], 8):
                 self.queue.put((
                     channel,
-                    AMQPError(
+                    UnexpectedFrame(505,
                         'Received frame type %s while expecting type: %s' % (
                             frame_type, self.expected_types[channel]))
                     ))

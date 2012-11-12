@@ -5,6 +5,41 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.2.0:
+
+1.2.0
+=====
+:release-date: 2012-11-12 04:00 P.M UTC
+
+- New exception hierarchy:
+
+    - :class:`~amqp.AMQPError`
+        - :class:`~amqp.ConnectionError`
+            - :class:`~amqp.RecoverableConnectionError`
+                - :class:`~amqp.ConsumerCancelled`
+                - :class:`~amqp.ConnectionForced`
+                - :class:`~amqp.ResourceError`
+            - :class:`~IrrecoverableConnectionError`
+                - :class:`~amqp.ChannelNotOpen`
+                - :class:`~amqp.FrameError`
+                - :class:`~amqp.FrameSyntaxError`
+                - :class:`~amqp.InvalidCommand`
+                - :class:`~amqp.InvalidPath`
+                - :class:`~amqp.NotAllowed`
+                - :class:`~amqp.UnexpectedFrame`
+                - :class:`~amqp.AMQPNotImplementedError`
+                - :class:`~amqp.InternalError`
+        - :class:`~amqp.ChannelError`
+            - :class:`~RecoverableChannelError`
+                - :class:`~amqp.ContentTooLarge`
+                - :class:`~amqp.NoConsumers`
+                - :class:`~amqp.ResourceLocked`
+            - :class:`~IrrecoverableChannelError`
+                - :class:`~amqp.AccessRefused`
+                - :class:`~amqp.NotFound`
+                - :class:`~amqp.PreconditionFailed`
+
+
 .. _version-1.1.0:
 
 1.1.0

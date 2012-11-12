@@ -42,7 +42,7 @@ except:
 
 from struct import pack, unpack
 
-from .exceptions import AMQPError
+from .exceptions import UnexpectedFrame
 
 AMQP_PORT = 5672
 
@@ -139,7 +139,7 @@ class _AbstractTransport(object):
         if ch == 206:  # '\xce'
             return frame_type, channel, payload
         else:
-            raise AMQPError(
+            raise UnexpectedFrame(
                 'Framing Error, received 0x%02x while expecting 0xce' % ch)
 
     def write_frame(self, frame_type, channel, payload):
