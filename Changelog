@@ -5,6 +5,21 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.0.3:
+
+1.0.3
+=====
+:release-date: 2012-11-12 04:00 P.M UTC
+
+- Now can also handle float in headers/tables when receiving messages.
+
+- Now uses :class:`array.array` to keep track of unused channel ids.
+
+- The :data:`~amqp.exceptions.METHOD_NAME_MAP` has been updated for
+  amqp/0.9.1 and Rabbit extensions.
+
+- Removed a bunch of accidentally included images.
+
 .. _version-1.0.2:
 
 1.0.2
