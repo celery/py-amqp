@@ -18,6 +18,8 @@ from __future__ import absolute_import
 
 import logging
 import socket
+
+from array import array
 try:
     from ssl import SSLError
 except ImportError:
@@ -130,6 +132,8 @@ class Connection(AbstractChannel):
         self.frame_max = frame_max
         self.heartbeat = heartbeat
 
+        self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
+
         # Properties set in the Start method
         self.version_major = 0
         self.version_minor = 0
@@ -173,12 +177,12 @@ class Connection(AbstractChannel):
             self.transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
-        for i in range(1, self.channel_max + 1):
-            if i not in self.channels:
-                return i
-        raise AMQPError(
-            'No free channel ids, current=%d, channel_max=%d' % (
-                len(self.channels), self.channel_max))
+        try:
+            return self._avail_channel_ids.pop()
+        except IndexError:
+            raise ResourceError(
+                'No free channel ids, current=%d, channel_max=%d' % (
+                    len(self.channels), self.channel_max), (20, 10))
 
     def _wait_method(self, channel_id, allowed_methods):
         """Wait for a method from the server destined for
