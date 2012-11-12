@@ -84,9 +84,11 @@ class Channel(AbstractChannel):
         with the server."""
         AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
         self.is_open = False
-        if self.connection:
-            self.connection.channels.pop(self.channel_id, None)
-        self.channel_id = self.connection = None
+        channel_id, self.channel_id = self.channel_id, None
+        connection, self.connection = self.connection, None
+        if connection:
+            connection.channels.pop(channel_id, None)
+            connection._avail_channel_ids.append(channel_id)
         self.callbacks.clear()
         self.cancel_callbacks.clear()
         self.events.clear()
