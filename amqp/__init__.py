@@ -29,10 +29,10 @@ __docformat__ = 'restructuredtext'
 #
 # Pull in the public items from the various sub-modules
 #
-from .basic_message import Message
-from .channel import Channel
-from .connection import Connection
-from .exceptions import (
+from .basic_message import Message      # noqa
+from .channel import Channel            # noqa
+from .connection import Connection      # noqa
+from .exceptions import (               # noqa
     AMQPError,
     ConnectionError,
     RecoverableConnectionError,
