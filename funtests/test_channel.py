@@ -72,7 +72,6 @@ class TestChannel(unittest.TestCase):
         n = self.ch.queue_delete()
         self.assertEqual(n, 0)
 
-
     def test_encoding(self):
         my_routing_key = 'unittest.test_queue'
 
@@ -123,7 +122,9 @@ class TestChannel(unittest.TestCase):
         #
         # Plain string (bytes in Python 3.x) with bogus encoding
         #
-        test_bytes = u'hello w\xd6rld'.encode('latin_1')  # don't really care about latin_1, just want bytes
+
+        # don't really care about latin_1, just want bytes
+        test_bytes = u'hello w\xd6rld'.encode('latin_1')
         msg = Message(test_bytes, content_encoding='I made this up')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
@@ -258,63 +259,63 @@ class TestChannel(unittest.TestCase):
         # 3 of the 4 messages we sent should have been returned
         #
         self.assertEqual(self.ch.returned_messages.qsize(), 3)
-        
+
     def test_exchange_bind(self):
         """Test exchange binding.
         Network configuration is as follows (-> is forwards to :
         source_exchange -> dest_exchange -> queue
         The test checks that once the message is publish to the
-        destination exchange(unittest.topic_dest) it is delivered to the queue.   
+        destination exchange(unittest.topic_dest) it is delivered to the queue.
         """
-        
+
         test_routing_key = 'unit_test__key'
         dest_exchange = 'unittest.topic_dest_bind'
-        source_exchange = 'unittest.topic_source_bind' 
-        
+        source_exchange = 'unittest.topic_source_bind'
+
         self.ch.exchange_declare(dest_exchange, 'topic', auto_delete=True)
         self.ch.exchange_declare(source_exchange, 'topic', auto_delete=True)
-      
+
         qname, _, _ = self.ch.queue_declare()
-        self.ch.exchange_bind(destination = dest_exchange, 
-                              source = source_exchange, 
+        self.ch.exchange_bind(destination = dest_exchange,
+                              source = source_exchange,
                               routing_key = test_routing_key)
-        
-        self.ch.queue_bind(qname, dest_exchange, 
+
+        self.ch.queue_bind(qname, dest_exchange,
                            routing_key=test_routing_key)
-        
+
         msg = Message('unittest message',
                       content_type='text/plain',
                       application_headers={'foo': 7, 'bar': 'baz'})
-        
-        
-        self.ch.basic_publish(msg, source_exchange, 
+
+
+        self.ch.basic_publish(msg, source_exchange,
                               routing_key = test_routing_key)
-        
+
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
-          
+
     def test_exchange_unbind(self):
         dest_exchange = 'unittest.topic_dest_unbind'
         source_exchange = 'unittest.topic_source_unbind'
         test_routing_key = 'unit_test__key'
-        
-        self.ch.exchange_declare(dest_exchange, 
+
+        self.ch.exchange_declare(dest_exchange,
                                   'topic', auto_delete=True)
-        self.ch.exchange_declare(source_exchange, 
+        self.ch.exchange_declare(source_exchange,
                                   'topic', auto_delete=True)
-        
-        self.ch.exchange_bind(destination = dest_exchange, 
-                              source = source_exchange, 
+
+        self.ch.exchange_bind(destination = dest_exchange,
+                              source = source_exchange,
                               routing_key = test_routing_key)
-        
-        self.ch.exchange_unbind(destination = dest_exchange, 
+
+        self.ch.exchange_unbind(destination = dest_exchange,
                                 source = source_exchange,
                                 routing_key = test_routing_key)
-        
+
+
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)
     unittest.TextTestRunner(**settings.test_args).run(suite)
-
 
 if __name__ == '__main__':
     main()

@@ -57,7 +57,7 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
 
     def __init__(self, host, connect_timeout):
-        msg = 'socket.getaddrinfo() for %s returned an empty list' % host
+        msg = None
         port = AMQP_PORT
 
         m = IPV6_LITERAL.match(host)
@@ -78,7 +78,8 @@ class _AbstractTransport(object):
                 self.sock = socket.socket(af, socktype, proto)
                 self.sock.settimeout(connect_timeout)
                 self.sock.connect(sa)
-            except socket.error as msg:
+            except socket.error as exc:
+                msg = exc
                 self.sock.close()
                 self.sock = None
                 continue
@@ -86,6 +87,7 @@ class _AbstractTransport(object):
 
         if not self.sock:
             # Didn't connect, return the most recent error message
+            msg = msg or 'getaddrinfo() for {0} is empty list'.format(host)
             raise socket.error(msg)
 
         self.sock.settimeout(None)
@@ -140,7 +142,7 @@ class _AbstractTransport(object):
             return frame_type, channel, payload
         else:
             raise UnexpectedFrame(
-                'Framing Error, received 0x%02x while expecting 0xce' % ch)
+                'Received 0x{0:02x} while expecting 0xce'.format(ch))
 
     def write_frame(self, frame_type, channel, payload):
         """Write out an AMQP frame."""

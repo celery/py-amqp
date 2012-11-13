@@ -185,7 +185,7 @@ class Connection(AbstractChannel):
             return self._avail_channel_ids.pop()
         except IndexError:
             raise ResourceError(
-                'No free channel ids, current=%d, channel_max=%d' % (
+                'No free channel ids, current={0}, channel_max={1}'.format(
                     len(self.channels), self.channel_max), (20, 10))
 
     def _wait_method(self, channel_id, allowed_methods):
@@ -287,7 +287,7 @@ class Connection(AbstractChannel):
 
         if amqp_method is None:
             raise AMQPNotImplementedError(
-                'Unknown AMQP method %r' % method_sig, method_sig)
+                'Unknown AMQP method {0!r}'.format((method_sig, method_sig))
 
         if content is None:
             return amqp_method(channel, args)

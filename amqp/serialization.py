@@ -160,7 +160,9 @@ class AMQPReader(object):
             elif ftype == 100:
                 val = table_data.read_float()
             else:
-                raise FrameSyntaxError('Unknown table item type: %r' % ftype)
+                raise FrameSyntaxError(
+                    'Unknown value in table: {0!r} ({1!r})'.format(
+                        ftype, type(ftype)))
             result[name] = val
         return result
 
@@ -231,28 +233,32 @@ class AMQPWriter(object):
     def write_octet(self, n):
         """Write an integer as an unsigned 8-bit value."""
         if n < 0 or n > 255:
-            raise FrameSyntaxError('Octet %r out of range 0..255' % (n, ))
+            raise FrameSyntaxError(
+                'Octet {0!r} out of range 0..255'.format(n))
         self._flushbits()
         self.out.write(pack('B', n))
 
     def write_short(self, n):
         """Write an integer as an unsigned 16-bit value."""
         if n < 0 or n > 65535:
-            raise FrameSyntaxError('Octet %r out of range 0..65535' % (n, ))
+            raise FrameSyntaxError(
+                'Octet {0!r} out of range 0..65535'.format(n))
         self._flushbits()
         self.out.write(pack('>H', int(n)))
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
         if n < 0 or n >= 2 ** 32:
-            raise FrameSyntaxError('Octet %r out of range 0..2**31-1' % (n, ))
+            raise FrameSyntaxError(
+                'Octet {0!r} out of range 0..2**31-1'.format(n))
         self._flushbits()
         self.out.write(pack('>I', n))
 
     def write_longlong(self, n):
         """Write an integer as an unsigned 64-bit value."""
         if n < 0 or n >= 2 ** 64:
-            raise FrameSyntaxError('Octet %r out of range 0..2**64-1' % (n, ))
+            raise FrameSyntaxError(
+                'Octet {0!r} out of range 0..2**64-1'.format(n))
         self._flushbits()
         self.out.write(pack('>Q', n))
 
@@ -266,7 +272,8 @@ class AMQPWriter(object):
         if isinstance(s, string):
             s = s.encode('utf-8')
         if len(s) > 255:
-            raise FrameSyntaxError('String too long (%r)' % (len(s), ))
+            raise FrameSyntaxError(
+                'Shortstring overflow ({0} > 255)'.format(len(s)))
         self.write_octet(len(s))
         self.out.write(s)
 
@@ -319,7 +326,9 @@ class AMQPWriter(object):
                 table_data.write(byte(70))  # 'F'
                 table_data.write_table(v)
             else:
-                raise FrameSyntaxError('%r not serializable in AMQP' % (v, ))
+                raise FrameSyntaxError(
+                'Table type {0!r} not handled by amqp: {1!r}'.format(
+                    type(v), v))
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)

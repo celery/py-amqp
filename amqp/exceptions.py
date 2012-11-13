@@ -47,9 +47,11 @@ class AMQPError(Exception):
                            reply_text, method_sig, self.method_name)
 
     def __str__(self):
-        return '%s: (%s) %s' % (
-            self.method_name or self.method_sig,
-            self.reply_code, self.reply_text)
+        return '{0.method}: ({0.reply_code}) {0.reply_text}'.format(self)
+
+    @property
+    def method(self):
+        return self.method_name or self.method_sig
 
 
 class ConnectionError(AMQPError):

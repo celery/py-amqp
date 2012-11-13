@@ -115,8 +115,8 @@ class MethodReader(object):
             if frame_type not in (self.expected_types[channel], 8):
                 self.queue.put((
                     channel,
-                    UnexpectedFrame(505,
-                        'Received frame type %s while expecting type: %s' % (
+                    UnexpectedFrame(
+                        'Received frame {0} while expecting type: {1}'.format(
                             frame_type, self.expected_types[channel]))
                     ))
             elif frame_type == 1:
