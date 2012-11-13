@@ -32,6 +32,7 @@ from .channel import Channel
 from .exceptions import (
     AMQPNotImplementedError, ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
+    RecoverableConnectionError, RecoverableChannelError,
 )
 from .five import items, range, values
 from .method_framing import MethodReader, MethodWriter
@@ -922,8 +923,19 @@ class Connection(AbstractChannel):
     }
 
     _IMMEDIATE_METHODS = []
-    connection_errors = (ConnectionError,
-                         socket.error,
-                         IOError,
-                         OSError)
+    connection_errors = (
+        ConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
     channel_errors = (ChannelError, )
+    recoverable_connection_errors = (
+        RecoverableConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
+    recoverable_channel_errors = (
+        RecoverableChannelError,
+    )
