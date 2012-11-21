@@ -5,6 +5,19 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.0.5:
+
+1.0.5
+=====
+:release-date: 2012-11-21 04:00 P.M UTC
+
+- ``Channel.basic_cancel`` is now ignored if the channel was already closed.
+
+- ``Channel.events`` is now a dict of sets::
+
+    >>> channel.events['basic_return'].add(on_basic_return)
+    >>> channel.events['basic_return'].discard(on_basic_return)
+
 .. _version-1.0.4:
 
 1.0.4
