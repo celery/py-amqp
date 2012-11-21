@@ -46,7 +46,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 =====
 :release-date: 2012-11-08 10:36 P.M UTC
 
-- No longer supports Pyhton 2.5
+- No longer supports Python 2.5
 
 - Fixed receiving of float table values.
 
@@ -68,7 +68,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 =====
 :release-date: 2012-11-05 01:00 P.M UTC
 
-- Connection errors does no longer include :exc:`AttributeError`.
+- Connection errors no longer includes :exc:`AttributeError`.
 
 - Fixed problem with using the SSL transport in a non-blocking context.
 
