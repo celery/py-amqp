@@ -1602,14 +1602,15 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
-        self.no_ack_consumers.discard(consumer_tag)
-        args = AMQPWriter()
-        args.write_shortstr(consumer_tag)
-        args.write_bit(nowait)
-        self._send_method((60, 30), args)
-        return self.wait(allowed_methods=[
-            (60, 31),  # Channel.basic_cancel_ok
-        ])
+        if self.connection is not None:
+            self.no_ack_consumers.discard(consumer_tag)
+            args = AMQPWriter()
+            args.write_shortstr(consumer_tag)
+            args.write_bit(nowait)
+            self._send_method((60, 30), args)
+            return self.wait(allowed_methods=[
+                (60, 31),  # Channel.basic_cancel_ok
+            ])
 
     def _basic_cancel_notify(self, args):
         """Consumer cancelled by server.
