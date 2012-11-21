@@ -74,7 +74,7 @@ class Channel(AbstractChannel):
         self.callbacks = {}
         self.cancel_callbacks = {}
         self.auto_decode = auto_decode
-        self.events = defaultdict(list)
+        self.events = defaultdict(set)
         self.no_ack_consumers = set()
 
         self._x_open()
