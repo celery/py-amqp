@@ -146,7 +146,7 @@ class Channel(AbstractChannel):
 
         """
         try:
-            if not self.is_open:
+            if not self.is_open or self.connection is None:
                 return
 
             args = AMQPWriter()
