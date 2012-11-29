@@ -7,6 +7,12 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 .. _version-1.0.5:
 
+1.0.6
+=====
+:release-date: 2012-11-29 01:14 P.M UTC
+
+- ``Channel.close`` is now ignored if the connection attribute is None.
+
 1.0.5
 =====
 :release-date: 2012-11-21 04:00 P.M UTC
