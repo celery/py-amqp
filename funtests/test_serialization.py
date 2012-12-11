@@ -347,6 +347,48 @@ class TestSerialization(unittest.TestCase):
         self.assertEqual(r.read_table(), val)
 
     #
+    # Array
+    #
+    def test_array_from_list(self):
+        val = [1, 'foo']
+        w = AMQPWriter()
+        w.write_array(val)
+        s = w.getvalue()
+
+        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_array(), val)
+
+    def test_array_from_tuple(self):
+        val = (1, 'foo')
+        w = AMQPWriter()
+        w.write_array(val)
+        s = w.getvalue()
+
+        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_array(), list(val))
+
+    def test_table_with_array(self):
+        val = {
+            'foo': 7,
+            'bar': Decimal('123345.1234'),
+            'baz': 'this is some random string I typed',
+            'blist': [1,2,3],
+            'nlist': [1, [2,3,4]],
+            'ndictl': {'nfoo': 8, 'nblist': [5,6,7] }
+        }
+
+        w = AMQPWriter()
+        w.write_table(val)
+        s = w.getvalue()
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_table(), val)
+
+    #
     # GenericContent
     #
     def test_generic_content_eq(self):
