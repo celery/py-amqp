@@ -145,7 +145,7 @@ class AMQPReader(object):
             val = table_data.read_item()
             result[name] = val
         return result
-        
+
     def read_item(self):
         ftype = ord(self.input.read(1))
         if ftype == 83:  # 'S'
@@ -170,8 +170,8 @@ class AMQPReader(object):
             raise FrameSyntaxError(
                 'Unknown value in table: {0!r} ({1!r})'.format(
                     ftype, type(ftype)))
-        return val  
-    
+        return val
+
     def read_array(self):
         array_length = unpack('>I', self.input.read(4))[0]
         array_data = AMQPReader(self.input.read(array_length))
@@ -316,7 +316,7 @@ class AMQPWriter(object):
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
-        
+
     def write_item(self, v):
         if isinstance(v, (string_t, bytes)):
             if isinstance(v, string):
@@ -347,13 +347,13 @@ class AMQPWriter(object):
             self.write(byte(70))  # 'F'
             self.write_table(v)
         elif isinstance(v, (list, tuple)):
-            self.write(byte(65)) # 'A'
+            self.write(byte(65))  # 'A'
             self.write_array(v)
         else:
             raise FrameSyntaxError(
-            'Table type {0!r} not handled by amqp: {1!r}'.format(
-                type(v), v))
-        
+                'Table type {0!r} not handled by amqp: {1!r}'.format(
+                    type(v), v))
+
     def write_array(self, a):
         array_data = AMQPWriter()
         for v in a:
@@ -361,7 +361,7 @@ class AMQPWriter(object):
         array_data = array_data.getvalue()
         self.write_long(len(array_data))
         self.out.write(array_data)
-        
+
     def write_timestamp(self, v):
         """Write out a Python datetime.datetime object as a 64-bit integer
         representing seconds since the Unix epoch."""
