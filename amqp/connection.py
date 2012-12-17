@@ -287,7 +287,7 @@ class Connection(AbstractChannel):
 
         if amqp_method is None:
             raise AMQPNotImplementedError(
-                'Unknown AMQP method {0!r}'.format((method_sig, method_sig)))
+                'Unknown AMQP method {0!r}'.format(method_sig))
 
         if content is None:
             return amqp_method(channel, args)
