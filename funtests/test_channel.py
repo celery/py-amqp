@@ -33,7 +33,7 @@ except NameError:
 import settings
 
 
-from amqp import ChannelError, AMQPError, Connection, Message
+from amqp import ChannelError, AMQPError, Connection, Message, FrameSyntaxError
 
 
 class TestChannel(unittest.TestCase):
@@ -188,7 +188,7 @@ class TestChannel(unittest.TestCase):
 
         msg = Message(application_headers={'test': None})
 
-        self.assertRaises(ValueError, self.ch.basic_publish, msg, routing_key=qname)
+        self.assertRaises(FrameSyntaxError, self.ch.basic_publish, msg, routing_key=qname)
 
 
     def test_large(self):
