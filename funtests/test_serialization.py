@@ -34,7 +34,7 @@ except NameError:
 
 import settings
 
-from amqp.serialization import AMQPReader, AMQPWriter, GenericContent
+from amqp.serialization import AMQPReader, AMQPWriter, GenericContent, FrameSyntaxError
 
 
 class TestSerialization(unittest.TestCase):
@@ -140,11 +140,11 @@ class TestSerialization(unittest.TestCase):
 
     def test_octet_invalid(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_octet, -1)
+        self.assertRaises(FrameSyntaxError, w.write_octet, -1)
 
     def test_octet_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_octet, 256)
+        self.assertRaises(FrameSyntaxError, w.write_octet, 256)
 
     #
     # Shorts
@@ -161,11 +161,11 @@ class TestSerialization(unittest.TestCase):
 
     def test_short_invalid(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_short, -1)
+        self.assertRaises(FrameSyntaxError, w.write_short, -1)
 
     def test_short_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_short, 65536)
+        self.assertRaises(FrameSyntaxError, w.write_short, 65536)
 
     #
     # Longs
@@ -182,11 +182,11 @@ class TestSerialization(unittest.TestCase):
 
     def test_long_invalid(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_long, -1)
+        self.assertRaises(FrameSyntaxError, w.write_long, -1)
 
     def test_long_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_long, 2 ** 32)
+        self.assertRaises(FrameSyntaxError, w.write_long, 2 ** 32)
 
     #
     # LongLongs
@@ -203,11 +203,11 @@ class TestSerialization(unittest.TestCase):
 
     def test_longlong_invalid(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_longlong, -1)
+        self.assertRaises(FrameSyntaxError, w.write_longlong, -1)
 
     def test_longlong_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_longlong, 2 ** 64)
+        self.assertRaises(FrameSyntaxError, w.write_longlong, 2 ** 64)
 
     #
     # Shortstr
@@ -242,11 +242,11 @@ class TestSerialization(unittest.TestCase):
 
     def test_long_shortstr(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_shortstr, 'x' * 256)
+        self.assertRaises(FrameSyntaxError, w.write_shortstr, 'x' * 256)
 
     def test_long_shortstr_unicode(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_shortstr, u'\u0100' * 128)
+        self.assertRaises(FrameSyntaxError, w.write_shortstr, u'\u0100' * 128)
 
     #
     # Longstr
@@ -316,7 +316,7 @@ class TestSerialization(unittest.TestCase):
         """
         val = {'test': None}
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_table, val)
+        self.assertRaises(FrameSyntaxError, w.write_table, val)
 
     def test_table_multi(self):
         val = {
