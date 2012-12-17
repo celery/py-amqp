@@ -81,7 +81,7 @@ class AbstractChannel(object):
         try:
             amqp_method = self._METHOD_MAP[method_sig]
         except KeyError:
-            raise AMQPError('Unknown AMQP method %r' % method_sig)
+            raise AMQPError('Unknown AMQP method %r' % (method_sig, ))
 
         if content is None:
             return amqp_method(self, args)

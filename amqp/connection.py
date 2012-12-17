@@ -281,7 +281,7 @@ class Connection(AbstractChannel):
                         channel._METHOD_MAP.get(method_sig, None)
 
         if amqp_method is None:
-            raise Exception('Unknown AMQP method (%d, %d)' % method_sig)
+            raise Exception('Unknown AMQP method %r' % (method_sig, ))
 
         if content is None:
             return amqp_method(channel, args)
