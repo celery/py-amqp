@@ -142,28 +142,43 @@ class AMQPReader(object):
         result = {}
         while table_data.input.tell() < tlen:
             name = table_data.read_shortstr()
-            ftype = ord(table_data.input.read(1))
-            if ftype == 83:  # 'S'
-                val = table_data.read_longstr()
-            elif ftype == 73:  # 'I'
-                val = unpack('>i', table_data.input.read(4))[0]
-            elif ftype == 68:  # 'D'
-                d = table_data.read_octet()
-                n = unpack('>i', table_data.input.read(4))[0]
-                val = Decimal(n) / Decimal(10 ** d)
-            elif ftype == 84:  # 'T'
-                val = table_data.read_timestamp()
-            elif ftype == 70:  # 'F'
-                val = table_data.read_table()  # recurse
-            elif ftype == 116:
-                val = table_data.read_bit()
-            elif ftype == 100:
-                val = table_data.read_float()
-            else:
-                raise FrameSyntaxError(
-                    'Unknown value in table: {0!r} ({1!r})'.format(
-                        ftype, type(ftype)))
+            val = table_data.read_item()
             result[name] = val
+        return result
+        
+    def read_item(self):
+        ftype = ord(self.input.read(1))
+        if ftype == 83:  # 'S'
+            val = self.read_longstr()
+        elif ftype == 73:  # 'I'
+            val = unpack('>i', self.input.read(4))[0]
+        elif ftype == 68:  # 'D'
+            d = self.read_octet()
+            n = unpack('>i', self.input.read(4))[0]
+            val = Decimal(n) / Decimal(10 ** d)
+        elif ftype == 84:  # 'T'
+            val = self.read_timestamp()
+        elif ftype == 70:  # 'F'
+            val = self.read_table()  # recurse
+        elif ftype == 65:  # 'A'
+            val = self.read_array()
+        elif ftype == 116:
+            val = self.read_bit()
+        elif ftype == 100:
+            val = self.read_float()
+        else:
+            raise FrameSyntaxError(
+                'Unknown value in table: {0!r} ({1!r})'.format(
+                    ftype, type(ftype)))
+        return val  
+    
+    def read_array(self):
+        array_length = unpack('>I', self.input.read(4))[0]
+        array_data = AMQPReader(self.input.read(array_length))
+        result = []
+        while array_data.input.tell() < array_length:
+            val = array_data.read_item()
+            result.append(val)
         return result
 
     def read_timestamp(self):
@@ -297,42 +312,56 @@ class AMQPWriter(object):
         table_data = AMQPWriter()
         for k, v in items(d):
             table_data.write_shortstr(k)
-            if isinstance(v, (string_t, bytes)):
-                if isinstance(v, string):
-                    v = v.encode('utf-8')
-                table_data.write(byte(83))  # 'S'
-                table_data.write_longstr(v)
-            elif isinstance(v, bool):
-                table_data.write(pack('>cB', b't', int(v)))
-            elif isinstance(v, float):
-                table_data.write(pack('>cd', b'd', v))
-            elif isinstance(v, int_types):
-                table_data.write(pack('>ci', b'I', v))
-            elif isinstance(v, Decimal):
-                table_data.write(byte(68))  # 'D'
-                sign, digits, exponent = v.as_tuple()
-                v = 0
-                for d in digits:
-                    v = (v * 10) + d
-                if sign:
-                    v = -v
-                table_data.write_octet(-exponent)
-                table_data.write(pack('>i', v))
-            elif isinstance(v, datetime):
-                table_data.write(byte(84))  # 'T'
-                table_data.write_timestamp(v)
-                ## FIXME: timezone ?
-            elif isinstance(v, dict):
-                table_data.write(byte(70))  # 'F'
-                table_data.write_table(v)
-            else:
-                raise FrameSyntaxError(
-                'Table type {0!r} not handled by amqp: {1!r}'.format(
-                    type(v), v))
+            table_data.write_item(v)
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
-
+        
+    def write_item(self, v):
+        if isinstance(v, (string_t, bytes)):
+            if isinstance(v, string):
+                v = v.encode('utf-8')
+            self.write(byte(83))  # 'S'
+            self.write_longstr(v)
+        elif isinstance(v, bool):
+            self.write(pack('>cB', b't', int(v)))
+        elif isinstance(v, float):
+            self.write(pack('>cd', b'd', v))
+        elif isinstance(v, int_types):
+            self.write(pack('>ci', b'I', v))
+        elif isinstance(v, Decimal):
+            self.write(byte(68))  # 'D'
+            sign, digits, exponent = v.as_tuple()
+            v = 0
+            for d in digits:
+                v = (v * 10) + d
+            if sign:
+                v = -v
+            self.write_octet(-exponent)
+            self.write(pack('>i', v))
+        elif isinstance(v, datetime):
+            self.write(byte(84))  # 'T'
+            self.write_timestamp(v)
+            ## FIXME: timezone ?
+        elif isinstance(v, dict):
+            self.write(byte(70))  # 'F'
+            self.write_table(v)
+        elif isinstance(v, (list, tuple)):
+            self.write(byte(65)) # 'A'
+            self.write_array(v)
+        else:
+            raise FrameSyntaxError(
+            'Table type {0!r} not handled by amqp: {1!r}'.format(
+                type(v), v))
+        
+    def write_array(self, a):
+        array_data = AMQPWriter()
+        for v in a:
+            array_data.write_item(v)
+        array_data = array_data.getvalue()
+        self.write_long(len(array_data))
+        self.out.write(array_data)
+        
     def write_timestamp(self, v):
         """Write out a Python datetime.datetime object as a 64-bit integer
         representing seconds since the Unix epoch."""
