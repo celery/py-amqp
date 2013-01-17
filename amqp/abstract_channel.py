@@ -55,7 +55,8 @@ class AbstractChannel(object):
             args = args.getvalue()
 
         self.connection.method_writer.write_method(
-                self.channel_id, method_sig, args, content)
+            self.channel_id, method_sig, args, content,
+        )
 
     def close(self):
         """Close this Channel or Connection"""

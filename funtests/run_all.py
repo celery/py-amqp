@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""
-Run all the unittest modules for amqp
-
-"""
+"""Run all the unittest modules for amqp"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -19,19 +16,19 @@ Run all the unittest modules for amqp
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
-import sys
 import unittest
 
 import settings
 
 TEST_NAMES = [
-        'test_exceptions',
-        'test_serialization',
-        'test_basic_message',
-        'test_connection',
-        'test_channel',
-        'test_with',
-        ]
+    'test_exceptions',
+    'test_serialization',
+    'test_basic_message',
+    'test_connection',
+    'test_channel',
+    'test_with',
+]
+
 
 def main():
     suite = unittest.TestLoader().loadTestsFromNames(TEST_NAMES)

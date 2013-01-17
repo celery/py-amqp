@@ -134,7 +134,6 @@ class _AbstractTransport(object):
             self.sock = None
 
     def read_frame(self):
-        """Read an AMQP frame."""
         frame_type, channel, size = unpack('>BHI', self._read(7, True))
         payload = self._read(size)
         ch = ord(self._read(1))
@@ -145,10 +144,11 @@ class _AbstractTransport(object):
                 'Received 0x{0:02x} while expecting 0xce'.format(ch))
 
     def write_frame(self, frame_type, channel, payload):
-        """Write out an AMQP frame."""
         size = len(payload)
-        self._write(pack('>BHI%dsB' % size,
-            frame_type, channel, size, payload, 0xce))
+        self._write(pack(
+            '>BHI%dsB' % size,
+            frame_type, channel, size, payload, 0xce,
+        ))
 
 
 class SSLTransport(_AbstractTransport):

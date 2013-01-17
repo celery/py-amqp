@@ -32,8 +32,10 @@ class TestException(unittest.TestCase):
         self.assertEqual(exc.reply_code, 7)
         self.assertEqual(exc.reply_text, 'My Error')
         self.assertEqual(exc.method_sig, (10, 10))
-        self.assertEqual(exc.args,
-            (7, 'My Error', (10, 10), 'Connection.start'))
+        self.assertEqual(
+            exc.args,
+            (7, 'My Error', (10, 10), 'Connection.start'),
+        )
 
 
 def main():

@@ -1,6 +1,6 @@
-"""
-Parse commandline args for running unittests.  Used
-by the overall run_all.py script, or the various
+"""Parse commandline args for running unittests.
+
+Used by the overall run_all.py script, or the various
 indivudial test modules that need settings for connecting
 to a broker.
 
@@ -30,35 +30,51 @@ test_args = {'verbosity': 1}
 
 def parse_args():
     parser = OptionParser(usage='usage: %prog [options]')
-    parser.add_option('--host', dest='host',
-                        help='AMQP server to connect to (default: %default)',
-                        default='localhost')
-    parser.add_option('-u', '--userid', dest='userid',
-                        help='userid to authenticate as (default: %default)',
-                        default='guest')
-    parser.add_option('-p', '--password', dest='password',
-                        help='password to authenticate with (default: %default)',
-                        default='guest')
-    parser.add_option('--ssl', dest='ssl', action='store_true',
-                        help='Enable SSL (default: not enabled)',
-                        default=False)
-    parser.add_option('--debug', dest='debug', action='store_true',
-                        help='Display debugging output',
-                        default=False)
-    parser.add_option('--port', dest='port', 
-                        help='port for the broker',
-                        default=5672)
+    parser.add_option(
+        '--host', dest='host',
+        help='AMQP server to connect to (default: %default)',
+        default='localhost',
+    )
+    parser.add_option(
+        '-u', '--userid', dest='userid',
+        help='userid to authenticate as (default: %default)',
+        default='guest',
+    )
+    parser.add_option(
+        '-p', '--password', dest='password',
+        help='password to authenticate with (default: %default)',
+        default='guest',
+    )
+    parser.add_option(
+        '--ssl', dest='ssl', action='store_true',
+        help='Enable SSL (default: not enabled)',
+        default=False,
+    )
+    parser.add_option(
+        '--debug', dest='debug', action='store_true',
+        help='Display debugging output',
+        default=False,
+    )
+    parser.add_option(
+        '--port', dest='port',
+        help='port for the broker',
+        default=5672,
+    )
 
-    parser.add_option('-v', '--verbosity', dest='verbose', action='store_true',
-                        help='Run unittests with increased verbosity',
-                        default=False)
+    parser.add_option(
+        '-v', '--verbosity', dest='verbose', action='store_true',
+        help='Run unittests with increased verbosity',
+        default=False,
+    )
 
     options, args = parser.parse_args()
 
     if options.debug:
         console = logging.StreamHandler()
         console.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+        formatter = logging.Formatter(
+            '%(name)-12s: %(levelname)-8s %(message)s',
+        )
         console.setFormatter(formatter)
         amqp_logger = logging.getLogger('amqp')
         amqp_logger.addHandler(console)

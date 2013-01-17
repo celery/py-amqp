@@ -218,8 +218,9 @@ class Channel(AbstractChannel):
         self._send_method((20, 41))
         self._do_revive()
 
-        raise error_for_code(reply_code, reply_text,
-                (class_id, method_id), ChannelError)
+        raise error_for_code(
+            reply_code, reply_text, (class_id, method_id), ChannelError,
+        )
 
     def _close_ok(self, args):
         """Confirm a channel close
@@ -457,7 +458,7 @@ class Channel(AbstractChannel):
     #
 
     def exchange_declare(self, exchange, type, passive=False, durable=False,
-            auto_delete=True, nowait=False, arguments=None):
+                         auto_delete=True, nowait=False, arguments=None):
         """Declare exchange, create if needed
 
         This method creates an exchange if it does not already exist,
@@ -610,8 +611,7 @@ class Channel(AbstractChannel):
         """
         pass
 
-    def exchange_delete(self, exchange, if_unused=False,
-            nowait=False):
+    def exchange_delete(self, exchange, if_unused=False, nowait=False):
         """Delete an exchange
 
         This method deletes an exchange.  When an exchange is deleted
@@ -675,7 +675,7 @@ class Channel(AbstractChannel):
         pass
 
     def exchange_bind(self, destination, source='', routing_key='',
-            nowait=False, arguments=None):
+                      nowait=False, arguments=None):
         """This method binds an exchange to an exchange.
 
         RULE:
@@ -763,7 +763,7 @@ class Channel(AbstractChannel):
             ])
 
     def exchange_unbind(self, destination, source='', routing_key='',
-            nowait=False, arguments=None):
+                        nowait=False, arguments=None):
         """This method unbinds an exchange from an exchange.
 
         RULE:
@@ -872,7 +872,7 @@ class Channel(AbstractChannel):
     #
 
     def queue_bind(self, queue, exchange='', routing_key='',
-            nowait=False, arguments=None):
+                   nowait=False, arguments=None):
         """Bind queue to an exchange
 
         This method binds a queue to an exchange.  Until a queue is
@@ -994,7 +994,7 @@ class Channel(AbstractChannel):
         pass
 
     def queue_unbind(self, queue, exchange, routing_key='',
-            nowait=False, arguments=None):
+                     nowait=False, arguments=None):
         """Unbind a queue from an exchange
 
         This method unbinds a queue from an exchange.
@@ -1069,8 +1069,8 @@ class Channel(AbstractChannel):
         pass
 
     def queue_declare(self, queue='', passive=False, durable=False,
-            exclusive=False, auto_delete=True, nowait=False,
-            arguments=None):
+                      exclusive=False, auto_delete=True, nowait=False,
+                      arguments=None):
         """Declare queue, create if needed
 
         This method creates or checks a queue.  When creating a new
@@ -1274,8 +1274,8 @@ class Channel(AbstractChannel):
         consumer_count = args.read_long()
         return queue, message_count, consumer_count
 
-    def queue_delete(self, queue='', if_unused=False, if_empty=False,
-            nowait=False):
+    def queue_delete(self, queue='',
+                     if_unused=False, if_empty=False, nowait=False):
         """Delete a queue
 
         This method deletes a queue.  When a queue is deleted any
@@ -1654,8 +1654,8 @@ class Channel(AbstractChannel):
         return self.cancel_callbacks.pop(consumer_tag, None)
 
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
-            no_ack=False, exclusive=False, nowait=False,
-            callback=None, arguments=None, on_cancel=None):
+                      no_ack=False, exclusive=False, nowait=False,
+                      callback=None, arguments=None, on_cancel=None):
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
@@ -2021,7 +2021,7 @@ class Channel(AbstractChannel):
         return msg
 
     def basic_publish(self, msg, exchange='', routing_key='',
-            mandatory=False, immediate=False):
+                      mandatory=False, immediate=False):
         """Publish a message
 
         This method publishes a message to a specific exchange. The
@@ -2497,7 +2497,7 @@ class Channel(AbstractChannel):
         (90, 11): _tx_select_ok,
         (90, 21): _tx_commit_ok,
         (90, 31): _tx_rollback_ok,
-        }
+    }
 
     _IMMEDIATE_METHODS = [
         (60, 50),  # basic_return

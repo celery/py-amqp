@@ -34,7 +34,9 @@ except NameError:
 
 import settings
 
-from amqp.serialization import AMQPReader, AMQPWriter, GenericContent, FrameSyntaxError
+from amqp.serialization import (
+    AMQPReader, AMQPWriter, GenericContent, FrameSyntaxError,
+)
 
 
 class TestSerialization(unittest.TestCase):
@@ -326,18 +328,17 @@ class TestSerialization(unittest.TestCase):
             'ubaz': u'And something in unicode',
             'dday_aniv': datetime(1994, 6, 6),
             'more': {
-                        'abc': -123,
-                        'def': 'hello world',
-                        'now': datetime(2007, 11, 11, 21, 14, 31),
-                        'qty': Decimal('-123.45'),
-                        'blank': {},
-                        'extra':
-                            {
-                            'deeper': 'more strings',
-                            'nums': -12345678,
-                            },
-                    }
+                'abc': -123,
+                'def': 'hello world',
+                'now': datetime(2007, 11, 11, 21, 14, 31),
+                'qty': Decimal('-123.45'),
+                'blank': {},
+                'extra': {
+                    'deeper': 'more strings',
+                    'nums': -12345678,
+                },
             }
+        }
 
         w = AMQPWriter()
         w.write_table(val)
@@ -355,7 +356,9 @@ class TestSerialization(unittest.TestCase):
         w.write_array(val)
         s = w.getvalue()
 
-        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+        self.assertEqualBinary(
+            s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo',
+        )
 
         r = AMQPReader(s)
         self.assertEqual(r.read_array(), val)
@@ -366,7 +369,9 @@ class TestSerialization(unittest.TestCase):
         w.write_array(val)
         s = w.getvalue()
 
-        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+        self.assertEqualBinary(
+            s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo',
+        )
 
         r = AMQPReader(s)
         self.assertEqual(r.read_array(), list(val))
@@ -376,9 +381,9 @@ class TestSerialization(unittest.TestCase):
             'foo': 7,
             'bar': Decimal('123345.1234'),
             'baz': 'this is some random string I typed',
-            'blist': [1,2,3],
-            'nlist': [1, [2,3,4]],
-            'ndictl': {'nfoo': 8, 'nblist': [5,6,7] }
+            'blist': [1, 2, 3],
+            'nlist': [1, [2, 3, 4]],
+            'ndictl': {'nfoo': 8, 'nblist': [5, 6, 7]}
         }
 
         w = AMQPWriter()

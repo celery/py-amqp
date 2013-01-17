@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""
-Test amqp.connection module
-
-"""
+"""Test amqp.connection module"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -20,8 +17,6 @@ Test amqp.connection module
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import gc
-import sys
-import time
 import unittest
 
 import settings
@@ -29,7 +24,9 @@ import settings
 
 from amqp import Connection
 
+
 class TestConnection(unittest.TestCase):
+
     def setUp(self):
         self.conn = Connection(**settings.connect_args)
 
@@ -47,13 +44,9 @@ class TestConnection(unittest.TestCase):
         ch.close()
         ch2.close()
 
-
     def test_close(self):
-        """
-        Make sure we've broken various references when closing
-        channels and connections, to help with GC.
-
-        """
+        """Make sure we've broken various references when closing
+        channels and connections, to help with GC."""
         #
         # Create a channel and make sure it's linked as we'd expect
         #
@@ -81,19 +74,19 @@ class TestConnection(unittest.TestCase):
         self.assertEqual(self.conn.channels, None)
 
     def test_gc_closed(self):
-        """
-        Make sure we've broken various references when closing
+        """Make sure we've broken various references when closing
         channels and connections, to help with GC.
 
         gc.garbage: http://docs.python.org/library/gc.html#gc.garbage
             "A list of objects which the collector found to be
             unreachable but could not be freed (uncollectable objects)."
+
         """
         unreachable_before = len(gc.garbage)
         #
         # Create a channel and make sure it's linked as we'd expect
         #
-        ch = self.conn.channel()
+        self.conn.channel()
         self.assertEqual(1 in self.conn.channels, True)
 
         #
@@ -108,10 +101,8 @@ class TestConnection(unittest.TestCase):
         self.assertEqual(unreachable_before, len(gc.garbage))
 
     def test_gc_forget(self):
-        """
-        Make sure the connection gets gc'ed when there is no more
-        references to it.
-        """
+        """Make sure the connection gets gc'ed when there is no more
+        references to it."""
         unreachable_before = len(gc.garbage)
 
         ch = self.conn.channel()
@@ -119,7 +110,7 @@ class TestConnection(unittest.TestCase):
 
         # remove all the references
         self.conn = None
-        ch = None
+        del(ch)
 
         gc.collect()
         gc.collect()

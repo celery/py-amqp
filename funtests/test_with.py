@@ -41,9 +41,11 @@ class TestChannel(unittest.TestCase):
                 ch.exchange_declare('unittest.fanout', 'fanout',
                                     auto_delete=True)
 
-                msg = Message('unittest message',
+                msg = Message(
+                    'unittest message',
                     content_type='text/plain',
-                    application_headers={'foo': 7, 'bar': 'baz'})
+                    application_headers={'foo': 7, 'bar': 'baz'},
+                )
 
                 ch.basic_publish(msg, 'unittest.fanout')
 

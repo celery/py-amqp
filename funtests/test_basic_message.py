@@ -21,12 +21,13 @@ Test the amqp.basic_message module.
 
 from datetime import datetime
 from decimal import Decimal
+
 import unittest
 
 try:
     import cPickle as pickle
-except:
-    import pickle
+except ImportError:
+    import pickle  # noqa
 
 
 import settings
@@ -37,10 +38,7 @@ from amqp.basic_message import Message
 class TestBasicMessage(unittest.TestCase):
 
     def check_proplist(self, msg):
-        """
-        Check roundtrip processing of a single object
-
-        """
+        """Check roundtrip processing of a single object"""
         raw_properties = msg._serialize_properties()
 
         new_msg = Message()
@@ -48,7 +46,6 @@ class TestBasicMessage(unittest.TestCase):
         new_msg.body = msg.body
 
         self.assertEqual(msg, new_msg)
-
 
     def test_eq(self):
         msg = Message('hello', content_type='text/plain')
@@ -60,33 +57,31 @@ class TestBasicMessage(unittest.TestCase):
         # error when compared to a Message, and instead
         # returns False
         #
-        class FakeMsg(object): pass
+        class FakeMsg(object):
+            pass
 
         fake_msg = FakeMsg()
         fake_msg.properties = {'content_type': 'text/plain'}
 
         self.assertNotEqual(msg, fake_msg)
 
-
     def test_pickle(self):
         msg = Message(
             'some body' * 200000,
             content_type='text/plain',
             content_encoding='utf-8',
-            application_headers={'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
+            application_headers={
+                'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1},
+            },
             delivery_mode=1,
-            priority=7)
+            priority=7,
+        )
 
         msg2 = pickle.loads(pickle.dumps(msg))
-
         self.assertEqual(msg, msg2)
 
-
     def test_roundtrip(self):
-        """
-        Check round-trip processing of content-properties.
-
-        """
+        """Check round-trip processing of content-properties."""
         self.check_proplist(Message())
 
         self.check_proplist(Message(content_type='text/plain'))
@@ -94,28 +89,38 @@ class TestBasicMessage(unittest.TestCase):
         self.check_proplist(Message(
             content_type='text/plain',
             content_encoding='utf-8',
-            application_headers={'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1}},
+            application_headers={
+                'foo': 7, 'bar': 'baz', 'd2': {'foo2': 'xxx', 'foo3': -1},
+            },
             delivery_mode=1,
-            priority=7))
+            priority=7,
+        ))
 
         self.check_proplist(Message(
             application_headers={
                 'regular': datetime(2007, 11, 12, 12, 34, 56),
                 'dst': datetime(2007, 7, 12, 12, 34, 56),
-                }))
+            },
+        ))
 
         n = datetime.now()
-        n = n.replace(microsecond=0) # AMQP only does timestamps to 1-second resolution
+        # AMQP only does timestamps to 1-second resolution
+        n = n.replace(microsecond=0)
         self.check_proplist(Message(
-            application_headers={'foo': n}))
+            application_headers={'foo': n}),
+        )
 
         self.check_proplist(Message(
-            application_headers={'foo': Decimal('10.1')}))
+            application_headers={'foo': Decimal('10.1')}),
+        )
 
         self.check_proplist(Message(
-            application_headers={'foo': Decimal('-1987654.193')}))
+            application_headers={'foo': Decimal('-1987654.193')}),
+        )
 
-        self.check_proplist(Message(timestamp=datetime(1980, 1, 2, 3, 4, 6)))
+        self.check_proplist(Message(
+            timestamp=datetime(1980, 1, 2, 3, 4, 6)),
+        )
 
 
 def main():

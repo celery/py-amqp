@@ -84,6 +84,7 @@ py_version = sys.version_info
 is_jython = sys.platform.startswith('java')
 is_pypy = hasattr(sys, 'pypy_version_info')
 
+
 def strip_comments(l):
     return l.split('#', 1)[0].strip()
 

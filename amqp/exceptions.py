@@ -35,7 +35,7 @@ class AMQPError(Exception):
     code = 0
 
     def __init__(self, reply_text=None, method_sig=None,
-            method_name=None, reply_code=None):
+                 method_name=None, reply_code=None):
         self.message = reply_text
         self.reply_code = reply_code or self.code
         self.reply_text = reply_text
