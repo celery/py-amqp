@@ -1656,6 +1656,7 @@ class Channel(AbstractChannel):
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
                       no_ack=False, exclusive=False, nowait=False,
                       callback=None, arguments=None, on_cancel=None):
+        print('BASIC CONSUME: %r' % (queue, ))
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
@@ -1884,6 +1885,7 @@ class Channel(AbstractChannel):
             fun(msg)
 
     def basic_get(self, queue='', no_ack=False):
+        print('BASIC GET: %r' % (queue, ))
         """Direct access to a queue
 
         This method provides a direct access to the messages in a

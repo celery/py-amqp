@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-from .exceptions import AMQPNotImplementedError
+from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import AMQPWriter
 
 try:
@@ -51,10 +51,14 @@ class AbstractChannel(object):
 
     def _send_method(self, method_sig, args=bytes(), content=None):
         """Send a method for our channel."""
+        conn = self.connection
+        if conn is None:
+            raise RecoverableConnectionError('connection already closed')
+
         if isinstance(args, AMQPWriter):
             args = args.getvalue()
 
-        self.connection.method_writer.write_method(
+        conn.method_writer.write_method(
             self.channel_id, method_sig, args, content,
         )
 
