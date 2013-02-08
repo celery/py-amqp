@@ -172,7 +172,7 @@ class TestSerialization(unittest.TestCase):
     #
     def test_long(self):
         for i in range(256):
-            val = randint(0, (2 ** 32) - 1)
+            val = randint(0, 4294967295)
             w = AMQPWriter()
             w.write_long(val)
             s = w.getvalue()
@@ -186,7 +186,7 @@ class TestSerialization(unittest.TestCase):
 
     def test_long_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(ValueError, w.write_long, 2 ** 32)
+        self.assertRaises(ValueError, w.write_long, 4294967296)
 
     #
     # LongLongs
