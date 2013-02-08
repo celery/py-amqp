@@ -145,8 +145,9 @@ class _AbstractTransport(object):
     def write_frame(self, frame_type, channel, payload):
         """Write out an AMQP frame."""
         size = len(payload)
-        self._write(pack('>BHI%dsB' % size,
-            frame_type, channel, size, payload, 0xce))
+        self._write(
+            pack('>BHI%dsB' % size, frame_type, channel, size, payload, 0xce),
+        )
 
 
 class SSLTransport(_AbstractTransport):
