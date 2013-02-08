@@ -316,11 +316,11 @@ class AMQPWriter(object):
             self.write(byte(83))  # 'S'
             self.write_longstr(v)
         elif isinstance(v, bool):
-            self.write(pack('>cB', b't', int(v)))
+            self.write(pack('>cB', byte(116), int(v)))  # 't'
         elif isinstance(v, float):
-            self.write(pack('>cd', b'd', v))
+            self.write(pack('>cd', byte(100), v))       # 'd'
         elif isinstance(v, (int, long)):
-            self.write(pack('>ci', b'I', v))
+            self.write(pack('>ci', byte(73), v))        # 'I'
         elif isinstance(v, Decimal):
             self.write(byte(68))  # 'D'
             sign, digits, exponent = v.as_tuple()
