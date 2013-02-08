@@ -258,7 +258,7 @@ class AMQPWriter(object):
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
-        if n < 0 or n >= 4294967296:
+        if n < 0 or n >= 4294967296L:
             raise ValueError('Octet %r out of range 0..2**31-1' % (n, ))
         self._flushbits()
         self.out.write(pack('>I', n))
