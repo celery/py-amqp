@@ -5,13 +5,29 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
-.. _version-1.0.5:
+.. _version-1.0.7:
+
+1.0.7
+=====
+:release-date: 2013-02-08 01:00 P.M UTC
+
+- Workaround for bug on some Python 2.5 installations where (2**32) is 0.
+
+- Can now serialize the ARRAY type.
+
+    Contributed by Adam Wentz.
+
+- Fixed tuple format bug in exception (Issue #4).
+
+.. _version-1.0.6:
 
 1.0.6
 =====
 :release-date: 2012-11-29 01:14 P.M UTC
 
 - ``Channel.close`` is now ignored if the connection attribute is None.
+
+.. _version-1.0.5
 
 1.0.5
 =====
