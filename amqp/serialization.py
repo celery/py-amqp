@@ -263,7 +263,7 @@ class AMQPWriter(object):
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
-        if n < 0 or n >= 2 ** 32:
+        if n < 0 or n >= 4294967296L:
             raise FrameSyntaxError(
                 'Octet {0!r} out of range 0..2**31-1'.format(n))
         self._flushbits()
@@ -271,7 +271,7 @@ class AMQPWriter(object):
 
     def write_longlong(self, n):
         """Write an integer as an unsigned 64-bit value."""
-        if n < 0 or n >= 2 ** 64:
+        if n < 0 or n >= 18446744073709551616L:
             raise FrameSyntaxError(
                 'Octet {0!r} out of range 0..2**64-1'.format(n))
         self._flushbits()
@@ -321,7 +321,7 @@ class AMQPWriter(object):
         if isinstance(v, (string_t, bytes)):
             if isinstance(v, string):
                 v = v.encode('utf-8')
-            self.write(byte(83))  # 'S'
+            self.write(b'S')
             self.write_longstr(v)
         elif isinstance(v, bool):
             self.write(pack('>cB', b't', int(v)))
@@ -330,7 +330,7 @@ class AMQPWriter(object):
         elif isinstance(v, int_types):
             self.write(pack('>ci', b'I', v))
         elif isinstance(v, Decimal):
-            self.write(byte(68))  # 'D'
+            self.write(b'D')
             sign, digits, exponent = v.as_tuple()
             v = 0
             for d in digits:
@@ -340,14 +340,14 @@ class AMQPWriter(object):
             self.write_octet(-exponent)
             self.write(pack('>i', v))
         elif isinstance(v, datetime):
-            self.write(byte(84))  # 'T'
+            self.write(b'T')
             self.write_timestamp(v)
             ## FIXME: timezone ?
         elif isinstance(v, dict):
-            self.write(byte(70))  # 'F'
+            self.write(b'F')
             self.write_table(v)
         elif isinstance(v, (list, tuple)):
-            self.write(byte(65))  # 'A'
+            self.write(b'A')
             self.write_array(v)
         else:
             raise FrameSyntaxError(

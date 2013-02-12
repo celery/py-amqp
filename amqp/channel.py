@@ -146,7 +146,7 @@ class Channel(AbstractChannel):
 
         """
         try:
-            if not self.is_open:
+            if not self.is_open or self.connection is None:
                 return
 
             args = AMQPWriter()
@@ -1603,14 +1603,15 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
-        self.no_ack_consumers.discard(consumer_tag)
-        args = AMQPWriter()
-        args.write_shortstr(consumer_tag)
-        args.write_bit(nowait)
-        self._send_method((60, 30), args)
-        return self.wait(allowed_methods=[
-            (60, 31),  # Channel.basic_cancel_ok
-        ])
+        if self.connection is not None:
+            self.no_ack_consumers.discard(consumer_tag)
+            args = AMQPWriter()
+            args.write_shortstr(consumer_tag)
+            args.write_bit(nowait)
+            self._send_method((60, 30), args)
+            return self.wait(allowed_methods=[
+                (60, 31),  # Channel.basic_cancel_ok
+            ])
 
     def _basic_cancel_notify(self, args):
         """Consumer cancelled by server.
@@ -1656,7 +1657,6 @@ class Channel(AbstractChannel):
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
                       no_ack=False, exclusive=False, nowait=False,
                       callback=None, arguments=None, on_cancel=None):
-        print('BASIC CONSUME: %r' % (queue, ))
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a

@@ -174,7 +174,7 @@ class TestSerialization(unittest.TestCase):
     #
     def test_long(self):
         for i in range(256):
-            val = randint(0, (2 ** 32) - 1)
+            val = randint(0, 4294967295)
             w = AMQPWriter()
             w.write_long(val)
             s = w.getvalue()
@@ -188,7 +188,7 @@ class TestSerialization(unittest.TestCase):
 
     def test_long_invalid2(self):
         w = AMQPWriter()
-        self.assertRaises(FrameSyntaxError, w.write_long, 2 ** 32)
+        self.assertRaises(FrameSyntaxError, w.write_long, 4294967296)
 
     #
     # LongLongs
@@ -384,6 +384,48 @@ class TestSerialization(unittest.TestCase):
             'blist': [1, 2, 3],
             'nlist': [1, [2, 3, 4]],
             'ndictl': {'nfoo': 8, 'nblist': [5, 6, 7]}
+        }
+
+        w = AMQPWriter()
+        w.write_table(val)
+        s = w.getvalue()
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_table(), val)
+
+    #
+    # Array
+    #
+    def test_array_from_list(self):
+        val = [1, 'foo']
+        w = AMQPWriter()
+        w.write_array(val)
+        s = w.getvalue()
+
+        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_array(), val)
+
+    def test_array_from_tuple(self):
+        val = (1, 'foo')
+        w = AMQPWriter()
+        w.write_array(val)
+        s = w.getvalue()
+
+        self.assertEqualBinary(s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo')
+
+        r = AMQPReader(s)
+        self.assertEqual(r.read_array(), list(val))
+
+    def test_table_with_array(self):
+        val = {
+            'foo': 7,
+            'bar': Decimal('123345.1234'),
+            'baz': 'this is some random string I typed',
+            'blist': [1,2,3],
+            'nlist': [1, [2,3,4]],
+            'ndictl': {'nfoo': 8, 'nblist': [5,6,7] }
         }
 
         w = AMQPWriter()

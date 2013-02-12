@@ -201,10 +201,10 @@ class Connection(AbstractChannel):
             channel, method_sig, args, content = \
                 self.method_reader.read_method()
 
-            if (channel == channel_id
-                    and allowed_methods is None
-                    or method_sig in allowed_methods
-                    or method_sig == (20, 40)):
+            if channel == channel_id and (
+                    allowed_methods is None or
+                    method_sig in allowed_methods or
+                    method_sig == (20, 40)):
                 return method_sig, args, content
 
             #
@@ -214,7 +214,8 @@ class Connection(AbstractChannel):
             #
             if channel and method_sig in self.Channel._IMMEDIATE_METHODS:
                 self.channels[channel].dispatch_method(
-                    method_sig, args, content)
+                    method_sig, args, content,
+                )
                 continue
 
             #
@@ -265,16 +266,16 @@ class Connection(AbstractChannel):
 
         channel = chanmap[chanid]
 
-        if (content
-                and channel.auto_decode
-                and hasattr(content, 'content_encoding')):
+        if (content and
+                channel.auto_decode and
+                hasattr(content, 'content_encoding')):
             try:
                 content.body = content.body.decode(content.content_encoding)
             except Exception:
                 pass
 
-        amqp_method = self._method_override.get(method_sig) or \
-            channel._METHOD_MAP.get(method_sig, None)
+        amqp_method = (self._method_override.get(method_sig) or
+                       channel._METHOD_MAP.get(method_sig, None))
 
         if amqp_method is None:
             raise AMQPNotImplementedError(
@@ -312,9 +313,9 @@ class Connection(AbstractChannel):
             method_queue = channel.method_queue
             for queued_method in method_queue:
                 method_sig = queued_method[0]
-                if (allowed_methods is None
-                        or method_sig in allowed_methods
-                        or method_sig == (20, 40)):
+                if (allowed_methods is None or
+                        method_sig in allowed_methods or
+                        method_sig == (20, 40)):
                     method_queue.remove(queued_method)
                     method_sig, args, content = queued_method
                     return channel_id, method_sig, args, content
@@ -325,10 +326,10 @@ class Connection(AbstractChannel):
         while 1:
             channel, method_sig, args, content = read_timeout(timeout)
 
-            if (channel in channels
-                    and allowed_methods is None
-                    or method_sig in allowed_methods
-                    or method_sig == (20, 40)):
+            if channel in channels and (
+                    allowed_methods is None or
+                    method_sig in allowed_methods or
+                    method_sig == (20, 40)):
                 return channel, method_sig, args, content
 
             # Not the channel and/or method we were looking for. Queue
