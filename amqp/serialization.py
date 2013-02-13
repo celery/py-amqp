@@ -263,7 +263,7 @@ class AMQPWriter(object):
 
     def write_long(self, n):
         """Write an integer as an unsigned2 32-bit value."""
-        if n < 0 or n >= 4294967296L:
+        if n < 0 or n >= 4294967296:
             raise FrameSyntaxError(
                 'Octet {0!r} out of range 0..2**31-1'.format(n))
         self._flushbits()
@@ -271,7 +271,7 @@ class AMQPWriter(object):
 
     def write_longlong(self, n):
         """Write an integer as an unsigned 64-bit value."""
-        if n < 0 or n >= 18446744073709551616L:
+        if n < 0 or n >= 18446744073709551616:
             raise FrameSyntaxError(
                 'Octet {0!r} out of range 0..2**64-1'.format(n))
         self._flushbits()
