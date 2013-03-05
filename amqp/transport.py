@@ -25,6 +25,12 @@ import errno
 import re
 import socket
 
+# Jython does not have this attribute
+try:
+    from socket import SOL_TCP
+except ImportError:
+    from socket import IPPROTO_TCP as SOL_TCP
+
 #
 # See if Python 2.6+ SSL support is available
 #
@@ -72,7 +78,7 @@ class _AbstractTransport(object):
 
         self.sock = None
         for res in socket.getaddrinfo(host, port, 0,
-                                      socket.SOCK_STREAM, socket.SOL_TCP):
+                                      socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
@@ -89,7 +95,7 @@ class _AbstractTransport(object):
             raise socket.error, msg
 
         self.sock.settimeout(None)
-        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         self._setup_transport()
