@@ -178,6 +178,13 @@ class Connection(AbstractChannel):
                 'No free channel ids, current={0}, channel_max={1}'.format(
                     len(self.channels), self.channel_max), (20, 10))
 
+    def _claim_channel_id(self, channel_id):
+        try:
+            return self._avail_channel_ids.remove(channel_id)
+        except ValueError:
+            raise ConnectionError(
+                'Channel %r already open' % (channel_id, ))
+
     def _wait_method(self, channel_id, allowed_methods):
         """Wait for a method from the server destined for
         a particular channel."""

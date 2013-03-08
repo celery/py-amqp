@@ -246,14 +246,12 @@ class TestChannel(unittest.TestCase):
         msg = Message(
             'funtest message',
             content_type='text/plain',
-            application_headers={'foo': 7, 'bar': 'baz'},
-        )
+            application_headers={'foo': 7, 'bar': 'baz'})
 
-        self.ch.basic_publish(msg, 'funtest.fanout')
-        self.ch.basic_publish(msg, 'funtest.fanout', immediate=True)
-        self.ch.basic_publish(msg, 'funtest.fanout', mandatory=True)
-        self.ch.basic_publish(msg, 'funtest.fanout',
-                              immediate=True, mandatory=True)
+        self.ch.basic_publish(msg, 'unittest.fanout')
+        self.ch.basic_publish(msg, 'unittest.fanout', mandatory=True)
+        self.ch.basic_publish(msg, 'unittest.fanout', mandatory=True)
+        self.ch.basic_publish(msg, 'unittest.fanout', mandatory=True)
         self.ch.close()
 
         #
@@ -266,40 +264,39 @@ class TestChannel(unittest.TestCase):
         Network configuration is as follows (-> is forwards to :
         source_exchange -> dest_exchange -> queue
         The test checks that once the message is publish to the
-        destination exchange(funtest.topic_dest) it is delivered to the queue.
+        destination exchange(unittest.topic_dest) it is delivered to the queue.
         """
 
         test_routing_key = 'unit_test__key'
-        dest_exchange = 'funtest.topic_dest_bind'
-        source_exchange = 'funtest.topic_source_bind'
+        dest_exchange = 'unittest.topic_dest_bind'
+        source_exchange = 'unittest.topic_source_bind'
 
         self.ch.exchange_declare(dest_exchange, 'topic', auto_delete=True)
         self.ch.exchange_declare(source_exchange, 'topic', auto_delete=True)
 
         qname, _, _ = self.ch.queue_declare()
-        self.ch.exchange_bind(destination=dest_exchange,
-                              source=source_exchange,
-                              routing_key=test_routing_key)
+        self.ch.exchange_bind(destination = dest_exchange,
+                              source = source_exchange,
+                              routing_key = test_routing_key)
 
         self.ch.queue_bind(qname, dest_exchange,
                            routing_key=test_routing_key)
 
-        msg = Message(
-            'funtest message',
-            content_type='text/plain',
-            application_headers={'foo': 7, 'bar': 'baz'},
-        )
+        msg = Message('unittest message',
+                      content_type='text/plain',
+                      application_headers={'foo': 7, 'bar': 'baz'})
+
 
         self.ch.basic_publish(msg, source_exchange,
-                              routing_key=test_routing_key)
+                              routing_key = test_routing_key)
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
 
     def test_exchange_unbind(self):
-        dest_exchange = 'funtest.topic_dest_unbind'
-        source_exchange = 'funtest.topic_source_unbind'
-        test_routing_key = 'fun_test__key'
+        dest_exchange = 'unittest.topic_dest_unbind'
+        source_exchange = 'unittest.topic_source_unbind'
+        test_routing_key = 'unit_test__key'
 
         self.ch.exchange_declare(dest_exchange,
                                  'topic', auto_delete=True)
@@ -313,7 +310,6 @@ class TestChannel(unittest.TestCase):
         self.ch.exchange_unbind(destination=dest_exchange,
                                 source=source_exchange,
                                 routing_key=test_routing_key)
-
 
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)

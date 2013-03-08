@@ -62,8 +62,11 @@ class Channel(AbstractChannel):
         is left as plain bytes.
 
         """
-        if channel_id is None:
+        if channel_id:
+            connection._claim_channel_id(channel_id)
+        else:
             channel_id = connection._get_free_channel_id()
+
         AMQP_LOGGER.debug('using channel_id: %d', channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
@@ -1885,7 +1888,6 @@ class Channel(AbstractChannel):
             fun(msg)
 
     def basic_get(self, queue='', no_ack=False):
-        print('BASIC GET: %r' % (queue, ))
         """Direct access to a queue
 
         This method provides a direct access to the messages in a
@@ -2467,7 +2469,7 @@ class Channel(AbstractChannel):
     def _basic_ack_recv(self, args):
         delivery_tag = args.read_longlong()
         multiple = args.read_bit()
-        for callback in self.handlers['basic_ack']:
+        for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
 
     _METHOD_MAP = {

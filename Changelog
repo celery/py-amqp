@@ -54,6 +54,19 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Python 3 related fixes.
 
+.. _version-1.0.9:
+
+1.0.9
+=====
+:release-date: 2013-03-08 10:40 A.M UTC
+
+- Publisher ack callbacks should now work after typo fix (Issue #9).
+
+- ``channel(explicit_id)`` will now claim that id from the array
+  of unused channel ids.
+
+- Fixes Jython compatibility.
+
 .. _version-1.0.8:
 
 1.0.8
