@@ -2464,7 +2464,7 @@ class Channel(AbstractChannel):
     def _basic_ack_recv(self, args):
         delivery_tag = args.read_longlong()
         multiple = args.read_bit()
-        for callback in self.handlers['basic_ack']:
+        for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
 
     _METHOD_MAP = {
