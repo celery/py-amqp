@@ -28,8 +28,8 @@ import socket
 # Jython does not have this attribute
 try:
     from socket import SOL_TCP
-except ImportError:
-    from socket import IPPROTO_TCP as SOL_TCP
+except ImportError:  # pragma: no cover
+    from socket import IPPROTO_TCP as SOL_TCP  # noqa
 
 #
 # See if Python 2.6+ SSL support is available
