@@ -5,6 +5,16 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.0.9:
+
+1.0.9
+=====
+:release-date: 2013-03-08 10:40 A.M UTC
+
+- Publisher ack callbacks should now work after typo fix (Issue #9).
+
+- Fixes Jython compatibility.
+
 .. _version-1.0.8:
 
 1.0.8
