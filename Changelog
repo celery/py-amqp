@@ -13,6 +13,9 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Publisher ack callbacks should now work after typo fix (Issue #9).
 
+- ``channel(explicit_id)`` will now claim that id from the array
+  of unused channel ids.
+
 - Fixes Jython compatibility.
 
 .. _version-1.0.8:
