@@ -62,8 +62,11 @@ class Channel(AbstractChannel):
         is left as plain bytes.
 
         """
-        if channel_id is None:
+        if channel_id:
+            connection._claim_channel_id(channel_id)
+        else:
             channel_id = connection._get_free_channel_id()
+
         AMQP_LOGGER.debug('using channel_id: %d', channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
