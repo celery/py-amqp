@@ -53,6 +53,14 @@ except NameError:
     # Python 2.5 and lower
     bytes = str
 
+ILLEGAL_TABLE_TYPE_WITH_KEY = """\
+Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
+"""
+
+ILLEGAL_TABLE_TYPE = """\
+    Table type {0!r} not handled by amqp. [value: {1!r}]
+"""
+
 
 class AMQPReader(object):
     """Read higher-level AMQP types from a bytestream."""
@@ -312,12 +320,12 @@ class AMQPWriter(object):
         table_data = AMQPWriter()
         for k, v in items(d):
             table_data.write_shortstr(k)
-            table_data.write_item(v)
+            table_data.write_item(v, k)
         table_data = table_data.getvalue()
         self.write_long(len(table_data))
         self.out.write(table_data)
 
-    def write_item(self, v):
+    def write_item(self, v, k=None):
         if isinstance(v, (string_t, bytes)):
             if isinstance(v, string):
                 v = v.encode('utf-8')
@@ -350,9 +358,9 @@ class AMQPWriter(object):
             self.write(b'A')
             self.write_array(v)
         else:
-            raise FrameSyntaxError(
-                'Table type {0!r} not handled by amqp: {1!r}'.format(
-                    type(v), v))
+            err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
+                   else ILLEGAL_TABLE_TYPE.format(type(v), v))
+            raise FrameSyntaxError(err)
 
     def write_array(self, a):
         array_data = AMQPWriter()
