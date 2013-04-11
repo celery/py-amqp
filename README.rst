@@ -2,7 +2,7 @@
  Python AMQP 0.9.1 client library
 =====================================================================
 
-:Version: 1.0.10
+:Version: 1.0.11
 :Web: http://amqp.readthedocs.org/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
