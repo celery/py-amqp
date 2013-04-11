@@ -5,6 +5,14 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.0.11:
+
+1.0.11
+======
+:release-date: 2013-04-11 18:00 P.M BST
+
+- Fixed Python 3 incompatibility in ``amqp/transport.py``.
+
 .. _version-1.0.10:
 
 1.0.10
