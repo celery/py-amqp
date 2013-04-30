@@ -61,9 +61,11 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
+from .utils import promise  # noqa
 
 __all__ = [
     'Connection',
     'Channel',
     'Message',
+    'promise',
 ] + _all_exceptions
