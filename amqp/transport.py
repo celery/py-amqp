@@ -77,6 +77,7 @@ class _AbstractTransport(object):
                 port = int(port)
 
         self.sock = None
+        last_err = None
         for res in socket.getaddrinfo(host, port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
@@ -88,13 +89,13 @@ class _AbstractTransport(object):
                 msg = exc
                 self.sock.close()
                 self.sock = None
+                last_err = msg
                 continue
             break
 
         if not self.sock:
             # Didn't connect, return the most recent error message
-            msg = msg or 'getaddrinfo() for {0} is empty list'.format(host)
-            raise socket.error(msg)
+            raise socket.error(last_err)
 
         self.sock.settimeout(None)
         self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
