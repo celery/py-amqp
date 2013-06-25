@@ -52,6 +52,8 @@ from .exceptions import AMQPError
 
 AMQP_PORT = 5672
 
+EMPTY_BUFFER = bytes()
+
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 
@@ -191,7 +193,7 @@ class SSLTransport(_AbstractTransport):
         as you're asking for, at least with extremely large messages.
         somewhere > 16K - found this in the test_channel.py test_large
         unittest."""
-        result = ''
+        result = EMPTY_BUFFER
 
         while len(result) < n:
             try:
