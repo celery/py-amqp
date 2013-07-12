@@ -78,30 +78,30 @@ class _AbstractTransport(object):
                 host, port = host.rsplit(':', 1)
                 port = int(port)
 
-        self.sock = None
+        self._sock = None
         last_err = None
         for res in socket.getaddrinfo(host, port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
-                self.sock = socket.socket(af, socktype, proto)
-                self.sock.settimeout(connect_timeout)
-                self.sock.connect(sa)
+                self._sock = socket.socket(af, socktype, proto)
+                self._sock.settimeout(connect_timeout)
+                self._sock.connect(sa)
             except socket.error as exc:
                 msg = exc
-                self.sock.close()
-                self.sock = None
+                self._sock.close()
+                self._sock = None
                 last_err = msg
                 continue
             break
 
-        if not self.sock:
+        if not self._sock:
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
-        self.sock.settimeout(None)
-        self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self._sock.settimeout(None)
+        self._sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         self._setup_transport()
 
@@ -113,7 +113,7 @@ class _AbstractTransport(object):
         except socket.error:
             pass
         finally:
-            self.sock = None
+            self._sock = None
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
@@ -133,14 +133,14 @@ class _AbstractTransport(object):
         raise NotImplementedError('Must be overriden in subclass')
 
     def close(self):
-        if self.sock is not None:
+        if self._sock is not None:
             self._shutdown_transport()
             # Call shutdown first to make sure that pending messages
             # reach the AMQP broker if the program exits after
             # calling this method.
-            self.sock.shutdown(socket.SHUT_RDWR)
-            self.sock.close()
-            self.sock = None
+            self._sock.shutdown(socket.SHUT_RDWR)
+            self._sock.close()
+            self._sock = None
 
     def read_frame(self):
         frame_type, channel, size = unpack('>BHI', self._read(7, True))
@@ -159,6 +159,14 @@ class _AbstractTransport(object):
             frame_type, channel, size, payload, 0xce,
         ))
 
+    @property
+    def sock(self):
+        return self._sock
+
+    @sock.setter
+    def sock(self, v):
+        self._sock = v
+
 
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
@@ -175,17 +183,17 @@ class SSLTransport(_AbstractTransport):
         lower version."""
         if HAVE_PY26_SSL:
             if hasattr(self, 'sslopts'):
-                self.sslobj = ssl.wrap_socket(self.sock, **self.sslopts)
+                self.sslobj = ssl.wrap_socket(self._sock, **self.sslopts)
             else:
-                self.sslobj = ssl.wrap_socket(self.sock)
+                self.sslobj = ssl.wrap_socket(self._sock)
             self.sslobj.do_handshake()
         else:
-            self.sslobj = socket.ssl(self.sock)
+            self.sslobj = socket.ssl(self._sock)
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
         if HAVE_PY26_SSL and (self.sslobj is not None):
-            self.sock = self.sslobj.unwrap()
+            self._sock = self.sslobj.unwrap()
             self.sslobj = None
 
     def _read(self, n, initial=False):
@@ -216,6 +224,10 @@ class SSLTransport(_AbstractTransport):
                 raise IOError('Socket closed')
             s = s[n:]
 
+    @property
+    def sock(self):
+        return self.sslobj
+
 
 class TCPTransport(_AbstractTransport):
     """Transport that deals directly with TCP socket."""
@@ -223,14 +235,14 @@ class TCPTransport(_AbstractTransport):
     def _setup_transport(self):
         """Setup to _write() directly to the socket, and
         do our own buffered reads."""
-        self._write = self.sock.sendall
+        self._write = self._sock.sendall
         self._read_buffer = bytes()
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the socket"""
         while len(self._read_buffer) < n:
             try:
-                s = self.sock.recv(65536)
+                s = self._sock.recv(65536)
             except socket.error as exc:
                 if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
                     continue
