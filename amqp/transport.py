@@ -78,29 +78,29 @@ class _AbstractTransport(object):
                 host, port = host.rsplit(':', 1)
                 port = int(port)
 
-        self._sock = None
+        self.sock = None
         last_err = None
         for res in socket.getaddrinfo(host, port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
-                self._sock = socket.socket(af, socktype, proto)
-                self._sock.settimeout(connect_timeout)
-                self._sock.connect(sa)
+                self.sock = socket.socket(af, socktype, proto)
+                self.sock.settimeout(connect_timeout)
+                self.sock.connect(sa)
             except socket.error, msg:
-                self._sock.close()
-                self._sock = None
+                self.sock.close()
+                self.sock = None
                 last_err = msg
                 continue
             break
 
-        if not self._sock:
+        if not self.sock:
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
-        self._sock.settimeout(None)
-        self._sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self.sock.settimeout(None)
+        self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         self._setup_transport()
 
@@ -112,7 +112,7 @@ class _AbstractTransport(object):
         except socket.error:
             pass
         finally:
-            self._sock = None
+            self.sock = None
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
@@ -132,20 +132,21 @@ class _AbstractTransport(object):
         raise NotImplementedError('Must be overriden in subclass')
 
     def close(self):
-        if self._sock is not None:
+        if self.sock is not None:
             self._shutdown_transport()
             # Call shutdown first to make sure that pending messages
             # reach the AMQP broker if the program exits after
             # calling this method.
-            self._sock.shutdown(socket.SHUT_RDWR)
-            self._sock.close()
-            self._sock = None
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
+            self.sock = None
 
-    def read_frame(self):
+    def read_frame(self, unpack=unpack):
         """Read an AMQP frame."""
-        frame_type, channel, size = unpack('>BHI', self._read(7, True))
-        payload = self._read(size)
-        ch = ord(self._read(1))
+        read = self._read
+        frame_type, channel, size = unpack('>BHI', read(7, True))
+        payload = read(size)
+        ch = ord(read(1))
         if ch == 206:  # '\xce'
             return frame_type, channel, payload
         else:
@@ -159,14 +160,6 @@ class _AbstractTransport(object):
             pack('>BHI%dsB' % size, frame_type, channel, size, payload, 0xce),
         )
 
-    @property
-    def sock(self):
-        return self._sock
-
-    @sock.setter
-    def sock(self, v):
-        self._sock = v
-
 
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
@@ -174,7 +167,6 @@ class SSLTransport(_AbstractTransport):
     def __init__(self, host, connect_timeout, ssl):
         if isinstance(ssl, dict):
             self.sslopts = ssl
-        self.sslobj = None
         super(SSLTransport, self).__init__(host, connect_timeout)
 
     def _setup_transport(self):
@@ -183,18 +175,22 @@ class SSLTransport(_AbstractTransport):
         lower version."""
         if HAVE_PY26_SSL:
             if hasattr(self, 'sslopts'):
-                self.sslobj = ssl.wrap_socket(self._sock, **self.sslopts)
+                self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
             else:
-                self.sslobj = ssl.wrap_socket(self._sock)
-            self.sslobj.do_handshake()
+                self.sock = ssl.wrap_socket(self.sock)
+            self.sock.do_handshake()
         else:
-            self.sslobj = socket.ssl(self._sock)
+            self.sock = socket.ssl(self.sock)
+        self._quick_recv = self.sock.read
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
-        if HAVE_PY26_SSL and (self.sslobj is not None):
-            self._sock = self.sslobj.unwrap()
-            self.sslobj = None
+        if HAVE_PY26_SSL and self.sock is not None:
+            try:
+                unwrap = self.sock.unwrap
+            except AttributeError:
+                return
+            self.sock = unwrap(sock)
 
     def _read(self, n, initial=False):
         """It seems that SSL Objects read() method may not supply as much
@@ -202,10 +198,11 @@ class SSLTransport(_AbstractTransport):
         somewhere > 16K - found this in the test_channel.py test_large
         unittest."""
         result = EMPTY_BUFFER
+        recv = self._quick_recv
 
         while len(result) < n:
             try:
-                s = self.sslobj.read(n - len(result))
+                s = recv(n - len(result))
             except socket.error, exc:
                 if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
                     continue
@@ -218,15 +215,13 @@ class SSLTransport(_AbstractTransport):
 
     def _write(self, s):
         """Write a string out to the SSL socket fully."""
+        write = self.sock.write
         while s:
-            n = self.sslobj.write(s)
+            n = write(s)
             if not n:
                 raise IOError('Socket closed')
             s = s[n:]
 
-    @property
-    def sock(self):
-        return self.sslobj
 
 
 class TCPTransport(_AbstractTransport):
@@ -235,25 +230,27 @@ class TCPTransport(_AbstractTransport):
     def _setup_transport(self):
         """Setup to _write() directly to the socket, and
         do our own buffered reads."""
-        self._write = self._sock.sendall
-        self._read_buffer = bytes()
+        self._write = self.sock.sendall
+        self._read_buffer = EMPTY_BUFFER
+        self._quick_recv = self.sock.recv
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the socket"""
-        while len(self._read_buffer) < n:
+        recv = self._quick_recv
+        rbuf = self._read_buffer
+        while len(rbuf) < n:
             try:
-                s = self._sock.recv(65536)
+                s = recv(65536)
             except socket.error, exc:
                 if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
                     continue
                 raise
             if not s:
                 raise IOError('Socket closed')
-            self._read_buffer += s
+            rbuf += s
 
-        result = self._read_buffer[:n]
-        self._read_buffer = self._read_buffer[n:]
-
+        result = rbuf[:n]
+        self._read_buffer = rbuf[n:]
         return result
 
 
