@@ -60,12 +60,17 @@ class _PartialMessage(object):
         self.complete = (self.body_size == 0)
 
     def add_payload(self, payload):
-        self.body_parts.append(payload)
+        parts = self.body_parts
         self.body_received += len(payload)
-
         if self.body_received == self.body_size:
-            self.msg.body = bytes().join(self.body_parts)
+            if parts:
+                parts.append(payload)
+                self.msg.body = bytes().join(parts)
+            else:
+                self.msg.body = payload
             self.complete = True
+        else:
+            parts.append(payload)
 
 
 class MethodReader(object):
