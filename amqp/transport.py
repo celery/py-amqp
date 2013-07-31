@@ -167,6 +167,7 @@ class SSLTransport(_AbstractTransport):
     def __init__(self, host, connect_timeout, ssl):
         if isinstance(ssl, dict):
             self.sslopts = ssl
+        self._read_buffer = EMPTY_BUFFER
         super(SSLTransport, self).__init__(host, connect_timeout)
 
     def _setup_transport(self):
@@ -193,24 +194,30 @@ class SSLTransport(_AbstractTransport):
             self.sock = unwrap()
 
     def _read(self, n, initial=False):
-        """It seems that SSL Objects read() method may not supply as much
-        as you're asking for, at least with extremely large messages.
-        somewhere > 16K - found this in the test_channel.py test_large
-        unittest."""
-        result = EMPTY_BUFFER
-        recv = self._quick_recv
+        """According to SSL_read(3), the most that an SSL read can return is 16kb.
+        Thus, we use the same mechanism as in TCPTransport::_read to get the exact
+        number of bytes wanted, using an internal read buffer."""
 
-        while len(result) < n:
+        recv = self._quick_recv
+        result = EMPTY_BUFFER
+        rbuf = self._read_buffer
+        while len(rbuf) < n:
             try:
-                s = recv(n - len(result))
+                s = recv(16384)
             except socket.error as exc:
-                if not initial and exc.errno in (errno.EAGAIN, errno.EINTR):
+				# It seems that ssl.sock.read raises errno.ENOENT when the
+				# operation couldn't have been performed, so we also need to
+				# catch it here, or we will have issues like
+				# https://github.com/celery/celery/issues/1414.
+                if not initial and exc.errno in (errno.ENOENT, errno.EAGAIN, errno.EINTR):
                     continue
-                raise
+                raise exc
             if not s:
                 raise IOError('Socket closed')
-            result += s
+            rbuf += s
 
+        result = rbuf[:n]
+        self._read_buffer = rbuf[n:]
         return result
 
     def _write(self, s):
