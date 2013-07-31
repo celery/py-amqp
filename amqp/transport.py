@@ -202,7 +202,7 @@ class SSLTransport(_AbstractTransport):
         rbuf = self._read_buffer
         while len(rbuf) < n:
             try:
-                s = recv(16384)  # see note above
+                s = recv(131072)  # see note above
             except socket.error as exc:
                 # ssl.sock.read may cause ENOENT if the
                 # operation couldn't be performed (Issue celery#1414).
@@ -242,7 +242,7 @@ class TCPTransport(_AbstractTransport):
         rbuf = self._read_buffer
         while len(rbuf) < n:
             try:
-                s = recv(65536)
+                s = recv(131072)
             except socket.error as exc:
                 if not initial and exc.errno in _errnos:
                     continue
