@@ -18,3 +18,5 @@
     amqp.transport
     amqp.method_framing
     amqp.serialization
+    amqp.utils
+    amqp.five

@@ -125,9 +125,7 @@ class MethodReader(object):
                     channel,
                     UnexpectedFrame(
                         'Received frame {0} while expecting type: {1}'.format(
-                            frame_type, self.expected_types[channel]),
-                    )
-                ))
+                            frame_type, self.expected_types[channel]))))
             elif frame_type == 1:
                 self._process_method_frame(channel, payload)
             elif frame_type == 2:
