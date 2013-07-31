@@ -190,7 +190,7 @@ class SSLTransport(_AbstractTransport):
                 unwrap = self.sock.unwrap
             except AttributeError:
                 return
-            self.sock = unwrap(sock)
+            self.sock = unwrap()
 
     def _read(self, n, initial=False):
         """It seems that SSL Objects read() method may not supply as much
