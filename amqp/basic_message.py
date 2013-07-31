@@ -23,6 +23,7 @@ __all__ = ['Message']
 
 class Message(GenericContent):
     """A Message for use with the Channnel.basic_* methods."""
+    complete = False
 
     #: Instances of this class have these attributes, which
     #: are passed back and forth as message properties between

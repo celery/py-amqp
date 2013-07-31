@@ -76,6 +76,7 @@ class AMQPReader(object):
                 'AMQPReader needs a file-like object or plain string')
 
         self.bitcount = self.bits = 0
+        self._quick_read = self.input.read
 
     def close(self):
         self.input.close()
@@ -83,12 +84,12 @@ class AMQPReader(object):
     def read(self, n):
         """Read n bytes."""
         self.bitcount = self.bits = 0
-        return self.input.read(n)
+        return self._quick_read(n)
 
     def read_bit(self):
         """Read a single boolean value."""
         if not self.bitcount:
-            self.bits = ord(self.input.read(1))
+            self.bits = ord(self._quick_read(1))
             self.bitcount = 8
         result = (self.bits & 1) == 1
         self.bits >>= 1
@@ -98,27 +99,27 @@ class AMQPReader(object):
     def read_octet(self):
         """Read one byte, return as an integer"""
         self.bitcount = self.bits = 0
-        return unpack('B', self.input.read(1))[0]
+        return unpack('B', self._quick_read(1))[0]
 
     def read_short(self):
         """Read an unsigned 16-bit integer"""
         self.bitcount = self.bits = 0
-        return unpack('>H', self.input.read(2))[0]
+        return unpack('>H', self._quick_read(2))[0]
 
     def read_long(self):
         """Read an unsigned 32-bit integer"""
         self.bitcount = self.bits = 0
-        return unpack('>I', self.input.read(4))[0]
+        return unpack('>I', self._quick_read(4))[0]
 
     def read_longlong(self):
         """Read an unsigned 64-bit integer"""
         self.bitcount = self.bits = 0
-        return unpack('>Q', self.input.read(8))[0]
+        return unpack('>Q', self._quick_read(8))[0]
 
     def read_float(self):
         """Read float value."""
         self.bitcount = self.bits = 0
-        return unpack('>d', self.input.read(8))[0]
+        return unpack('>d', self._quick_read(8))[0]
 
     def read_shortstr(self):
         """Read a short string that's stored in up to 255 bytes.
@@ -128,8 +129,8 @@ class AMQPReader(object):
 
         """
         self.bitcount = self.bits = 0
-        slen = unpack('B', self.input.read(1))[0]
-        return self.input.read(slen).decode('utf-8')
+        slen = unpack('B', self._quick_read(1))[0]
+        return self._quick_read(slen).decode('utf-8')
 
     def read_longstr(self):
         """Read a string that's up to 2**32 bytes.
@@ -139,14 +140,14 @@ class AMQPReader(object):
 
         """
         self.bitcount = self.bits = 0
-        slen = unpack('>I', self.input.read(4))[0]
-        return self.input.read(slen).decode('utf-8')
+        slen = unpack('>I', self._quick_read(4))[0]
+        return self._quick_read(slen).decode('utf-8')
 
     def read_table(self):
         """Read an AMQP table, and return as a Python dictionary."""
         self.bitcount = self.bits = 0
-        tlen = unpack('>I', self.input.read(4))[0]
-        table_data = AMQPReader(self.input.read(tlen))
+        tlen = unpack('>I', self._quick_read(4))[0]
+        table_data = AMQPReader(self._quick_read(tlen))
         result = {}
         while table_data.input.tell() < tlen:
             name = table_data.read_shortstr()
@@ -155,14 +156,14 @@ class AMQPReader(object):
         return result
 
     def read_item(self):
-        ftype = ord(self.input.read(1))
+        ftype = ord(self._quick_read(1))
         if ftype == 83:  # 'S'
             val = self.read_longstr()
         elif ftype == 73:  # 'I'
-            val = unpack('>i', self.input.read(4))[0]
+            val = unpack('>i', self._quick_read(4))[0]
         elif ftype == 68:  # 'D'
             d = self.read_octet()
-            n = unpack('>i', self.input.read(4))[0]
+            n = unpack('>i', self._quick_read(4))[0]
             val = Decimal(n) / Decimal(10 ** d)
         elif ftype == 84:  # 'T'
             val = self.read_timestamp()
@@ -181,8 +182,8 @@ class AMQPReader(object):
         return val
 
     def read_array(self):
-        array_length = unpack('>I', self.input.read(4))[0]
-        array_data = AMQPReader(self.input.read(array_length))
+        array_length = unpack('>I', self._quick_read(4))[0]
+        array_data = AMQPReader(self._quick_read(array_length))
         result = []
         while array_data.input.tell() < array_length:
             val = array_data.read_item()

@@ -43,6 +43,36 @@ _CONTENT_METHODS = [
 ]
 
 
+def _partial_message(msg, method_sig, args):
+    body_parts = []
+    add_part = body_parts.append
+    received = 0
+
+    header = (yield)
+    class_id, weight, body_size = unpack('>HHQ', header[:12])
+    msg._load_properties(header[12:])
+    if body_size != 0:
+        while 1:
+            part = (yield)
+            add_part(part)
+            received += len(part)
+
+            if received >= body_size:
+                if len(body_parts) > 1:
+                    msg.body = bytes().join(body_parts)
+                else:
+                    msg.body = body_parts[0]
+                break
+    msg.complete = True
+
+
+def PartialMessage(method_sig, args):
+    msg = Message()
+    it = _partial_message(msg, method_sig, args)
+    next(it)
+    return msg, it, method_sig, args
+
+
 class _PartialMessage(object):
     """Helper class to build up a multi-frame method."""
 
@@ -61,11 +91,15 @@ class _PartialMessage(object):
         self.complete = (self.body_size == 0)
 
     def add_payload(self, payload):
-        self.body_parts.append(payload)
+        parts = self.body_parts
+        parts.append(payload)
         self.body_received += len(payload)
 
         if self.body_received == self.body_size:
-            self.msg.body = bytes().join(self.body_parts)
+            if len(parts) > 1:
+                self.msg.body = bytes().join(parts)
+            else:
+                self.msg.body = parts[0]
             self.complete = True
 
 
@@ -96,101 +130,79 @@ class MethodReader(object):
         self.bytes_recv = 0
         self._quick_put = self.queue.append
         self._quick_get = self.queue.popleft
+        self.it = self.iter()
+
+    def iter(self, unpack=unpack):
+        read_frame = self.source.read_frame
+        partials = self.partial_messages
+        expected_types = self.expected_types
+        ITEM = None
+        while 1:
+            while ITEM is None:
+                frame_type, channel, payload = read_frame()
+                self.bytes_recv += 1
+
+                if frame_type not in (expected_types[channel], 8):
+                    raise UnexpectedFrame(
+                        'Received frame {0} while expecting type: {1}'.format(
+                            frame_type, expected_types[channel]),
+                    )
+                elif frame_type == 1:
+                    method_sig = unpack('>HH', payload[:4])
+                    args = AMQPReader(payload[4:])
+                    if method_sig in _CONTENT_METHODS:
+                        # Save what we've got so far and wait for the content-header
+                        partials[channel] = PartialMessage(method_sig, args)
+                        expected_types[channel] = 2
+                    else:
+                        ITEM = channel, method_sig, args, None
+                elif frame_type == 2:
+                    msg, it, msig, margs = partials[channel]
+                    it.send(payload)
+
+                    if msg.complete:
+                        # a bodyless message, we're done
+                        ITEM = channel, msig, margs, msg
+                        partials.pop(channel, None)
+                        expected_types[channel] = 1
+                    else:
+                        # wait for the content-body
+                        expected_types[channel] = 3
+                elif frame_type == 3:
+                    msg, it, msig, margs = partials[channel]
+                    try:
+                        it.send(payload)
+                    except StopIteration:
+                        pass
+                    if msg.complete:
+                        #
+                        # Stick the message in the queue and go back to
+                        # waiting for method frames
+                        #
+                        ITEM = channel, msig, margs, msg
+                        partials.pop(channel, None)
+                        expected_types[channel] = 1
+                elif frame_type == 8:
+                    self.heartbeats += 1
+            yield ITEM
+            ITEM = None
+
 
     def _next_method(self):
         """Read the next method from the source, once one complete method has
         been assembled it is placed in the internal queue."""
-        queue = self.queue
-        put = self._quick_put
-        read_frame = self.source.read_frame
-        while not queue:
-            try:
-                frame_type, channel, payload = read_frame()
-            except Exception as exc:
-                #
-                # Connection was closed?  Framing Error?
-                #
-                put(exc)
-                break
-
-            self.bytes_recv += 1
-
-            if frame_type not in (self.expected_types[channel], 8):
-                put((
-                    channel,
-                    UnexpectedFrame(
-                        'Received frame {0} while expecting type: {1}'.format(
-                            frame_type, self.expected_types[channel]),
-                    )
-                ))
-            elif frame_type == 1:
-                self._process_method_frame(channel, payload)
-            elif frame_type == 2:
-                self._process_content_header(channel, payload)
-            elif frame_type == 3:
-                self._process_content_body(channel, payload)
-            elif frame_type == 8:
-                self._process_heartbeat(channel, payload)
-
-    def _process_heartbeat(self, channel, payload):
-        self.heartbeats += 1
-
-    def _process_method_frame(self, channel, payload):
-        """Process Method frames"""
-        method_sig = unpack('>HH', payload[:4])
-        args = AMQPReader(payload[4:])
-
-        if method_sig in _CONTENT_METHODS:
-            #
-            # Save what we've got so far and wait for the content-header
-            #
-            self.partial_messages[channel] = _PartialMessage(method_sig, args)
-            self.expected_types[channel] = 2
-        else:
-            self._quick_put((channel, method_sig, args, None))
-
-    def _process_content_header(self, channel, payload):
-        """Process Content Header frames"""
-        partial = self.partial_messages[channel]
-        partial.add_header(payload)
-
-        if partial.complete:
-            #
-            # a bodyless message, we're done
-            #
-            self._quick_put((channel, partial.method_sig,
-                             partial.args, partial.msg))
-            self.partial_messages.pop(channel, None)
-            self.expected_types[channel] = 1
-        else:
-            #
-            # wait for the content-body
-            #
-            self.expected_types[channel] = 3
-
-    def _process_content_body(self, channel, payload):
-        """Process Content Body frames"""
-        partial = self.partial_messages[channel]
-        partial.add_payload(payload)
-        if partial.complete:
-            #
-            # Stick the message in the queue and go back to
-            # waiting for method frames
-            #
-            self._quick_put((channel, partial.method_sig,
-                             partial.args, partial.msg))
-            self.partial_messages.pop(channel, None)
-            self.expected_types[channel] = 1
+        return next(self.it)
 
     def read_method(self):
         """Read a method from the peer."""
-        self._next_method()
-        m = self._quick_get()
-        if isinstance(m, Exception):
-            raise m
-        if isinstance(m, tuple) and isinstance(m[1], AMQPError):
-            raise m[1]
-        return m
+        try:
+            X = next(self.it)
+        except StopIteration:
+            self.it = self.iter()
+        except Exception:
+            self.it = self.iter()
+            raise
+        return X
 
 
 class MethodWriter(object):
