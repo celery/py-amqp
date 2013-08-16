@@ -55,6 +55,10 @@ class ConsumerCancel(ChannelError):
     pass
 
 
+class Blocked(ConnectionError):
+    pass
+
+
 METHOD_NAME_MAP = {
     (10, 10): 'Connection.start',
     (10, 11): 'Connection.start_ok',
