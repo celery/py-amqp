@@ -29,7 +29,7 @@ except ImportError:
 from . import __version__
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import ChannelError, ConnectionError
+from .exceptions import Blocked, ChannelError, ConnectionError
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
