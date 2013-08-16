@@ -29,7 +29,7 @@ except ImportError:
 from . import __version__
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import Blocked, ChannelError, ConnectionError
+from .exceptions import ChannelError, ConnectionError
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
@@ -500,7 +500,6 @@ class Connection(AbstractChannel):
         reason = args.read_shortstr()
         if self.on_blocked:
             return self.on_blocked(reason)
-        raise Blocked(reason)
 
     def _unblocked(self, *args):
         if self.on_unblocked:
