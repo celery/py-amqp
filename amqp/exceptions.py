@@ -78,6 +78,10 @@ class IrrecoverableConnectionError(ConnectionError):
     pass
 
 
+class Blocked(RecoverableConnectionError):
+    pass
+
+
 class ConsumerCancelled(RecoverableConnectionError):
     pass
 
