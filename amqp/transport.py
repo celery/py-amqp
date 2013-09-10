@@ -22,6 +22,7 @@ Read/Write AMQP frames over network transports.
 from __future__ import absolute_import
 
 import errno
+import fcntl
 import re
 import socket
 
@@ -98,6 +99,7 @@ class _AbstractTransport(object):
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
+        fcntl.fcntl(self.sock, fcntl.F_SETFD, fcntl.fcntl(self.sock, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
         self.sock.settimeout(None)
         self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
