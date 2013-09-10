@@ -9,7 +9,7 @@ except ImportError:
 try:
     from os import set_cloexec  # Python 3.4?
 except ImportError:
-    def set_cloexec(fd, cloexec):
+    def set_cloexec(fd, cloexec):  # noqa
         try:
             FD_CLOEXEC = fcntl.FD_CLOEXEC
         except AttributeError:
