@@ -22,7 +22,6 @@ Read/Write AMQP frames over network transports.
 from __future__ import absolute_import
 
 import errno
-import fcntl
 import re
 import socket
 
@@ -50,6 +49,7 @@ except:
 from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
+from .utils import set_cloexec
 
 AMQP_PORT = 5672
 
@@ -86,6 +86,10 @@ class _AbstractTransport(object):
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
+                try:
+                    set_cloexec(self.sock, True)
+                except NotImplementedError:
+                    pass
                 self.sock.settimeout(connect_timeout)
                 self.sock.connect(sa)
             except socket.error as exc:
@@ -100,7 +104,6 @@ class _AbstractTransport(object):
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
-        fcntl.fcntl(self.sock, fcntl.F_SETFD, fcntl.fcntl(self.sock, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
         self.sock.settimeout(None)
         self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
