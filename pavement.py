@@ -1,8 +1,9 @@
+import os
 import sys
 from paver.easy import *
 from paver import doctools
 from paver.setuputils import setup
-
+sys.path.insert(0, os.path.abspath('.'))
 PYCOMPILE_CACHES = ['*.pyc', '*$py.class']
 
 options(
