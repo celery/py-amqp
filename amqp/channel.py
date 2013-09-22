@@ -24,6 +24,7 @@ from warnings import warn
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
+from .protocol import basic_return_t, queue_declare_ok_t
 from .serialization import AMQPWriter
 
 __all__ = ['Channel']
@@ -1272,10 +1273,11 @@ class Channel(AbstractChannel):
                 this count.
 
         """
-        queue = args.read_shortstr()
-        message_count = args.read_long()
-        consumer_count = args.read_long()
-        return queue, message_count, consumer_count
+        return queue_declare_ok_t(
+            args.read_shortstr(),
+            args.read_long(),
+            args.read_long(),
+        )
 
     def queue_delete(self, queue='',
                      if_unused=False, if_empty=False, nowait=False):
@@ -2334,14 +2336,13 @@ class Channel(AbstractChannel):
                 message was published.
 
         """
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        exchange = args.read_shortstr()
-        routing_key = args.read_shortstr()
-
-        self.returned_messages.put(
-            (reply_code, reply_text, exchange, routing_key, msg)
-        )
+        self.returned_messages.put(basic_return_t(
+            args.read_short(),
+            args.read_shortstr(),
+            args.read_shortstr(),
+            args.read_shortstr(),
+            msg,
+        ))
 
     #############
     #
