@@ -15,9 +15,9 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
     amqplib used to make the channel object available
     as ``Message.delivery_info['channel']``, but this was removed
-    in py-amqp.  Librabbitmq sets ``Message.channel`` instead,
-    which is a more reasonable solution in our opinion, as that
-    keeps the delivery info mapping intact.
+    in py-amqp.  librabbitmq sets ``Message.channel``,
+    which is a more reasonable solution in our opinion as that
+    keeps the delivery info intact.
 
 - New option to wait for publish confirmations (Issue #3)
 
