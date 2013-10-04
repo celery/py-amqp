@@ -81,6 +81,12 @@ class Channel(AbstractChannel):
         self.events = defaultdict(set)
         self.no_ack_consumers = set()
 
+        # set first time basic_publish_confirm is called
+        # and publisher confirms are enabled for this channel.
+        self._confirm_selected = False
+        if self.connection.confirm_publish:
+            self.basic_publish = self.basic_publish_confirm
+
         self._x_open()
 
     def _do_close(self):
@@ -2026,7 +2032,7 @@ class Channel(AbstractChannel):
         }
         return msg
 
-    def basic_publish(self, msg, exchange='', routing_key='',
+    def _basic_publish(self, msg, exchange='', routing_key='',
                       mandatory=False, immediate=False):
         """Publish a message
 
@@ -2101,6 +2107,15 @@ class Channel(AbstractChannel):
         args.write_bit(immediate)
 
         self._send_method((60, 40), args, msg)
+    basic_publish = _basic_publish
+
+    def basic_publish_confirm(self, *args, **kwargs):
+        if not self._confirm_selected:
+            self._confirm_selected = True
+            self.confirm_select()
+        ret = self._basic_publish(*args, **kwargs)
+        self.wait([(60, 80)])
+        return ret
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
         """Specify quality of service

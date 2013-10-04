@@ -89,7 +89,7 @@ class Connection(AbstractChannel):
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_blocked=None,
-                 on_unblocked=None, **kwargs):
+                 on_unblocked=None, confirm_publish=False, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -126,6 +126,8 @@ class Connection(AbstractChannel):
         self.channel_max = channel_max
         self.frame_max = frame_max
         self.heartbeat = heartbeat
+
+        self.confirm_publish = confirm_publish
 
         # Callbacks
         self.on_blocked = on_blocked
