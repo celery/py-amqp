@@ -185,7 +185,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - ``Channel.close`` is now ignored if the connection attribute is None.
 
-.. _version-1.0.5
+.. _version-1.0.5:
 
 1.0.5
 =====
