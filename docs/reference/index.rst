@@ -17,6 +17,7 @@
     amqp.abstract_channel
     amqp.transport
     amqp.method_framing
+    amqp.protocol
     amqp.serialization
     amqp.utils
     amqp.five

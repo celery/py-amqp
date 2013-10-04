@@ -11,5 +11,3 @@ basic_return_t = namedtuple(
     'basic_return_t',
     ('reply_code', 'reply_text', 'exchange', 'routing_key', 'message'),
 )
-
-

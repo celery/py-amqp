@@ -2033,7 +2033,7 @@ class Channel(AbstractChannel):
         return msg
 
     def _basic_publish(self, msg, exchange='', routing_key='',
-                      mandatory=False, immediate=False):
+                       mandatory=False, immediate=False):
         """Publish a message
 
         This method publishes a message to a specific exchange. The
