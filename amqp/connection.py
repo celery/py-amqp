@@ -165,6 +165,10 @@ class Connection(AbstractChannel):
 
         return self._x_open(virtual_host)
 
+    @property
+    def connected(self):
+        return self.transport and self.transport.connected
+
     def _do_close(self):
         try:
             self.transport.close()

@@ -64,6 +64,7 @@ IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
+    connected = False
 
     def __init__(self, host, connect_timeout):
         msg = None
@@ -103,14 +104,19 @@ class _AbstractTransport(object):
         if not self.sock:
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
+        self.connected = True
 
-        self.sock.settimeout(None)
-        self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        try:
+            self.sock.settimeout(None)
+            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-        self._setup_transport()
+            self._setup_transport()
 
-        self._write(AMQP_PROTOCOL_HEADER)
+            self._write(AMQP_PROTOCOL_HEADER)
+        except (OSError, IOError, socket.error):
+            self.connected = False
+            raise
 
     def __del__(self):
         try:
@@ -146,12 +152,19 @@ class _AbstractTransport(object):
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
             self.sock = None
+        self.connected = False
 
     def read_frame(self, unpack=unpack):
         read = self._read
-        frame_type, channel, size = unpack('>BHI', read(7, True))
-        payload = read(size)
-        ch = ord(read(1))
+        try:
+            frame_type, channel, size = unpack('>BHI', read(7, True))
+            payload = read(size)
+            ch = ord(read(1))
+        except socket.timeout:
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
+            raise
         if ch == 206:  # '\xce'
             return frame_type, channel, payload
         else:
@@ -160,10 +173,16 @@ class _AbstractTransport(object):
 
     def write_frame(self, frame_type, channel, payload):
         size = len(payload)
-        self._write(pack(
-            '>BHI%dsB' % size,
-            frame_type, channel, size, payload, 0xce,
-        ))
+        try:
+            self._write(pack(
+                '>BHI%dsB' % size,
+                frame_type, channel, size, payload, 0xce,
+            ))
+        except socket.timeout:
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
+            raise
 
 
 class SSLTransport(_AbstractTransport):
