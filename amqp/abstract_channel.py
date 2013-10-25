@@ -92,6 +92,7 @@ class AbstractChannel(object):
         if content is None:
             return amqp_method(self, args)
         else:
+            content.channel = self
             return amqp_method(self, args, content)
 
     #: Placeholder, the concrete implementations will have to
