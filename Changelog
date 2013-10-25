@@ -5,6 +5,57 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.3.1:
+
+1.3.1
+=====
+:release-date: 2013-10-24 04:00 P.M UTC
+
+- Now implements Connection.connected (Issue #22).
+
+- Fixed bug where ``str(AMQPError)`` did not return string.
+
+.. _version-1.3.0:
+
+1.3.0
+=====
+:release-date: 2013-09-04 02:39 P.M UTC
+
+- Now sets ``Message.channel`` on delivery (Issue #12)
+
+    amqplib used to make the channel object available
+    as ``Message.delivery_info['channel']``, but this was removed
+    in py-amqp.  librabbitmq sets ``Message.channel``,
+    which is a more reasonable solution in our opinion as that
+    keeps the delivery info intact.
+
+- New option to wait for publish confirmations (Issue #3)
+
+    There is now a new Connection ``confirm_publish`` that will
+    force any ``basic_publish`` call to wait for confirmation.
+
+    Enabling publisher confirms like this degrades performance
+    considerably, but can be suitable for some applications
+    and now it's possible by configuration.
+
+- ``queue_declare`` now returns named tuple of type
+  :class:`~amqp.protocol.basic_declare_ok_t`.
+
+    Supporting fields: ``queue``, ``message_count``, and
+    ``consumer_count``.
+
+- Contents of ``Channel.returned_messages`` is now named tuples.
+
+    Supporting fields: ``reply_code``, ``reply_text``, ``exchange``,
+    ``routing_key``, and ``message``.
+
+- Sockets now set to close on exec using the ``FD_CLOEXEC`` flag.
+
+    Currently only supported on platforms supporting this flag,
+    which does not include Windows.
+
+    Contributed by Tommie Gannert.
+
 .. _version-1.2.1:
 
 1.2.1
@@ -144,7 +195,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - ``Channel.close`` is now ignored if the connection attribute is None.
 
-.. _version-1.0.5
+.. _version-1.0.5:
 
 1.0.5
 =====

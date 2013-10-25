@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PACKAGE="$1"
-SKIP_PACKAGES="$PACKAGE tests management urls"
+SKIP_PACKAGES="$PACKAGE tests"
 SKIP_FILES=""
 modules=$(find "$PACKAGE" -name "*.py")
 
@@ -21,10 +21,8 @@ for module in $modules; do
 
     if [ $skip -eq 0 ]; then
         if [ ! -f "docs/reference/$rst" ]; then
-            if [ ! -f "docs/internals/reference/$rst" ]; then
-                echo $rst :: FAIL
-                failed=1
-            fi
+            echo $rst :: FAIL
+            failed=1
         fi
     fi
 done
