@@ -49,7 +49,9 @@ except:
 from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
-from .utils import set_cloexec
+from .utils import get_errno, set_cloexec
+
+_UNAVAIL = errno.EAGAIN, errno.EINTR
 
 AMQP_PORT = 5672
 
@@ -67,6 +69,7 @@ class _AbstractTransport(object):
     connected = False
 
     def __init__(self, host, connect_timeout):
+        self.connected = True
         msg = None
         port = AMQP_PORT
 
@@ -104,7 +107,6 @@ class _AbstractTransport(object):
         if not self.sock:
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
-        self.connected = True
 
         try:
             self.sock.settimeout(None)
@@ -114,8 +116,9 @@ class _AbstractTransport(object):
             self._setup_transport()
 
             self._write(AMQP_PROTOCOL_HEADER)
-        except (OSError, IOError, socket.error):
-            self.connected = False
+        except (OSError, IOError, socket.error) as exc:
+            if get_errno(exc) not in _UNAVAIL:
+                self.connected = False
             raise
 
     def __del__(self):
@@ -162,8 +165,9 @@ class _AbstractTransport(object):
             ch = ord(read(1))
         except socket.timeout:
             raise
-        except (OSError, IOError, socket.error):
-            self.connected = False
+        except (OSError, IOError, socket.error) as exc:
+            if get_errno(exc) not in _UNAVAIL:
+                self.connected = False
             raise
         if ch == 206:  # '\xce'
             return frame_type, channel, payload
@@ -180,8 +184,9 @@ class _AbstractTransport(object):
             ))
         except socket.timeout:
             raise
-        except (OSError, IOError, socket.error):
-            self.connected = False
+        except (OSError, IOError, socket.error) as exc:
+            if get_errno(exc) not in _UNAVAIL:
+                self.connected = False
             raise
 
 
