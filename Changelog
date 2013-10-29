@@ -5,6 +5,17 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.3.2:
+
+1.3.2
+=====
+:release-date: 2013-10-29 2:00 P.M UTC
+
+- Message.channel is now a channel object (not the channel id).
+
+- Bug in previous version caused the socket to be flagged as disconnected
+  at EAGAIN/EINTR.
+
 .. _version-1.3.1:
 
 1.3.1
