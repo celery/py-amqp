@@ -49,7 +49,7 @@ class _PartialMessage(object):
     def __init__(self, method_sig, args, channel):
         self.method_sig = method_sig
         self.args = args
-        self.msg = Message(channel=channel)
+        self.msg = Message()
         self.body_parts = []
         self.body_received = 0
         self.body_size = None

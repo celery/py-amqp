@@ -1883,6 +1883,7 @@ class Channel(AbstractChannel):
         exchange = args.read_shortstr()
         routing_key = args.read_shortstr()
 
+        msg.channel = self
         msg.delivery_info = {
             'consumer_tag': consumer_tag,
             'delivery_tag': delivery_tag,
@@ -1891,8 +1892,11 @@ class Channel(AbstractChannel):
             'routing_key': routing_key,
         }
 
-        fun = self.callbacks.get(consumer_tag, None)
-        if fun is not None:
+        try:
+            fun = self.callbacks[consumer_tag]
+        except KeyError:
+            pass
+        else:
             fun(msg)
 
     def basic_get(self, queue='', no_ack=False):
@@ -2023,6 +2027,7 @@ class Channel(AbstractChannel):
         routing_key = args.read_shortstr()
         message_count = args.read_long()
 
+        msg.channel = self
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
             'redelivered': redelivered,
