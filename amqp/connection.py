@@ -145,7 +145,8 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = create_transport(host, connect_timeout, ssl)
+        self.transport = create_transport(host, connect_timeout, ssl,
+                                          self.drain_events)
 
         self.method_reader = MethodReader(self.transport)
         self.method_writer = MethodWriter(self.transport, self.frame_max)

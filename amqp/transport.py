@@ -23,6 +23,7 @@ from __future__ import absolute_import
 
 import errno
 import re
+import select
 import socket
 
 # Jython does not have this attribute
@@ -46,6 +47,8 @@ except:
     # Python 2.5 and lower
     bytes = str
 
+UNAVAIL = frozenset([errno.EAGAIN, errno.EINTR])
+
 from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
@@ -68,8 +71,9 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout):
+    def __init__(self, host, connect_timeout, drain_events=None):
         self.connected = True
+        self.drain_events = drain_events
         msg = None
         port = AMQP_PORT
 
@@ -175,7 +179,9 @@ class _AbstractTransport(object):
             raise UnexpectedFrame(
                 'Received 0x{0:02x} while expecting 0xce'.format(ch))
 
-    def write_frame(self, frame_type, channel, payload):
+    def write_frame(self, frame_type, channel, payload,
+                    select=select.select):
+
         size = len(payload)
         try:
             self._write(pack(
@@ -261,11 +267,31 @@ class TCPTransport(_AbstractTransport):
     def _setup_transport(self):
         """Setup to _write() directly to the socket, and
         do our own buffered reads."""
-        self._write = self.sock.sendall
         self._read_buffer = EMPTY_BUFFER
         self._quick_recv = self.sock.recv
 
-    def _read(self, n, initial=False, _errnos=(errno.EAGAIN, errno.EINTR)):
+    def _write(self, s, select=select.select, unavail=UNAVAIL):
+        write = self.sock.send
+        while s:
+            r, w, e = select([self.sock], [self.sock], [self.sock], 1.0)
+            if r or e:
+                try:
+                    self.drain_events(0)
+                except OSError as exc:
+                    if get_errno(exc) == errno.EINTR:
+                        raise IOError('Socket closed')
+            if w:
+                try:
+                    n = write(s)
+                except OSError as exc:
+                    if get_errno(exc) not in unavail:
+                        raise
+                else:
+                    if not n:
+                        raise IOError('Socket closed')
+                    s = s[n:]
+
+    def _read(self, n, initial=False, _errnos=UNAVAIL):
         """Read exactly n bytes from the socket"""
         recv = self._quick_recv
         rbuf = self._read_buffer
@@ -284,10 +310,10 @@ class TCPTransport(_AbstractTransport):
         return result
 
 
-def create_transport(host, connect_timeout, ssl=False):
+def create_transport(host, connect_timeout, ssl=False, drain_events=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     if ssl:
-        return SSLTransport(host, connect_timeout, ssl)
+        return SSLTransport(host, connect_timeout, ssl, drain_events)
     else:
-        return TCPTransport(host, connect_timeout)
+        return TCPTransport(host, connect_timeout, drain_events)
