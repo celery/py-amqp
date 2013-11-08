@@ -237,7 +237,7 @@ class SSLTransport(_AbstractTransport):
                 # operation couldn't be performed (Issue celery#1414).
                 if not initial and exc.errno in _errnos:
                     continue
-                raise exc
+                raise
             if not s:
                 raise IOError('Socket closed')
             rbuf += s
