@@ -229,18 +229,22 @@ class SSLTransport(_AbstractTransport):
         # to get the exact number of bytes wanted.
         recv = self._quick_recv
         rbuf = self._read_buffer
-        while len(rbuf) < n:
-            try:
-                s = recv(131072)  # see note above
-            except socket.error as exc:
-                # ssl.sock.read may cause ENOENT if the
-                # operation couldn't be performed (Issue celery#1414).
-                if not initial and exc.errno in _errnos:
-                    continue
-                raise exc
-            if not s:
-                raise IOError('Socket closed')
-            rbuf += s
+        try:
+            while len(rbuf) < n:
+                try:
+                    s = recv(131072)  # see note above
+                except socket.error as exc:
+                    # ssl.sock.read may cause ENOENT if the
+                    # operation couldn't be performed (Issue celery#1414).
+                    if not initial and exc.errno in _errnos:
+                        continue
+                    raise
+                if not s:
+                    raise IOError('Socket closed')
+                rbuf += s
+        except:
+            self._read_buffer = rbuf
+            raise
 
         result, self._read_buffer = rbuf[:n], rbuf[n:]
         return result
@@ -269,16 +273,20 @@ class TCPTransport(_AbstractTransport):
         """Read exactly n bytes from the socket"""
         recv = self._quick_recv
         rbuf = self._read_buffer
-        while len(rbuf) < n:
-            try:
-                s = recv(131072)
-            except socket.error as exc:
-                if not initial and exc.errno in _errnos:
-                    continue
-                raise
-            if not s:
-                raise IOError('Socket closed')
-            rbuf += s
+        try:
+            while len(rbuf) < n:
+                try:
+                    s = recv(131072)
+                except socket.error as exc:
+                    if not initial and exc.errno in _errnos:
+                        continue
+                    raise
+                if not s:
+                    raise IOError('Socket closed')
+                rbuf += s
+        except:
+            self._read_buffer = rbuf
+            raise
 
         result, self._read_buffer = rbuf[:n], rbuf[n:]
         return result
