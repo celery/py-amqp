@@ -99,3 +99,6 @@ Further
 
     http://www.rabbitmq.com/devtools.html#python-dev
 
+.. image:: https://d2weczhvl823v0.cloudfront.net/celery/celery/trend.png
+    :alt: Bitdeli badge
+    :target: https://bitdeli.com/free
