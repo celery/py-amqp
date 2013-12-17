@@ -181,7 +181,7 @@ class TestChannel(unittest.TestCase):
         """
         qname, _, _ = self.ch.queue_declare()
 
-        msg = Message(application_headers={'test': None})
+        msg = Message(application_headers={'test': object()})
 
         self.assertRaises(
             FrameSyntaxError, self.ch.basic_publish, msg, routing_key=qname,
