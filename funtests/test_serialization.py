@@ -316,7 +316,7 @@ class TestSerialization(unittest.TestCase):
         Check that an un-serializable table entry raises a ValueError
 
         """
-        val = {'test': None}
+        val = {'test': object()}
         w = AMQPWriter()
         self.assertRaises(FrameSyntaxError, w.write_table, val)
 
@@ -327,6 +327,7 @@ class TestSerialization(unittest.TestCase):
             'baz': 'this is some random string I typed',
             'ubaz': u'And something in unicode',
             'dday_aniv': datetime(1994, 6, 6),
+            'nothing' : None,
             'more': {
                 'abc': -123,
                 'def': 'hello world',
@@ -351,26 +352,26 @@ class TestSerialization(unittest.TestCase):
     # Array
     #
     def test_array_from_list(self):
-        val = [1, 'foo']
+        val = [1, 'foo', None]
         w = AMQPWriter()
         w.write_array(val)
         s = w.getvalue()
 
         self.assertEqualBinary(
-            s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo',
+            s, '\x00\x00\x00\x0EI\x00\x00\x00\x01S\x00\x00\x00\x03fooV',
         )
 
         r = AMQPReader(s)
         self.assertEqual(r.read_array(), val)
 
     def test_array_from_tuple(self):
-        val = (1, 'foo')
+        val = (1, 'foo', None)
         w = AMQPWriter()
         w.write_array(val)
         s = w.getvalue()
 
         self.assertEqualBinary(
-            s, '\x00\x00\x00\x0DI\x00\x00\x00\x01S\x00\x00\x00\x03foo',
+            s, '\x00\x00\x00\x0EI\x00\x00\x00\x01S\x00\x00\x00\x03fooV',
         )
 
         r = AMQPReader(s)
