@@ -51,7 +51,7 @@ from struct import pack, unpack
 from .exceptions import UnexpectedFrame
 from .utils import get_errno, set_cloexec
 
-_UNAVAIL = errno.EAGAIN, errno.EINTR
+_UNAVAIL = errno.EAGAIN, errno.EINTR, errno.ENOENT
 
 AMQP_PORT = 5672
 
