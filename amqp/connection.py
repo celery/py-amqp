@@ -18,7 +18,6 @@ from __future__ import absolute_import
 
 import logging
 import socket
-import time
 
 from array import array
 try:
@@ -35,7 +34,7 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import items, range, values
+from .five import items, range, values, monotonic
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
 from .transport import create_transport
@@ -876,13 +875,13 @@ class Connection(AbstractChannel):
         if not self.heartbeat:
             return
 
-        if self.next_heartbeat is not None and time.time() > self.next_heartbeat:
+        if self.next_heartbeat is not None and monotonic() > self.next_heartbeat:
             self.send_heartbeat()
             self.prev_sent = None
 
         sent_now = self.method_writer.bytes_sent
         if self.prev_sent is None or self.prev_sent != sent_now:
-            self.next_heartbeat = time.time() + self.heartbeat
+            self.next_heartbeat = monotonic() + self.heartbeat
         self.prev_sent = sent_now
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):
