@@ -8,6 +8,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 .. _version-1.4.0:
 
 1.4.0
+=====
 :release-date: 2014-01-13 3:00 P.M UTC
 
 - Heartbeat implementation improved (Issue #6).
