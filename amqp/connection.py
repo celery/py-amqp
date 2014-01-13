@@ -80,11 +80,26 @@ class Connection(AbstractChannel):
     """
     Channel = Channel
 
-    prev_sent = None
-    prev_recv = None
-    heartbeat_interval = None
+    #: Final heartbeat interval value (in float seconds) after negotiation
+    heartbeat = None
+
+    #: Original heartbeat interval value proposed by client.
+    client_heartbeat = None
+
+    #: Original heartbeat interval proposed by server.
+    server_heartbeat = None
+
+    #: Time of last heartbeat sent (in monotonic time, if available).
     last_heartbeat_sent = 0
+
+    #: Time of last heartbeat received (in monotonic time, if available).
     last_heartbeat_received = 0
+
+    #: Number of bytes sent to socket at the last heartbeat check.
+    prev_sent = None
+
+    #: Number of bytes received from socket at the last heartbeat check.
+    prev_recv = None
 
     def __init__(self, host='localhost', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
@@ -849,11 +864,11 @@ class Connection(AbstractChannel):
 
         # negotiate the heartbeat interval to the smaller of the specified values
         if self.server_heartbeat == 0 or self.client_heartbeat == 0:
-            self.heartbeat_interval = max(self.server_heartbeat, self.client_heartbeat)
+            self.heartbeat = max(self.server_heartbeat, self.client_heartbeat)
         else:
-            self.heartbeat_interval = min(self.server_heartbeat, self.client_heartbeat)
+            self.heartbeat = min(self.server_heartbeat, self.client_heartbeat)
 
-        self._x_tune_ok(self.channel_max, self.frame_max, self.client_heartbeat)
+        self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
     def send_heartbeat(self):
         self.transport.write_frame(8, 0, bytes())
@@ -865,7 +880,7 @@ class Connection(AbstractChannel):
 
         :keyword rate: Ignored
         """
-        if not self.heartbeat_interval:
+        if not self.heartbeat:
             return
 
         # treat actual data exchange in either direction as a heartbeat
@@ -878,14 +893,14 @@ class Connection(AbstractChannel):
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if monotonic() > self.last_heartbeat_sent + self.heartbeat_interval:
+        if monotonic() > self.last_heartbeat_sent + self.heartbeat:
             self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 
         # if we've missed two intervals' heartbeats, fail; this gives the
         # server enough time to send heartbeats a little late
         if (self.last_heartbeat_received and
-                self.last_heartbeat_received + 2 * self.heartbeat_interval < monotonic()):
+                self.last_heartbeat_received + 2 * self.heartbeat < monotonic()):
             raise ConnectionForced('Too many heartbeats missed')
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):
