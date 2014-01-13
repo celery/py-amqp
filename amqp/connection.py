@@ -862,7 +862,8 @@ class Connection(AbstractChannel):
         self.method_writer.frame_max = self.frame_max
         self.server_heartbeat = args.read_short()
 
-        # negotiate the heartbeat interval to the smaller of the specified values
+        # negotiate the heartbeat interval to the smaller of the
+        # specified values
         if self.server_heartbeat == 0 or self.client_heartbeat == 0:
             self.heartbeat = max(self.server_heartbeat, self.client_heartbeat)
         else:
@@ -900,7 +901,8 @@ class Connection(AbstractChannel):
         # if we've missed two intervals' heartbeats, fail; this gives the
         # server enough time to send heartbeats a little late
         if (self.last_heartbeat_received and
-                self.last_heartbeat_received + 2 * self.heartbeat < monotonic()):
+                self.last_heartbeat_received + 2 *
+                self.heartbeat < monotonic()):
             raise ConnectionForced('Too many heartbeats missed')
 
     def _x_tune_ok(self, channel_max, frame_max, heartbeat):

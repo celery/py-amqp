@@ -347,7 +347,7 @@ class AMQPWriter(object):
         elif isinstance(v, (list, tuple)):
             self.write(b'A')
             self.write_array(v)
-        elif v == None:
+        elif v is None:
             self.write(b'V')
         else:
             err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k

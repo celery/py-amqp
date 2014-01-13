@@ -35,7 +35,8 @@ classes = """
     Programming Language :: Python :: 3.1
     Programming Language :: Python :: 3.2
     Programming Language :: Python :: 3.3
-    License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)
+    License :: OSI Approved :: GNU Library or \
+Lesser General Public License (LGPL)
     Intended Audience :: Developers
     License :: OSI Approved :: BSD License
     Operating System :: OS Independent

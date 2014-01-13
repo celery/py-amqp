@@ -16,14 +16,14 @@ import amqp
 
 def callback(channel, msg):
     for key, val in msg.properties.items():
-        print ('%s: %s' % (key, str(val)))
+        print('%s: %s' % (key, str(val)))
     for key, val in msg.delivery_info.items():
-        print ('> %s: %s' % (key, str(val)))
+        print('> %s: %s' % (key, str(val)))
 
-    print ('')
-    print (msg.body)
-    print ('-------')
-    print msg.delivery_tag
+    print('')
+    print(msg.body)
+    print('-------')
+    print(msg.delivery_tag)
     channel.basic_ack(msg.delivery_tag)
 
     #
@@ -35,19 +35,23 @@ def callback(channel, msg):
 
 def main():
     parser = OptionParser()
-    parser.add_option('--host', dest='host',
+    parser.add_option(
+        '--host', dest='host',
         help='AMQP server to connect to (default: %default)',
         default='localhost',
     )
-    parser.add_option('-u', '--userid', dest='userid',
+    parser.add_option(
+        '-u', '--userid', dest='userid',
         help='userid to authenticate as (default: %default)',
         default='guest',
     )
-    parser.add_option('-p', '--password', dest='password',
+    parser.add_option(
+        '-p', '--password', dest='password',
         help='password to authenticate with (default: %default)',
         default='guest',
     )
-    parser.add_option('--ssl', dest='ssl', action='store_true',
+    parser.add_option(
+        '--ssl', dest='ssl', action='store_true',
         help='Enable SSL (default: not enabled)',
         default=False,
     )

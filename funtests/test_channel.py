@@ -166,8 +166,8 @@ class TestChannel(unittest.TestCase):
             self.ch.queue_declare('krjqheewq_bogus', passive=True)
         self.ch.queue_declare('funtest_survive')
         self.ch.queue_declare('funtest_survive', passive=True)
-        self.assertEqual(0,
-            self.ch.queue_delete('funtest_survive'),
+        self.assertEqual(
+            0, self.ch.queue_delete('funtest_survive'),
         )
 
     def test_invalid_header(self):
@@ -273,9 +273,9 @@ class TestChannel(unittest.TestCase):
         self.ch.exchange_declare(source_exchange, 'topic', auto_delete=True)
 
         qname, _, _ = self.ch.queue_declare()
-        self.ch.exchange_bind(destination = dest_exchange,
-                              source = source_exchange,
-                              routing_key = test_routing_key)
+        self.ch.exchange_bind(destination=dest_exchange,
+                              source=source_exchange,
+                              routing_key=test_routing_key)
 
         self.ch.queue_bind(qname, dest_exchange,
                            routing_key=test_routing_key)
@@ -284,9 +284,8 @@ class TestChannel(unittest.TestCase):
                       content_type='text/plain',
                       application_headers={'foo': 7, 'bar': 'baz'})
 
-
         self.ch.basic_publish(msg, source_exchange,
-                              routing_key = test_routing_key)
+                              routing_key=test_routing_key)
 
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg, msg2)
@@ -308,6 +307,7 @@ class TestChannel(unittest.TestCase):
         self.ch.exchange_unbind(destination=dest_exchange,
                                 source=source_exchange,
                                 routing_key=test_routing_key)
+
 
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestChannel)

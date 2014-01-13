@@ -1,13 +1,11 @@
-import os
-import sys
-from paver.easy import *
-from paver import doctools
-from paver.setuputils import setup
-sys.path.insert(0, os.path.abspath('.'))
+from paver.easy import *            # noqa
+from paver import doctools          # noqa
+from paver.setuputils import setup  # noqa
+
 PYCOMPILE_CACHES = ['*.pyc', '*$py.class']
 
 options(
-        sphinx=Bunch(builddir='.build'),
+    sphinx=Bunch(builddir='.build'),
 )
 
 
@@ -34,7 +32,7 @@ def html(options):
 def qhtml(options):
     destdir = path('Documentation')
     builtdocs = sphinx_builddir(options)
-    sh('rsync -az {0}/ {1}'.format(builtdocs, destdir))
+    sh('rsync -az %s/ %s' % (builtdocs, destdir))
 
 
 @task
@@ -42,18 +40,17 @@ def qhtml(options):
 def ghdocs(options):
     builtdocs = sphinx_builddir(options)
     sh("git checkout gh-pages && \
-            cp -r {0}/* .    && \
+            cp -r %s/* .    && \
             git commit . -m 'Rendered documentation for Github Pages.' && \
             git push origin gh-pages && \
-            git checkout master".format(builtdocs))
+            git checkout master" % builtdocs)
 
 
 @task
 @needs('clean_docs', 'paver.doctools.html')
 def upload_pypi_docs(options):
     builtdocs = path('docs') / options.builddir / 'html'
-    sh("{0} setup.py upload_sphinx --upload-dir='{1}'".format(
-        sys.executable, builtdocs))
+    sh("python setup.py upload_sphinx --upload-dir='%s'" % (builtdocs))
 
 
 @task
@@ -73,38 +70,6 @@ def verifyindex(options):
 
 
 @task
-@cmdopts([
-    ('noerror', 'E', 'Ignore errors'),
-])
-def flake8(options):
-    noerror = getattr(options, 'noerror', False)
-    complexity = getattr(options, 'complexity', 22)
-    sh("""flake8 amqp | perl -mstrict -mwarnings -nle'
-        my $ignore = m/too complex \((\d+)\)/ && $1 le {0};
-        if (! $ignore) {{ print STDERR; our $FOUND_FLAKE = 1 }}
-    }}{{exit $FOUND_FLAKE;
-        '""".format(complexity), ignore_error=noerror)
-
-
-@task
-@cmdopts([
-    ('noerror', 'E', 'Ignore errors'),
-])
-def flakeplus(options):
-    noerror = getattr(options, 'noerror', False)
-    sh('flakeplus amqp', ignore_error=noerror)
-
-
-@task
-@cmdopts([
-    ('noerror', 'E', 'Ignore errors')
-])
-def flakes(options):
-    flake8(options)
-    flakeplus(options)
-
-
-@task
 def clean_readme(options):
     path('README').unlink()
     path('README.rst').unlink()
@@ -113,15 +78,21 @@ def clean_readme(options):
 @task
 @needs('clean_readme')
 def readme(options):
-    sh('{0} extra/release/sphinx-to-rst.py docs/templates/readme.txt \
-            > README.rst'.format(sys.executable))
+    sh('python extra/release/sphinx-to-rst.py docs/templates/readme.txt \
+            > README.rst')
+    sh('ln -sf README.rst README')
 
 
 @task
+@cmdopts([
+    ('custom=', 'C', 'custom version'),
+])
 def bump(options):
-    sh("extra/release/bump_version.py \
-            amqp/__init__.py docs/includes/intro.txt \
-            --before-commit='paver readme'")
+    s = ("-- '%s'" % (options.custom, ) if getattr(options, 'custom', None)
+         else '')
+    sh('extra/release/bump_version.py \
+            amqp/__init__.py README.rst %s' % (s, ))
+
 
 @task
 @cmdopts([
@@ -133,6 +104,8 @@ def test(options):
     cmd = 'nosetests'
     if getattr(options, 'coverage', False):
         cmd += ' --with-coverage3'
+    if getattr(options, 'quick', False):
+        cmd = 'QUICKTEST=1 SKIP_RLIMITS=1 %s' % cmd
     if getattr(options, 'verbose', False):
         cmd += ' --verbosity=2'
     sh(cmd)
@@ -142,17 +115,51 @@ def test(options):
 @cmdopts([
     ('noerror', 'E', 'Ignore errors'),
 ])
+def flake8(options):
+    noerror = getattr(options, 'noerror', False)
+    complexity = getattr(options, 'complexity', 22)
+    sh("""flake8 amqp | perl -mstrict -mwarnings -nle'
+        my $ignore = (m/too complex \((\d+)\)/ && $1 le %s);
+        if (! $ignore) { print STDERR; our $FOUND_FLAKE = 1 }
+        }{exit $FOUND_FLAKE;
+        '""" % (complexity, ), ignore_error=noerror)
+
+
+@task
+@cmdopts([
+    ('noerror', 'E', 'Ignore errors'),
+])
+def flakeplus(options):
+    noerror = getattr(options, 'noerror', False)
+    sh('flakeplus amqp --2.6',
+       ignore_error=noerror)
+
+
+@task
+@cmdopts([
+    ('noerror', 'E', 'Ignore errors'),
+])
+def flakes(options):
+    flake8(options)
+    flakeplus(options)
+
+
+@task
+@cmdopts([
+    ('noerror', 'E', 'Ignore errors'),
+])
 def pep8(options):
     noerror = getattr(options, 'noerror', False)
-    return sh("""find . -name "*.py" | xargs pep8 | perl -nle'\
+    return sh("""find amqp -name "*.py" | xargs pep8 | perl -nle'\
             print; $a=1 if $_}{exit($a)'""", ignore_error=noerror)
 
 
 @task
 def removepyc(options):
-    sh('find . -type f -a \\( {0} \\) | xargs rm'.format(
-        ' -o '.join("-name '{0}'".format(pat) for pat in PYCOMPILE_CACHES)))
+    sh('find . -type f -a \\( %s \\) | xargs rm' % (
+        ' -o '.join("-name '%s'" % (pat, ) for pat in PYCOMPILE_CACHES), ))
     sh('find . -type d -name "__pycache__" | xargs rm -r')
+
 
 @task
 @needs('removepyc')
@@ -167,7 +174,7 @@ def gitcleanforce(options):
 
 
 @task
-@needs('flakes', 'autodoc', 'verifyindex', 'gitclean')
+@needs('flakes', 'autodoc', 'verifyindex', 'test', 'gitclean')
 def releaseok(options):
     pass
 
@@ -176,13 +183,3 @@ def releaseok(options):
 @needs('releaseok', 'removepyc', 'upload_docs')
 def release(options):
     pass
-
-
-@task
-def testloc(options):
-    sh('sloccount tests')
-
-
-@task
-def loc(options):
-    sh('sloccount amqp')

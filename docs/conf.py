@@ -70,8 +70,8 @@ html_use_modindex = True
 html_use_index = True
 
 latex_documents = [
-  ('index', 'py-amqp.tex', ur'py-amqp Documentation',
-   ur'Ask Solem & Contributors', 'manual'),
+    ('index', 'py-amqp.tex', ur'py-amqp Documentation',
+     ur'Ask Solem & Contributors', 'manual'),
 ]
 
 html_theme = "celery"
@@ -89,7 +89,7 @@ if False:
     issuetracker_project = "celery/py-amqp"
     issuetracker_issue_pattern = r'[Ii]ssue #(\d+)'
 
-# -- Options for Epub output ---------------------------------------------------
+# -- Options for Epub output ------------------------------------------------
 
 # Bibliographic Dublin Core info.
 epub_title = 'py-amqp Manual, Version 1.0'

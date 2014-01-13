@@ -18,6 +18,7 @@ from __future__ import absolute_import
 import errno
 import re
 import socket
+import ssl
 
 # Jython does not have this attribute
 try:

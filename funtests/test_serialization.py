@@ -321,7 +321,7 @@ class TestSerialization(unittest.TestCase):
             'baz': 'this is some random string I typed',
             'ubaz': u'And something in unicode',
             'dday_aniv': datetime(1994, 6, 6),
-            'nothing' : None,
+            'nothing': None,
             'more': {
                 'abc': -123,
                 'def': 'hello world',
