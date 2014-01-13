@@ -174,6 +174,8 @@ class AMQPReader(object):
             val = self.read_bit()
         elif ftype == 100:
             val = self.read_float()
+        elif ftype == 86:  # 'V'
+            val = None
         else:
             raise FrameSyntaxError(
                 'Unknown value in table: {0!r} ({1!r})'.format(
@@ -357,6 +359,8 @@ class AMQPWriter(object):
         elif isinstance(v, (list, tuple)):
             self.write(b'A')
             self.write_array(v)
+        elif v == None:
+            self.write(b'V')
         else:
             err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
                    else ILLEGAL_TABLE_TYPE.format(type(v), v))
