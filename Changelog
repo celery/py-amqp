@@ -5,6 +5,36 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.4.0:
+
+1.4.0
+:release-date: 2014-01-13 3:00 P.M UTC
+
+- Heartbeat implementation improved (Issue #6).
+
+    The new heartbeat behavior is the same approach as taken by the
+    RabbitMQ java library.
+
+    This also means that clients should preferably call the ``heartbeat_tick``
+    method more frequently (like every second) instead of using the old
+    ``rate`` argument (which is now ignored).
+
+    - Heartbeat interval is negotiated with the server.
+    - Some delay is allowed if the heartbeat is late.
+    - Monotonic time is used to keep track of the heartbeat
+      instead of relying on the caller to call the checking function
+      at the right time.
+
+    Contributed by Dustin J. Mitchell.
+
+- NoneType is now supported in tables and arrays.
+
+    Contributed by Dominik Fässler.
+
+- SSLTransport: Now handles ``ENOENT``.
+
+    Fix contributed by Adrien Guinet.
+
 .. _version-1.3.3:
 
 1.3.3
