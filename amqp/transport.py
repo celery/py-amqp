@@ -1,9 +1,3 @@
-"""
-Read/Write AMQP frames over network transports.
-
-2009-01-14 Barry Pederson <bp@barryp.org>
-
-"""
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -30,21 +24,6 @@ try:
     from socket import SOL_TCP
 except ImportError:  # pragma: no cover
     from socket import IPPROTO_TCP as SOL_TCP  # noqa
-
-#
-# See if Python 2.6+ SSL support is available
-#
-try:
-    import ssl
-    HAVE_PY26_SSL = True
-except:
-    HAVE_PY26_SSL = False
-
-try:
-    bytes
-except:
-    # Python 2.5 and lower
-    bytes = str
 
 from struct import pack, unpack
 
@@ -200,22 +179,17 @@ class SSLTransport(_AbstractTransport):
         super(SSLTransport, self).__init__(host, connect_timeout)
 
     def _setup_transport(self):
-        """Wrap the socket in an SSL object, either the
-        new Python 2.6 version, or the older Python 2.5 and
-        lower version."""
-        if HAVE_PY26_SSL:
-            if hasattr(self, 'sslopts'):
-                self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
-            else:
-                self.sock = ssl.wrap_socket(self.sock)
-            self.sock.do_handshake()
+        """Wrap the socket in an SSL object."""
+        if hasattr(self, 'sslopts'):
+            self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
         else:
-            self.sock = socket.ssl(self.sock)
+            self.sock = ssl.wrap_socket(self.sock)
+        self.sock.do_handshake()
         self._quick_recv = self.sock.read
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
-        if HAVE_PY26_SSL and self.sock is not None:
+        if self.sock is not None:
             try:
                 unwrap = self.sock.unwrap
             except AttributeError:

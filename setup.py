@@ -15,8 +15,8 @@ import os
 import sys
 import codecs
 
-if sys.version_info < (2, 5):
-    raise Exception('amqp requires Python 2.5 or higher.')
+if sys.version_info < (2, 6):
+    raise Exception('amqp requires Python 2.6 or higher.')
 
 NAME = 'amqp'
 entrypoints = {}

@@ -22,14 +22,7 @@ Test amqp.channel module
 import sys
 import unittest
 
-try:
-    bytes
-except NameError:
-    # Python 2.5 and lower
-    bytes = str
-
 import settings
-
 
 from amqp import ChannelError, Connection, Message, FrameSyntaxError
 

@@ -26,12 +26,6 @@ from random import randint
 import sys
 import unittest
 
-try:
-    bytes
-except NameError:
-    # Python 2.5 and lower
-    bytes = str
-
 import settings
 
 from amqp.serialization import (

@@ -25,6 +25,7 @@ import sys
 
 from datetime import datetime
 from decimal import Decimal
+from io import BytesIO
 from struct import pack, unpack
 from time import mktime
 
@@ -39,19 +40,6 @@ if IS_PY3K:
 else:
     byte = chr
 
-try:
-    from io import BytesIO
-except ImportError:  # Py2.5
-    try:
-        from cStringIO import StringIO as BytesIO  # noqa
-    except ImportError:
-        from StringIO import StringIO as BytesIO   # noqa
-
-try:
-    bytes
-except NameError:
-    # Python 2.5 and lower
-    bytes = str
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
 Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
