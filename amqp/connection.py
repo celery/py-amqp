@@ -857,17 +857,18 @@ class Connection(AbstractChannel):
                 want a heartbeat.
 
         """
+        client_heartbeat = self.client_heartbeat or 0
         self.channel_max = args.read_short() or self.channel_max
         self.frame_max = args.read_long() or self.frame_max
         self.method_writer.frame_max = self.frame_max
-        self.server_heartbeat = args.read_short()
+        self.server_heartbeat = args.read_short() or 0
 
         # negotiate the heartbeat interval to the smaller of the
         # specified values
-        if self.server_heartbeat == 0 or self.client_heartbeat == 0:
-            self.heartbeat = max(self.server_heartbeat, self.client_heartbeat)
+        if self.server_heartbeat == 0 or client_heartbeat == 0:
+            self.heartbeat = max(self.server_heartbeat, client_heartbeat)
         else:
-            self.heartbeat = min(self.server_heartbeat, self.client_heartbeat)
+            self.heartbeat = min(self.server_heartbeat, client_heartbeat)
 
         self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
