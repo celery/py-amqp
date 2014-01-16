@@ -2,7 +2,7 @@
  Python AMQP 0.9.1 client library
 =====================================================================
 
-:Version: 1.3.2
+:Version: 1.4.1
 :Web: http://amqp.readthedocs.org/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
@@ -99,3 +99,6 @@ Further
 
     http://www.rabbitmq.com/devtools.html#python-dev
 
+.. image:: https://d2weczhvl823v0.cloudfront.net/celery/celery/trend.png
+    :alt: Bitdeli badge
+    :target: https://bitdeli.com/free

@@ -204,9 +204,10 @@ def generate_methods(class_element, out):
             if 'content' in amqp_method.attrib:
                 params.append('msg')
 
-            out.write('    def %s(%s):\n' %
-                (_fixup_method_name(class_element, amqp_method),
-                 ', '.join(params + fieldnames)))
+            out.write('    def %s(%s):\n' % (
+                _fixup_method_name(class_element, amqp_method),
+                ', '.join(params + fieldnames)),
+            )
 
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
@@ -231,7 +232,7 @@ def generate_methods(class_element, out):
 
             if 'synchronous' in amqp_method.attrib:
                 responses = [x.attrib['name']
-                                for x in amqp_method.findall('response')]
+                             for x in amqp_method.findall('response')]
                 out.write('        return self.wait(allowed_methods=[\n')
                 for r in responses:
                     resp = method_name_map[(class_element.attrib['name'], r)]
@@ -274,7 +275,7 @@ def generate_class(spec, class_element, out):
     #
     for amqp_class in spec.findall('class'):
         if (amqp_class.attrib['handler'] == class_element.attrib['name']) and \
-            (amqp_class.attrib['name'] != class_element.attrib['name']):
+                (amqp_class.attrib['name'] != class_element.attrib['name']):
             out.write('    #############\n')
             out.write('    #\n')
             out.write('    #  %s\n' % amqp_class.attrib['name'].capitalize())
@@ -315,8 +316,8 @@ def generate_module(spec, out):
                 (
                     amqp_class.attrib['index'],
                     amqp_method.attrib['index'],
-                    amqp_class.attrib['handler'].capitalize() + '.' +
-                        _fixup_method_name(amqp_class, amqp_method),
+                    (amqp_class.attrib['handler'].capitalize() + '.' +
+                        _fixup_method_name(amqp_class, amqp_method)),
                 )
 
     #### Actually generate output
@@ -335,7 +336,7 @@ def generate_module(spec, out):
 #            for chassis in amqp_method.findall('chassis'):
 #                print '      ', chassis.attrib
             chassis = [x.attrib['name']
-                        for x in amqp_method.findall('chassis')]
+                       for x in amqp_method.findall('chassis')]
             if 'client' in chassis:
                 out.write("    (%s, %s): (%s, %s._%s),\n" % (
                     amqp_class.attrib['index'],

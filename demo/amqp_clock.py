@@ -27,18 +27,23 @@ TOPIC_PATTERN = '%Y.%m.%d.%w.%H.%M'  # Python datetime.strftime() pattern
 
 def main():
     parser = OptionParser()
-    parser.add_option('--host', dest='host',
-                        help='AMQP server to connect to (default: %default)',
-                        default='localhost')
-    parser.add_option('-u', '--userid', dest='userid',
+    parser.add_option(
+        '--host', dest='host',
+        help='AMQP server to connect to (default: %default)',
+        default='localhost',
+    )
+    parser.add_option(
+        '-u', '--userid', dest='userid',
         help='AMQP userid to authenticate as (default: %default)',
         default='guest',
     )
-    parser.add_option('-p', '--password', dest='password',
+    parser.add_option(
+        '-p', '--password', dest='password',
         help='AMQP password to authenticate with (default: %default)',
         default='guest',
     )
-    parser.add_option('--ssl', dest='ssl', action='store_true',
+    parser.add_option(
+        '--ssl', dest='ssl', action='store_true',
         help='Enable SSL with AMQP server (default: not enabled)',
         default=False,
     )
