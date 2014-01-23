@@ -870,6 +870,10 @@ class Connection(AbstractChannel):
         else:
             self.heartbeat = min(self.server_heartbeat, client_heartbeat)
 
+        # Ignore server heartbeat if client_heartbeat is disabled
+        if not self.client_heartbeat:
+            self.heartbeat = 0
+
         self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
     def send_heartbeat(self):
