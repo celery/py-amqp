@@ -61,7 +61,7 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
-from .promise import promise  # noqa
+from .promise import promise, barrier, maybe_promise  # noqa
 
 __all__ = [
     'Connection',

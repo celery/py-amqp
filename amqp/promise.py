@@ -8,6 +8,9 @@ from collections import Callable, deque
 
 from .five import with_metaclass
 
+__all__ = ['Thenable', 'promise', 'barrier', 'wrap',
+           'maybe_promise', 'ensure_promise']
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +36,71 @@ class Thenable(Callable):  # pragma: no cover
             if any('then' in B.__dict__ for B in C.__mro__):
                 return True
         return NotImplemented
+
+
+class barrier(object):
+    """A barrier enables you to add a callback to be called after a list of
+    promises.
+
+    Example:
+
+    .. code-block:: python
+
+        # Request supports the .then() method.
+        p1 = http.Request('http://a')
+        p2 = http.Request('http://b')
+        p3 = http.Request('http://c')
+        requests = [p1, p2, p3]
+
+        def all_done():
+            pass  # all requests complete
+
+        b = barrier(requests).then(all_done)
+
+        # oops, we forgot we want another request
+        b.add(http.Request('http://d'))
+
+    Note that you cannot add new promises to a barrier after
+    the barrier is fulfilled.
+
+    """
+    def __init__(self, promises=None, callback=None):
+        self.p = promise()
+        self.promises = []
+        self._value = 0
+        self.ready = self.failed = False
+        self.value = self.reason = None
+        self.cancelled = False
+        [self.add(p) for p in promises or []]
+        if callback:
+            self.then(callback)
+
+    def __call__(self, *args, **kwargs):
+        if not self.ready and not self.cancelled:
+            self._value += 1
+            if self._value >= len(self.promises):
+                self.ready = True
+                self.p()
+
+    def cancel(self):
+        self.cancelled = True
+        self.p.cancel()
+
+    def add(self, p):
+        if not self.cancelled:
+            if self.ready:
+                raise ValueError('Cannot add promise to full barrier')
+            p.then(self)
+            self.promises.append(p)
+
+    def then(self, callback, errback=None):
+        self.p.then(callback, errback)
+
+    def throw(self, *args, **kwargs):
+        if not self.cancelled:
+            self.p.throw(*args, **kwargs)
+    throw1 = throw
+Thenable.register(barrier)
 
 
 class promise(object):
@@ -238,3 +306,16 @@ def wrap(p):
             return p(*args, **kwargs)
 
     return on_call
+
+
+def maybe_promise(p):
+    if p:
+        if not isinstance(p, Thenable):
+            return promise(p)
+    return p
+
+
+def ensure_promise(p):
+    if p is None:
+        return promise()
+    return maybe_promise(p)
