@@ -39,8 +39,8 @@ class Thenable(Callable):  # pragma: no cover
 
 
 class barrier(object):
-    """A barrier enables you to add a callback to be called after a list of
-    promises.
+    """Synchronization primitive to call a callback after all promises
+    fulfilled.
 
     Example:
 
