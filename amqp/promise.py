@@ -191,26 +191,29 @@ class promise(object):
         self._lvpending.append(callback)
         return callback
 
+    def throw1(self, exc):
+        if self.cancelled:
+            return
+        self.failed, self.reason = True, exc
+        if self.on_error is not None:
+            self.on_error(exc)
+
     def set_error_state(self, exc=None):
         if self.cancelled:
             return
         exc = sys.exc_info()[1] if exc is None else exc
-        self.failed, self.reason = True, exc
-        if self.on_error is not None:
-            self.on_error(exc)
-        else:
-            logger.error('promise raised: %r', exc, exc_info=1)
+        self.throw1(exc)
         svpending = self._svpending
         if svpending is not None:
             try:
-                svpending.throw(exc)
+                svpending.throw1(exc)
             finally:
                 self._svpending = None
         else:
             lvpending = self._lvpending
             try:
                 while lvpending:
-                    lvpending.popleft().throw(exc)
+                    lvpending.popleft().throw1(exc)
             finally:
                 self._lvpending = None
 

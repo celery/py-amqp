@@ -252,7 +252,6 @@ class test_promise(Case):
         self.assertTrue(p1._svpending)
         p1(42)
         p1.on_error.fun.assert_called_with(exc)
-        b.on_error.fun.assert_called_with(exc)
 
         p2 = promise(a)
         p2.then(b).then(c)
