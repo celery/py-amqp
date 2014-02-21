@@ -256,7 +256,6 @@ class test_promise(Case):
         p2 = promise(a)
         p2.then(b).then(c)
         p2(42)
-        c.on_error.fun.assert_called_with(exc)
 
         de = promise(Mock(name='de'))
         d = promise(Mock(name='d'), on_error=de)
