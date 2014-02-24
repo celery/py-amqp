@@ -216,7 +216,7 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id, ))
 
-    def _wait_method(self, channel_id, allowed_methods):
+    def _wait_method(self, channel_id, allowed_methods, timeout=None):
         """Wait for a method from the server destined for
         a particular channel."""
         #
@@ -235,9 +235,10 @@ class Connection(AbstractChannel):
         #
         # Nothing queued, need to wait for a method from the peer
         #
+        read_timeout = self.read_timeout
+        wait = self.wait
         while 1:
-            channel, method_sig, args, content = \
-                self.method_reader.read_method()
+            channel, method_sig, args, content = read_timeout(timeout)
 
             if channel == channel_id and (
                     allowed_methods is None or
@@ -270,7 +271,7 @@ class Connection(AbstractChannel):
             # error, so deal with it right away.
             #
             if not channel:
-                self.wait()
+                wait()
 
     def channel(self, channel_id=None):
         """Fetch a Channel object identified by the numeric channel_id, or
