@@ -26,6 +26,12 @@ try:
 except ImportError:  # pragma: no cover
     from socket import IPPROTO_TCP as SOL_TCP  # noqa
 
+try:
+    from ssl import SSLError
+except ImportError:
+    class SSLError(Exception):  # noqa
+        pass
+
 from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
@@ -146,6 +152,10 @@ class _AbstractTransport(object):
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:
+            # Don't disconnect for ssl read time outs
+            # http://bugs.python.org/issue10272
+            if isinstance(exc, SSLError) and 'timed out' in str(exc):
+                raise socket.timeout()
             if get_errno(exc) not in _UNAVAIL:
                 self.connected = False
             raise
@@ -231,6 +241,7 @@ class SSLTransport(_AbstractTransport):
             if not n:
                 raise IOError('Socket closed')
             s = s[n:]
+
 
 class TCPTransport(_AbstractTransport):
     """Transport that deals directly with TCP socket."""
