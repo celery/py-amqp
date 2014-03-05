@@ -109,9 +109,13 @@ class _AbstractTransport(object):
 
     def __del__(self):
         try:
-            self.close()
-        except socket.error:
-            pass
+            # socket module may have been collected by gc
+            # if this is called by a thread at shutdown.
+            if socket is not None:
+                try:
+                    self.close()
+                except socket.error:
+                    pass
         finally:
             self.sock = None
 
