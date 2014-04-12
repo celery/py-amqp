@@ -239,12 +239,17 @@ class SSLTransport(_AbstractTransport):
 
     def _write(self, s):
         """Write a string out to the SSL socket fully."""
-        write = self.sock.write
-        while s:
-            n = write(s)
-            if not n:
-                raise IOError('Socket closed')
-            s = s[n:]
+        try:
+            write = self.sock.write
+        except AttributeError:
+            # Works around a bug in python socket library
+            raise IOError('Socket closed')
+        else:
+            while s:
+                n = write(s)
+                if not n:
+                    raise IOError('Socket closed')
+                s = s[n:]
 
 
 class TCPTransport(_AbstractTransport):
