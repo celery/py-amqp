@@ -5,11 +5,19 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.4.5:
+
+1.4.5
+=====
+:release-date: 2014-04-15 08:00 P.M UTC
+:release-by: Ask Solem
+
 .. _version-1.4.4:
 
 1.4.4
 =====
 :release-date: 2014-03-03 04:00 P.M UTC
+:release-by: Ask Solem
 
 - SSL transport accidentally disconnected after read timeout.
 
@@ -20,6 +28,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.4.3
 =====
 :release-date: 2014-02-09 03:00 P.M UTC
+:release-by: Ask Solem
 
 - Fixed bug where more data was requested from the socket
   than was actually needed.
@@ -40,6 +49,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.4.1
 =====
 :release-date: 2014-01-14 09:30 P.M UTC
+:release-by: Ask Solem
 
 - Fixed error occurring when heartbeats disabled.
 
@@ -48,6 +58,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.4.0
 =====
 :release-date: 2014-01-13 03:00 P.M UTC
+:release-by: Ask Solem
 
 - Heartbeat implementation improved (Issue #6).
 
@@ -79,6 +90,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.3.3
 =====
 :release-date: 2013-11-11 03:30 P.M UTC
+:release-by: Ask Solem
 
 - SSLTransport: Now keeps read buffer if an exception is raised
   (Issue #26).
@@ -90,6 +102,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.3.2
 =====
 :release-date: 2013-10-29 02:00 P.M UTC
+:release-by: Ask Solem
 
 - Message.channel is now a channel object (not the channel id).
 
@@ -101,6 +114,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.3.1
 =====
 :release-date: 2013-10-24 04:00 P.M UTC
+:release-by: Ask Solem
 
 - Now implements Connection.connected (Issue #22).
 
@@ -111,6 +125,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.3.0
 =====
 :release-date: 2013-09-04 02:39 P.M UTC
+:release-by: Ask Solem
 
 - Now sets ``Message.channel`` on delivery (Issue #12)
 
@@ -152,6 +167,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.2.1
 =====
 :release-date: 2013-08-16 05:30 P.M UTC
+:release-by: Ask Solem
 
 - Adds promise type: :meth:`amqp.utils.promise`
 
@@ -162,6 +178,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.2.0
 =====
 :release-date: 2012-11-12 04:00 P.M UTC
+:release-by: Ask Solem
 
 - New exception hierarchy:
 
@@ -197,6 +214,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.1.0
 =====
 :release-date: 2012-11-08 10:36 P.M UTC
+:release-by: Ask Solem
 
 - No longer supports Python 2.5
 
@@ -211,6 +229,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.13
 ======
 :release-date: 2013-07-31 04:00 P.M BST
+:release-by: Ask Solem
 
 - Fixed problems with the SSL transport (Issue #15).
 
@@ -223,6 +242,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.12
 ======
 :release-date: 2013-06-25 02:00 P.M BST
+:release-by: Ask Solem
 
 - Fixed another Python 3 compatibility problem.
 
@@ -231,6 +251,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.11
 ======
 :release-date: 2013-04-11 06:00 P.M BST
+:release-by: Ask Solem
 
 - Fixed Python 3 incompatibility in ``amqp/transport.py``.
 
@@ -239,6 +260,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.10
 ======
 :release-date: 2013-03-21 03:30 P.M UTC
+:release-by: Ask Solem
 
 - Fixed Python 3 incompatibility in ``amqp/serialization.py``.
   (Issue #11).
@@ -248,6 +270,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.9
 =====
 :release-date: 2013-03-08 10:40 A.M UTC
+:release-by: Ask Solem
 
 - Publisher ack callbacks should now work after typo fix (Issue #9).
 
@@ -261,6 +284,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.8
 =====
 :release-date: 2013-02-08 01:00 P.M UTC
+:release-by: Ask Solem
 
 - Fixed SyntaxError on Python 2.5
 
@@ -269,6 +293,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.7
 =====
 :release-date: 2013-02-08 01:00 P.M UTC
+:release-by: Ask Solem
 
 - Workaround for bug on some Python 2.5 installations where (2**32) is 0.
 
@@ -283,6 +308,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.6
 =====
 :release-date: 2012-11-29 01:14 P.M UTC
+:release-by: Ask Solem
 
 - ``Channel.close`` is now ignored if the connection attribute is None.
 
@@ -291,6 +317,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.5
 =====
 :release-date: 2012-11-21 04:00 P.M UTC
+:release-by: Ask Solem
 
 - ``Channel.basic_cancel`` is now ignored if the channel was already closed.
 
@@ -304,6 +331,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.4
 =====
 :release-date: 2012-11-13 04:00 P.M UTC
+:release-by: Ask Solem
 
 - Fixes Python 2.5 support
 
@@ -312,6 +340,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.3
 =====
 :release-date: 2012-11-12 04:00 P.M UTC
+:release-by: Ask Solem
 
 - Now can also handle float in headers/tables when receiving messages.
 
@@ -327,6 +356,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.2
 =====
 :release-date: 2012-11-06 05:00 P.M UTC
+:release-by: Ask Solem
 
 - Now supports float values in headers/tables.
 
@@ -335,6 +365,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.1
 =====
 :release-date: 2012-11-05 01:00 P.M UTC
+:release-by: Ask Solem
 
 - Connection errors no longer includes :exc:`AttributeError`.
 
@@ -348,6 +379,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 1.0.0
 =====
 :release-date: 2012-11-05 01:00 P.M UTC
+:release-by: Ask Solem
 
 - Channels are now restored on channel error, so that the connection does not
   have to closed.
