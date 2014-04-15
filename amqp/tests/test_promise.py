@@ -1,4 +1,4 @@
-from __future__ import with_statement
+from __future__ import absolute_import, with_statement
 
 from collections import deque
 from struct import pack, unpack
@@ -16,7 +16,6 @@ class CanThen(object):
 
 class CannotThen(object):
     pass
-
 
 
 class test_Thenable(Case):
@@ -56,7 +55,8 @@ class test_promise(Case):
                 self.buffer.append(value)
 
         proto = Protocol()
-        proto.read_header().then(proto.read_body).then(wrap(proto.prepare_body))
+        proto.read_header().then(
+            proto.read_body).then(wrap(proto.prepare_body))
 
         while _pending:
             size, callback = _pending.popleft()
