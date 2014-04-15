@@ -9,8 +9,27 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 1.4.5
 =====
-:release-date: 2014-04-15 08:00 P.M UTC
+:release-date: 2014-04-15 09:00 P.M UTC
 :release-by: Ask Solem
+
+- Can now deserialize more AMQP types.
+
+    Now handles types ``short string``, ``short short int``,
+    ``short short unsigned int``, ``short int``,  ``short unsigned int``,
+    ``long unsigned int``,  ``long long int``, ``long long unsigned int``
+    and ``float`` which for some reason was missing, even in the original
+    amqplib module.
+
+- SSL: Workaround for Python SSL bug.
+
+    A bug in the python socket library causes ``ssl.read/write()``
+    on a closed socket to raise :exc:`AttributeError` instead of
+    :exc:`IOError`.
+
+    Fix contributed by Craig Jellick.
+
+- ``Transport.__del_`` now handles errors occurring at late interpreter
+  shutdown (Issue #36).
 
 .. _version-1.4.4:
 
