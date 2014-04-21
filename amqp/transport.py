@@ -92,7 +92,7 @@ class _AbstractTransport(object):
 
         if not self.sock:
             # Didn't connect, return the most recent error message
-            raise socket.error(last_err)
+            raise socket.error(last_err, 'Address: ' + host + ', Port: ' + str(port))
 
         try:
             self.sock.settimeout(None)
