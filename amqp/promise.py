@@ -309,6 +309,41 @@ def wrap(p):
     return on_call
 
 
+def _transback(filter_, callback, args, kwargs, ret):
+    try:
+        ret = filter_(*args + (ret, ), **kwargs)
+    except Exception:
+        callback.throw()
+    else:
+        return callback(ret)
+
+
+def transform(filter_, callback, *args, **kwargs):
+    """Filter final argument to a promise.
+
+    E.g. to coerce callback argument to :class:`int`::
+
+        transform(int, callback)
+
+    or a more complex example extracting something from a dict
+    and coercing the value to :class:`float`::
+
+        def filter_key_value(key, filter_, mapping):
+            return filter_(mapping[key])
+
+        def get_page_expires(self, url, callback=None):
+            return self.request(
+                'GET', url,
+                callback=transform(get_key, 'PageExpireValue', int),
+            )
+
+    """
+    callback = ensure_promise(callback)
+    P = promise(_transback, (filter_, callback, args, kwargs))
+    P.then(promise(), callback.throw)
+    return P
+
+
 def maybe_promise(p):
     if p:
         if not isinstance(p, Thenable):
