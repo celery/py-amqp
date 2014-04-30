@@ -318,7 +318,7 @@ def _transback(filter_, callback, args, kwargs, ret):
         return callback(ret)
 
 
-def transform(filter_, callback, *args, **kwargs):
+def transform(filter_, callback, *filter_args, **filter_kwargs):
     """Filter final argument to a promise.
 
     E.g. to coerce callback argument to :class:`int`::
@@ -334,12 +334,12 @@ def transform(filter_, callback, *args, **kwargs):
         def get_page_expires(self, url, callback=None):
             return self.request(
                 'GET', url,
-                callback=transform(get_key, 'PageExpireValue', int),
+                callback=transform(get_key, callback, 'PageExpireValue', int),
             )
 
     """
     callback = ensure_promise(callback)
-    P = promise(_transback, (filter_, callback, args, kwargs))
+    P = promise(_transback, (filter_, callback, filter_args, filter_kwargs))
     P.then(promise(), callback.throw)
     return P
 
