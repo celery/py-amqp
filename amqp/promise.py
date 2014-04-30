@@ -263,8 +263,9 @@ class promise(object):
         if self.cancelled:
             return
         self.failed, self.reason = True, exc
-        if self.on_error is not None:
-            self.on_error(exc)
+        if self.on_error is None:
+            raise
+        self.on_error(exc)
 
     def set_error_state(self, exc=None):
         if self.cancelled:
