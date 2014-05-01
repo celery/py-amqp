@@ -224,6 +224,7 @@ class test_promise(Case):
         a.then(Mock(name='foobar'))
         a.then(Mock(name='foozi'))
 
+        p.on_error = a_on_error
         p(42)
         a_on_error.fun.assert_called_with(exc)
         b.fun.assert_called_with(42)
@@ -255,7 +256,8 @@ class test_promise(Case):
 
         p2 = promise(a)
         p2.then(b).then(c)
-        p2(42)
+        with self.assertRaises(KeyError):
+            p2(42)
 
         de = promise(Mock(name='de'))
         d = promise(Mock(name='d'), on_error=de)

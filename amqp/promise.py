@@ -263,28 +263,33 @@ class promise(object):
         if self.cancelled:
             return
         self.failed, self.reason = True, exc
-        if self.on_error is None:
-            raise
-        self.on_error(exc)
+        if self.on_error:
+            self.on_error(exc)
 
     def set_error_state(self, exc=None):
         if self.cancelled:
             return
-        exc = sys.exc_info()[1] if exc is None else exc
-        self.throw1(exc)
-        svpending = self._svpending
-        if svpending is not None:
-            try:
-                svpending.throw1(exc)
-            finally:
-                self._svpending = None
-        else:
-            lvpending = self._lvpending
-            try:
-                while lvpending:
-                    lvpending.popleft().throw1(exc)
-            finally:
-                self._lvpending = None
+        _exc = sys.exc_info()[1] if exc is None else exc
+        try:
+            self.throw1(_exc)
+            svpending = self._svpending
+            if svpending is not None:
+                try:
+                    svpending.throw1(_exc)
+                finally:
+                    self._svpending = None
+            else:
+                lvpending = self._lvpending
+                try:
+                    while lvpending:
+                        lvpending.popleft().throw1(_exc)
+                finally:
+                    self._lvpending = None
+        finally:
+            if self.on_error is None:
+                if exc is None:
+                    raise
+                raise exc
 
     def throw(self, exc=None):
         if exc is None:
