@@ -527,7 +527,14 @@ class Connection(AbstractChannel):
 
     def _blocked(self, args):
         """RabbitMQ Extension."""
-        reason = args.read_shortstr()
+        try:
+            reason = args.read_shortstr()
+        except UnicodeDecodeError:
+            # XXX Spec say this is a shortstr, but amqplib seems to
+            # except strings to be in utf-8, even though the spec does
+            # not dictate any special encoding.
+            # (see amqp.serialization:AMQPReader.read_shortstr)
+            reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
