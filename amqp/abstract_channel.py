@@ -60,11 +60,11 @@ class AbstractChannel(object):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, allowed_methods=None):
+    def wait(self, allowed_methods=None, timeout=None):
         """Wait for a method that matches our allowed_methods parameter (the
         default value of None means match any method), and dispatch to it."""
         method_sig, args, content = self.connection._wait_method(
-            self.channel_id, allowed_methods)
+            self.channel_id, allowed_methods, timeout)
 
         return self.dispatch_method(method_sig, args, content)
 
