@@ -142,7 +142,7 @@ class AMQPReader(object):
             result[name] = val
         return result
 
-    def read_item(self):
+    def read_item(self, ord=ord):
         ftype = ord(self.input.read(1))
 
         # 'S': long string
@@ -352,7 +352,11 @@ class AMQPWriter(object):
         self.write_long(len(table_data))
         self.out.write(table_data)
 
-    def write_item(self, v, k=None):
+    def write_item(self, v, k=None,
+                   string_t=string_t, bytes=bytes, string=string, bool=bool,
+                   float=float, int_types=int_types, Decimal=Decimal,
+                   datetime=datetime, dict=dict, list=list, tuple=tuple,
+                   None_t=None):
         if isinstance(v, (string_t, bytes)):
             if isinstance(v, string):
                 v = v.encode('utf-8')
@@ -384,12 +388,17 @@ class AMQPWriter(object):
         elif isinstance(v, (list, tuple)):
             self.write(b'A')
             self.write_array(v)
-        elif v is None:
+        elif v is None_t:
             self.write(b'V')
         else:
-            err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
-                   else ILLEGAL_TABLE_TYPE.format(type(v), v))
-            raise FrameSyntaxError(err)
+            try:
+                reducer = v.__json__
+            except AttributeError:
+                err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
+                       else ILLEGAL_TABLE_TYPE.format(type(v), v))
+                raise FrameSyntaxError(err)
+            else:
+                return self.write_item(reducer())
 
     def write_array(self, a):
         array_data = AMQPWriter()
