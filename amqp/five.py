@@ -10,11 +10,13 @@
 """
 from __future__ import absolute_import
 
-__all__ = ['Counter', 'reload', 'UserList', 'UserDict', 'Queue', 'Empty',
-           'zip_longest', 'map', 'string', 'string_t',
-           'long_t', 'text_t', 'range', 'int_types', 'items', 'keys', 'values',
-           'nextfun', 'reraise', 'WhateverIO', 'with_metaclass',
-           'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic']
+__all__ = ['Counter', 'reload', 'UserList', 'UserDict',
+           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins',
+           'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
+           'long_t', 'text_t', 'int_types', 'module_name_t',
+           'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
+           'WhateverIO', 'with_metaclass', 'open_fqdn',
+           'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
 
 import io
 

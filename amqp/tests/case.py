@@ -3,12 +3,11 @@ from __future__ import absolute_import
 import sys
 
 from functools import wraps
+from io import StringIO
 
 import mock
 
 from nose import SkipTest  # noqa
-
-from amqp.five import StringIO
 
 try:
     import unittest
