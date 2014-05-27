@@ -38,7 +38,7 @@ except NameError:  # pragma: no cover
 
 bytes_t = bytes
 
-############## py3k #########################################################
+#  ############# py3k ########################################################
 import sys
 PY3 = sys.version_info[0] == 3
 
@@ -57,7 +57,7 @@ try:
 except ImportError:                         # pragma: no cover
     from UserDict import UserDict           # noqa
 
-############## time.monotonic ################################################
+#  ############# time.monotonic #############################################
 
 if sys.version_info < (3, 3):
 
@@ -112,7 +112,7 @@ try:
 except ImportError:
     monotonic = _monotonic  # noqa
 
-############## Py3 <-> Py2 ###################################################
+# ############# Py3 <-> Py2 #################################################
 
 if PY3:  # pragma: no cover
     import builtins
@@ -213,13 +213,13 @@ def with_metaclass(Type, skip_attrs={'__dict__', '__weakref__'}):
 
     return _clone_with_metaclass
 
-############## threading.TIMEOUT_MAX #######################################
+# ############# threading.TIMEOUT_MAX ########################################
 try:
     from threading import TIMEOUT_MAX as THREAD_TIMEOUT_MAX
 except ImportError:
     THREAD_TIMEOUT_MAX = 1e10  # noqa
 
-############## format(int, ',d') ##########################
+# ############# format(int, ',d') ############################################
 
 if sys.version_info >= (2, 7):  # pragma: no cover
     def format_d(i):

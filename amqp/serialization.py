@@ -381,7 +381,7 @@ class AMQPWriter(object):
         elif isinstance(v, datetime):
             self.write(b'T')
             self.write_timestamp(v)
-            ## FIXME: timezone ?
+            # ## FIXME timezone ?
         elif isinstance(v, dict):
             self.write(b'F')
             self.write_table(v)

@@ -68,8 +68,6 @@ def main():
     ch.queue_bind(qname, 'myfan')
     ch.basic_consume(qname, callback=partial(callback, ch))
 
-    #pyamqp://
-
     #
     # Loop as long as the channel has callbacks registered
     #

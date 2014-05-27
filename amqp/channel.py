@@ -1069,7 +1069,6 @@ class Channel(AbstractChannel):
         args.write_shortstr(queue)
         args.write_shortstr(exchange)
         args.write_shortstr(routing_key)
-        #args.write_bit(nowait)
         args.write_table(arguments)
         self._send_method((50, 50), args)
 

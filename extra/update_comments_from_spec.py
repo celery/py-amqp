@@ -42,8 +42,8 @@ def get_comments(filename):
     all_matches = RE_COMMENTS.finditer(whole_source)
     for match in all_matches:
         comments[match.group('mname')] = match.group('comment')
-        #print('method: %s \ncomment: %s' % (
-        #       match.group('mname'), match.group('comment')))
+        #  print('method: %s \ncomment: %s' % (
+        #        match.group('mname'), match.group('comment')))
 
     return comments
 
@@ -52,7 +52,7 @@ def replace_comment_per_def(source, result_file, def_name, new_comment):
     regex = ('(?P<methodsig>def\s+' +
              def_name +
              '\(.*?\):\n+\s+""".*?\n).*?(?=""")')
-    #print('method and comment:' + def_name + new_comment)
+    #  print('method and comment:' + def_name + new_comment)
     result = re.sub(regex, '\g<methodsig>' + new_comment, source, 0,
                     re.MULTILINE | re.DOTALL)
     return result

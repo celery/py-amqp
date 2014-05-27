@@ -82,7 +82,7 @@ html_sidebars = {
            'sourcelink.html', 'searchbox.html'],
 }
 
-### Issuetracker
+# ## Issuetracker
 
 if False:
     issuetracker = "github"
@@ -111,13 +111,13 @@ epub_identifier = 'celeryproject.org'
 # A unique identification for the text.
 epub_uid = 'py-amqp Manual, Version 1.0'
 
-# HTML files that should be inserted before the pages created by sphinx.
-# The format is a list of tuples containing the path and title.
-#epub_pre_files = []
+# ## HTML files that should be inserted before the pages created by sphinx.
+# ## The format is a list of tuples containing the path and title.
+# epub_pre_files = []
 
-# HTML files shat should be inserted after the pages created by sphinx.
-# The format is a list of tuples containing the path and title.
-#epub_post_files = []
+# ## HTML files shat should be inserted after the pages created by sphinx.
+# ## The format is a list of tuples containing the path and title.
+# epub_post_files = []
 
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ['search.html']

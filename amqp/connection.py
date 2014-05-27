@@ -127,8 +127,8 @@ class Connection(AbstractChannel):
                 and (password is not None):
             login_response = AMQPWriter()
             login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
-            login_response = login_response.getvalue()[4:]  # Skip the length
-                                                            # at the beginning
+            # Skip the length at the beginning
+            login_response = login_response.getvalue()[4:]
 
         d = dict(LIBRARY_PROPERTIES, **client_properties or {})
         self._method_override = {(60, 50): self._dispatch_basic_return}
@@ -335,7 +335,7 @@ class Connection(AbstractChannel):
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
                     raise socket.timeout()
-               # Non-blocking SSL sockets can throw SSLError
+                # Non-blocking SSL sockets can throw SSLError
                 if 'The operation did not complete' in str(exc):
                     raise socket.timeout()
                 raise
