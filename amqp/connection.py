@@ -37,7 +37,7 @@ from .exceptions import (
 from .five import items, range, values, monotonic
 from .method_framing import MethodReader, MethodWriter
 from .serialization import AMQPWriter
-from . import transport
+from .transport import create_transport
 
 HAS_MSG_PEEK = hasattr(socket, 'MSG_PEEK')
 
@@ -162,7 +162,7 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.create_transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(host, connect_timeout, ssl)
 
         self.method_reader = MethodReader(self.transport)
         self.method_writer = MethodWriter(self.transport, self.frame_max)
@@ -182,8 +182,8 @@ class Connection(AbstractChannel):
 
         return self._x_open(virtual_host)
 
-    def create_transport(self, host, connect_timeout, ssl=False):
-        return transport.create_transport(host, connect_timeout, ssl)
+    def Transport(self, host, connect_timeout, ssl=False):
+        return create_transport(host, connect_timeout, ssl)
 
     @property
     def connected(self):
