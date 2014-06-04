@@ -28,10 +28,10 @@ except ImportError:
         pass
 
 from . import __version__
-from .abstract_channel import AbstractChannel
+from .abstract_channel import AbstractChannel, inbound
 from .channel import Channel
 from .exceptions import (
-    AMQPNotImplementedError, ChannelError, ResourceError,
+    ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
@@ -146,7 +146,6 @@ class Connection(AbstractChannel):
             login_response = login_response.getvalue()[4:]
 
         d = dict(LIBRARY_PROPERTIES, **client_properties or {})
-        self._method_override = {(60, 50): self._dispatch_basic_return}
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -248,14 +247,14 @@ class Connection(AbstractChannel):
         # Nothing queued, need to wait for a method from the peer
         #
         while 1:
-            channel, method_sig, args, content = \
+            channel, method_sig, payload, content = \
                 self.method_reader.read_method()
 
             if channel == channel_id and (
                     allowed_methods is None or
                     method_sig in allowed_methods or
                     method_sig == (20, 40)):
-                return method_sig, args, content
+                return method_sig, payload, content
 
             #
             # Certain methods like basic_return should be dispatched
@@ -264,7 +263,7 @@ class Connection(AbstractChannel):
             #
             if channel and method_sig in self.Channel._IMMEDIATE_METHODS:
                 self.channels[channel].dispatch_method(
-                    method_sig, args, content,
+                    method_sig, payload, content,
                 )
                 continue
 
@@ -273,7 +272,7 @@ class Connection(AbstractChannel):
             # this method for later
             #
             self.channels[channel].method_queue.append(
-                (method_sig, args, content),
+                (method_sig, payload, content),
             )
 
             #
@@ -298,31 +297,12 @@ class Connection(AbstractChannel):
     def drain_events(self, timeout=None):
         """Wait for an event on a channel."""
         chanmap = self.channels
-        chanid, method_sig, args, content = self._wait_multiple(
+        chanid, method_sig, payload, content = self._wait_multiple(
             chanmap, None, timeout=timeout,
         )
 
         channel = chanmap[chanid]
-
-        if (content and
-                channel.auto_decode and
-                hasattr(content, 'content_encoding')):
-            try:
-                content.body = content.body.decode(content.content_encoding)
-            except Exception:
-                pass
-
-        amqp_method = (self._method_override.get(method_sig) or
-                       channel._METHOD_MAP.get(method_sig, None))
-
-        if amqp_method is None:
-            raise AMQPNotImplementedError(
-                'Unknown AMQP method {0!r}'.format(method_sig))
-
-        if content is None:
-            return amqp_method(channel, args)
-        else:
-            return amqp_method(channel, args, content)
+        return channel.dispatch_method(method_sig, payload, content)
 
     def read_timeout(self, timeout=None):
         if timeout is None:
@@ -355,24 +335,26 @@ class Connection(AbstractChannel):
                         method_sig in allowed_methods or
                         method_sig == (20, 40)):
                     method_queue.remove(queued_method)
-                    method_sig, args, content = queued_method
-                    return channel_id, method_sig, args, content
+                    method_sig, payload, content = queued_method
+                    return channel_id, method_sig, payload, content
 
         # Nothing queued, need to wait for a method from the peer
         read_timeout = self.read_timeout
         wait = self.wait
         while 1:
-            channel, method_sig, args, content = read_timeout(timeout)
+            channel, method_sig, payload, content = read_timeout(timeout)
 
             if channel in channels and (
                     allowed_methods is None or
                     method_sig in allowed_methods or
                     method_sig == (20, 40)):
-                return channel, method_sig, args, content
+                return channel, method_sig, payload, content
 
             # Not the channel and/or method we were looking for. Queue
             # this method for later
-            channels[channel].method_queue.append((method_sig, args, content))
+            channels[channel].method_queue.append(
+                (method_sig, payload, content),
+            )
 
             #
             # If we just queued up a method for channel 0 (the Connection
@@ -381,19 +363,6 @@ class Connection(AbstractChannel):
             #
             if channel == 0:
                 wait()
-
-    def _dispatch_basic_return(self, channel, args, msg):
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        exchange = args.read_shortstr()
-        routing_key = args.read_shortstr()
-
-        exc = error_for_code(reply_code, reply_text, (50, 60), ChannelError)
-        handlers = channel.events.get('basic_return')
-        if not handlers:
-            raise exc
-        for callback in handlers:
-            callback(exc, exchange, routing_key, msg)
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BssBB'):
@@ -461,7 +430,8 @@ class Connection(AbstractChannel):
             wait=[Connection_Close, Connection_CloseOk],
         )
 
-    def _close(self, args):
+    @inbound(Connection_Close, 'BsBB')
+    def _close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -515,30 +485,19 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        class_id = args.read_short()
-        method_id = args.read_short()
-
         self._x_close_ok()
-
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    def _blocked(self, args):
+    @inbound(Connection_Blocked)
+    def _blocked(self):
         """RabbitMQ Extension."""
-        try:
-            reason = args.read_shortstr()
-        except UnicodeDecodeError:
-            # XXX Spec say this is a shortstr, but amqplib seems to
-            # except strings to be in utf-8, even though the spec does
-            # not dictate any special encoding.
-            # (see amqp.serialization:AMQPReader.read_shortstr)
-            reason = 'connection blocked, see broker logs'
+        reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
-    def _unblocked(self, *args):
+    @inbound(Connection_Unblocked)
+    def _unblocked(self):
         if self.on_unblocked:
             return self.on_unblocked()
 
@@ -558,7 +517,8 @@ class Connection(AbstractChannel):
         self._send_method(Connection_CloseOk)
         self._do_close()
 
-    def _close_ok(self, args):
+    @inbound(Connection_CloseOk)
+    def _close_ok(self):
         """Confirm a connection close
 
         This method confirms a Connection.Close method and tells the
@@ -627,7 +587,8 @@ class Connection(AbstractChannel):
             wait=[Connection_OpenOk],
         )
 
-    def _open_ok(self, args):
+    @inbound(Connection_OpenOk)
+    def _open_ok(self):
         """Signal that the connection is ready
 
         This method signals to the client that the connection is ready
@@ -639,7 +600,8 @@ class Connection(AbstractChannel):
         """
         AMQP_LOGGER.debug('Open OK!')
 
-    def _secure(self, args):
+    @inbound(Connection_Secure, 's')
+    def _secure(self, challenge):
         """Security mechanism challenge
 
         The SASL protocol works by exchanging challenges and responses
@@ -656,7 +618,7 @@ class Connection(AbstractChannel):
                 passed to the security mechanism.
 
         """
-        challenge = args.read_longstr()  # noqa
+        pass
 
     def _x_secure_ok(self, response):
         """Security mechanism response
@@ -676,7 +638,9 @@ class Connection(AbstractChannel):
         """
         return self.send_method(Connection_SecureOk, 'S', (response, ))
 
-    def _start(self, args):
+    @inbound(Connection_Start, 'ooFSS')
+    def _start(self, version_major, version_minor, server_properties,
+               mechanisms, locales):
         """Start connection negotiation
 
         This method starts the connection negotiation process by
@@ -740,12 +704,11 @@ class Connection(AbstractChannel):
                     locale.
 
         """
-        self.version_major = args.read_octet()
-        self.version_minor = args.read_octet()
-        self.server_properties = args.read_table()
-        self.mechanisms = args.read_longstr().split(' ')
-        self.locales = args.read_longstr().split(' ')
-
+        self.version_major = version_major
+        self.version_minor = version_minor
+        self.server_properties = server_properties
+        self.mechanisms = mechanisms.split(' ')
+        self.locales = locales.split(' ')
         AMQP_LOGGER.debug(
             START_DEBUG_FMT,
             self.version_major, self.version_minor,
@@ -815,7 +778,8 @@ class Connection(AbstractChannel):
             (client_properties, mechanism, response, locale),
         )
 
-    def _tune(self, args):
+    @inbound(Connection_Tune, 'BlB')
+    def _tune(self, channel_max, frame_max, server_heartbeat):
         """Propose connection tuning parameters
 
         This method proposes a set of connection configuration values
@@ -858,10 +822,10 @@ class Connection(AbstractChannel):
 
         """
         client_heartbeat = self.client_heartbeat or 0
-        self.channel_max = args.read_short() or self.channel_max
-        self.frame_max = args.read_long() or self.frame_max
+        self.channel_max = channel_max or self.channel_max
+        self.frame_max = frame_max or self.frame_max
         self.method_writer.frame_max = self.frame_max
-        self.server_heartbeat = args.read_short() or 0
+        self.server_heartbeat = server_heartbeat or 0
 
         # negotiate the heartbeat interval to the smaller of the
         # specified values

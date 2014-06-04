@@ -21,10 +21,10 @@ import logging
 from collections import defaultdict
 from warnings import warn
 
-from .abstract_channel import AbstractChannel
+from .abstract_channel import AbstractChannel, inbound
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
-from .protocol import basic_return_t, queue_declare_ok_t
+from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
 
@@ -226,7 +226,7 @@ class Channel(AbstractChannel):
         finally:
             self.connection = None
 
-    def _close(self, args):
+    def _close(self, reply_code, reply_text, class_id, method_id):
         """Request a channel close
 
         This method indicates that the sender wants to close the
@@ -274,11 +274,6 @@ class Channel(AbstractChannel):
 
         """
 
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        class_id = args.read_short()
-        method_id = args.read_short()
-
         self._send_method(Channel_CloseOk)
         self._do_revive()
 
@@ -286,7 +281,8 @@ class Channel(AbstractChannel):
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
 
-    def _close_ok(self, args):
+    @inbound(Channel_CloseOk)
+    def _close_ok(self):
         """Confirm a channel close
 
         This method confirms a Channel.Close method and tells the
@@ -352,7 +348,8 @@ class Channel(AbstractChannel):
             Channel_Flow, 'b', (active, ), wait=[Channel_FlowOk],
         )
 
-    def _flow(self, args):
+    @inbound(Channel_Flow, 'b')
+    def _flow(self, active):
         """Enable/disable flow from peer
 
         This method asks the peer to pause or restart the flow of
@@ -398,7 +395,7 @@ class Channel(AbstractChannel):
                 False, the peer stops sending content frames.
 
         """
-        self.active = args.read_bit()
+        self.active = active
         self._x_flow_ok(self.active)
 
     def _x_flow_ok(self, active):
@@ -419,7 +416,8 @@ class Channel(AbstractChannel):
         """
         return self.send_method(Channel_FlowOk, 'b', (active, ))
 
-    def _flow_ok(self, args):
+    @inbound(Channel_FlowOk, 'b')
+    def _flow_ok(self, active):
         """Confirm a flow method
 
         Confirms to the peer that a flow command was received and
@@ -435,7 +433,7 @@ class Channel(AbstractChannel):
                 to send content frames; False means it will not.
 
         """
-        return args.read_bit()
+        return active
 
     def _x_open(self):
         """Open a channel for use
@@ -464,7 +462,8 @@ class Channel(AbstractChannel):
             Channel_Open, 's', ('', ), wait=[Channel_OpenOk],
         )
 
-    def _open_ok(self, args):
+    @inbound(Channel_OpenOk)
+    def _open_ok(self):
         """Signal that the channel is ready
 
         This method signals to the client that the channel is ready
@@ -647,7 +646,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Exchange_DeclareOk],
         )
 
-    def _exchange_declare_ok(self, args):
+    @inbound(Exchange_DeclareOk)
+    def _exchange_declare_ok(self):
         """Confirms an exchange declaration
 
         This method confirms a Declare method and confirms the name of
@@ -705,7 +705,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Exchange_DeleteOk],
         )
 
-    def _exchange_delete_ok(self, args):
+    @inbound(Exchange_DeleteOk)
+    def _exchange_delete_ok(self):
         """Confirm deletion of an exchange
 
         This method confirms the deletion of an exchange.
@@ -850,7 +851,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Exchange_UnbindOk],
         )
 
-    def _exchange_bind_ok(self, args):
+    @inbound(Exchange_BindOk)
+    def _exchange_bind_ok(self):
         """Confirm bind successful
 
         This method confirms that the bind was successful.
@@ -858,7 +860,8 @@ class Channel(AbstractChannel):
         """
         pass
 
-    def _exchange_unbind_ok(self, args):
+    @inbound(Exchange_UnbindOk)
+    def _exchange_unbind_ok(self):
         """Confirm unbind successful
 
         This method confirms that the unbind was successful.
@@ -997,7 +1000,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Queue_BindOk],
         )
 
-    def _queue_bind_ok(self, args):
+    @inbound(Queue_BindOk)
+    def _queue_bind_ok(self):
         """Confirm bind successful
 
         This method confirms that the bind was successful.
@@ -1063,7 +1067,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Queue_UnbindOk],
         )
 
-    def _queue_unbind_ok(self, args):
+    @inbound(Queue_UnbindOk)
+    def _queue_unbind_ok(self):
         """Confirm unbind successful
 
         This method confirms that the unbind was successful.
@@ -1233,7 +1238,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Queue_DeclareOk],
         )
 
-    def _queue_declare_ok(self, args):
+    @inbound(Queue_DeclareOk, 'sll')
+    def _queue_declare_ok(self, queue, message_count, consumer_count):
         """Confirms a queue definition
 
         This method confirms a Declare method and confirms the name of
@@ -1262,11 +1268,7 @@ class Channel(AbstractChannel):
                 this count.
 
         """
-        return queue_declare_ok_t(
-            args.read_shortstr(),
-            args.read_long(),
-            args.read_long(),
-        )
+        return queue_declare_ok_t(queue, message_count, consumer_count)
 
     def queue_delete(self, queue='',
                      if_unused=False, if_empty=False, nowait=False,
@@ -1342,7 +1344,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Queue_DeleteOk],
         )
 
-    def _queue_delete_ok(self, args):
+    @inbound(Queue_DeleteOk, 'l')
+    def _queue_delete_ok(self, message_count):
         """Confirm deletion of a queue
 
         This method confirms the deletion of a queue.
@@ -1355,7 +1358,7 @@ class Channel(AbstractChannel):
                 Reports the number of messages purged.
 
         """
-        return args.read_long()
+        return message_count
 
     def queue_purge(self, queue='', nowait=False, argsig='Bsb'):
         """Purge a queue
@@ -1418,7 +1421,8 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Queue_PurgeOk],
         )
 
-    def _queue_purge_ok(self, args):
+    @inbound(Queue_PurgeOk, 'l')
+    def _queue_purge_ok(self, message_count):
         """Confirms a queue purge
 
         This method confirms the purge of a queue.
@@ -1431,7 +1435,7 @@ class Channel(AbstractChannel):
                 Reports the number of messages purged.
 
         """
-        return args.read_long()
+        return message_count
 
     #############
     #
@@ -1589,20 +1593,21 @@ class Channel(AbstractChannel):
                 wait=None if nowait else [Basic_CancelOk],
             )
 
-    def _basic_cancel_notify(self, args):
+    @inbound(Basic_Cancel, 's')
+    def _basic_cancel_notify(self, consumer_tag):
         """Consumer cancelled by server.
 
         Most likely the queue was deleted.
 
         """
-        consumer_tag = args.read_shortstr()
         callback = self._on_cancel(consumer_tag)
         if callback:
             callback(consumer_tag)
         else:
             raise ConsumerCancelled(consumer_tag, Basic_Cancel)
 
-    def _basic_cancel_ok(self, args):
+    @inbound(Basic_CancelOk, 's')
+    def _basic_cancel_ok(self, consumer_tag):
         """Confirm a cancelled consumer
 
         This method confirms that the cancellation was completed.
@@ -1623,7 +1628,6 @@ class Channel(AbstractChannel):
                     use it in another.
 
         """
-        consumer_tag = args.read_shortstr()
         self._on_cancel(consumer_tag)
 
     def _on_cancel(self, consumer_tag):
@@ -1749,7 +1753,8 @@ class Channel(AbstractChannel):
             self.no_ack_consumers.add(consumer_tag)
         return p
 
-    def _basic_consume_ok(self, args):
+    @inbound(Basic_ConsumeOk, 's')
+    def _basic_consume_ok(self, consumer_tag):
         """Confirm a new consumer
 
         The server provides the client with a consumer tag, which is
@@ -1763,9 +1768,11 @@ class Channel(AbstractChannel):
                 provided by the server.
 
         """
-        return args.read_shortstr()
+        return consumer_tag
 
-    def _basic_deliver(self, args, msg):
+    @inbound(Basic_Deliver, 'sLbss', content=True)
+    def _basic_deliver(self, consumer_tag, delivery_tag, redelivered,
+                       exchange, routing_key, msg):
         """Notify the client of a consumer message
 
         This method delivers a message to the client, via a consumer.
@@ -1838,12 +1845,6 @@ class Channel(AbstractChannel):
                 message was published.
 
         """
-        consumer_tag = args.read_shortstr()
-        delivery_tag = args.read_longlong()
-        redelivered = args.read_bit()
-        exchange = args.read_shortstr()
-        routing_key = args.read_shortstr()
-
         msg.channel = self
         msg.delivery_info = {
             'consumer_tag': consumer_tag,
@@ -1902,7 +1903,8 @@ class Channel(AbstractChannel):
             wait=[Basic_GetOk, Basic_GetEmpty],
         )
 
-    def _basic_get_empty(self, args):
+    @inbound(Basic_GetEmpty, 's')
+    def _basic_get_empty(self, cluster_id):
         """Indicate no messages available
 
         This method tells the client that the queue has no messages
@@ -1917,9 +1919,11 @@ class Channel(AbstractChannel):
                 client applications.
 
         """
-        cluster_id = args.read_shortstr()  # noqa
+        pass
 
-    def _basic_get_ok(self, args, msg):
+    @inbound(Basic_GetOk, 'Lbssl', content=True)
+    def _basic_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
+                      message_count, msg):
         """Provide client with a message
 
         This method delivers a message to the client following a get
@@ -1977,12 +1981,6 @@ class Channel(AbstractChannel):
                 queue and removed by other clients.
 
         """
-        delivery_tag = args.read_longlong()
-        redelivered = args.read_bit()
-        exchange = args.read_shortstr()
-        routing_key = args.read_shortstr()
-        message_count = args.read_long()
-
         msg.channel = self
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
@@ -2144,7 +2142,8 @@ class Channel(AbstractChannel):
             wait=[Basic_QosOk],
         )
 
-    def _basic_qos_ok(self, args):
+    @inbound(Basic_QosOk)
+    def _basic_qos_ok(self):
         """Confirm the requested qos
 
         This method tells the client that the requested QoS levels
@@ -2189,7 +2188,8 @@ class Channel(AbstractChannel):
     def basic_recover_async(self, requeue=False):
         return self.send_method(Basic_RecoverAsync, 'b', (requeue, ))
 
-    def _basic_recover_ok(self, args):
+    @inbound(Basic_RecoverOk)
+    def _basic_recover_ok(self):
         """In 0-9-1 the deprecated recover solicits a response."""
         pass
 
@@ -2265,7 +2265,9 @@ class Channel(AbstractChannel):
         """
         return self.send_method(Basic_Reject, argsig, (delivery_tag, requeue))
 
-    def _basic_return(self, args, msg):
+    @inbound(Basic_Return, 'Bsss', content=True)
+    def _basic_return(self, reply_code, reply_text,
+                      exchange, routing_key, message):
         """Return a failed message
 
         This method returns an undeliverable message that was
@@ -2298,13 +2300,14 @@ class Channel(AbstractChannel):
                 message was published.
 
         """
-        self.returned_messages.put(basic_return_t(
-            args.read_short(),
-            args.read_shortstr(),
-            args.read_shortstr(),
-            args.read_shortstr(),
-            msg,
-        ))
+        exc = error_for_code(
+            reply_code, reply_text, Basic_Return, ChannelError,
+        )
+        handlers = self.events.get('basic_return')
+        if not handlers:
+            raise exc
+        for callback in handlers:
+            callback(exc, exchange, routing_key, message)
 
     #############
     #
@@ -2344,7 +2347,8 @@ class Channel(AbstractChannel):
         """
         return self.send_method(Tx_Commit, wait=[Tx_CommitOk])
 
-    def _tx_commit_ok(self, args):
+    @inbound(Tx_CommitOk)
+    def _tx_commit_ok(self):
         """Confirm a successful commit
 
         This method confirms to the client that the commit succeeded.
@@ -2364,7 +2368,8 @@ class Channel(AbstractChannel):
         """
         return self.send_method(Tx_Rollback, wait=[Tx_RollbackOk])
 
-    def _tx_rollback_ok(self, args):
+    @inbound(Tx_RollbackOk)
+    def _tx_rollback_ok(self):
         """Confirm a successful rollback
 
         This method confirms to the client that the rollback
@@ -2384,7 +2389,8 @@ class Channel(AbstractChannel):
         """
         return self.send_method(Tx_Select, wait=[Tx_SelectOk])
 
-    def _tx_select_ok(self, args):
+    @inbound(Tx_SelectOk)
+    def _tx_select_ok(self):
         """Confirm transaction mode
 
         This method confirms to the client that the channel was
@@ -2411,14 +2417,14 @@ class Channel(AbstractChannel):
             wait=None if nowait else [Confirm_SelectOk],
         )
 
-    def _confirm_select_ok(self, args):
+    @inbound(Confirm_SelectOk)
+    def _confirm_select_ok(self):
         """With this method the broker confirms to the client that
         the channel is now using publisher confirms."""
         pass
 
-    def _basic_ack_recv(self, args):
-        delivery_tag = args.read_longlong()
-        multiple = args.read_bit()
+    @inbound(Basic_Ack, 'Lb')
+    def _basic_ack_recv(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
 

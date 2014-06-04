@@ -18,9 +18,19 @@ from __future__ import absolute_import
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .promise import promise
-from .serialization import dumps
+from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
+
+
+def inbound(method, spec=None, content=False):
+
+    def _inner(fun):
+        fun.__amqp_method__ = method
+        fun.__amqp_argspec__ = spec
+        fun.__amqp_content__ = content
+        return fun
+    return _inner
 
 
 class AbstractChannel(object):
@@ -79,12 +89,12 @@ class AbstractChannel(object):
     def wait(self, allowed_methods=None):
         """Wait for a method that matches our allowed_methods parameter (the
         default value of None means match any method), and dispatch to it."""
-        method_sig, args, content = self.connection._wait_method(
+        method_sig, payload, content = self.connection._wait_method(
             self.channel_id, allowed_methods)
 
-        return self.dispatch_method(method_sig, args, content)
+        return self.dispatch_method(method_sig, payload, content)
 
-    def dispatch_method(self, method_sig, args, content):
+    def dispatch_method(self, method_sig, payload, content):
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
@@ -99,10 +109,22 @@ class AbstractChannel(object):
             raise AMQPNotImplementedError(
                 'Unknown AMQP method {0!r}'.format(method_sig))
 
-        if content is None:
-            return amqp_method(self, args)
+        try:
+            expects_content = amqp_method.__amqp_content__
+        except AttributeError:
+            expects_content = False
+
+        try:
+            argspec = amqp_method.__amqp_argspec__
+        except AttributeError:
+            args = []
         else:
-            return amqp_method(self, args, content)
+            args = loads(argspec, payload, 4) if argspec else []
+
+        if expects_content:
+            return amqp_method(self, *args + [content])
+        else:
+            return amqp_method(self, *args)
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

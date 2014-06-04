@@ -17,12 +17,11 @@
 from __future__ import absolute_import
 
 from collections import defaultdict, deque
-from struct import pack, unpack
+from struct import pack, unpack, unpack_from
 
 from .basic_message import Message
 from .exceptions import AMQPError, UnexpectedFrame
 from .five import range, string
-from .serialization import AMQPReader
 
 __all__ = ['MethodReader']
 
@@ -132,21 +131,21 @@ class MethodReader(object):
     def _process_heartbeat(self, channel, payload):
         self.heartbeats += 1
 
-    def _process_method_frame(self, channel, payload):
+    def _process_method_frame(self, channel, payload,
+                              unpack_from=unpack_from):
         """Process Method frames"""
-        method_sig = unpack('>HH', payload[:4])
-        args = AMQPReader(payload[4:])
+        method_sig = unpack_from('>HH', payload, 0)
 
         if method_sig in _CONTENT_METHODS:
             #
             # Save what we've got so far and wait for the content-header
             #
             self.partial_messages[channel] = _PartialMessage(
-                method_sig, args, channel,
+                method_sig, payload, channel,
             )
             self.expected_types[channel] = 2
         else:
-            self._quick_put((channel, method_sig, args, None))
+            self._quick_put((channel, method_sig, payload, None))
 
     def _process_content_header(self, channel, payload):
         """Process Content Header frames"""

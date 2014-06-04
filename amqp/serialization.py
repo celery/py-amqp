@@ -26,7 +26,7 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from struct import pack, unpack
+from struct import pack, unpack, unpack_from
 from time import mktime
 
 from .exceptions import FrameSyntaxError
@@ -48,6 +48,200 @@ Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
 ILLEGAL_TABLE_TYPE = """\
     Table type {0!r} not handled by amqp. [value: {1!r}]
 """
+
+
+def _read_item(buf, offset=0, unpack=unpack_from):
+    ftype = buf[offset]
+    offset += 1
+
+    # 'S': long string
+    if ftype == 'S':
+        slen, = unpack('>I', buf, offset)
+        offset += 4
+        val = buf[offset:offset + slen]
+        offset += slen
+    # 's': short string
+    elif ftype == 's':
+        slen, = unpack('>B', buf, offset)
+        offset += 1
+        val = buf[offset:offset + slen]
+        offset += slen
+    # 'b': short-short int
+    elif ftype == 'b':
+        val, = unpack('>B', buf, offset)
+        offset += 1
+    # 'B': short-short unsigned int
+    elif ftype == 'B':
+        val, = unpack('>b', buf, offset)
+        offset += 1
+    # 'U': short int
+    elif ftype == 'U':
+        val, = unpack('>h', buf, offset)
+        offset += 2
+    # 'u': short unsigned int
+    elif ftype == 'u':
+        val, = unpack('>H', buf, offset)
+        offset += 2
+    # 'I': long int
+    elif ftype == 'I':
+        val, = unpack('>i', buf, offset)
+        offset += 4
+    # 'i': long unsigned int
+    elif ftype == 'i':
+        val, = unpack('>I', buf, offset)
+        offset += 4
+    # 'L': long long int
+    elif ftype == 'L':
+        val, = unpack('>q', buf, offset)
+        offset += 8
+    # 'l': long long unsigned int
+    elif ftype == 'l':
+        val, = unpack('>Q', buf, offset)
+        offset += 8
+    # 'f': float
+    elif ftype == 'f':
+        val, = unpack('>f', buf, offset)
+        offset += 4
+    # 'd': double
+    elif ftype == 'd':
+        val, = unpack('>d', buf, offset)
+        offset += 8
+    # 'D': decimal
+    elif ftype == 'D':
+        d, = unpack('>B', buf, offset)
+        offset += 1
+        n, = unpack('>i', buf, offset)
+        offset += 4
+        val = Decimal(n) / Decimal(10 ** d)
+    # 'F': table
+    elif ftype == 'F':
+        tlen, = unpack('>I', buf, offset)
+        offset += 4
+        limit = offset + tlen
+        val = {}
+        while offset < limit:
+            keylen, = unpack('>B', buf, offset)
+            offset += 1
+            key = buf[offset:offset + keylen]
+            offset += keylen
+            val[key], offset = _read_item(buf, offset)
+    # 'A': array
+    elif ftype == 'A':
+        alen, = unpack('>I', buf, offset)
+        offset += 4
+        limit = offset + alen
+        val = []
+        while offset < limit:
+            v, offset = _read_item(buf, offset)
+            val.append(v)
+    # 't' (bool)
+    elif ftype == 't':
+        val, = unpack('>B', buf, offset)
+        val = bool(val)
+        offset += 1
+    # 'T': timestamp
+    elif ftype == 'T':
+        val, = unpack('>Q', buf, offset)
+        offset += 8
+        val = datetime.utcfromtimestamp(val)
+    # 'V': void
+    elif ftype == 'V':
+        val = None
+    else:
+        raise FrameSyntaxError(
+            'Unknown value in table: {0!r} ({1!r})'.format(
+                ftype, type(ftype)))
+    return val, offset
+
+
+def loads(format, buf, offset=0,
+          ord=ord, unpack=unpack_from, _read_item=_read_item):
+    """
+    bit = b
+    octet = o
+    short = B
+    long = l
+    long long = L
+    float = f
+    shortstr = s
+    longstr = S
+    table = F
+    array = A
+    """
+    bitcount = bits = 0
+
+    values = []
+    append = values.append
+
+    for p in format:
+        if p == 'b':
+            if not bitcount:
+                bits = ord(buf[offset:offset + 1])
+            bitcount = 8
+            val = (bits & 1) == 1
+            bits >>= 1
+            bitcount -= 1
+            offset += 1
+        elif p == 'o':
+            bitcount = bits = 0
+            val, = unpack('>B', buf, offset)
+            offset += 1
+        elif p == 'B':
+            bitcount = bits = 0
+            val, = unpack('>H', buf, offset)
+            offset += 2
+        elif p == 'l':
+            bitcount = bits = 0
+            val, = unpack('>I', buf, offset)
+            offset += 4
+        elif p == 'L':
+            bitcount = bits = 0
+            val, = unpack('>Q', buf, offset)
+            offset += 8
+        elif p == 'f':
+            bitcount = bits = 0
+            val, = unpack('>d', buf, offset)
+            offset += 8
+        elif p == 's':
+            bitcount = bits = 0
+            slen, = unpack('B', buf, offset)
+            offset += 1
+            val = buf[offset:offset + slen].decode('utf-8')
+            offset += slen
+        elif p == 'S':
+            bitcount = bits = 0
+            slen, = unpack('>I', buf, offset)
+            offset += 4
+            val = buf[offset:offset + slen].decode('utf-8')
+            offset += slen
+        elif p == 'F':
+            bitcount = bits = 0
+            tlen, = unpack('>I', buf, offset)
+            offset += 4
+            limit = offset + tlen
+            val = {}
+            while offset < limit:
+                keylen, = unpack('>B', buf, offset)
+                offset += 1
+                key = buf[offset:offset + keylen]
+                offset += keylen
+                val[key], offset = _read_item(buf, offset)
+        elif p == 'A':
+            bitcount = bits = 0
+            alen, = unpack('>I', buf, offset)
+            offset += 4
+            limit = offset + alen
+            val = []
+            while offset < limit:
+                aval, offset = _read_item(buf, offset)
+                val.append(aval)
+        elif p == 'T':
+            bitcount = bits = 0
+            val, = unpack('>Q', buf, offset)
+            offset += 8
+            val = datetime.fromtimestamp(val)
+        append(val)
+    return values
 
 
 class AMQPReader(object):
@@ -261,39 +455,39 @@ def dumps(format, values):
                 bits.append(0)
             bits[-1] |= (val << shift)
             bitcount += 1
-        if p == 'o':
+        elif p == 'o':
             bitcount = _flushbits(bits, write)
             write(pack('B', val))
-        if p == 'B':
+        elif p == 'B':
             bitcount = _flushbits(bits, write)
             write(pack('>H', int(val)))
-        if p == 'l':
+        elif p == 'l':
             bitcount = _flushbits(bits, write)
             write(pack('>I', val))
-        if p == 'L':
+        elif p == 'L':
             bitcount = _flushbits(bits, write)
             write(pack('>Q', val))
-        if p == 's':
+        elif p == 's':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
                 val = val.encode('utf-8')
             write(pack('B', len(val)))
             write(val)
-        if p == 'S':
+        elif p == 'S':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
                 val = val.encode('utf-8')
             write(pack('>I', len(val)))
             write(val)
-        if p == 'F':
+        elif p == 'F':
             bitcount = _flushbits(bits, write)
             _write_table(val or {}, write, bits)
-        if p == 'A':
+        elif p == 'A':
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
-        if p == 'T':
+        elif p == 'T':
             write(pack('>q', long_t(mktime(val.timetuple()))))
     _flushbits(bits, write)
 
