@@ -28,20 +28,20 @@ class Message(GenericContent):
     #: are passed back and forth as message properties between
     #: client and server
     PROPERTIES = [
-        ('content_type', 'shortstr'),
-        ('content_encoding', 'shortstr'),
-        ('application_headers', 'table'),
-        ('delivery_mode', 'octet'),
-        ('priority', 'octet'),
-        ('correlation_id', 'shortstr'),
-        ('reply_to', 'shortstr'),
-        ('expiration', 'shortstr'),
-        ('message_id', 'shortstr'),
-        ('timestamp', 'timestamp'),
-        ('type', 'shortstr'),
-        ('user_id', 'shortstr'),
-        ('app_id', 'shortstr'),
-        ('cluster_id', 'shortstr')
+        ('content_type', 's'),
+        ('content_encoding', 's'),
+        ('application_headers', 'F'),
+        ('delivery_mode', 'o'),
+        ('priority', 'o'),
+        ('correlation_id', 's'),
+        ('reply_to', 's'),
+        ('expiration', 's'),
+        ('message_id', 's'),
+        ('timestamp', 'T'),
+        ('type', 's'),
+        ('user_id', 's'),
+        ('app_id', 's'),
+        ('cluster_id', 's')
     ]
 
     def __init__(self, body='', children=None, channel=None, **properties):

@@ -227,191 +227,148 @@ class AMQPReader(object):
         return datetime.fromtimestamp(self.read_longlong())
 
 
-class AMQPWriter(object):
-    """Convert higher-level AMQP types to bytestreams."""
+def _flushbits(bits, write, pack=pack):
+    if bits:
+        write(pack('B' * len(bits), *bits))
+        bits[:] = []
+    return 0
 
-    def __init__(self, dest=None):
-        """dest may be a file-type object (with a write() method).  If None
-        then a BytesIO is created, and the contents can be accessed with
-        this class's getvalue() method."""
-        self.out = BytesIO() if dest is None else dest
-        self.bits = []
-        self.bitcount = 0
 
-    def _flushbits(self):
-        if self.bits:
-            out = self.out
-            for b in self.bits:
-                out.write(pack('B', b))
-            self.bits = []
-            self.bitcount = 0
+def dumps(format, values):
+    """"
+    bit = b
+    octet = o
+    short = B
+    long = l
+    long long = L
+    shortstr = s
+    longstr = S
+    table = F
+    array = A
 
-    def close(self):
-        """Pass through if possible to any file-like destinations."""
+    """
+    bitcount = 0
+    bits = []
+    out = BytesIO()
+    write = out.write
+
+    for i, val in enumerate(values):
+        p = format[i]
+        if p == 'b':
+            val = 1 if val else 0
+            shift = bitcount % 8
+            if shift == 0:
+                bits.append(0)
+            bits[-1] |= (val << shift)
+            bitcount += 1
+        if p == 'o':
+            bitcount = _flushbits(bits, write)
+            write(pack('B', val))
+        if p == 'B':
+            bitcount = _flushbits(bits, write)
+            write(pack('>H', int(val)))
+        if p == 'l':
+            bitcount = _flushbits(bits, write)
+            write(pack('>I', val))
+        if p == 'L':
+            bitcount = _flushbits(bits, write)
+            write(pack('>Q', val))
+        if p == 's':
+            val = val or ''
+            bitcount = _flushbits(bits, write)
+            if isinstance(val, string):
+                val = val.encode('utf-8')
+            write(pack('B', len(val)))
+            write(val)
+        if p == 'S':
+            val = val or ''
+            bitcount = _flushbits(bits, write)
+            if isinstance(val, string):
+                val = val.encode('utf-8')
+            write(pack('>I', len(val)))
+            write(val)
+        if p == 'F':
+            bitcount = _flushbits(bits, write)
+            _write_table(val or {}, write, bits)
+        if p == 'A':
+            bitcount = _flushbits(bits, write)
+            _write_array(val or [], write, bits)
+        if p == 'T':
+            write(pack('>q', long_t(mktime(val.timetuple()))))
+    _flushbits(bits, write)
+
+    return out.getvalue()
+
+
+def _write_table(d, write, bits, pack=pack):
+    out = BytesIO()
+    twrite = out.write
+    for k, v in items(d):
+        if isinstance(k, string):
+            k = k.encode('utf-8')
+        twrite(pack('B', len(k)))
+        twrite(k)
         try:
-            self.out.close()
-        except AttributeError:
-            pass
+            _write_item(v, twrite, bits)
+        except ValueError:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v))
+    table_data = out.getvalue()
+    write(pack('>I', len(table_data)))
+    write(table_data)
 
-    def flush(self):
-        """Pass through if possible to any file-like destinations."""
+
+def _write_array(l, write, bits, pack=pack):
+    out = BytesIO()
+    awrite = out.write
+    for v in l:
         try:
-            self.out.flush()
-        except AttributeError:
-            pass
-
-    def getvalue(self):
-        """Get what's been encoded so far if we're working with a BytesIO."""
-        self._flushbits()
-        return self.out.getvalue()
-
-    def write(self, s):
-        """Write a plain Python string with no special encoding in Python 2.x,
-        or bytes in Python 3.x"""
-        self._flushbits()
-        self.out.write(s)
-
-    def write_bit(self, b):
-        """Write a boolean value."""
-        b = 1 if b else 0
-        shift = self.bitcount % 8
-        if shift == 0:
-            self.bits.append(0)
-        self.bits[-1] |= (b << shift)
-        self.bitcount += 1
-
-    def write_octet(self, n):
-        """Write an integer as an unsigned 8-bit value."""
-        if n < 0 or n > 255:
+            _write_item(v, awrite, bits)
+        except ValueError:
             raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..255'.format(n))
-        self._flushbits()
-        self.out.write(pack('B', n))
+                ILLEGAL_TABLE_TYPE.format(type(v), v))
+    array_data = out.getvalue()
+    write(pack('>I', len(array_data)))
+    write(array_data)
 
-    def write_short(self, n):
-        """Write an integer as an unsigned 16-bit value."""
-        if n < 0 or n > 65535:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..65535'.format(n))
-        self._flushbits()
-        self.out.write(pack('>H', int(n)))
 
-    def write_long(self, n):
-        """Write an integer as an unsigned2 32-bit value."""
-        if n < 0 or n >= 4294967296:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..2**31-1'.format(n))
-        self._flushbits()
-        self.out.write(pack('>I', n))
-
-    def write_longlong(self, n):
-        """Write an integer as an unsigned 64-bit value."""
-        if n < 0 or n >= 18446744073709551616:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..2**64-1'.format(n))
-        self._flushbits()
-        self.out.write(pack('>Q', n))
-
-    def write_shortstr(self, s):
-        """Write a string up to 255 bytes long (after any encoding).
-
-        If passed a unicode string, encode with UTF-8.
-
-        """
-        self._flushbits()
-        if isinstance(s, string):
-            s = s.encode('utf-8')
-        if len(s) > 255:
-            raise FrameSyntaxError(
-                'Shortstring overflow ({0} > 255)'.format(len(s)))
-        self.write_octet(len(s))
-        self.out.write(s)
-
-    def write_longstr(self, s):
-        """Write a string up to 2**32 bytes long after encoding.
-
-        If passed a unicode string, encode as UTF-8.
-
-        """
-        self._flushbits()
-        if isinstance(s, string):
-            s = s.encode('utf-8')
-        self.write_long(len(s))
-        self.out.write(s)
-
-    def write_table(self, d):
-        """Write out a Python dictionary made of up string keys, and values
-        that are strings, signed integers, Decimal, datetime.datetime, or
-        sub-dictionaries following the same constraints."""
-        self._flushbits()
-        table_data = AMQPWriter()
-        for k, v in items(d):
-            table_data.write_shortstr(k)
-            table_data.write_item(v, k)
-        table_data = table_data.getvalue()
-        self.write_long(len(table_data))
-        self.out.write(table_data)
-
-    def write_item(self, v, k=None,
-                   string_t=string_t, bytes=bytes, string=string, bool=bool,
-                   float=float, int_types=int_types, Decimal=Decimal,
-                   datetime=datetime, dict=dict, list=list, tuple=tuple,
-                   None_t=None):
-        if isinstance(v, (string_t, bytes)):
-            if isinstance(v, string):
-                v = v.encode('utf-8')
-            self.write(b'S')
-            self.write_longstr(v)
-        elif isinstance(v, bool):
-            self.write(pack('>cB', b't', int(v)))
-        elif isinstance(v, float):
-            self.write(pack('>cd', b'd', v))
-        elif isinstance(v, int_types):
-            self.write(pack('>ci', b'I', v))
-        elif isinstance(v, Decimal):
-            self.write(b'D')
-            sign, digits, exponent = v.as_tuple()
-            v = 0
-            for d in digits:
-                v = (v * 10) + d
-            if sign:
-                v = -v
-            self.write_octet(-exponent)
-            self.write(pack('>i', v))
-        elif isinstance(v, datetime):
-            self.write(b'T')
-            self.write_timestamp(v)
-            # ## FIXME timezone ?
-        elif isinstance(v, dict):
-            self.write(b'F')
-            self.write_table(v)
-        elif isinstance(v, (list, tuple)):
-            self.write(b'A')
-            self.write_array(v)
-        elif v is None_t:
-            self.write(b'V')
-        else:
-            try:
-                reducer = v.__json__
-            except AttributeError:
-                err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
-                       else ILLEGAL_TABLE_TYPE.format(type(v), v))
-                raise FrameSyntaxError(err)
-            else:
-                return self.write_item(reducer())
-
-    def write_array(self, a):
-        array_data = AMQPWriter()
-        for v in a:
-            array_data.write_item(v)
-        array_data = array_data.getvalue()
-        self.write_long(len(array_data))
-        self.out.write(array_data)
-
-    def write_timestamp(self, v):
-        """Write out a Python datetime.datetime object as a 64-bit integer
-        representing seconds since the Unix epoch."""
-        self.out.write(pack('>q', long_t(mktime(v.timetuple()))))
+def _write_item(v, write, bits, pack=pack,
+                string_t=string_t, bytes=bytes, string=string, bool=bool,
+                float=float, int_types=int_types, Decimal=Decimal,
+                datetime=datetime, dict=dict, list=list, tuple=tuple,
+                None_t=None):
+    if isinstance(v, (string_t, bytes)):
+        if isinstance(v, string):
+            v = v.encode('utf-8')
+        write(pack('>cI', b'S', len(v)))
+        write(v)
+    elif isinstance(v, bool):
+        write(pack('>cB', b't', int(v)))
+    elif isinstance(v, float):
+        write(pack('>cd', b'd', v))
+    elif isinstance(v, int_types):
+        write(pack('>ci', b'I', v))
+    elif isinstance(v, Decimal):
+        sign, digits, exponent = v.as_tuple()
+        v = 0
+        for d in digits:
+            v = (v * 10) + d
+        if sign:
+            v = -v
+        write('>cBi', b'D', -exponent, v)
+    elif isinstance(v, datetime):
+        # ## FIXME timezone ?
+        write(pack('>cq', b'T', long_t(mktime(v.timetuple()))))
+    elif isinstance(v, dict):
+        write(b'F')
+        _write_table(v, write, bits)
+    elif isinstance(v, (list, tuple)):
+        write(b'A')
+        _write_array(v, write, bits)
+    elif v is None_t:
+        write(b'V')
+    else:
+        raise ValueError()
 
 
 class GenericContent(object):
@@ -420,7 +377,7 @@ class GenericContent(object):
     Subclasses should override the PROPERTIES attribute.
 
     """
-    PROPERTIES = [('dummy', 'shortstr')]
+    PROPERTIES = [('dummy', 's')]
 
     def __init__(self, **props):
         """Save the properties appropriate to this AMQP content type
@@ -464,6 +421,13 @@ class GenericContent(object):
         stored in this object as an attribute named 'properties'."""
         r = AMQPReader(raw_bytes)
 
+        spec_to_m = {
+            's': r.read_shortstr,
+            'F': r.read_table,
+            'o': r.read_octet,
+            'T': r.read_timestamp,
+        }
+
         #
         # Read 16-bit shorts until we get one with a low bit set to zero
         #
@@ -483,7 +447,7 @@ class GenericContent(object):
                 flag_bits, flags = flags[0], flags[1:]
                 shift = 15
             if flag_bits & (1 << shift):
-                d[key] = getattr(r, 'read_' + proptype)()
+                d[key] = spec_to_m[proptype]()
             shift -= 1
 
         self.properties = d
@@ -495,7 +459,7 @@ class GenericContent(object):
         shift = 15
         flag_bits = 0
         flags = []
-        raw_bytes = AMQPWriter()
+        sformat, svalues = [], []
         for key, proptype in self.PROPERTIES:
             val = self.properties.get(key, None)
             if val is not None:
@@ -506,14 +470,13 @@ class GenericContent(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    getattr(raw_bytes, 'write_' + proptype)(val)
+                    sformat.append(proptype)
+                    svalues.append(val)
 
             shift -= 1
-
         flags.append(flag_bits)
-        result = AMQPWriter()
+        result = BytesIO()
         for flag_bits in flags:
-            result.write_short(flag_bits)
-        result.write(raw_bytes.getvalue())
-
+            result.write(pack('>H', flag_bits))
+        result.write(dumps(''.join(sformat), svalues))
         return result.getvalue()

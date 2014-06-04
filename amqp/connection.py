@@ -20,6 +20,7 @@ import logging
 import socket
 
 from array import array
+from io import BytesIO
 try:
     from ssl import SSLError
 except ImportError:
@@ -36,10 +37,9 @@ from .exceptions import (
 )
 from .five import items, range, values, monotonic
 from .method_framing import MethodReader, MethodWriter
-from .serialization import AMQPWriter
+from .promise import ensure_promise
+from .serialization import _write_table
 from .transport import create_transport
-
-HAS_MSG_PEEK = hasattr(socket, 'MSG_PEEK')
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -57,6 +57,19 @@ LIBRARY_PROPERTIES = {
 }
 
 AMQP_LOGGER = logging.getLogger('amqp')
+
+Connection_Start = (10, 10)
+Connection_StartOk = (10, 11)
+Connection_Secure = (10, 20)
+Connection_SecureOk = (10, 21)
+Connection_Tune = (10, 30)
+Connection_TuneOk = (10, 31)
+Connection_Open = (10, 40)
+Connection_OpenOk = (10, 41)
+Connection_Close = (10, 50)
+Connection_CloseOk = (10, 51)
+Connection_Blocked = (10, 60)
+Connection_Unblocked = (10, 61)
 
 
 class Connection(AbstractChannel):
@@ -106,7 +119,8 @@ class Connection(AbstractChannel):
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_blocked=None,
-                 on_unblocked=None, confirm_publish=False, **kwargs):
+                 on_unblocked=None, confirm_publish=False,
+                 on_tune_ok=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -125,8 +139,9 @@ class Connection(AbstractChannel):
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
-            login_response = AMQPWriter()
-            login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
+            login_response = BytesIO()
+            _write_table({'LOGIN': userid, 'PASSWORD': password},
+                         login_response.write, [])
             # Skip the length at the beginning
             login_response = login_response.getvalue()[4:]
 
@@ -167,23 +182,20 @@ class Connection(AbstractChannel):
         self.method_reader = MethodReader(self.transport)
         self.method_writer = MethodWriter(self.transport, self.frame_max)
 
-        self.wait(allowed_methods=[
-            (10, 10),  # start
-        ])
+        self.wait(allowed_methods=[Connection_Start])
 
         self._x_start_ok(d, login_method, login_response, locale)
 
-        self._wait_tune_ok = True
-        while self._wait_tune_ok:
-            self.wait(allowed_methods=[
-                (10, 20),  # secure
-                (10, 30),  # tune
-            ])
-
+        self.on_tune_ok = ensure_promise(on_tune_ok)
+        self._wait_for_tune_ok()
         return self._x_open(virtual_host)
 
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
+
+    def _wait_for_tune_ok(self):
+        while not self.on_tune_ok.ready:
+            self.wait(allowed_methods=[Connection_Secure, Connection_Tune])
 
     @property
     def connected(self):
@@ -281,19 +293,7 @@ class Connection(AbstractChannel):
             return self.Channel(self, channel_id)
 
     def is_alive(self):
-        if HAS_MSG_PEEK:
-            sock = self.sock
-            prev = sock.gettimeout()
-            sock.settimeout(0.0001)
-            try:
-                sock.recv(1, socket.MSG_PEEK)
-            except socket.timeout:
-                pass
-            except socket.error:
-                return False
-            finally:
-                sock.settimeout(prev)
-        return True
+        raise NotImplementedError('Use AMQP heartbeats')
 
     def drain_events(self, timeout=None):
         """Wait for an event on a channel."""
@@ -395,7 +395,9 @@ class Connection(AbstractChannel):
         for callback in handlers:
             callback(exc, exchange, routing_key, msg)
 
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
+    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
+              argsig='BssBB'):
+
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -453,16 +455,11 @@ class Connection(AbstractChannel):
             # already closed
             return
 
-        args = AMQPWriter()
-        args.write_short(reply_code)
-        args.write_shortstr(reply_text)
-        args.write_short(method_sig[0])  # class_id
-        args.write_short(method_sig[1])  # method_id
-        self._send_method((10, 50), args)
-        return self.wait(allowed_methods=[
-            (10, 50),  # Connection.close
-            (10, 51),  # Connection.close_ok
-        ])
+        return self.send_method(
+            Connection_Close, argsig,
+            (reply_code, reply_text, method_sig[0], method_sig[1]),
+            wait=[Connection_Close, Connection_CloseOk],
+        )
 
     def _close(self, args):
         """Request a connection close
@@ -558,7 +555,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method((10, 51))
+        self._send_method(Connection_CloseOk)
         self._do_close()
 
     def _close_ok(self, args):
@@ -576,7 +573,7 @@ class Connection(AbstractChannel):
         """
         self._do_close()
 
-    def _x_open(self, virtual_host, capabilities=''):
+    def _x_open(self, virtual_host, capabilities='', argsig='ssb'):
         """Open connection to virtual host
 
         This method opens a connection to a virtual host, which is a
@@ -625,14 +622,10 @@ class Connection(AbstractChannel):
                 to how to process the client's connection request.
 
         """
-        args = AMQPWriter()
-        args.write_shortstr(virtual_host)
-        args.write_shortstr(capabilities)
-        args.write_bit(False)
-        self._send_method((10, 40), args)
-        return self.wait(allowed_methods=[
-            (10, 41),    # Connection.open_ok
-        ])
+        return self.send_method(
+            Connection_Open, argsig, (virtual_host, capabilities, False),
+            wait=[Connection_OpenOk],
+        )
 
     def _open_ok(self, args):
         """Signal that the connection is ready
@@ -681,9 +674,7 @@ class Connection(AbstractChannel):
                 the SASL security mechanism.
 
         """
-        args = AMQPWriter()
-        args.write_longstr(response)
-        self._send_method((10, 21), args)
+        return self.send_method(Connection_SecureOk, 'S', (response, ))
 
     def _start(self, args):
         """Start connection negotiation
@@ -761,7 +752,8 @@ class Connection(AbstractChannel):
             self.server_properties, self.mechanisms, self.locales,
         )
 
-    def _x_start_ok(self, client_properties, mechanism, response, locale):
+    def _x_start_ok(self, client_properties, mechanism, response, locale,
+                    argsig='FsSs'):
         """Select security mechanism and locale
 
         This method selects a SASL security mechanism. ASL uses SASL
@@ -818,12 +810,10 @@ class Connection(AbstractChannel):
             if 'capabilities' not in client_properties:
                 client_properties['capabilities'] = {}
             client_properties['capabilities']['connection.blocked'] = True
-        args = AMQPWriter()
-        args.write_table(client_properties)
-        args.write_shortstr(mechanism)
-        args.write_longstr(response)
-        args.write_shortstr(locale)
-        self._send_method((10, 11), args)
+        return self.send_method(
+            Connection_StartOk, argsig,
+            (client_properties, mechanism, response, locale),
+        )
 
     def _tune(self, args):
         """Propose connection tuning parameters
@@ -920,7 +910,8 @@ class Connection(AbstractChannel):
                 self.heartbeat < monotonic()):
             raise ConnectionForced('Too many heartbeats missed')
 
-    def _x_tune_ok(self, channel_max, frame_max, heartbeat):
+    def _x_tune_ok(self, channel_max, frame_max, heartbeat,
+                   argsig='BlB'):
         """Negotiate connection tuning parameters
 
         This method sends the client's connection tuning parameters to
@@ -969,12 +960,10 @@ class Connection(AbstractChannel):
                 want a heartbeat.
 
         """
-        args = AMQPWriter()
-        args.write_short(channel_max)
-        args.write_long(frame_max)
-        args.write_short(heartbeat or 0)
-        self._send_method((10, 31), args)
-        self._wait_tune_ok = False
+        return self.send_method(
+            Connection_TuneOk, argsig, (channel_max, frame_max, heartbeat),
+            callback=self.on_tune_ok,
+        )
 
     @property
     def sock(self):
@@ -985,14 +974,14 @@ class Connection(AbstractChannel):
         return self.server_properties.get('capabilities') or {}
 
     _METHOD_MAP = {
-        (10, 10): _start,
-        (10, 20): _secure,
-        (10, 30): _tune,
-        (10, 41): _open_ok,
-        (10, 50): _close,
-        (10, 51): _close_ok,
-        (10, 60): _blocked,
-        (10, 61): _unblocked,
+        Connection_Start: _start,
+        Connection_Secure: _secure,
+        Connection_Tune: _tune,
+        Connection_OpenOk: _open_ok,
+        Connection_Close: _close,
+        Connection_CloseOk: _close_ok,
+        Connection_Blocked: _blocked,
+        Connection_Unblocked: _unblocked,
     }
 
     _IMMEDIATE_METHODS = []

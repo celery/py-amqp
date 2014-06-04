@@ -17,7 +17,8 @@
 from __future__ import absolute_import
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .serialization import AMQPWriter
+from .promise import promise
+from .serialization import dumps
 
 __all__ = ['AbstractChannel']
 
@@ -49,12 +50,27 @@ class AbstractChannel(object):
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
 
-        if isinstance(args, AMQPWriter):
-            args = args.getvalue()
-
         conn.method_writer.write_method(
             self.channel_id, method_sig, args, content,
         )
+
+    def send_method(self, sig,
+                    format=None, args=None, content=None,
+                    wait=None, callback=None):
+        p = promise()
+        conn = self.connection
+        if conn is None:
+            raise RecoverableConnectionError('connection already closed')
+        args = dumps(format, args) if format else None
+        conn.method_writer.write_method(
+            self.channel_id, sig, args, content
+        )
+        if callback:
+            p.then(callback)
+        p()
+        if wait:
+            return self.wait(allowed_methods=wait)
+        return p
 
     def close(self):
         """Close this Channel or Connection"""
