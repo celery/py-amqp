@@ -17,8 +17,9 @@
 from __future__ import absolute_import
 
 from collections import defaultdict, deque
-from struct import pack, unpack, unpack_from
+from struct import pack, unpack_from
 
+from . import spec
 from .basic_message import Message
 from .exceptions import AMQPError, UnexpectedFrame
 from .five import range, string
@@ -29,11 +30,11 @@ __all__ = ['MethodReader']
 # MethodReader needs to know which methods are supposed
 # to be followed by content headers and bodies.
 #
-_CONTENT_METHODS = [
-    (60, 50),  # Basic.return
-    (60, 60),  # Basic.deliver
-    (60, 71),  # Basic.get_ok
-]
+_CONTENT_METHODS = frozenset([
+    spec.Basic.Return,
+    spec.Basic.Deliver,
+    spec.Basic.GetOk,
+])
 
 
 class _PartialMessage(object):
@@ -48,10 +49,12 @@ class _PartialMessage(object):
         self.body_size = None
         self.complete = False
 
-    def add_header(self, payload):
-        class_id, weight, self.body_size = unpack('>HHQ', payload[:12])
-        self.msg._load_properties(payload[12:])
+    def add_header(self, buf, offset=0):
+        class_id, self.body_size = unpack_from('>HxxQ', buf, offset)
+        offset += 12
+        self.msg._load_properties(class_id, buf, offset)
         self.complete = (self.body_size == 0)
+        return offset
 
     def add_payload(self, payload):
         parts = self.body_parts
@@ -132,11 +135,12 @@ class MethodReader(object):
         self.heartbeats += 1
 
     def _process_method_frame(self, channel, payload,
-                              unpack_from=unpack_from):
+                              unpack_from=unpack_from,
+                              content_methods=_CONTENT_METHODS):
         """Process Method frames"""
         method_sig = unpack_from('>HH', payload, 0)
 
-        if method_sig in _CONTENT_METHODS:
+        if method_sig in content_methods:
             #
             # Save what we've got so far and wait for the content-header
             #

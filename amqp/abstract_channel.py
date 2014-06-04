@@ -119,7 +119,7 @@ class AbstractChannel(object):
         except AttributeError:
             args = []
         else:
-            args = loads(argspec, payload, 4) if argspec else []
+            args, _ = loads(argspec, payload, 4) if argspec else ([], 0)
 
         if expects_content:
             return amqp_method(self, *args + [content])

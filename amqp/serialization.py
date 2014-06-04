@@ -26,9 +26,10 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from struct import pack, unpack, unpack_from
+from struct import pack, unpack_from
 from time import mktime
 
+from . import spec
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
 
@@ -50,84 +51,84 @@ ILLEGAL_TABLE_TYPE = """\
 """
 
 
-def _read_item(buf, offset=0, unpack=unpack_from):
+def _read_item(buf, offset=0, unpack_from=unpack_from):
     ftype = buf[offset]
     offset += 1
 
     # 'S': long string
     if ftype == 'S':
-        slen, = unpack('>I', buf, offset)
+        slen, = unpack_from('>I', buf, offset)
         offset += 4
         val = buf[offset:offset + slen]
         offset += slen
     # 's': short string
     elif ftype == 's':
-        slen, = unpack('>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         val = buf[offset:offset + slen]
         offset += slen
     # 'b': short-short int
     elif ftype == 'b':
-        val, = unpack('>B', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         offset += 1
     # 'B': short-short unsigned int
     elif ftype == 'B':
-        val, = unpack('>b', buf, offset)
+        val, = unpack_from('>b', buf, offset)
         offset += 1
     # 'U': short int
     elif ftype == 'U':
-        val, = unpack('>h', buf, offset)
+        val, = unpack_from('>h', buf, offset)
         offset += 2
     # 'u': short unsigned int
     elif ftype == 'u':
-        val, = unpack('>H', buf, offset)
+        val, = unpack_from('>H', buf, offset)
         offset += 2
     # 'I': long int
     elif ftype == 'I':
-        val, = unpack('>i', buf, offset)
+        val, = unpack_from('>i', buf, offset)
         offset += 4
     # 'i': long unsigned int
     elif ftype == 'i':
-        val, = unpack('>I', buf, offset)
+        val, = unpack_from('>I', buf, offset)
         offset += 4
     # 'L': long long int
     elif ftype == 'L':
-        val, = unpack('>q', buf, offset)
+        val, = unpack_from('>q', buf, offset)
         offset += 8
     # 'l': long long unsigned int
     elif ftype == 'l':
-        val, = unpack('>Q', buf, offset)
+        val, = unpack_from('>Q', buf, offset)
         offset += 8
     # 'f': float
     elif ftype == 'f':
-        val, = unpack('>f', buf, offset)
+        val, = unpack_from('>f', buf, offset)
         offset += 4
     # 'd': double
     elif ftype == 'd':
-        val, = unpack('>d', buf, offset)
+        val, = unpack_from('>d', buf, offset)
         offset += 8
     # 'D': decimal
     elif ftype == 'D':
-        d, = unpack('>B', buf, offset)
+        d, = unpack_from('>B', buf, offset)
         offset += 1
-        n, = unpack('>i', buf, offset)
+        n, = unpack_from('>i', buf, offset)
         offset += 4
         val = Decimal(n) / Decimal(10 ** d)
     # 'F': table
     elif ftype == 'F':
-        tlen, = unpack('>I', buf, offset)
+        tlen, = unpack_from('>I', buf, offset)
         offset += 4
         limit = offset + tlen
         val = {}
         while offset < limit:
-            keylen, = unpack('>B', buf, offset)
+            keylen, = unpack_from('>B', buf, offset)
             offset += 1
             key = buf[offset:offset + keylen]
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
     elif ftype == 'A':
-        alen, = unpack('>I', buf, offset)
+        alen, = unpack_from('>I', buf, offset)
         offset += 4
         limit = offset + alen
         val = []
@@ -136,12 +137,12 @@ def _read_item(buf, offset=0, unpack=unpack_from):
             val.append(v)
     # 't' (bool)
     elif ftype == 't':
-        val, = unpack('>B', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         val = bool(val)
         offset += 1
     # 'T': timestamp
     elif ftype == 'T':
-        val, = unpack('>Q', buf, offset)
+        val, = unpack_from('>Q', buf, offset)
         offset += 8
         val = datetime.utcfromtimestamp(val)
     # 'V': void
@@ -155,7 +156,7 @@ def _read_item(buf, offset=0, unpack=unpack_from):
 
 
 def loads(format, buf, offset=0,
-          ord=ord, unpack=unpack_from, _read_item=_read_item):
+          ord=ord, unpack_from=unpack_from, _read_item=_read_item):
     """
     bit = b
     octet = o
@@ -184,51 +185,51 @@ def loads(format, buf, offset=0,
             offset += 1
         elif p == 'o':
             bitcount = bits = 0
-            val, = unpack('>B', buf, offset)
+            val, = unpack_from('>B', buf, offset)
             offset += 1
         elif p == 'B':
             bitcount = bits = 0
-            val, = unpack('>H', buf, offset)
+            val, = unpack_from('>H', buf, offset)
             offset += 2
         elif p == 'l':
             bitcount = bits = 0
-            val, = unpack('>I', buf, offset)
+            val, = unpack_from('>I', buf, offset)
             offset += 4
         elif p == 'L':
             bitcount = bits = 0
-            val, = unpack('>Q', buf, offset)
+            val, = unpack_from('>Q', buf, offset)
             offset += 8
         elif p == 'f':
             bitcount = bits = 0
-            val, = unpack('>d', buf, offset)
+            val, = unpack_from('>d', buf, offset)
             offset += 8
         elif p == 's':
             bitcount = bits = 0
-            slen, = unpack('B', buf, offset)
+            slen, = unpack_from('B', buf, offset)
             offset += 1
             val = buf[offset:offset + slen].decode('utf-8')
             offset += slen
         elif p == 'S':
             bitcount = bits = 0
-            slen, = unpack('>I', buf, offset)
+            slen, = unpack_from('>I', buf, offset)
             offset += 4
             val = buf[offset:offset + slen].decode('utf-8')
             offset += slen
         elif p == 'F':
             bitcount = bits = 0
-            tlen, = unpack('>I', buf, offset)
+            tlen, = unpack_from('>I', buf, offset)
             offset += 4
             limit = offset + tlen
             val = {}
             while offset < limit:
-                keylen, = unpack('>B', buf, offset)
+                keylen, = unpack_from('>B', buf, offset)
                 offset += 1
                 key = buf[offset:offset + keylen]
                 offset += keylen
                 val[key], offset = _read_item(buf, offset)
         elif p == 'A':
             bitcount = bits = 0
-            alen, = unpack('>I', buf, offset)
+            alen, = unpack_from('>I', buf, offset)
             offset += 4
             limit = offset + alen
             val = []
@@ -237,188 +238,11 @@ def loads(format, buf, offset=0,
                 val.append(aval)
         elif p == 'T':
             bitcount = bits = 0
-            val, = unpack('>Q', buf, offset)
+            val, = unpack_from('>Q', buf, offset)
             offset += 8
             val = datetime.fromtimestamp(val)
         append(val)
-    return values
-
-
-class AMQPReader(object):
-    """Read higher-level AMQP types from a bytestream."""
-    def __init__(self, source):
-        """Source should be either a file-like object with a read() method, or
-        a plain (non-unicode) string."""
-        if isinstance(source, bytes):
-            self.input = BytesIO(source)
-        elif hasattr(source, 'read'):
-            self.input = source
-        else:
-            raise ValueError(
-                'AMQPReader needs a file-like object or plain string')
-
-        self.bitcount = self.bits = 0
-
-    def close(self):
-        self.input.close()
-
-    def read(self, n):
-        """Read n bytes."""
-        self.bitcount = self.bits = 0
-        return self.input.read(n)
-
-    def read_bit(self):
-        """Read a single boolean value."""
-        if not self.bitcount:
-            self.bits = ord(self.input.read(1))
-            self.bitcount = 8
-        result = (self.bits & 1) == 1
-        self.bits >>= 1
-        self.bitcount -= 1
-        return result
-
-    def read_octet(self):
-        """Read one byte, return as an integer"""
-        self.bitcount = self.bits = 0
-        return unpack('B', self.input.read(1))[0]
-
-    def read_short(self):
-        """Read an unsigned 16-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>H', self.input.read(2))[0]
-
-    def read_long(self):
-        """Read an unsigned 32-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>I', self.input.read(4))[0]
-
-    def read_longlong(self):
-        """Read an unsigned 64-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>Q', self.input.read(8))[0]
-
-    def read_float(self):
-        """Read float value."""
-        self.bitcount = self.bits = 0
-        return unpack('>d', self.input.read(8))[0]
-
-    def read_shortstr(self):
-        """Read a short string that's stored in up to 255 bytes.
-
-        The encoding isn't specified in the AMQP spec, so
-        assume it's utf-8
-
-        """
-        self.bitcount = self.bits = 0
-        slen = unpack('B', self.input.read(1))[0]
-        return self.input.read(slen).decode('utf-8')
-
-    def read_longstr(self):
-        """Read a string that's up to 2**32 bytes.
-
-        The encoding isn't specified in the AMQP spec, so
-        assume it's utf-8
-
-        """
-        self.bitcount = self.bits = 0
-        slen = unpack('>I', self.input.read(4))[0]
-        return self.input.read(slen).decode('utf-8')
-
-    def read_table(self):
-        """Read an AMQP table, and return as a Python dictionary."""
-        self.bitcount = self.bits = 0
-        tlen = unpack('>I', self.input.read(4))[0]
-        table_data = AMQPReader(self.input.read(tlen))
-        result = {}
-        while table_data.input.tell() < tlen:
-            name = table_data.read_shortstr()
-            val = table_data.read_item()
-            result[name] = val
-        return result
-
-    def read_item(self, ord=ord):
-        ftype = ord(self.input.read(1))
-
-        # 'S': long string
-        if ftype == 83:
-            val = self.read_longstr()
-        # 's': short string
-        elif ftype == 115:
-            val = self.read_shortstr()
-        # 'b': short-short int
-        elif ftype == 98:
-            val, = unpack('>B', self.input.read(1))
-        # 'B': short-short unsigned int
-        elif ftype == 66:
-            val, = unpack('>b', self.input.read(1))
-        # 'U': short int
-        elif ftype == 85:
-            val, = unpack('>h', self.input.read(2))
-        # 'u': short unsigned int
-        elif ftype == 117:
-            val, = unpack('>H', self.input.read(2))
-        # 'I': long int
-        elif ftype == 73:
-            val, = unpack('>i', self.input.read(4))
-        # 'i': long unsigned int
-        elif ftype == 105:  # 'l'
-            val, = unpack('>I', self.input.read(4))
-        # 'L': long long int
-        elif ftype == 76:
-            val, = unpack('>q', self.input.read(8))
-        # 'l': long long unsigned int
-        elif ftype == 108:
-            val, = unpack('>Q', self.input.read(8))
-        # 'f': float
-        elif ftype == 102:
-            val, = unpack('>f', self.input.read(4))
-        # 'd': double
-        elif ftype == 100:
-            val = self.read_float()
-        # 'D': decimal
-        elif ftype == 68:
-            d = self.read_octet()
-            n, = unpack('>i', self.input.read(4))
-            val = Decimal(n) / Decimal(10 ** d)
-        # 'F': table
-        elif ftype == 70:
-            val = self.read_table()  # recurse
-        # 'A': array
-        elif ftype == 65:
-            val = self.read_array()
-        # 't' (bool)
-        elif ftype == 116:
-            val = self.read_bit()
-        # 'T': timestamp
-        elif ftype == 84:
-            val = self.read_timestamp()
-        # 'V': void
-        elif ftype == 86:
-            val = None
-        else:
-            raise FrameSyntaxError(
-                'Unknown value in table: {0!r} ({1!r})'.format(
-                    ftype, type(ftype)))
-        return val
-
-    def read_array(self):
-        array_length = unpack('>I', self.input.read(4))[0]
-        array_data = AMQPReader(self.input.read(array_length))
-        result = []
-        while array_data.input.tell() < array_length:
-            val = array_data.read_item()
-            result.append(val)
-        return result
-
-    def read_timestamp(self):
-        """Read and AMQP timestamp, which is a 64-bit integer representing
-        seconds since the Unix epoch in 1-second resolution.
-
-        Return as a Python datetime.datetime object,
-        expressed as localtime.
-
-        """
-        return datetime.fromtimestamp(self.read_longlong())
+    return values, offset
 
 
 def _flushbits(bits, write, pack=pack):
@@ -565,6 +389,80 @@ def _write_item(v, write, bits, pack=pack,
         raise ValueError()
 
 
+def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
+    properties = {}
+
+    flags, = unpack_from('>H', buf, offset)
+    offset += 2
+
+    if flags & 0x8000:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['content_type'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x4000:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['content_encoding'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x2000:
+        _f, offset = loads('F', buf, offset)
+        properties['application_headers'], = _f
+    if flags & 0x1000:
+        properties['delivery_mode'], = unpack_from('>B', buf, offset)
+        offset += 1
+    if flags & 0x0800:
+        properties['priority'], = unpack_from('>B', buf, offset)
+        offset += 1
+    if flags & 0x0400:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['correlation_id'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0200:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['reply_to'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0100:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['expiration'] = buf[offset:offset + slen]
+    if flags & 0x0080:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['message_id'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0040:
+        properties['timestamp'], = unpack_from('>Q', buf, offset)
+        offset += 8
+    if flags & 0x0020:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['type'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0010:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['user_id'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0008:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['app_id'] = buf[offset:offset + slen]
+        offset += slen
+    if flags & 0x0004:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['cluster_id'] = buf[offset:offset + slen]
+        offset += slen
+    return properties, offset
+
+PROPERTY_CLASSES = {
+    spec.Basic.CLASS_ID: decode_properties_basic,
+}
+
+
 class GenericContent(object):
     """Abstract base class for AMQP content.
 
@@ -609,42 +507,17 @@ class GenericContent(object):
 
         raise AttributeError(name)
 
-    def _load_properties(self, raw_bytes):
+    def _load_properties(self, class_id, buf, offset=0,
+                         classes=PROPERTY_CLASSES, unpack_from=unpack_from):
         """Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert into a dictionary
         stored in this object as an attribute named 'properties'."""
-        r = AMQPReader(raw_bytes)
-
-        spec_to_m = {
-            's': r.read_shortstr,
-            'F': r.read_table,
-            'o': r.read_octet,
-            'T': r.read_timestamp,
-        }
-
         #
         # Read 16-bit shorts until we get one with a low bit set to zero
         #
-        flags = []
-        while 1:
-            flag_bits = r.read_short()
-            flags.append(flag_bits)
-            if flag_bits & 1 == 0:
-                break
-
-        shift = 0
-        d = {}
-        for key, proptype in self.PROPERTIES:
-            if shift == 0:
-                if not flags:
-                    break
-                flag_bits, flags = flags[0], flags[1:]
-                shift = 15
-            if flag_bits & (1 << shift):
-                d[key] = spec_to_m[proptype]()
-            shift -= 1
-
-        self.properties = d
+        props, offset = classes[class_id](buf, offset)
+        self.properties = props
+        return offset
 
     def _serialize_properties(self):
         """serialize the 'properties' attribute (a dictionary) into

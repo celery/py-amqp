@@ -21,6 +21,7 @@ import logging
 from collections import defaultdict
 from warnings import warn
 
+from . import spec
 from .abstract_channel import AbstractChannel, inbound
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
@@ -34,56 +35,6 @@ EXCHANGE_AUTODELETE_DEPRECATED = """\
 The auto_delete flag for exchanges has been deprecated and will be removed
 from py-amqp v1.5.0.\
 """
-
-Channel_Open = (20, 10)
-Channel_OpenOk = (20, 11)
-Channel_Flow = (20, 20)
-Channel_FlowOk = (20, 21)
-Channel_Close = (20, 40)
-Channel_CloseOk = (20, 41)
-Exchange_Declare = (40, 10)
-Exchange_DeclareOk = (40, 11)
-Exchange_Delete = (40, 20)
-Exchange_DeleteOk = (40, 21)
-Exchange_Bind = (40, 30)
-Exchange_BindOk = (40, 31)
-Exchange_Unbind = (40, 40)
-Exchange_UnbindOk = (40, 51)
-Queue_Declare = (50, 10)
-Queue_DeclareOk = (50, 11)
-Queue_Bind = (50, 20)
-Queue_BindOk = (50, 21)
-Queue_Purge = (50, 30)
-Queue_PurgeOk = (50, 31)
-Queue_Delete = (50, 40)
-Queue_DeleteOk = (50, 41)
-Queue_Unbind = (50, 50)
-Queue_UnbindOk = (50, 51)
-Basic_Qos = (60, 10)
-Basic_QosOk = (60, 11)
-Basic_Consume = (60, 20)
-Basic_ConsumeOk = (60, 21)
-Basic_Cancel = (60, 30)
-Basic_CancelOk = (60, 31)
-Basic_Publish = (60, 40)
-Basic_Return = (60, 50)
-Basic_Deliver = (60, 60)
-Basic_Get = (60, 70)
-Basic_GetOk = (60, 71)
-Basic_GetEmpty = (60, 80)
-Basic_Ack = (60, 80)
-Basic_Reject = (60, 90)
-Basic_RecoverAsync = (60, 100)
-Basic_Recover = (60, 110)
-Basic_RecoverOk = (60, 111)
-Confirm_Select = (85, 10)
-Confirm_SelectOk = (85, 11)
-Tx_Select = (90, 10)
-Tx_SelectOk = (90, 11)
-Tx_Commit = (90, 20)
-Tx_CommitOk = (90, 21)
-Tx_Rollback = (90, 30)
-Tx_RollbackOk = (90, 31)
 
 
 class VDeprecationWarning(DeprecationWarning):
@@ -219,9 +170,9 @@ class Channel(AbstractChannel):
                 return
 
             return self.send_method(
-                Channel_Close, argsig,
+                spec.Channel.Close, argsig,
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
-                wait=[Channel_Close, Channel_CloseOk],
+                wait=[spec.Channel.Close, spec.Channel.CloseOk],
             )
         finally:
             self.connection = None
@@ -274,14 +225,14 @@ class Channel(AbstractChannel):
 
         """
 
-        self._send_method(Channel_CloseOk)
+        self._send_method(spec.Channel.CloseOk)
         self._do_revive()
 
         raise error_for_code(
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
 
-    @inbound(Channel_CloseOk)
+    @inbound(spec.Channel.CloseOk)
     def _close_ok(self):
         """Confirm a channel close
 
@@ -345,10 +296,10 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Channel_Flow, 'b', (active, ), wait=[Channel_FlowOk],
+            spec.Channel.Flow, 'b', (active, ), wait=[spec.Channel.FlowOk],
         )
 
-    @inbound(Channel_Flow, 'b')
+    @inbound(spec.Channel.Flow, 'b')
     def _flow(self, active):
         """Enable/disable flow from peer
 
@@ -414,9 +365,9 @@ class Channel(AbstractChannel):
                 to send content frames; False means it will not.
 
         """
-        return self.send_method(Channel_FlowOk, 'b', (active, ))
+        return self.send_method(spec.Channel.FlowOk, 'b', (active, ))
 
-    @inbound(Channel_FlowOk, 'b')
+    @inbound(spec.Channel.FlowOk, 'b')
     def _flow_ok(self, active):
         """Confirm a flow method
 
@@ -459,10 +410,10 @@ class Channel(AbstractChannel):
             return
 
         return self.send_method(
-            Channel_Open, 's', ('', ), wait=[Channel_OpenOk],
+            spec.Channel.Open, 's', ('', ), wait=[spec.Channel.OpenOk],
         )
 
-    @inbound(Channel_OpenOk)
+    @inbound(spec.Channel.OpenOk)
     def _open_ok(self):
         """Signal that the channel is ready
 
@@ -640,13 +591,13 @@ class Channel(AbstractChannel):
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
 
         self.send_method(
-            Exchange_Declare, argsig,
+            spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,
              False, nowait, arguments),
-            wait=None if nowait else [Exchange_DeclareOk],
+            wait=None if nowait else [spec.Exchange.DeclareOk],
         )
 
-    @inbound(Exchange_DeclareOk)
+    @inbound(spec.Exchange.DeclareOk)
     def _exchange_declare_ok(self):
         """Confirms an exchange declaration
 
@@ -701,11 +652,11 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Exchange_Delete, argsig, (0, exchange, if_unused, nowait),
-            wait=None if nowait else [Exchange_DeleteOk],
+            spec.Exchange.Delete, argsig, (0, exchange, if_unused, nowait),
+            wait=None if nowait else [spec.Exchange.DeleteOk],
         )
 
-    @inbound(Exchange_DeleteOk)
+    @inbound(spec.Exchange.DeleteOk)
     def _exchange_delete_ok(self):
         """Confirm deletion of an exchange
 
@@ -788,9 +739,9 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Exchange_Bind, argsig,
+            spec.Exchange.Bind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
-            wait=None if nowait else [Exchange_BindOk],
+            wait=None if nowait else [spec.Exchange.BindOk],
         )
 
     def exchange_unbind(self, destination, source='', routing_key='',
@@ -846,12 +797,12 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Exchange_Unbind, argsig,
+            spec.Exchange.Unbind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
-            wait=None if nowait else [Exchange_UnbindOk],
+            wait=None if nowait else [spec.Exchange.UnbindOk],
         )
 
-    @inbound(Exchange_BindOk)
+    @inbound(spec.Exchange.BindOk)
     def _exchange_bind_ok(self):
         """Confirm bind successful
 
@@ -860,7 +811,7 @@ class Channel(AbstractChannel):
         """
         pass
 
-    @inbound(Exchange_UnbindOk)
+    @inbound(spec.Exchange.UnbindOk)
     def _exchange_unbind_ok(self):
         """Confirm unbind successful
 
@@ -995,12 +946,12 @@ class Channel(AbstractChannel):
                 class.
         """
         return self.send_method(
-            Queue_Bind, argsig,
+            spec.Queue.Bind, argsig,
             (0, queue, exchange, routing_key, nowait, arguments),
-            wait=None if nowait else [Queue_BindOk],
+            wait=None if nowait else [spec.Queue.BindOk],
         )
 
-    @inbound(Queue_BindOk)
+    @inbound(spec.Queue.BindOk)
     def _queue_bind_ok(self):
         """Confirm bind successful
 
@@ -1062,12 +1013,12 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Queue_Unbind, argsig,
+            spec.Queue.Unbind, argsig,
             (0, queue, exchange, routing_key, arguments),
-            wait=None if nowait else [Queue_UnbindOk],
+            wait=None if nowait else [spec.Queue.UnbindOk],
         )
 
-    @inbound(Queue_UnbindOk)
+    @inbound(spec.Queue.UnbindOk)
     def _queue_unbind_ok(self):
         """Confirm unbind successful
 
@@ -1232,13 +1183,13 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Queue_Declare, argsig,
+            spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
              nowait, arguments),
-            wait=None if nowait else [Queue_DeclareOk],
+            wait=None if nowait else [spec.Queue.DeclareOk],
         )
 
-    @inbound(Queue_DeclareOk, 'sll')
+    @inbound(spec.Queue.DeclareOk, 'sll')
     def _queue_declare_ok(self, queue, message_count, consumer_count):
         """Confirms a queue definition
 
@@ -1339,12 +1290,12 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Queue_Delete, argsig,
+            spec.Queue.Delete, argsig,
             (0, queue, if_unused, if_empty, nowait),
-            wait=None if nowait else [Queue_DeleteOk],
+            wait=None if nowait else [spec.Queue.DeleteOk],
         )
 
-    @inbound(Queue_DeleteOk, 'l')
+    @inbound(spec.Queue.DeleteOk, 'l')
     def _queue_delete_ok(self, message_count):
         """Confirm deletion of a queue
 
@@ -1417,11 +1368,11 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Queue_Purge, argsig, (0, queue, nowait),
-            wait=None if nowait else [Queue_PurgeOk],
+            spec.Queue.Purge, argsig, (0, queue, nowait),
+            wait=None if nowait else [spec.Queue.PurgeOk],
         )
 
-    @inbound(Queue_PurgeOk, 'l')
+    @inbound(spec.Queue.PurgeOk, 'l')
     def _queue_purge_ok(self, message_count):
         """Confirms a queue purge
 
@@ -1544,7 +1495,9 @@ class Channel(AbstractChannel):
                     channel exception if this is not the case.
 
         """
-        return self.send_method(Basic_Ack, argsig, (delivery_tag, multiple))
+        return self.send_method(
+            spec.Basic.Ack, argsig, (delivery_tag, multiple),
+        )
 
     def basic_cancel(self, consumer_tag, nowait=False, argsig='sb'):
         """End a queue consumer
@@ -1589,11 +1542,11 @@ class Channel(AbstractChannel):
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
             return self.send_method(
-                Basic_Cancel, argsig, (consumer_tag, nowait),
-                wait=None if nowait else [Basic_CancelOk],
+                spec.Basic.Cancel, argsig, (consumer_tag, nowait),
+                wait=None if nowait else [spec.Basic.CancelOk],
             )
 
-    @inbound(Basic_Cancel, 's')
+    @inbound(spec.Basic.Cancel, 's')
     def _basic_cancel_notify(self, consumer_tag):
         """Consumer cancelled by server.
 
@@ -1604,9 +1557,9 @@ class Channel(AbstractChannel):
         if callback:
             callback(consumer_tag)
         else:
-            raise ConsumerCancelled(consumer_tag, Basic_Cancel)
+            raise ConsumerCancelled(consumer_tag, spec.Basic.Cancel)
 
-    @inbound(Basic_CancelOk, 's')
+    @inbound(spec.Basic.CancelOk, 's')
     def _basic_cancel_ok(self, consumer_tag):
         """Confirm a cancelled consumer
 
@@ -1735,10 +1688,10 @@ class Channel(AbstractChannel):
         """
 
         p = self.send_method(
-            Basic_Consume, argsig,
+            spec.Basic.Consume, argsig,
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
              nowait, arguments),
-            wait=None if nowait else [Basic_ConsumeOk],
+            wait=None if nowait else [spec.Basic.ConsumeOk],
         )
 
         # XXX Fix this hack
@@ -1753,7 +1706,7 @@ class Channel(AbstractChannel):
             self.no_ack_consumers.add(consumer_tag)
         return p
 
-    @inbound(Basic_ConsumeOk, 's')
+    @inbound(spec.Basic.ConsumeOk, 's')
     def _basic_consume_ok(self, consumer_tag):
         """Confirm a new consumer
 
@@ -1770,7 +1723,7 @@ class Channel(AbstractChannel):
         """
         return consumer_tag
 
-    @inbound(Basic_Deliver, 'sLbss', content=True)
+    @inbound(spec.Basic.Deliver, 'sLbss', content=True)
     def _basic_deliver(self, consumer_tag, delivery_tag, redelivered,
                        exchange, routing_key, msg):
         """Notify the client of a consumer message
@@ -1899,11 +1852,11 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Basic_Get, argsig, (0, queue, no_ack),
-            wait=[Basic_GetOk, Basic_GetEmpty],
+            spec.Basic.Get, argsig, (0, queue, no_ack),
+            wait=[spec.Basic.GetOk, spec.Basic.GetEmpty],
         )
 
-    @inbound(Basic_GetEmpty, 's')
+    @inbound(spec.Basic.GetEmpty, 's')
     def _basic_get_empty(self, cluster_id):
         """Indicate no messages available
 
@@ -1921,7 +1874,7 @@ class Channel(AbstractChannel):
         """
         pass
 
-    @inbound(Basic_GetOk, 'Lbssl', content=True)
+    @inbound(spec.Basic.GetOk, 'Lbssl', content=True)
     def _basic_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
                       message_count, msg):
         """Provide client with a message
@@ -2059,7 +2012,7 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Basic_Publish, argsig,
+            spec.Basic.Publish, argsig,
             (0, exchange, routing_key, mandatory, immediate), msg
         )
     basic_publish = _basic_publish
@@ -2069,7 +2022,7 @@ class Channel(AbstractChannel):
             self._confirm_selected = True
             self.confirm_select()
         ret = self._basic_publish(*args, **kwargs)
-        self.wait([Basic_Ack])
+        self.wait([spec.Basic.Ack])
         return ret
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
@@ -2138,11 +2091,11 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Basic_Qos, argsig, (prefetch_size, prefetch_count, a_global),
-            wait=[Basic_QosOk],
+            spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
+            wait=[spec.Basic.QosOk],
         )
 
-    @inbound(Basic_QosOk)
+    @inbound(spec.Basic.QosOk)
     def _basic_qos_ok(self):
         """Confirm the requested qos
 
@@ -2183,12 +2136,12 @@ class Channel(AbstractChannel):
                 subscriber.
 
         """
-        return self.send_method(Basic_Recover, 'b', (requeue, ))
+        return self.send_method(spec.Basic.Recover, 'b', (requeue, ))
 
     def basic_recover_async(self, requeue=False):
-        return self.send_method(Basic_RecoverAsync, 'b', (requeue, ))
+        return self.send_method(spec.Basic.RecoverAsync, 'b', (requeue, ))
 
-    @inbound(Basic_RecoverOk)
+    @inbound(spec.Basic.RecoverOk)
     def _basic_recover_ok(self):
         """In 0-9-1 the deprecated recover solicits a response."""
         pass
@@ -2263,9 +2216,11 @@ class Channel(AbstractChannel):
                     later stage.
 
         """
-        return self.send_method(Basic_Reject, argsig, (delivery_tag, requeue))
+        return self.send_method(
+            spec.Basic.Reject, argsig, (delivery_tag, requeue),
+        )
 
-    @inbound(Basic_Return, 'Bsss', content=True)
+    @inbound(spec.Basic.Return, 'Bsss', content=True)
     def _basic_return(self, reply_code, reply_text,
                       exchange, routing_key, message):
         """Return a failed message
@@ -2301,7 +2256,7 @@ class Channel(AbstractChannel):
 
         """
         exc = error_for_code(
-            reply_code, reply_text, Basic_Return, ChannelError,
+            reply_code, reply_text, spec.Basic.Return, ChannelError,
         )
         handlers = self.events.get('basic_return')
         if not handlers:
@@ -2345,9 +2300,9 @@ class Channel(AbstractChannel):
         after a commit.
 
         """
-        return self.send_method(Tx_Commit, wait=[Tx_CommitOk])
+        return self.send_method(spec.Tx.Commit, wait=[spec.Tx.CommitOk])
 
-    @inbound(Tx_CommitOk)
+    @inbound(spec.Tx.CommitOk)
     def _tx_commit_ok(self):
         """Confirm a successful commit
 
@@ -2366,9 +2321,9 @@ class Channel(AbstractChannel):
         immediately after a rollback.
 
         """
-        return self.send_method(Tx_Rollback, wait=[Tx_RollbackOk])
+        return self.send_method(spec.Tx.Rollback, wait=[spec.Tx.RollbackOk])
 
-    @inbound(Tx_RollbackOk)
+    @inbound(spec.Tx.RollbackOk)
     def _tx_rollback_ok(self):
         """Confirm a successful rollback
 
@@ -2387,9 +2342,9 @@ class Channel(AbstractChannel):
         before using the Commit or Rollback methods.
 
         """
-        return self.send_method(Tx_Select, wait=[Tx_SelectOk])
+        return self.send_method(spec.Tx.Select, wait=[spec.Tx.SelectOk])
 
-    @inbound(Tx_SelectOk)
+    @inbound(spec.Tx.SelectOk)
     def _tx_select_ok(self):
         """Confirm transaction mode
 
@@ -2413,52 +2368,52 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            Confirm_Select, 'b', (nowait, ),
-            wait=None if nowait else [Confirm_SelectOk],
+            spec.Confirm.Select, 'b', (nowait, ),
+            wait=None if nowait else [spec.Confirm.SelectOk],
         )
 
-    @inbound(Confirm_SelectOk)
+    @inbound(spec.Confirm.SelectOk)
     def _confirm_select_ok(self):
         """With this method the broker confirms to the client that
         the channel is now using publisher confirms."""
         pass
 
-    @inbound(Basic_Ack, 'Lb')
+    @inbound(spec.Basic.Ack, 'Lb')
     def _basic_ack_recv(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
 
     _METHOD_MAP = {
-        Channel_OpenOk: _open_ok,
-        Channel_Flow: _flow,
-        Channel_FlowOk: _flow_ok,
-        Channel_Close: _close,
-        Channel_CloseOk: _close_ok,
-        Exchange_DeclareOk: _exchange_declare_ok,
-        Exchange_DeleteOk: _exchange_delete_ok,
-        Exchange_BindOk: _exchange_bind_ok,
-        Exchange_UnbindOk: _exchange_unbind_ok,
-        Queue_DeclareOk: _queue_declare_ok,
-        Queue_BindOk: _queue_bind_ok,
-        Queue_PurgeOk: _queue_purge_ok,
-        Queue_DeleteOk: _queue_delete_ok,
-        Queue_UnbindOk: _queue_unbind_ok,
-        Basic_QosOk: _basic_qos_ok,
-        Basic_ConsumeOk: _basic_consume_ok,
-        Basic_Cancel: _basic_cancel_notify,
-        Basic_CancelOk: _basic_cancel_ok,
-        Basic_Return: _basic_return,
-        Basic_Deliver: _basic_deliver,
-        Basic_GetOk: _basic_get_ok,
-        Basic_GetEmpty: _basic_get_empty,
-        Basic_Ack: _basic_ack_recv,
-        Basic_RecoverOk: _basic_recover_ok,
-        Confirm_SelectOk: _confirm_select_ok,
-        Tx_SelectOk: _tx_select_ok,
-        Tx_CommitOk: _tx_commit_ok,
-        Tx_RollbackOk: _tx_rollback_ok,
+        spec.Channel.OpenOk: _open_ok,
+        spec.Channel.Flow: _flow,
+        spec.Channel.FlowOk: _flow_ok,
+        spec.Channel.Close: _close,
+        spec.Channel.CloseOk: _close_ok,
+        spec.Exchange.DeclareOk: _exchange_declare_ok,
+        spec.Exchange.DeleteOk: _exchange_delete_ok,
+        spec.Exchange.BindOk: _exchange_bind_ok,
+        spec.Exchange.UnbindOk: _exchange_unbind_ok,
+        spec.Queue.DeclareOk: _queue_declare_ok,
+        spec.Queue.BindOk: _queue_bind_ok,
+        spec.Queue.PurgeOk: _queue_purge_ok,
+        spec.Queue.DeleteOk: _queue_delete_ok,
+        spec.Queue.UnbindOk: _queue_unbind_ok,
+        spec.Basic.QosOk: _basic_qos_ok,
+        spec.Basic.ConsumeOk: _basic_consume_ok,
+        spec.Basic.Cancel: _basic_cancel_notify,
+        spec.Basic.CancelOk: _basic_cancel_ok,
+        spec.Basic.Return: _basic_return,
+        spec.Basic.Deliver: _basic_deliver,
+        spec.Basic.GetOk: _basic_get_ok,
+        spec.Basic.GetEmpty: _basic_get_empty,
+        spec.Basic.Ack: _basic_ack_recv,
+        spec.Basic.RecoverOk: _basic_recover_ok,
+        spec.Confirm.SelectOk: _confirm_select_ok,
+        spec.Tx.SelectOk: _tx_select_ok,
+        spec.Tx.CommitOk: _tx_commit_ok,
+        spec.Tx.RollbackOk: _tx_rollback_ok,
     }
 
     _IMMEDIATE_METHODS = [
-        Basic_Return,  # basic_return
+        spec.Basic.Return,  # basic_return
     ]

@@ -28,6 +28,7 @@ except ImportError:
         pass
 
 from . import __version__
+from . import spec
 from .abstract_channel import AbstractChannel, inbound
 from .channel import Channel
 from .exceptions import (
@@ -57,19 +58,6 @@ LIBRARY_PROPERTIES = {
 }
 
 AMQP_LOGGER = logging.getLogger('amqp')
-
-Connection_Start = (10, 10)
-Connection_StartOk = (10, 11)
-Connection_Secure = (10, 20)
-Connection_SecureOk = (10, 21)
-Connection_Tune = (10, 30)
-Connection_TuneOk = (10, 31)
-Connection_Open = (10, 40)
-Connection_OpenOk = (10, 41)
-Connection_Close = (10, 50)
-Connection_CloseOk = (10, 51)
-Connection_Blocked = (10, 60)
-Connection_Unblocked = (10, 61)
 
 
 class Connection(AbstractChannel):
@@ -181,7 +169,7 @@ class Connection(AbstractChannel):
         self.method_reader = MethodReader(self.transport)
         self.method_writer = MethodWriter(self.transport, self.frame_max)
 
-        self.wait(allowed_methods=[Connection_Start])
+        self.wait(allowed_methods=[spec.Connection.Start])
 
         self._x_start_ok(d, login_method, login_response, locale)
 
@@ -194,7 +182,9 @@ class Connection(AbstractChannel):
 
     def _wait_for_tune_ok(self):
         while not self.on_tune_ok.ready:
-            self.wait(allowed_methods=[Connection_Secure, Connection_Tune])
+            self.wait(allowed_methods=[
+                spec.Connection.Secure, spec.Connection.Tune,
+            ])
 
     @property
     def connected(self):
@@ -218,7 +208,7 @@ class Connection(AbstractChannel):
         except IndexError:
             raise ResourceError(
                 'No free channel ids, current={0}, channel_max={1}'.format(
-                    len(self.channels), self.channel_max), (20, 10))
+                    len(self.channels), self.channel_max), spec.Channel.open)
 
     def _claim_channel_id(self, channel_id):
         try:
@@ -227,7 +217,8 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id, ))
 
-    def _wait_method(self, channel_id, allowed_methods):
+    def _wait_method(self, channel_id, allowed_methods,
+                     close_id=spec.Connection.Close):
         """Wait for a method from the server destined for
         a particular channel."""
         #
@@ -239,7 +230,7 @@ class Connection(AbstractChannel):
             method_sig = queued_method[0]
             if (allowed_methods is None) \
                     or (method_sig in allowed_methods) \
-                    or (method_sig == (20, 40)):
+                    or (method_sig == close_id):
                 method_queue.remove(queued_method)
                 return queued_method
 
@@ -253,7 +244,7 @@ class Connection(AbstractChannel):
             if channel == channel_id and (
                     allowed_methods is None or
                     method_sig in allowed_methods or
-                    method_sig == (20, 40)):
+                    method_sig == close_id):
                 return method_sig, payload, content
 
             #
@@ -333,7 +324,7 @@ class Connection(AbstractChannel):
                 method_sig = queued_method[0]
                 if (allowed_methods is None or
                         method_sig in allowed_methods or
-                        method_sig == (20, 40)):
+                        method_sig == close_id):
                     method_queue.remove(queued_method)
                     method_sig, payload, content = queued_method
                     return channel_id, method_sig, payload, content
@@ -347,7 +338,7 @@ class Connection(AbstractChannel):
             if channel in channels and (
                     allowed_methods is None or
                     method_sig in allowed_methods or
-                    method_sig == (20, 40)):
+                    method_sig == close_id):
                 return channel, method_sig, payload, content
 
             # Not the channel and/or method we were looking for. Queue
@@ -425,12 +416,12 @@ class Connection(AbstractChannel):
             return
 
         return self.send_method(
-            Connection_Close, argsig,
+            spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=[Connection_Close, Connection_CloseOk],
+            wait=[spec.Connection.Close, spec.Connection.CloseOk],
         )
 
-    @inbound(Connection_Close, 'BsBB')
+    @inbound(spec.Connection.Close, 'BsBB')
     def _close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
 
@@ -489,14 +480,14 @@ class Connection(AbstractChannel):
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    @inbound(Connection_Blocked)
+    @inbound(spec.Connection.Blocked)
     def _blocked(self):
         """RabbitMQ Extension."""
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
-    @inbound(Connection_Unblocked)
+    @inbound(spec.Connection.Unblocked)
     def _unblocked(self):
         if self.on_unblocked:
             return self.on_unblocked()
@@ -514,10 +505,10 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method(Connection_CloseOk)
+        self._send_method(spec.Connection.CloseOk)
         self._do_close()
 
-    @inbound(Connection_CloseOk)
+    @inbound(spec.Connection.CloseOk)
     def _close_ok(self):
         """Confirm a connection close
 
@@ -583,11 +574,11 @@ class Connection(AbstractChannel):
 
         """
         return self.send_method(
-            Connection_Open, argsig, (virtual_host, capabilities, False),
-            wait=[Connection_OpenOk],
+            spec.Connection.Open, argsig, (virtual_host, capabilities, False),
+            wait=[spec.Connection.OpenOk],
         )
 
-    @inbound(Connection_OpenOk)
+    @inbound(spec.Connection.OpenOk)
     def _open_ok(self):
         """Signal that the connection is ready
 
@@ -600,7 +591,7 @@ class Connection(AbstractChannel):
         """
         AMQP_LOGGER.debug('Open OK!')
 
-    @inbound(Connection_Secure, 's')
+    @inbound(spec.Connection.Secure, 's')
     def _secure(self, challenge):
         """Security mechanism challenge
 
@@ -636,9 +627,9 @@ class Connection(AbstractChannel):
                 the SASL security mechanism.
 
         """
-        return self.send_method(Connection_SecureOk, 'S', (response, ))
+        return self.send_method(spec.Connection.SecureOk, 'S', (response, ))
 
-    @inbound(Connection_Start, 'ooFSS')
+    @inbound(spec.Connection.Start, 'ooFSS')
     def _start(self, version_major, version_minor, server_properties,
                mechanisms, locales):
         """Start connection negotiation
@@ -774,11 +765,11 @@ class Connection(AbstractChannel):
                 client_properties['capabilities'] = {}
             client_properties['capabilities']['connection.blocked'] = True
         return self.send_method(
-            Connection_StartOk, argsig,
+            spec.Connection.StartOk, argsig,
             (client_properties, mechanism, response, locale),
         )
 
-    @inbound(Connection_Tune, 'BlB')
+    @inbound(spec.Connection.Tune, 'BlB')
     def _tune(self, channel_max, frame_max, server_heartbeat):
         """Propose connection tuning parameters
 
@@ -925,7 +916,8 @@ class Connection(AbstractChannel):
 
         """
         return self.send_method(
-            Connection_TuneOk, argsig, (channel_max, frame_max, heartbeat),
+            spec.Connection.TuneOk, argsig,
+            (channel_max, frame_max, heartbeat),
             callback=self.on_tune_ok,
         )
 
@@ -938,14 +930,14 @@ class Connection(AbstractChannel):
         return self.server_properties.get('capabilities') or {}
 
     _METHOD_MAP = {
-        Connection_Start: _start,
-        Connection_Secure: _secure,
-        Connection_Tune: _tune,
-        Connection_OpenOk: _open_ok,
-        Connection_Close: _close,
-        Connection_CloseOk: _close_ok,
-        Connection_Blocked: _blocked,
-        Connection_Unblocked: _unblocked,
+        spec.Connection.Start: _start,
+        spec.Connection.Secure: _secure,
+        spec.Connection.Tune: _tune,
+        spec.Connection.OpenOk: _open_ok,
+        spec.Connection.Close: _close,
+        spec.Connection.CloseOk: _close_ok,
+        spec.Connection.Blocked: _blocked,
+        spec.Connection.Unblocked: _unblocked,
     }
 
     _IMMEDIATE_METHODS = []

@@ -23,18 +23,19 @@ import unittest
 
 import settings
 
+from amqp import spec
 from amqp.exceptions import AMQPError
 
 
 class TestException(unittest.TestCase):
     def test_exception(self):
-        exc = AMQPError('My Error', (10, 10), reply_code=7)
+        exc = AMQPError('My Error', spec.Connection.Start, reply_code=7)
         self.assertEqual(exc.reply_code, 7)
         self.assertEqual(exc.reply_text, 'My Error')
-        self.assertEqual(exc.method_sig, (10, 10))
+        self.assertEqual(exc.method_sig, spec.Connection.Start),
         self.assertEqual(
             exc.args,
-            (7, 'My Error', (10, 10), 'Connection.start'),
+            (7, 'My Error', spec.Connection.Start, 'Connection.start'),
         )
 
 
