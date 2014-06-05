@@ -78,8 +78,10 @@ class AbstractChannel(object):
         try:
             while not p.ready:
                 self.connection.drain_events()
-            return (p.value and
-                    (p.value if returns_tuple else p.value[0]))
+
+            if p.value:
+                args, kwargs = p.value
+                return args if returns_tuple else (args and args[0])
         finally:
             if prev_p is not None:
                 pending[method] = prev_p

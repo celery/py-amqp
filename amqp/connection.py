@@ -141,7 +141,7 @@ class Connection(AbstractChannel):
                  login_method='AMQPLAIN', login_response=None,
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
-                 frame_max=None, heartbeat=0, on_blocked=None,
+                 frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, **kwargs):
         """Create a connection to the specified host, which should be
@@ -195,6 +195,7 @@ class Connection(AbstractChannel):
         # Callbacks
         self.on_blocked = on_blocked
         self.on_unblocked = on_unblocked
+        self.on_open = ensure_promise(on_open)
 
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
 
@@ -214,6 +215,9 @@ class Connection(AbstractChannel):
         self.on_inbound_frame = self._frame_handler.send
 
         self.connect()
+
+    def then(self, on_success, on_error=None):
+        return self.on_open.then(on_success, on_error)
 
     def _setup_listeners(self):
         self._callbacks.update({
@@ -293,6 +297,7 @@ class Connection(AbstractChannel):
 
     def _on_open_ok(self):
         self._handshake_complete = True
+        self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
         pass
@@ -331,13 +336,13 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id, ))
 
-    def channel(self, channel_id=None):
+    def channel(self, channel_id=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
         try:
             return self.channels[channel_id]
         except KeyError:
-            return self.Channel(self, channel_id)
+            return self.Channel(self, channel_id, on_open=callback)
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')

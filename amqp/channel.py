@@ -25,6 +25,7 @@ from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
+from .promise import ensure_promise
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
@@ -91,7 +92,8 @@ class Channel(AbstractChannel):
     ])
     _METHODS = dict((m.method_sig, m) for m in _METHODS)
 
-    def __init__(self, connection, channel_id=None, auto_decode=True):
+    def __init__(self, connection,
+                 channel_id=None, auto_decode=True, on_open=None):
         """Create a channel bound to a connection and using the specified
         numeric channel_id, and open on the server.
 
@@ -121,6 +123,8 @@ class Channel(AbstractChannel):
         self.events = defaultdict(set)
         self.no_ack_consumers = set()
 
+        self.on_open = ensure_promise(on_open)
+
         # set first time basic_publish_confirm is called
         # and publisher confirms are enabled for this channel.
         self._confirm_selected = False
@@ -128,6 +132,9 @@ class Channel(AbstractChannel):
             self.basic_publish = self.basic_publish_confirm
 
         self._x_open()
+
+    def then(self, on_success, on_error=None):
+        return self.on_open.then(on_success, on_error)
 
     def _setup_listeners(self):
         self._callbacks.update({
@@ -443,6 +450,7 @@ class Channel(AbstractChannel):
 
         """
         self.is_open = True
+        self.on_open(self)
         AMQP_LOGGER.debug('Channel open')
 
     #############
