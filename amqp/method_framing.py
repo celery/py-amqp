@@ -16,16 +16,18 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-from collections import defaultdict, deque
-from struct import pack, unpack_from
+import sys
+
+from collections import defaultdict
+from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
-from .exceptions import AMQPError, UnexpectedFrame
-from .five import range, string
+from .exceptions import UnexpectedFrame
+from .five import range
 from .utils import coro
 
-__all__ = ['MethodWriter', 'frame_handler']
+__all__ = ['frame_handler', 'frame_writer']
 
 #
 # set of methods that require both a content frame and a body frame.
@@ -86,40 +88,80 @@ def frame_handler(connection, callback,
             pass
 
 
-class MethodWriter(object):
-    """Convert AMQP methods into AMQP frames and send them out
-    to the peer."""
+@coro
+def frame_writer(connection, transport,
+                 pack=pack, pack_into=pack_into, range=range, len=len):
+    write = transport.write
 
-    def __init__(self, dest, frame_max):
-        self.dest = dest
-        self.frame_max = frame_max
-        self.bytes_sent = 0
+    # memoryview first supported in Python 2.7
+    # Initial support was very shaky, so could be we have to
+    # check for a bugfix release.
+    if sys.version_info < (2, 7):
+        no_pybuf = 0
+        buf = bytearray(connection.frame_max - 8)
+        view = memoryview(buf)
+    else:
+        no_pybuf, buf, view = 1, None, None
 
-    def write_method(self, channel, method_sig, args, content=None):
-        write_frame = self.dest.write_frame
-        payload = pack('>HH', method_sig[0], method_sig[1]) + args
-
+    while 1:
+        chunk_size = connection.frame_max - 8
+        offset = 0
+        type_, channel, method_sig, args, content = yield
         if content:
-            # do this early, so we can raise an exception if there's a
-            # problem with the content properties, before sending the
-            # first frame
             body = content.body
-            if isinstance(body, string):
-                coding = content.properties.get('content_encoding', None)
-                if coding is None:
-                    coding = content.properties['content_encoding'] = 'UTF-8'
+            bodylen = len(body)
+            bigbody = bodylen > chunk_size
+        else:
+            body, bodylen, bigbody = None, 0, 0
 
-                body = body.encode(coding)
-            properties = content._serialize_properties()
+        if no_pybuf or bigbody:
+            # ## SLOW: string copy and write for every frame
+            frame = (''.join([pack('>HH', *method_sig), args])
+                     if type_ == 1 else '')  # encode method frame
+            framelen = len(frame)
+            write(pack('>BHI%dsB' % framelen,
+                       type_, channel, framelen, frame, 0xce))
+            if body:
+                properties = content._serialize_properties()
+                frame = b''.join([
+                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    properties,
+                ])
+                framelen = len(frame)
+                write(pack('>BHI%dsB' % framelen,
+                           2, channel, framelen, frame, 0xce))
 
-        write_frame(1, channel, payload)
+                for i in range(0, bodylen, chunk_size):
+                    frame = body[i:i + chunk_size]
+                    framelen = len(frame)
+                    write(pack('>BHI%dsB' % framelen,
+                               3, channel, framelen, frame, 0xce))
 
-        if content:
-            payload = pack('>HHQ', method_sig[0], 0, len(body)) + properties
+        else:
+            # ## FAST: pack into buffer and single write
+            frame = (''.join([pack('>HH', *method_sig), args])
+                     if type_ == 1 else '')
+            framelen = len(frame)
+            pack_into('>BHI%dsB' % framelen, buf, offset,
+                      type_, channel, framelen, frame, 0xce)
+            offset += 8 + framelen
+            if body:
+                properties = content._serialize_properties()
+                frame = b''.join([
+                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    properties,
+                ])
+                framelen = len(frame)
 
-            write_frame(2, channel, payload)
+                pack_into('>BHI%dsB' % framelen, buf, offset,
+                          2, channel, framelen, frame, 0xce)
+                offset += 8 + framelen
 
-            chunk_size = self.frame_max - 8
-            for i in range(0, len(body), chunk_size):
-                write_frame(3, channel, body[i:i + chunk_size])
-        self.bytes_sent += 1
+                framelen = len(body)
+                pack_into('>BHI%dsB' % framelen, buf, offset,
+                          3, channel, framelen, body, 0xce)
+                offset += 8 + framelen
+
+            write(view[:offset])
+
+        connection.bytes_sent += 1

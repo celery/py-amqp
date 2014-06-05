@@ -169,13 +169,9 @@ class _AbstractTransport(object):
             raise UnexpectedFrame(
                 'Received 0x{0:02x} while expecting 0xce'.format(ch))
 
-    def write_frame(self, frame_type, channel, payload):
-        size = len(payload)
+    def write(self, s):
         try:
-            self._write(pack(
-                '>BHI%dsB' % size,
-                frame_type, channel, size, payload, 0xce,
-            ))
+            self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:

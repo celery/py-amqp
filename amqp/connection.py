@@ -36,8 +36,8 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import items, range, values, monotonic
-from .method_framing import MethodWriter, frame_handler
+from .five import range, values, monotonic
+from .method_framing import frame_handler, frame_writer
 from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import create_transport
@@ -95,6 +95,9 @@ class Connection(AbstractChannel):
 
     #: Time of last heartbeat received (in monotonic time, if available).
     last_heartbeat_received = 0
+
+    #: Number of successful writes to socket.
+    bytes_sent = 0
 
     #: Number of successful reads from socket.
     bytes_recv = 0
@@ -170,7 +173,7 @@ class Connection(AbstractChannel):
         self.transport = self.Transport(host, connect_timeout, ssl)
 
         self._frame_handler = frame_handler(self, self.on_inbound_method)
-        self.method_writer = MethodWriter(self.transport, self.frame_max)
+        self._frame_writer = frame_writer(self, self.transport)
         self.on_inbound_frame = self._frame_handler.send
 
         self.wait(allowed_methods=[spec.Connection.Start])
@@ -179,17 +182,10 @@ class Connection(AbstractChannel):
 
         self.on_tune_ok = ensure_promise(on_tune_ok)
         self.wait([spec.Connection.Tune])
-        #self._wait_for_tune_ok()
         self._x_open(virtual_host)
 
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
-
-    def _wait_for_tune_ok(self):
-        while not self.on_tune_ok.ready:
-            self.wait(allowed_methods=[
-                spec.Connection.Secure, spec.Connection.Tune,
-            ])
 
     @property
     def connected(self):
@@ -265,7 +261,6 @@ class Connection(AbstractChannel):
         finally:
             if prev != timeout:
                 sock.settimeout(prev)
-
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         return self.channels[channel_id].dispatch_method(
@@ -736,7 +731,6 @@ class Connection(AbstractChannel):
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
-        self.method_writer.frame_max = self.frame_max
         self.server_heartbeat = server_heartbeat or 0
 
         # negotiate the heartbeat interval to the smaller of the
@@ -753,7 +747,7 @@ class Connection(AbstractChannel):
         self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
     def send_heartbeat(self):
-        self.transport.write_frame(8, 0, bytes())
+        self._frame_writer.send((8, 0, None, None, None))
 
     def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
@@ -766,7 +760,7 @@ class Connection(AbstractChannel):
             return
 
         # treat actual data exchange in either direction as a heartbeat
-        sent_now = self.method_writer.bytes_sent
+        sent_now = self.bytes_sent
         recv_now = self.bytes_recv
         if self.prev_sent is None or self.prev_sent != sent_now:
             self.last_heartbeat_sent = monotonic()

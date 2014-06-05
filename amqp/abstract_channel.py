@@ -61,9 +61,9 @@ class AbstractChannel(object):
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
 
-        conn.method_writer.write_method(
-            self.channel_id, method_sig, args, content,
-        )
+        conn._frame_writer.send((
+            1, self.channel_id, method_sig, args, content,
+        ))
 
     def send_method(self, sig,
                     format=None, args=None, content=None,
@@ -73,9 +73,7 @@ class AbstractChannel(object):
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else None
-        conn.method_writer.write_method(
-            self.channel_id, sig, args, content
-        )
+        conn._frame_writer.send((1, self.channel_id, sig, args, content))
         # TODO temp: callback should be after write_method ... ;)
         if callback:
             p.then(callback)
@@ -141,7 +139,6 @@ class AbstractChannel(object):
             listener(ret)
 
         return ret
-
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

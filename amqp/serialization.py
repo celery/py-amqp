@@ -530,8 +530,10 @@ class GenericContent(object):
         flag_bits = 0
         flags = []
         sformat, svalues = [], []
+        props = self.properties
+        props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
-            val = self.properties.get(key, None)
+            val = props.get(key, None)
             if val is not None:
                 if shift == 0:
                     flags.append(flag_bits)
@@ -573,7 +575,3 @@ class GenericContent(object):
             self.ready = True
         else:
             chunks.append(buf)
-
-
-
-
