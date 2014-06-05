@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+from functools import wraps
+
 from .promise import promise   # noqa
 
 try:
@@ -38,3 +40,14 @@ def get_errno(exc):
         except AttributeError:
             pass
     return 0
+
+
+def coro(gen):
+
+    @wraps(gen)
+    def _boot(*args, **kwargs):
+        co = gen(*args, **kwargs)
+        next(co)
+        return co
+
+    return _boot

@@ -47,6 +47,7 @@ class AbstractChannel(object):
         connection.channels[channel_id] = self
         self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
+        self._pending = {}
 
     def __enter__(self):
         return self
@@ -75,6 +76,7 @@ class AbstractChannel(object):
         conn.method_writer.write_method(
             self.channel_id, sig, args, content
         )
+        # TODO temp: callback should be after write_method ... ;)
         if callback:
             p.then(callback)
         p()
@@ -86,13 +88,18 @@ class AbstractChannel(object):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, allowed_methods=None):
-        """Wait for a method that matches our allowed_methods parameter (the
-        default value of None means match any method), and dispatch to it."""
-        method_sig, payload, content = self.connection._wait_method(
-            self.channel_id, allowed_methods)
+    def wait(self, allowed_methods):
+        p = promise()
+        for method in allowed_methods:
+            self._pending[method] = p
 
-        return self.dispatch_method(method_sig, payload, content)
+        try:
+            while not p.ready:
+                self.connection.drain_events()
+            return p.value[0] if p.value else None
+        finally:
+            for method in allowed_methods:
+                self._pending.pop(method, None)
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \
@@ -122,9 +129,19 @@ class AbstractChannel(object):
             args, _ = loads(argspec, payload, 4) if argspec else ([], 0)
 
         if expects_content:
-            return amqp_method(self, *args + [content])
+            ret = amqp_method(self, *args + [content])
         else:
-            return amqp_method(self, *args)
+            ret = amqp_method(self, *args)
+
+        try:
+            listener = self._pending.pop(method_sig)
+        except KeyError:
+            pass
+        else:
+            listener(ret)
+
+        return ret
+
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

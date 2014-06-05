@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+from . import spec
 from .serialization import GenericContent
 
 __all__ = ['Message']
@@ -23,6 +24,7 @@ __all__ = ['Message']
 
 class Message(GenericContent):
     """A Message for use with the Channnel.basic_* methods."""
+    CLASS_ID = spec.Basic.CLASS_ID
 
     #: Instances of this class have these attributes, which
     #: are passed back and forth as message properties between
@@ -43,6 +45,9 @@ class Message(GenericContent):
         ('app_id', 's'),
         ('cluster_id', 's')
     ]
+
+    #: set by basic_consume/basic_get
+    delivery_info = None
 
     def __init__(self, body='', children=None, channel=None, **properties):
         """Expected arg types
@@ -109,16 +114,10 @@ class Message(GenericContent):
         self.body = body
         self.channel = channel
 
-    def __eq__(self, other):
-        """Check if the properties and bodies of this Message and another
-        Message are the same.
+    @property
+    def headers(self):
+        return self.properties.get('application_headers')
 
-        Received messages may contain a 'delivery_info' attribute,
-        which isn't compared.
-
-        """
-        try:
-            return (super(Message, self).__eq__(other) and
-                    self.body == other.body)
-        except AttributeError:
-            return NotImplemented
+    @property
+    def delivery_tag(self):
+        return self.delivery_info.get('delivery_tag')

@@ -389,6 +389,20 @@ def _write_item(v, write, bits, pack=pack,
         raise ValueError()
 
 
+def encode_properties_basic(p, pack=pack):
+    # TODO
+    parts, flags = [], 0
+    extend = parts.extend
+    content_type = p['content_type'] if 'content_type' in p else None
+    if content_type:
+        flags |= 0x8000
+        extend((pack('>B', len(content_type)), content_type))
+    content_enc = p['content_encoding'] if 'content_encoding' in p else None
+    if content_enc:
+        flags |= 0x4000
+        extend((pack('>B', len(content_enc)), content_enc))
+
+
 def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
     properties = {}
 
@@ -469,26 +483,20 @@ class GenericContent(object):
     Subclasses should override the PROPERTIES attribute.
 
     """
+    CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
-    def __init__(self, **props):
+    def __init__(self, frame_method=None, frame_args=None, **props):
         """Save the properties appropriate to this AMQP content type
         in a 'properties' dictionary."""
-        d = {}
-        for propname, _ in self.PROPERTIES:
-            if propname in props:
-                d[propname] = props[propname]
-            # FIXME: should we ignore unknown properties?
+        self.frame_method = frame_method
+        self.frame_args = frame_args
 
-        self.properties = d
-
-    def __eq__(self, other):
-        """Check if this object has the same properties as another
-        content object."""
-        try:
-            return self.properties == other.properties
-        except AttributeError:
-            return NotImplemented
+        self.properties = props
+        self._pending_chunks = []
+        self.body_received = 0
+        self.body_size = 0
+        self.ready = False
 
     def __getattr__(self, name):
         """Look for additional properties in the 'properties'
@@ -500,11 +508,6 @@ class GenericContent(object):
 
         if name in self.properties:
             return self.properties[name]
-
-        if 'delivery_info' in self.__dict__ \
-                and name in self.delivery_info:
-            return self.delivery_info[name]
-
         raise AttributeError(name)
 
     def _load_properties(self, class_id, buf, offset=0,
@@ -543,7 +546,34 @@ class GenericContent(object):
             shift -= 1
         flags.append(flag_bits)
         result = BytesIO()
+        write = result.write
         for flag_bits in flags:
-            result.write(pack('>H', flag_bits))
-        result.write(dumps(''.join(sformat), svalues))
+            write(pack('>H', flag_bits))
+        write(dumps(''.join(sformat), svalues))
         return result.getvalue()
+
+    def inbound_header(self, buf, offset=0):
+        class_id, self.body_size = unpack_from('>HxxQ', buf, offset)
+        offset += 12
+        self._load_properties(class_id, buf, offset)
+        if not self.body_size:
+            self.ready = True
+        return offset
+
+    def inbound_body(self, buf):
+        chunks = self._pending_chunks
+        self.body_received += len(buf)
+        if self.body_received >= self.body_size:
+            if chunks:
+                chunks.append(buf)
+                self.body = bytes().join(chunks)
+                chunks[:] = []
+            else:
+                self.body = buf
+            self.ready = True
+        else:
+            chunks.append(buf)
+
+
+
+

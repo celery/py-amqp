@@ -212,15 +212,15 @@ class promise(object):
             return
         if self.fun:
             try:
-                retval = self.fun(
+                self.value = retval = self.fun(
                     *(self.args + args if args else self.args),
                     **(dict(self.kwargs, **kwargs) if kwargs else self.kwargs)
                 )
-                self.value = (ca, ck) = (retval, ), {}
+                ca, ck = (retval, ), {}
             except Exception:
                 return self.set_error_state()
         else:
-            self.value = (ca, ck) = (args, kwargs)
+            self.value, (ca, ck) = args, (args, kwargs)
         self.ready = True
         svpending = self._svpending
         if svpending is not None:

@@ -37,7 +37,7 @@ from .exceptions import (
     RecoverableConnectionError, RecoverableChannelError,
 )
 from .five import items, range, values, monotonic
-from .method_framing import MethodReader, MethodWriter
+from .method_framing import MethodWriter, frame_handler
 from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import create_transport
@@ -95,6 +95,9 @@ class Connection(AbstractChannel):
 
     #: Time of last heartbeat received (in monotonic time, if available).
     last_heartbeat_received = 0
+
+    #: Number of successful reads from socket.
+    bytes_recv = 0
 
     #: Number of bytes sent to socket at the last heartbeat check.
     prev_sent = None
@@ -166,16 +169,18 @@ class Connection(AbstractChannel):
         #
         self.transport = self.Transport(host, connect_timeout, ssl)
 
-        self.method_reader = MethodReader(self.transport)
+        self._frame_handler = frame_handler(self, self.on_inbound_method)
         self.method_writer = MethodWriter(self.transport, self.frame_max)
+        self.on_inbound_frame = self._frame_handler.send
 
         self.wait(allowed_methods=[spec.Connection.Start])
 
         self._x_start_ok(d, login_method, login_response, locale)
 
         self.on_tune_ok = ensure_promise(on_tune_ok)
-        self._wait_for_tune_ok()
-        return self._x_open(virtual_host)
+        self.wait([spec.Connection.Tune])
+        #self._wait_for_tune_ok()
+        self._x_open(virtual_host)
 
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
@@ -217,63 +222,6 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id, ))
 
-    def _wait_method(self, channel_id, allowed_methods,
-                     close_id=spec.Connection.Close):
-        """Wait for a method from the server destined for
-        a particular channel."""
-        #
-        # Check the channel's deferred methods
-        #
-        method_queue = self.channels[channel_id].method_queue
-
-        for queued_method in method_queue:
-            method_sig = queued_method[0]
-            if (allowed_methods is None) \
-                    or (method_sig in allowed_methods) \
-                    or (method_sig == close_id):
-                method_queue.remove(queued_method)
-                return queued_method
-
-        #
-        # Nothing queued, need to wait for a method from the peer
-        #
-        while 1:
-            channel, method_sig, payload, content = \
-                self.method_reader.read_method()
-
-            if channel == channel_id and (
-                    allowed_methods is None or
-                    method_sig in allowed_methods or
-                    method_sig == close_id):
-                return method_sig, payload, content
-
-            #
-            # Certain methods like basic_return should be dispatched
-            # immediately rather than being queued, even if they're not
-            # one of the 'allowed_methods' we're looking for.
-            #
-            if channel and method_sig in self.Channel._IMMEDIATE_METHODS:
-                self.channels[channel].dispatch_method(
-                    method_sig, payload, content,
-                )
-                continue
-
-            #
-            # Not the channel and/or method we were looking for.  Queue
-            # this method for later
-            #
-            self.channels[channel].method_queue.append(
-                (method_sig, payload, content),
-            )
-
-            #
-            # If we just queued up a method for channel 0 (the Connection
-            # itself) it's probably a close method in reaction to some
-            # error, so deal with it right away.
-            #
-            if not channel:
-                self.wait()
-
     def channel(self, channel_id=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
@@ -285,26 +233,25 @@ class Connection(AbstractChannel):
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
 
+    def inbound_method(self, channel_id, method_sig, payload, content):
+        self.channels[channel_id].dispatch_method(method_sig, payload, content)
+
     def drain_events(self, timeout=None):
-        """Wait for an event on a channel."""
-        chanmap = self.channels
-        chanid, method_sig, payload, content = self._wait_multiple(
-            chanmap, None, timeout=timeout,
-        )
+        return self.blocking_read(timeout)
 
-        channel = chanmap[chanid]
-        return channel.dispatch_method(method_sig, payload, content)
-
-    def read_timeout(self, timeout=None):
+    def blocking_read(self, timeout=None):
+        read_frame = self.transport.read_frame
         if timeout is None:
-            return self.method_reader.read_method()
+            return self.on_inbound_frame(read_frame())
+
+        # XXX use select
         sock = self.sock
         prev = sock.gettimeout()
         if prev != timeout:
             sock.settimeout(timeout)
         try:
             try:
-                return self.method_reader.read_method()
+                frame = read_frame()
             except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
@@ -313,47 +260,21 @@ class Connection(AbstractChannel):
                 if 'The operation did not complete' in str(exc):
                     raise socket.timeout()
                 raise
+            else:
+                self.on_inbound_frame(frame)
         finally:
             if prev != timeout:
                 sock.settimeout(prev)
 
-    def _wait_multiple(self, channels, allowed_methods, timeout=None):
-        for channel_id, channel in items(channels):
-            method_queue = channel.method_queue
-            for queued_method in method_queue:
-                method_sig = queued_method[0]
-                if (allowed_methods is None or
-                        method_sig in allowed_methods or
-                        method_sig == close_id):
-                    method_queue.remove(queued_method)
-                    method_sig, payload, content = queued_method
-                    return channel_id, method_sig, payload, content
 
-        # Nothing queued, need to wait for a method from the peer
-        read_timeout = self.read_timeout
-        wait = self.wait
-        while 1:
-            channel, method_sig, payload, content = read_timeout(timeout)
+    def on_inbound_method(self, channel_id, method_sig, payload, content):
+        return self.channels[channel_id].dispatch_method(
+            method_sig, payload, content,
+        )
 
-            if channel in channels and (
-                    allowed_methods is None or
-                    method_sig in allowed_methods or
-                    method_sig == close_id):
-                return channel, method_sig, payload, content
-
-            # Not the channel and/or method we were looking for. Queue
-            # this method for later
-            channels[channel].method_queue.append(
-                (method_sig, payload, content),
-            )
-
-            #
-            # If we just queued up a method for channel 0 (the Connection
-            # itself) it's probably a close method in reaction to some
-            # error, so deal with it right away.
-            #
-            if channel == 0:
-                wait()
+    def read_timeout(self, timeout=None):
+        if timeout is None:
+            return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BssBB'):
@@ -846,7 +767,7 @@ class Connection(AbstractChannel):
 
         # treat actual data exchange in either direction as a heartbeat
         sent_now = self.method_writer.bytes_sent
-        recv_now = self.method_reader.bytes_recv
+        recv_now = self.bytes_recv
         if self.prev_sent is None or self.prev_sent != sent_now:
             self.last_heartbeat_sent = monotonic()
         if self.prev_recv is None or self.prev_recv != recv_now:
