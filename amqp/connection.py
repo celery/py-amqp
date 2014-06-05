@@ -29,7 +29,7 @@ except ImportError:
 
 from . import __version__
 from . import spec
-from .abstract_channel import AbstractChannel, inbound
+from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (
     ChannelError, ResourceError,
@@ -108,6 +108,35 @@ class Connection(AbstractChannel):
     #: Number of bytes received from socket at the last heartbeat check.
     prev_recv = None
 
+    _METHODS = set([
+        spec.method(spec.Connection.Start, 'ooFSS'),
+        spec.method(spec.Connection.OpenOk),
+        spec.method(spec.Connection.Secure, 's'),
+        spec.method(spec.Connection.Tune, 'BlB'),
+        spec.method(spec.Connection.Close, 'BsBB'),
+        spec.method(spec.Connection.Blocked),
+        spec.method(spec.Connection.Unblocked),
+        spec.method(spec.Connection.CloseOk),
+    ])
+    _METHODS = dict((m.method_sig, m) for m in _METHODS)
+
+    connection_errors = (
+        ConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
+    channel_errors = (ChannelError, )
+    recoverable_connection_errors = (
+        RecoverableConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
+    recoverable_channel_errors = (
+        RecoverableChannelError,
+    )
+
     def __init__(self, host='localhost', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
                  virtual_host='/', locale='en_US', client_properties=None,
@@ -139,7 +168,16 @@ class Connection(AbstractChannel):
             # Skip the length at the beginning
             login_response = login_response.getvalue()[4:]
 
-        d = dict(LIBRARY_PROPERTIES, **client_properties or {})
+        self.client_properties = dict(
+            LIBRARY_PROPERTIES, **client_properties or {}
+        )
+        self.login_method = login_method
+        self.login_response = login_response
+        self.locale = locale
+        self.virtual_host = virtual_host
+        self.on_tune_ok = ensure_promise(on_tune_ok)
+
+        self._handshake_complete = False
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -171,18 +209,93 @@ class Connection(AbstractChannel):
         # socket connection to the broker.
         #
         self.transport = self.Transport(host, connect_timeout, ssl)
-
         self._frame_handler = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
         self.on_inbound_frame = self._frame_handler.send
 
-        self.wait(allowed_methods=[spec.Connection.Start])
+        self.connect()
 
-        self._x_start_ok(d, login_method, login_response, locale)
+    def _setup_listeners(self):
+        self._callbacks.update({
+            spec.Connection.Start: self._on_start,
+            spec.Connection.OpenOk: self._on_open_ok,
+            spec.Connection.Secure: self._on_secure,
+            spec.Connection.Tune: self._on_tune,
+            spec.Connection.Close: self._on_close,
+            spec.Connection.Blocked: self._on_blocked,
+            spec.Connection.Unblocked: self._on_unblocked,
+            spec.Connection.CloseOk: self._on_close_ok,
+        })
 
-        self.on_tune_ok = ensure_promise(on_tune_ok)
-        self.wait([spec.Connection.Tune])
-        self._x_open(virtual_host)
+    def connect(self, callback=None):
+        while not self._handshake_complete:
+            self.drain_events()
+
+    def _on_start(self, version_major, version_minor, server_properties,
+                  mechanisms, locales, argsig='FsSs'):
+        client_properties = self.client_properties
+        self.version_major = version_major
+        self.version_minor = version_minor
+        self.server_properties = server_properties
+        self.mechanisms = mechanisms.split(' ')
+        self.locales = locales.split(' ')
+        AMQP_LOGGER.debug(
+            START_DEBUG_FMT,
+            self.version_major, self.version_minor,
+            self.server_properties, self.mechanisms, self.locales,
+        )
+
+        scap = server_properties.get('capabilities') or {}
+
+        if scap.get('consumer_cancel_notify'):
+            cap = client_properties.setdefault('capabilities', {})
+            cap['consumer_cancel_notify'] = True
+        if scap.get('connection.blocked'):
+            cap = client_properties.setdefault('capabilities', {})
+            cap['connection.blocked'] = True
+
+        self.send_method(
+            spec.Connection.StartOk, argsig,
+            (client_properties, self.login_method,
+             self.login_response, self.locale),
+        )
+
+    def _on_secure(self, challenge):
+        pass
+
+    def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
+        client_heartbeat = self.client_heartbeat or 0
+        self.channel_max = channel_max or self.channel_max
+        self.frame_max = frame_max or self.frame_max
+        self.server_heartbeat = server_heartbeat or 0
+
+        # negotiate the heartbeat interval to the smaller of the
+        # specified values
+        if self.server_heartbeat == 0 or client_heartbeat == 0:
+            self.heartbeat = max(self.server_heartbeat, client_heartbeat)
+        else:
+            self.heartbeat = min(self.server_heartbeat, client_heartbeat)
+
+        # Ignore server heartbeat if client_heartbeat is disabled
+        if not self.client_heartbeat:
+            self.heartbeat = 0
+
+        self.send_method(
+            spec.Connection.TuneOk, argsig,
+            (self.channel_max, self.frame_max, self.heartbeat),
+            callback=self._on_tune_sent,
+        )
+
+    def _on_tune_sent(self, argsig='ssb'):
+        self.send_method(
+            spec.Connection.Open, argsig, (self.virtual_host, '', False),
+        )
+
+    def _on_open_ok(self):
+        self._handshake_complete = True
+
+    def FIXME(self, *args, **kwargs):
+        pass
 
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
@@ -334,11 +447,10 @@ class Connection(AbstractChannel):
         return self.send_method(
             spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=[spec.Connection.Close, spec.Connection.CloseOk],
+            wait=spec.Connection.CloseOk,
         )
 
-    @inbound(spec.Connection.Close, 'BsBB')
-    def _close(self, reply_code, reply_text, class_id, method_id):
+    def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -396,15 +508,13 @@ class Connection(AbstractChannel):
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    @inbound(spec.Connection.Blocked)
-    def _blocked(self):
+    def _on_blocked(self):
         """RabbitMQ Extension."""
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
-    @inbound(spec.Connection.Unblocked)
-    def _unblocked(self):
+    def _on_unblocked(self):
         if self.on_unblocked:
             return self.on_unblocked()
 
@@ -421,11 +531,9 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method(spec.Connection.CloseOk)
-        self._do_close()
+        self.send_method(spec.Connection.CloseOk, callback=self._do_close)
 
-    @inbound(spec.Connection.CloseOk)
-    def _close_ok(self):
+    def _on_close_ok(self):
         """Confirm a connection close
 
         This method confirms a Connection.Close method and tells the
@@ -439,312 +547,6 @@ class Connection(AbstractChannel):
 
         """
         self._do_close()
-
-    def _x_open(self, virtual_host, capabilities='', argsig='ssb'):
-        """Open connection to virtual host
-
-        This method opens a connection to a virtual host, which is a
-        collection of resources, and acts to separate multiple
-        application domains within a server.
-
-        RULE:
-
-            The client MUST open the context before doing any work on
-            the connection.
-
-        PARAMETERS:
-            virtual_host: shortstr
-
-                virtual host name
-
-                The name of the virtual host to work with.
-
-                RULE:
-
-                    If the server supports multiple virtual hosts, it
-                    MUST enforce a full separation of exchanges,
-                    queues, and all associated entities per virtual
-                    host. An application, connected to a specific
-                    virtual host, MUST NOT be able to access resources
-                    of another virtual host.
-
-                RULE:
-
-                    The server SHOULD verify that the client has
-                    permission to access the specified virtual host.
-
-                RULE:
-
-                    The server MAY configure arbitrary limits per
-                    virtual host, such as the number of each type of
-                    entity that may be used, per connection and/or in
-                    total.
-
-            capabilities: shortstr
-
-                required capabilities
-
-                The client may specify a number of capability names,
-                delimited by spaces.  The server can use this string
-                to how to process the client's connection request.
-
-        """
-        return self.send_method(
-            spec.Connection.Open, argsig, (virtual_host, capabilities, False),
-            wait=[spec.Connection.OpenOk],
-        )
-
-    @inbound(spec.Connection.OpenOk)
-    def _open_ok(self):
-        """Signal that the connection is ready
-
-        This method signals to the client that the connection is ready
-        for use.
-
-        PARAMETERS:
-            known_hosts: shortstr (deprecated)
-
-        """
-        AMQP_LOGGER.debug('Open OK!')
-
-    @inbound(spec.Connection.Secure, 's')
-    def _secure(self, challenge):
-        """Security mechanism challenge
-
-        The SASL protocol works by exchanging challenges and responses
-        until both peers have received sufficient information to
-        authenticate each other.  This method challenges the client to
-        provide more information.
-
-        PARAMETERS:
-            challenge: longstr
-
-                security challenge data
-
-                Challenge information, a block of opaque binary data
-                passed to the security mechanism.
-
-        """
-        pass
-
-    def _x_secure_ok(self, response):
-        """Security mechanism response
-
-        This method attempts to authenticate, passing a block of SASL
-        data for the security mechanism at the server side.
-
-        PARAMETERS:
-            response: longstr
-
-                security response data
-
-                A block of opaque data passed to the security
-                mechanism.  The contents of this data are defined by
-                the SASL security mechanism.
-
-        """
-        return self.send_method(spec.Connection.SecureOk, 'S', (response, ))
-
-    @inbound(spec.Connection.Start, 'ooFSS')
-    def _start(self, version_major, version_minor, server_properties,
-               mechanisms, locales):
-        """Start connection negotiation
-
-        This method starts the connection negotiation process by
-        telling the client the protocol version that the server
-        proposes, along with a list of security mechanisms which the
-        client can use for authentication.
-
-        RULE:
-
-            If the client cannot handle the protocol version suggested
-            by the server it MUST close the socket connection.
-
-        RULE:
-
-            The server MUST provide a protocol version that is lower
-            than or equal to that requested by the client in the
-            protocol header. If the server cannot support the
-            specified protocol it MUST NOT send this method, but MUST
-            close the socket connection.
-
-        PARAMETERS:
-            version_major: octet
-
-                protocol major version
-
-                The protocol major version that the server agrees to
-                use, which cannot be higher than the client's major
-                version.
-
-            version_minor: octet
-
-                protocol major version
-
-                The protocol minor version that the server agrees to
-                use, which cannot be higher than the client's minor
-                version.
-
-            server_properties: table
-
-                server properties
-
-            mechanisms: longstr
-
-                available security mechanisms
-
-                A list of the security mechanisms that the server
-                supports, delimited by spaces.  Currently ASL supports
-                these mechanisms: PLAIN.
-
-            locales: longstr
-
-                available message locales
-
-                A list of the message locales that the server
-                supports, delimited by spaces.  The locale defines the
-                language in which the server will send reply texts.
-
-                RULE:
-
-                    All servers MUST support at least the en_US
-                    locale.
-
-        """
-        self.version_major = version_major
-        self.version_minor = version_minor
-        self.server_properties = server_properties
-        self.mechanisms = mechanisms.split(' ')
-        self.locales = locales.split(' ')
-        AMQP_LOGGER.debug(
-            START_DEBUG_FMT,
-            self.version_major, self.version_minor,
-            self.server_properties, self.mechanisms, self.locales,
-        )
-
-    def _x_start_ok(self, client_properties, mechanism, response, locale,
-                    argsig='FsSs'):
-        """Select security mechanism and locale
-
-        This method selects a SASL security mechanism. ASL uses SASL
-        (RFC2222) to negotiate authentication and encryption.
-
-        PARAMETERS:
-            client_properties: table
-
-                client properties
-
-            mechanism: shortstr
-
-                selected security mechanism
-
-                A single security mechanisms selected by the client,
-                which must be one of those specified by the server.
-
-                RULE:
-
-                    The client SHOULD authenticate using the highest-
-                    level security profile it can handle from the list
-                    provided by the server.
-
-                RULE:
-
-                    The mechanism field MUST contain one of the
-                    security mechanisms proposed by the server in the
-                    Start method. If it doesn't, the server MUST close
-                    the socket.
-
-            response: longstr
-
-                security response data
-
-                A block of opaque data passed to the security
-                mechanism. The contents of this data are defined by
-                the SASL security mechanism.  For the PLAIN security
-                mechanism this is defined as a field table holding two
-                fields, LOGIN and PASSWORD.
-
-            locale: shortstr
-
-                selected message locale
-
-                A single message local selected by the client, which
-                must be one of those specified by the server.
-
-        """
-        if self.server_capabilities.get('consumer_cancel_notify'):
-            if 'capabilities' not in client_properties:
-                client_properties['capabilities'] = {}
-            client_properties['capabilities']['consumer_cancel_notify'] = True
-        if self.server_capabilities.get('connection.blocked'):
-            if 'capabilities' not in client_properties:
-                client_properties['capabilities'] = {}
-            client_properties['capabilities']['connection.blocked'] = True
-        return self.send_method(
-            spec.Connection.StartOk, argsig,
-            (client_properties, mechanism, response, locale),
-        )
-
-    @inbound(spec.Connection.Tune, 'BlB')
-    def _tune(self, channel_max, frame_max, server_heartbeat):
-        """Propose connection tuning parameters
-
-        This method proposes a set of connection configuration values
-        to the client.  The client can accept and/or adjust these.
-
-        PARAMETERS:
-            channel_max: short
-
-                proposed maximum channels
-
-                The maximum total number of channels that the server
-                allows per connection. Zero means that the server does
-                not impose a fixed limit, but the number of allowed
-                channels may be limited by available server resources.
-
-            frame_max: long
-
-                proposed maximum frame size
-
-                The largest frame size that the server proposes for
-                the connection. The client can negotiate a lower
-                value.  Zero means that the server does not impose any
-                specific limit but may reject very large frames if it
-                cannot allocate resources for them.
-
-                RULE:
-
-                    Until the frame-max has been negotiated, both
-                    peers MUST accept frames of up to 4096 octets
-                    large. The minimum non-zero value for the frame-
-                    max field is 4096.
-
-            heartbeat: short
-
-                desired heartbeat delay
-
-                The delay, in seconds, of the connection heartbeat
-                that the server wants.  Zero means the server does not
-                want a heartbeat.
-
-        """
-        client_heartbeat = self.client_heartbeat or 0
-        self.channel_max = channel_max or self.channel_max
-        self.frame_max = frame_max or self.frame_max
-        self.server_heartbeat = server_heartbeat or 0
-
-        # negotiate the heartbeat interval to the smaller of the
-        # specified values
-        if self.server_heartbeat == 0 or client_heartbeat == 0:
-            self.heartbeat = max(self.server_heartbeat, client_heartbeat)
-        else:
-            self.heartbeat = min(self.server_heartbeat, client_heartbeat)
-
-        # Ignore server heartbeat if client_heartbeat is disabled
-        if not self.client_heartbeat:
-            self.heartbeat = 0
-
-        self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
 
     def send_heartbeat(self):
         self._frame_writer.send((8, 0, None, None, None))
@@ -780,62 +582,6 @@ class Connection(AbstractChannel):
                 self.heartbeat < monotonic()):
             raise ConnectionForced('Too many heartbeats missed')
 
-    def _x_tune_ok(self, channel_max, frame_max, heartbeat,
-                   argsig='BlB'):
-        """Negotiate connection tuning parameters
-
-        This method sends the client's connection tuning parameters to
-        the server. Certain fields are negotiated, others provide
-        capability information.
-
-        PARAMETERS:
-            channel_max: short
-
-                negotiated maximum channels
-
-                The maximum total number of channels that the client
-                will use per connection.  May not be higher than the
-                value specified by the server.
-
-                RULE:
-
-                    The server MAY ignore the channel-max value or MAY
-                    use it for tuning its resource allocation.
-
-            frame_max: long
-
-                negotiated maximum frame size
-
-                The largest frame size that the client and server will
-                use for the connection.  Zero means that the client
-                does not impose any specific limit but may reject very
-                large frames if it cannot allocate resources for them.
-                Note that the frame-max limit applies principally to
-                content frames, where large contents can be broken
-                into frames of arbitrary size.
-
-                RULE:
-
-                    Until the frame-max has been negotiated, both
-                    peers must accept frames of up to 4096 octets
-                    large. The minimum non-zero value for the frame-
-                    max field is 4096.
-
-            heartbeat: short
-
-                desired heartbeat delay
-
-                The delay, in seconds, of the connection heartbeat
-                that the client wants. Zero means the client does not
-                want a heartbeat.
-
-        """
-        return self.send_method(
-            spec.Connection.TuneOk, argsig,
-            (channel_max, frame_max, heartbeat),
-            callback=self.on_tune_ok,
-        )
-
     @property
     def sock(self):
         return self.transport.sock
@@ -843,32 +589,3 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
-
-    _METHOD_MAP = {
-        spec.Connection.Start: _start,
-        spec.Connection.Secure: _secure,
-        spec.Connection.Tune: _tune,
-        spec.Connection.OpenOk: _open_ok,
-        spec.Connection.Close: _close,
-        spec.Connection.CloseOk: _close_ok,
-        spec.Connection.Blocked: _blocked,
-        spec.Connection.Unblocked: _unblocked,
-    }
-
-    _IMMEDIATE_METHODS = []
-    connection_errors = (
-        ConnectionError,
-        socket.error,
-        IOError,
-        OSError,
-    )
-    channel_errors = (ChannelError, )
-    recoverable_connection_errors = (
-        RecoverableConnectionError,
-        socket.error,
-        IOError,
-        OSError,
-    )
-    recoverable_channel_errors = (
-        RecoverableChannelError,
-    )

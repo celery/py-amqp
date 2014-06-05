@@ -1,5 +1,13 @@
 from __future__ import absolute_import
 
+from collections import namedtuple
+
+method_t = namedtuple('method_t', ('method_sig', 'args', 'content'))
+
+
+def method(method_sig, args=None, content=False):
+    return method_t(method_sig, args, content)
+
 
 class Connection:
     CLASS_ID = 10

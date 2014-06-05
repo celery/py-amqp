@@ -17,20 +17,10 @@
 from __future__ import absolute_import
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .promise import promise
+from .promise import ensure_promise, promise
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
-
-
-def inbound(method, spec=None, content=False):
-
-    def _inner(fun):
-        fun.__amqp_method__ = method
-        fun.__amqp_argspec__ = spec
-        fun.__amqp_content__ = content
-        return fun
-    return _inner
 
 
 class AbstractChannel(object):
@@ -48,22 +38,15 @@ class AbstractChannel(object):
         self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
         self._pending = {}
+        self._callbacks = {}
+
+        self._setup_listeners()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc_info):
         self.close()
-
-    def _send_method(self, method_sig, args=bytes(), content=None):
-        """Send a method for our channel."""
-        conn = self.connection
-        if conn is None:
-            raise RecoverableConnectionError('connection already closed')
-
-        conn._frame_writer.send((
-            1, self.channel_id, method_sig, args, content,
-        ))
 
     def send_method(self, sig,
                     format=None, args=None, content=None,
@@ -72,32 +55,36 @@ class AbstractChannel(object):
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
-        args = dumps(format, args) if format else None
+        args = dumps(format, args) if format else ''
         conn._frame_writer.send((1, self.channel_id, sig, args, content))
         # TODO temp: callback should be after write_method ... ;)
         if callback:
             p.then(callback)
         p()
         if wait:
-            return self.wait(allowed_methods=wait)
+            return self.wait(wait)
         return p
 
     def close(self):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, allowed_methods):
-        p = promise()
-        for method in allowed_methods:
-            self._pending[method] = p
+    def wait(self, method, callback=None, returns_tuple=False):
+        p = ensure_promise(callback)
+        pending = self._pending
+        prev_p, pending[method] = pending.get(method), p
+        self._pending[method] = p
 
         try:
             while not p.ready:
                 self.connection.drain_events()
-            return p.value[0] if p.value else None
+            return (p.value and
+                    (p.value if returns_tuple else p.value[0]))
         finally:
-            for method in allowed_methods:
-                self._pending.pop(method, None)
+            if prev_p is not None:
+                pending[method] = prev_p
+            else:
+                pending.pop(method, None)
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \
@@ -109,37 +96,36 @@ class AbstractChannel(object):
                 pass
 
         try:
-            amqp_method = self._METHOD_MAP[method_sig]
+            amqp_method = self._METHODS[method_sig]
         except KeyError:
             raise AMQPNotImplementedError(
                 'Unknown AMQP method {0!r}'.format(method_sig))
 
         try:
-            expects_content = amqp_method.__amqp_content__
-        except AttributeError:
-            expects_content = False
-
-        try:
-            argspec = amqp_method.__amqp_argspec__
-        except AttributeError:
-            args = []
-        else:
-            args, _ = loads(argspec, payload, 4) if argspec else ([], 0)
-
-        if expects_content:
-            ret = amqp_method(self, *args + [content])
-        else:
-            ret = amqp_method(self, *args)
-
-        try:
-            listener = self._pending.pop(method_sig)
+            listeners = [self._callbacks[method_sig]]
         except KeyError:
-            pass
+            listeners = None
+        try:
+            one_shot = self._pending.pop(method_sig)
+        except KeyError:
+            if not listeners:
+                return
         else:
-            listener(ret)
+            if listeners is None:
+                listeners = [one_shot]
+            else:
+                listeners.append(one_shot)
 
-        return ret
+
+        args = []
+        if amqp_method.args:
+            args, _ = loads(amqp_method.args, payload, 4)
+        if amqp_method.content:
+            args.append(content)
+
+        for listener in listeners:
+            listener(*args)
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP
-    _METHOD_MAP = {}
+    _METHODS = {}
