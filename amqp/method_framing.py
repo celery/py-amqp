@@ -89,9 +89,10 @@ def frame_handler(connection, callback,
 
 
 @coro
-def frame_writer(connection, transport,
+def frame_writer(connection, transport, outbound,
                  pack=pack, pack_into=pack_into, range=range, len=len):
-    write = transport.write
+    write = outbound.append
+    outbound_ready = connection._outbound_ready
 
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
@@ -106,7 +107,7 @@ def frame_writer(connection, transport,
     while 1:
         chunk_size = connection.frame_max - 8
         offset = 0
-        type_, channel, method_sig, args, content = yield
+        type_, channel, method_sig, args, content, callback = yield
         if content:
             body = content.body
             bodylen = len(body)
@@ -119,8 +120,6 @@ def frame_writer(connection, transport,
             frame = (''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else '')  # encode method frame
             framelen = len(frame)
-            write(pack('>BHI%dsB' % framelen,
-                       type_, channel, framelen, frame, 0xce))
             if body:
                 properties = content._serialize_properties()
                 frame = b''.join([
@@ -128,14 +127,20 @@ def frame_writer(connection, transport,
                     properties,
                 ])
                 framelen = len(frame)
-                write(pack('>BHI%dsB' % framelen,
-                           2, channel, framelen, frame, 0xce))
+                write((pack('>BHI%dsB' % framelen,
+                           2, channel, framelen, frame, 0xce), None))
 
+                pieces = []
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
-                    write(pack('>BHI%dsB' % framelen,
-                               3, channel, framelen, frame, 0xce))
+                    pieces.append(pack('>BHI%dsB' % framelen,
+                                  3, channel, framelen, frame, 0xce))
+                outbound.extend((piece, None) for piece in pieces[:-1])
+                outbound.append((piece[-1], callback))
+            else:
+                write((pack('>BHI%dsB' % framelen,
+                       type_, channel, framelen, frame, 0xce), callback))
 
         else:
             # ## FAST: pack into buffer and single write
@@ -162,6 +167,7 @@ def frame_writer(connection, transport,
                           3, channel, framelen, body, 0xce)
                 offset += 8 + framelen
 
-            write(view[:offset])
+            write((view[:offset], callback))
+        outbound_ready()
 
         connection.bytes_sent += 1

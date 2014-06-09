@@ -50,19 +50,19 @@ class AbstractChannel(object):
 
     def send_method(self, sig,
                     format=None, args=None, content=None,
-                    wait=None, callback=None):
-        p = promise()
+                    wait=None, on_sent=None, callback=None):
+        p = ensure_promise(callback)
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
-        conn._frame_writer.send((1, self.channel_id, sig, args, content))
+        conn._frame_writer.send((
+            1, self.channel_id, sig, args, content, on_sent,
+        ))
         # TODO temp: callback should be after write_method ... ;)
-        if callback:
-            p.then(callback)
-        p()
         if wait:
-            return self.wait(wait)
+            return self.wait(wait, p)
+        p()
         return p
 
     def close(self):
@@ -74,6 +74,8 @@ class AbstractChannel(object):
         pending = self._pending
         prev_p, pending[method] = pending.get(method), p
         self._pending[method] = p
+        if self.connection.loop:  # XXX temp temp temp
+            return p
 
         try:
             while not p.ready:

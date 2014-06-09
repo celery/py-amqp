@@ -20,6 +20,7 @@ import logging
 import socket
 
 from array import array
+from collections import deque
 from io import BytesIO
 try:
     from ssl import SSLError
@@ -40,7 +41,7 @@ from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .promise import ensure_promise
 from .serialization import _write_table
-from .transport import create_transport
+from .transport import _UNAVAIL, create_transport
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -80,6 +81,7 @@ class Connection(AbstractChannel):
 
     """
     Channel = Channel
+    loop = None
 
     #: Final heartbeat interval value (in float seconds) after negotiation
     heartbeat = None
@@ -177,8 +179,6 @@ class Connection(AbstractChannel):
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
 
-        self._handshake_complete = False
-
         self.channels = {}
         # The connection object itself is treated as channel 0
         super(Connection, self).__init__(self, 0)
@@ -209,9 +209,12 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
+        self._outbound = deque()
+        self._blocking = deque()
         self.transport = self.Transport(host, connect_timeout, ssl)
+        self._read_frame = self.transport.read_frame
         self._frame_handler = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self, self.transport)
+        self._frame_writer = frame_writer(self, self.transport, self._outbound)
         self.on_inbound_frame = self._frame_handler.send
 
         self.connect()
@@ -232,11 +235,15 @@ class Connection(AbstractChannel):
         })
 
     def connect(self, callback=None):
-        while not self._handshake_complete:
+        # XXX NOT ASYNC
+        while not self.on_open.ready:
+            print('CONNECTION NOT READY')
             self.drain_events()
+        print('CONNECTED!')
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
+        print('>>> ON START')
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
@@ -265,9 +272,11 @@ class Connection(AbstractChannel):
         )
 
     def _on_secure(self, challenge):
+        print('>>> ON SECURE')
         pass
 
     def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
+        print('>>> ON TUNE')
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -287,16 +296,17 @@ class Connection(AbstractChannel):
         self.send_method(
             spec.Connection.TuneOk, argsig,
             (self.channel_max, self.frame_max, self.heartbeat),
-            callback=self._on_tune_sent,
+            on_sent=self._on_tune_sent,
         )
 
     def _on_tune_sent(self, argsig='ssb'):
+        print('>>> ON TUNE SENT')
         self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
     def _on_open_ok(self):
-        self._handshake_complete = True
+        print('>>> ON OPEN OK')
         self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
@@ -342,7 +352,10 @@ class Connection(AbstractChannel):
         try:
             return self.channels[channel_id]
         except KeyError:
-            return self.Channel(self, channel_id, on_open=callback)
+            p = self.Channel(self, channel_id, on_open=callback)
+            if callback:
+                p.then(callback)
+            return p
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
@@ -351,12 +364,66 @@ class Connection(AbstractChannel):
         self.channels[channel_id].dispatch_method(method_sig, payload, content)
 
     def drain_events(self, timeout=None):
+        print('DRAIN EVENTS')
         return self.blocking_read(timeout)
 
+    def on_readable(self):
+        if not self.connected:
+            raise ConnectionError('Connection lost')
+        try:
+            self.on_inbound_frame(self._read_frame())
+        except (socket.error, IOError) as exc:
+            if exc.errno not in _UNAVIL:
+                raise
+
+    def on_writable(self):
+        print('ON WRITABLE')
+        outbound = self._outbound
+        try:
+            if outbound:
+                frame, callback = outbound.popleft()
+                try:
+                    bytes_sent = self.sock.sendall(frame)
+                except socket.timeout:
+                    raise
+                except socket.error as exc:
+                    if exc.errno not in _UNAVAIL:
+                        raise
+                else:
+                    if bytes_sent < len(frame):
+                        outbound.appendleft((frame[bytes_sent:], callback))
+                    else:
+                        if callback:
+                            callback()
+        finally:
+            if not outbound:
+                self._outbound_empty()
+
+    def _outbound_ready(self):
+        print('OUTBOUND READY')
+        if self.loop:
+            self.loop.add_writer(self.sock, self.on_writable)
+        else:
+            while self._outbound:
+                frame, callback = self._outbound.popleft()
+                self.transport.write(frame)
+                if callback:
+                    self._blocking.append(callback)
+
+    def _outbound_empty(self):
+        print('OUTBOUND EMPTY')
+        self.loop.remove_writer(self.sock)
+
+    def _call_pending_blocking_callbacks(self):
+        while self._blocking:
+            callback = self._blocking.popleft()
+            callback()
+
     def blocking_read(self, timeout=None):
-        read_frame = self.transport.read_frame
         if timeout is None:
-            return self.on_inbound_frame(read_frame())
+            self.on_inbound_frame(self._read_frame())
+            self._call_pending_blocking_callbacks()
+
 
         # XXX use select
         sock = self.sock
@@ -365,7 +432,7 @@ class Connection(AbstractChannel):
             sock.settimeout(timeout)
         try:
             try:
-                frame = read_frame()
+                frame = self._read_frame()
             except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
@@ -379,6 +446,8 @@ class Connection(AbstractChannel):
         finally:
             if prev != timeout:
                 sock.settimeout(prev)
+
+        self._call_pending_blocking_callbacks()
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         return self.channels[channel_id].dispatch_method(
@@ -536,7 +605,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, callback=self._do_close)
+        self.send_method(spec.Connection.CloseOk, on_sent=self._do_close)
 
     def _on_close_ok(self):
         """Confirm a connection close
