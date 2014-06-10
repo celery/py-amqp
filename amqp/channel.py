@@ -25,7 +25,7 @@ from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
-from .promise import ensure_promise
+from .promise import Thenable, ensure_promise
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
@@ -2029,3 +2029,4 @@ class Channel(AbstractChannel):
     def _on_basic_ack(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
+Thenable.register(Channel)

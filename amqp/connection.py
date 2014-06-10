@@ -39,7 +39,7 @@ from .exceptions import (
 )
 from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer
-from .promise import ensure_promise
+from .promise import Thenable, ensure_promise
 from .serialization import _write_table
 from .transport import _UNAVAIL, create_transport
 
@@ -216,8 +216,6 @@ class Connection(AbstractChannel):
         self._frame_handler = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport, self._outbound)
         self.on_inbound_frame = self._frame_handler.send
-
-        self.connect()
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -655,3 +653,4 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
+Thenable.register(Connection)
