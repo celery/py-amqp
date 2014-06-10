@@ -32,7 +32,7 @@ except ImportError:
     class SSLError(Exception):  # noqa
         pass
 
-from struct import pack, unpack
+from struct import unpack
 
 from .exceptions import UnexpectedFrame
 from .utils import get_errno, set_cloexec

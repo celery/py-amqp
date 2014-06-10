@@ -237,13 +237,10 @@ class Connection(AbstractChannel):
     def connect(self, callback=None):
         # XXX NOT ASYNC
         while not self.on_open.ready:
-            print('CONNECTION NOT READY')
             self.drain_events()
-        print('CONNECTED!')
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
-        print('>>> ON START')
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
@@ -272,11 +269,9 @@ class Connection(AbstractChannel):
         )
 
     def _on_secure(self, challenge):
-        print('>>> ON SECURE')
         pass
 
     def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
-        print('>>> ON TUNE')
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -300,13 +295,11 @@ class Connection(AbstractChannel):
         )
 
     def _on_tune_sent(self, argsig='ssb'):
-        print('>>> ON TUNE SENT')
         self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
     def _on_open_ok(self):
-        print('>>> ON OPEN OK')
         self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
@@ -364,43 +357,43 @@ class Connection(AbstractChannel):
         self.channels[channel_id].dispatch_method(method_sig, payload, content)
 
     def drain_events(self, timeout=None):
-        print('DRAIN EVENTS')
         return self.blocking_read(timeout)
 
-    def on_readable(self):
+    def on_readable(self, _unavail=_UNAVAIL):
         if not self.connected:
             raise ConnectionError('Connection lost')
         try:
             self.on_inbound_frame(self._read_frame())
+        except socket.timeout:
+            raise
         except (socket.error, IOError) as exc:
-            if exc.errno not in _UNAVIL:
+            if exc.errno not in _unavail:
                 raise
 
     def on_writable(self):
-        print('ON WRITABLE')
         outbound = self._outbound
-        try:
-            if outbound:
-                frame, callback = outbound.popleft()
-                try:
-                    bytes_sent = self.sock.sendall(frame)
-                except socket.timeout:
+        if outbound:
+            frame, callback = outbound.popleft()
+            try:
+                bytes_sent = self.sock.send(frame)
+            except socket.timeout:
+                raise
+            except socket.error as exc:
+                if exc.errno not in _UNAVAIL:
                     raise
-                except socket.error as exc:
-                    if exc.errno not in _UNAVAIL:
-                        raise
+                outbound.appendleft((frame, callback))
+            else:
+                if not bytes_sent or bytes_sent < 1:
+                    raise Exception('Connection disconnected')
+                if bytes_sent < len(frame):
+                    outbound.appendleft((frame[bytes_sent:], callback))
                 else:
-                    if bytes_sent < len(frame):
-                        outbound.appendleft((frame[bytes_sent:], callback))
-                    else:
-                        if callback:
-                            callback()
-        finally:
-            if not outbound:
-                self._outbound_empty()
+                    if callback:
+                        callback()
+        else:
+            self._outbound_empty()
 
     def _outbound_ready(self):
-        print('OUTBOUND READY')
         if self.loop:
             self.loop.add_writer(self.sock, self.on_writable)
         else:
@@ -411,8 +404,7 @@ class Connection(AbstractChannel):
                     self._blocking.append(callback)
 
     def _outbound_empty(self):
-        print('OUTBOUND EMPTY')
-        self.loop.remove_writer(self.sock)
+        self.loop.remove_writer(self.sock.fileno())
 
     def _call_pending_blocking_callbacks(self):
         while self._blocking:
@@ -423,7 +415,7 @@ class Connection(AbstractChannel):
         if timeout is None:
             self.on_inbound_frame(self._read_frame())
             self._call_pending_blocking_callbacks()
-
+            return
 
         # XXX use select
         sock = self.sock

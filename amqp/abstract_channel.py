@@ -17,7 +17,7 @@
 from __future__ import absolute_import
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .promise import ensure_promise, promise
+from .promise import ensure_promise
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
@@ -51,7 +51,7 @@ class AbstractChannel(object):
     def send_method(self, sig,
                     format=None, args=None, content=None,
                     wait=None, on_sent=None, callback=None):
-        p = ensure_promise(callback)
+        on_sent = ensure_promise(on_sent) if not wait else on_sent
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
@@ -61,15 +61,14 @@ class AbstractChannel(object):
         ))
         # TODO temp: callback should be after write_method ... ;)
         if wait:
-            return self.wait(wait, p)
-        p()
-        return p
+            return self.wait(wait, callback)
+        return on_sent
 
     def close(self):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, method, callback=None, returns_tuple=False):
+    def wait(self, method, callback=None, returns_tuple=False, filter=None):
         p = ensure_promise(callback)
         pending = self._pending
         prev_p, pending[method] = pending.get(method), p
@@ -83,7 +82,10 @@ class AbstractChannel(object):
 
             if p.value:
                 args, kwargs = p.value
-                return args if returns_tuple else (args and args[0])
+                if returns_tuple:
+                    return filter(*args) if filter else args
+                if args:
+                    return filter(args[0]) if filter else args[0]
         finally:
             if prev_p is not None:
                 pending[method] = prev_p
@@ -119,7 +121,6 @@ class AbstractChannel(object):
                 listeners = [one_shot]
             else:
                 listeners.append(one_shot)
-
 
         args = []
         if amqp_method.args:

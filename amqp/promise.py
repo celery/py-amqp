@@ -360,3 +360,13 @@ def ensure_promise(p):
     if p is None:
         return promise()
     return maybe_promise(p)
+
+
+def ready_promise(callback=None, *args):
+    p = ensure_promise(callback)
+    p(*args)
+    return p
+
+
+def ppartial(p, *args, **kwargs):
+    return promise(ensure_promise(p), args, kwargs)

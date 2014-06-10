@@ -108,6 +108,9 @@ def frame_writer(connection, transport, outbound,
         chunk_size = connection.frame_max - 8
         offset = 0
         type_, channel, method_sig, args, content, callback = yield
+        #  from .exceptions import METHOD_NAME_MAP
+        #  print('>>> FRAME %r: chan:%r METH:%r' % (
+        #    type_, channel, METHOD_NAME_MAP[method_sig])
         if content:
             body = content.body
             bodylen = len(body)
@@ -128,7 +131,7 @@ def frame_writer(connection, transport, outbound,
                 ])
                 framelen = len(frame)
                 write((pack('>BHI%dsB' % framelen,
-                           2, channel, framelen, frame, 0xce), None))
+                            2, channel, framelen, frame, 0xce), None))
 
                 pieces = []
                 for i in range(0, bodylen, chunk_size):
@@ -137,7 +140,7 @@ def frame_writer(connection, transport, outbound,
                     pieces.append(pack('>BHI%dsB' % framelen,
                                   3, channel, framelen, frame, 0xce))
                 outbound.extend((piece, None) for piece in pieces[:-1])
-                outbound.append((piece[-1], callback))
+                outbound.append((pieces[-1], callback))
             else:
                 write((pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce), callback))

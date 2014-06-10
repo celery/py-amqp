@@ -61,7 +61,7 @@ class Channel(AbstractChannel):
 
     """
     _METHODS = set([
-        spec.method(spec.Channel.Close, 'ssBB'),
+        spec.method(spec.Channel.Close, 'BsBB'),
         spec.method(spec.Channel.CloseOk),
         spec.method(spec.Channel.Flow, 'b'),
         spec.method(spec.Channel.FlowOk, 'b'),
@@ -559,7 +559,7 @@ class Channel(AbstractChannel):
         if auto_delete:
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
 
-        self.send_method(
+        return self.send_method(
             spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,
              False, nowait, arguments),
@@ -888,7 +888,7 @@ class Channel(AbstractChannel):
         return self.send_method(
             spec.Queue.Bind, argsig,
             (0, queue, exchange, routing_key, nowait, arguments),
-            on_sent=on_sent, callback=None,
+            on_sent=on_sent, callback=callback,
             wait=None if nowait else spec.Queue.BindOk,
         )
 
@@ -1108,16 +1108,17 @@ class Channel(AbstractChannel):
             consumer count
 
         """
-        self.send_method(
+        p = self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
-             nowait, arguments),
-            on_sent=on_sent, callback=callback,
+             nowait, arguments), on_sent=on_sent,
         )
-        if not nowait:
-            return queue_declare_ok_t(*self.wait(
-                spec.Queue.DeclareOk, returns_tuple=True,
-            ))
+        if nowait:
+            return p
+        return self.wait(
+            spec.Queue.DeclareOk, returns_tuple=True,
+            filter=queue_declare_ok_t, callback=callback,
+        )
 
     def queue_delete(self, queue='', if_unused=False, if_empty=False,
                      nowait=False, on_sent=None, callback=None,
