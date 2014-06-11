@@ -14,8 +14,9 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
+import logging
 import sys
 
 from collections import defaultdict
@@ -23,11 +24,15 @@ from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
-from .exceptions import UnexpectedFrame
+from .exceptions import METHOD_NAME_MAP, UnexpectedFrame
 from .five import range
-from .utils import coro
+from .utils import coro, get_logger
 
 __all__ = ['frame_handler', 'frame_writer']
+
+logger = get_logger(__name__)
+debug = logger.debug
+
 
 #
 # set of methods that require both a content frame and a body frame.
@@ -54,6 +59,8 @@ def frame_handler(connection, callback,
             )
         elif frame_type == 1:
             method_sig = unpack_from('>HH', buf, 0)
+            if debug:
+                debug('<< method: %s', METHOD_NAME_MAP[method_sig])
 
             if method_sig in content_methods:
                 # Save what we've got so far and wait for the content-header
@@ -97,20 +104,22 @@ def frame_writer(connection, transport, outbound,
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
     # check for a bugfix release.
-    if sys.version_info < (2, 7):
+    if sys.version_info >= (2, 7):
         no_pybuf = 0
-        buf = bytearray(connection.frame_max - 8)
-        view = memoryview(buf)
+        #buf = bytearray(connection.frame_max - 8)
+        #view = memoryview(buf)
     else:
-        no_pybuf, buf, view = 1, None, None
+        no_pyfuf = 1
+        #no_pybuf, buf, view = 1, None, None
 
     while 1:
         chunk_size = connection.frame_max - 8
         offset = 0
         type_, channel, method_sig, args, content, callback = yield
-        #  from .exceptions import METHOD_NAME_MAP
-        #  print('>>> FRAME %r: chan:%r METH:%r' % (
-        #    type_, channel, METHOD_NAME_MAP[method_sig])
+        if debug:
+            debug('>> frame %r for channel %r: %s',
+                  type_, channel, METHOD_NAME_MAP[method_sig])
+
         if content:
             body = content.body
             bodylen = len(body)
@@ -146,6 +155,8 @@ def frame_writer(connection, transport, outbound,
                        type_, channel, framelen, frame, 0xce), callback))
 
         else:
+            buf = bytearray(connection.frame_max - 8)
+            view = memoryview(buf)
             # ## FAST: pack into buffer and single write
             frame = (''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else '')
@@ -170,6 +181,7 @@ def frame_writer(connection, transport, outbound,
                           3, channel, framelen, body, 0xce)
                 offset += 8 + framelen
 
+            #print('FRAME: %r' % (view[:offset].tobytes(), ))
             write((view[:offset], callback))
         outbound_ready()
 

@@ -16,7 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-import logging
 import socket
 
 from array import array
@@ -42,6 +41,7 @@ from .method_framing import frame_handler, frame_writer
 from .promise import Thenable, ensure_promise
 from .serialization import _write_table
 from .transport import _UNAVAIL, create_transport
+from .utils import get_logger
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -58,7 +58,7 @@ LIBRARY_PROPERTIES = {
     'capabilities': {},
 }
 
-AMQP_LOGGER = logging.getLogger('amqp')
+logger = get_logger(__name__)
 
 
 class Connection(AbstractChannel):
@@ -245,7 +245,7 @@ class Connection(AbstractChannel):
         self.server_properties = server_properties
         self.mechanisms = mechanisms.split(' ')
         self.locales = locales.split(' ')
-        AMQP_LOGGER.debug(
+        logger.debug(
             START_DEBUG_FMT,
             self.version_major, self.version_minor,
             self.server_properties, self.mechanisms, self.locales,
@@ -368,6 +368,20 @@ class Connection(AbstractChannel):
             if exc.errno not in _unavail:
                 raise
 
+    def _debug_outgoing_frame(self, frame):
+        from struct import unpack_from
+        from .exceptions import METHOD_NAME_MAP
+        type_, channel, framelen = unpack_from('>BHI', frame)
+        if type_ == 1:
+            method_sig = unpack_from('>HH', frame, 7)
+            logger.debug(
+                'METHOD: %r CHANNEL: %r LEN: %r',
+                METHOD_NAME_MAP[method_sig], type_, channel, framelen,
+            )
+        else:
+            logger.debug('FRAME: %r CHANNEL: %r LEN: %r',
+                         type_, channel, framelen)
+
     def on_writable(self):
         outbound = self._outbound
         if outbound:
@@ -382,7 +396,7 @@ class Connection(AbstractChannel):
                 outbound.appendleft((frame, callback))
             else:
                 if not bytes_sent or bytes_sent < 1:
-                    raise Exception('Connection disconnected')
+                    raise ConnectionError('Connection disconnected')
                 if bytes_sent < len(frame):
                     outbound.appendleft((frame[bytes_sent:], callback))
                 else:

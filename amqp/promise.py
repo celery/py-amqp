@@ -7,11 +7,12 @@ import logging
 from collections import Callable, deque
 
 from .five import with_metaclass
+from .utils import get_logger
 
 __all__ = ['Thenable', 'promise', 'barrier', 'wrap',
            'maybe_promise', 'ensure_promise']
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @with_metaclass(abc.ABCMeta)
@@ -78,6 +79,7 @@ class barrier(object):
     def __call__(self, *args, **kwargs):
         if not self.ready and not self.cancelled:
             self._value += 1
+            print('BARRIER CALL: %r' % (self._value, ))
             if self._value >= len(self.promises):
                 self.ready = True
                 self.p()

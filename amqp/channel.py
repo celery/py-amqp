@@ -27,10 +27,11 @@ from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
 from .promise import Thenable, ensure_promise
 from .protocol import queue_declare_ok_t
+from .utils import get_logger
 
 __all__ = ['Channel']
 
-AMQP_LOGGER = logging.getLogger('amqp')
+logger = get_logger(__name__)
 
 EXCHANGE_AUTODELETE_DEPRECATED = """\
 The auto_delete flag for exchanges has been deprecated and will be removed
@@ -110,7 +111,7 @@ class Channel(AbstractChannel):
         else:
             channel_id = connection._get_free_channel_id()
 
-        AMQP_LOGGER.debug('using channel_id: %d', channel_id)
+        logger.debug('using channel_id: %d', channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
 
@@ -152,7 +153,7 @@ class Channel(AbstractChannel):
     def _do_close(self):
         """Tear down this object, after we've agreed to close
         with the server."""
-        AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
+        logger.debug('Closed channel #%d', self.channel_id)
         self.is_open = False
         channel_id, self.channel_id = self.channel_id, None
         connection, self.connection = self.connection, None
@@ -390,7 +391,7 @@ class Channel(AbstractChannel):
         """
         self.is_open = True
         self.on_open(self)
-        AMQP_LOGGER.debug('Channel open')
+        logger.debug('Channel open')
 
     #############
     #
@@ -1412,6 +1413,7 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
+        print('CANCEL: %r' % (callback, ))
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
             return self.send_method(

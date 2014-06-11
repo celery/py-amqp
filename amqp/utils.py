@@ -1,13 +1,15 @@
 from __future__ import absolute_import
 
-from functools import wraps
+import logging
 
-from .promise import promise   # noqa
+from functools import wraps
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None   # noqa
+
+from .five import string_t
 
 try:
     from os import set_cloexec  # Python 3.4?
@@ -51,3 +53,17 @@ def coro(gen):
         return co
 
     return _boot
+
+
+class NullHandler(logging.Handler):
+
+    def emit(self, record):
+        pass
+
+
+def get_logger(logger):
+    if isinstance(logger, string_t):
+        logger = logging.getLogger(logger)
+    if not logger.handlers:
+        logger.addHandler(NullHandler())
+    return logger
