@@ -143,7 +143,7 @@ class Connection(AbstractChannel):
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
-                 on_tune_ok=None, **kwargs):
+                 on_tune_ok=None, keepalive_settings=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -155,6 +155,11 @@ class Connection(AbstractChannel):
         The 'ssl' parameter may be simply True/False, or for Python >= 2.6
         a dictionary of options to pass to ssl.wrap_socket() such as
         requiring certain certificates.
+
+        The 'keepalive_settings" parameter is a dictionary defining keepalive
+        settings which will be applied as socket options.
+        We want to be able to set the following TCP_KEEPALIVE options:
+        socket.TCP_KEEPINTVL, socket.TCP_KEEPIDLE, socket.TCP_KEEPCNT
 
         """
         channel_max = channel_max or 65535
@@ -209,7 +214,8 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.Transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(host, connect_timeout, ssl,
+                                        keepalive_settings)
         self._frame_handler = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
         self.on_inbound_frame = self._frame_handler.send
