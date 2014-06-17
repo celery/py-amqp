@@ -129,7 +129,7 @@ class AbstractChannel(object):
             args.append(content)
 
         for listener in listeners:
-            print('CALLING LISTENER: %r' % (listener, ))
+            # print('CALLING LISTENER: %r' % (listener, ))
             listener(*args)
 
     #: Placeholder, the concrete implementations will have to

@@ -217,18 +217,16 @@ class Channel(AbstractChannel):
                 is the ID of the method.
 
         """
-        try:
-            if not self.is_open or self.connection is None:
-                return
+        if not self.is_open or self.connection is None:
+            return
+        self.is_open = False
 
-            return self.send_method(
-                spec.Channel.Close, argsig,
-                (reply_code, reply_text, method_sig[0], method_sig[1]),
-                on_sent=on_sent, callback=callback,
-                wait=spec.Channel.CloseOk,
-            )
-        finally:
-            self.connection = None
+        return self.send_method(
+            spec.Channel.Close, argsig,
+            (reply_code, reply_text, method_sig[0], method_sig[1]),
+            on_sent=on_sent, callback=callback,
+            wait=spec.Channel.CloseOk,
+        )
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a channel close
@@ -1413,9 +1411,7 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
-        print('CANCEL: %r' % (callback, ))
         if self.connection is not None:
-            self.no_ack_consumers.discard(consumer_tag)
             return self.send_method(
                 spec.Basic.Cancel, argsig, (consumer_tag, nowait),
                 on_sent=on_sent, callback=callback,
@@ -1436,6 +1432,7 @@ class Channel(AbstractChannel):
 
     def _on_basic_cancel_ok(self, consumer_tag):
         self._remove_tag(consumer_tag)
+        self.no_ack_consumers.discard(consumer_tag)
 
     def _remove_tag(self, consumer_tag):
         self.callbacks.pop(consumer_tag, None)
@@ -1784,7 +1781,8 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
+            spec.Basic.Qos, argsig,
+            (prefetch_size or 0, prefetch_count or 0, a_global),
             on_sent=on_sent, callback=callback, wait=spec.Basic.QosOk,
         )
 

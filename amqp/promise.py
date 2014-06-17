@@ -79,7 +79,6 @@ class barrier(object):
     def __call__(self, *args, **kwargs):
         if not self.ready and not self.cancelled:
             self._value += 1
-            print('BARRIER CALL: %r' % (self._value, ))
             if self._value >= len(self.promises):
                 self.ready = True
                 self.p()
@@ -190,6 +189,9 @@ class promise(object):
         if callback is not None:
             self.then(callback)
 
+        if self.fun:
+            assert callable(fun)
+
     def __repr__(self):
         if self.fun:
             return '<promise@0x{0:x}: {1!r}>'.format(id(self), self.fun)
@@ -247,7 +249,7 @@ class promise(object):
             callback.cancel()
             return callback
         if self.failed:
-            callback.throw(self.reason)
+            Callback.throw(self.reason)
         elif self.ready:
             args, kwargs = self.value
             callback(*args, **kwargs)
@@ -371,4 +373,16 @@ def ready_promise(callback=None, *args):
 
 
 def ppartial(p, *args, **kwargs):
-    return promise(ensure_promise(p), args, kwargs)
+    p = ensure_promise(p)
+    if args:
+        p.args = args + p.args
+    if kwargs:
+        p.kwargs.update(kwargs)
+    return p
+
+
+def preplace(p, *args, **kwargs):
+
+    def _replacer(*_, **__):
+        return p(*args, **kwargs)
+    return promise(_replacer)
