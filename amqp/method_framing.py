@@ -19,7 +19,7 @@ from __future__ import absolute_import, print_function
 import logging
 import sys
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from struct import pack, unpack_from, pack_into
 
 from . import spec
@@ -97,7 +97,8 @@ def frame_handler(connection, callback,
 
 @coro
 def frame_writer(connection, transport, outbound,
-                 pack=pack, pack_into=pack_into, range=range, len=len):
+                 pack=pack, pack_into=pack_into, range=range, len=len,
+                 max_buffers=10):
     write = outbound.append
     outbound_ready = connection._outbound_ready
 
@@ -111,6 +112,10 @@ def frame_writer(connection, transport, outbound,
     else:
         no_pyfuf = 1
         #no_pybuf, buf, view = 1, None, None
+
+    buffers = connection.buffers = deque(
+        bytearray(connection.frame_max - 8) for _ in range(max_buffers)
+    )
 
     while 1:
         chunk_size = connection.frame_max - 8
@@ -155,12 +160,21 @@ def frame_writer(connection, transport, outbound,
                        type_, channel, framelen, frame, 0xce), callback))
 
         else:
-            buf = bytearray(connection.frame_max - 8)
-            view = memoryview(buf)
-            # ## FAST: pack into buffer and single write
             frame = (''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else '')
             framelen = len(frame)
+            if body:
+                try:
+                    buf, borrowed = buffers.popleft(), 1
+                except IndexError:
+                    buf, borrowed = bytearray(8 + framelen), 0
+                else:
+            else:
+                buf, borrowed = bytearray(8 + framelen), 0
+
+            buf = bytearray(connection.frame_max - 8)
+            view = memoryview(buf)
+            # ## FAST: pack into buffer and single write
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
@@ -182,7 +196,7 @@ def frame_writer(connection, transport, outbound,
                 offset += 8 + framelen
 
             #print('FRAME: %r' % (view[:offset].tobytes(), ))
-            write((view[:offset], callback))
+            write((view[:offset], borrowed, callback))
         outbound_ready()
 
         connection.bytes_sent += 1

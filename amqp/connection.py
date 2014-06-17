@@ -390,21 +390,23 @@ class Connection(AbstractChannel):
     def on_writable(self):
         outbound = self._outbound
         if outbound:
-            frame, callback = outbound.popleft()
+            buf, borrowed, callback = outbound.popleft()
             try:
-                bytes_sent = self.sock.send(frame)
+                bytes_sent = self.sock.send(buf)
             except socket.timeout:
                 raise
             except socket.error as exc:
                 if exc.errno not in _UNAVAIL:
                     raise
-                outbound.appendleft((frame, callback))
+                outbound.appendleft((buf, borrowed, callback))
             else:
                 if not bytes_sent or bytes_sent < 1:
                     raise ConnectionError('Connection disconnected')
-                if bytes_sent < len(frame):
-                    outbound.appendleft((frame[bytes_sent:], callback))
+                if bytes_sent < len(buf):
+                    outbound.appendleft((buf[bytes_sent:], borrowed, callback))
                 else:
+                    if borrowed:
+                        self.buffers.appendleft(buf)
                     if callback:
                         callback()
         else:
@@ -415,8 +417,10 @@ class Connection(AbstractChannel):
             self.loop.add_writer(self.sock, self.on_writable)
         else:
             while self._outbound:
-                frame, callback = self._outbound.popleft()
+                frame, borrowed, callback = self._outbound.popleft()
                 self.transport.write(frame)
+                if borrowed:
+                    self.buffers.appendleft(buf)
                 if callback:
                     self._blocking.append(callback)
 

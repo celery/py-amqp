@@ -56,7 +56,6 @@ class _AbstractTransport(object):
 
     def __init__(self, host):
         self.connected = True
-        msg = None
         port = AMQP_PORT
 
         m = IPV6_LITERAL.match(host)
@@ -70,9 +69,26 @@ class _AbstractTransport(object):
                 port = int(port)
         self.host, self.port = host, port
         self.sock = None
-        last_err = None
+
+    def tune_buffers(self, sock,
+                     flags=(socket.SO_SNDBUF, socket.SO_RCVBUF)):
+        for flag in flags:
+            self._tune_flag(sock, flag)
+
+    def _tune_flag(self, sock, flag, stop=10, step=2, max=1048576,
+                   family=socket.SOL_SOCKET):
+        for i in range(stop):
+            prev = sock.getsockopt(family, flag)
+            try:
+                sock.setsockopt(family, flag, prev * 2)
+            except socket.error:
+                return prev
+            now = sock.getsockopt(family, flag)
+            if now <= prev or now >= max:
+                return now
 
     def connect(self, outbound_buffer, outbound_ready, timeout=None):
+        msg = last_err = None
         for res in socket.getaddrinfo(self.host, self.port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
@@ -98,6 +114,7 @@ class _AbstractTransport(object):
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
+        self.tune_buffers(self.sock)
         try:
             self.sock.settimeout(None)
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
@@ -110,7 +127,7 @@ class _AbstractTransport(object):
                 self.connected = False
                 raise
 
-        outbound_buffer.append((AMQP_PROTOCOL_HEADER, None))
+        outbound_buffer.append((AMQP_PROTOCOL_HEADER, 0, None))
         outbound_ready()
 
     def __del__(self):
