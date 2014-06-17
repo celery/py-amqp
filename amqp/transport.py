@@ -54,7 +54,7 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout):
+    def __init__(self, host):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -68,10 +68,12 @@ class _AbstractTransport(object):
             if ':' in host:
                 host, port = host.rsplit(':', 1)
                 port = int(port)
-
+        self.host, self.port = host, port
         self.sock = None
         last_err = None
-        for res in socket.getaddrinfo(host, port, 0,
+
+    def connect(self, outbound_buffer, outbound_ready, timeout=None):
+        for res in socket.getaddrinfo(self.host, self.port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
             af, socktype, proto, canonname, sa = res
             try:
@@ -80,14 +82,16 @@ class _AbstractTransport(object):
                     set_cloexec(self.sock, True)
                 except NotImplementedError:
                     pass
-                self.sock.settimeout(connect_timeout)
+                if timeout is not None:
+                    self.sock.settimeout(timeout)
                 self.sock.connect(sa)
             except socket.error as exc:
-                msg = exc
-                self.sock.close()
-                self.sock = None
-                last_err = msg
-                continue
+                if exc.errno not in (errno.EWOULDBLOCK, errno.EINPROGRESS):
+                    msg = exc
+                    self.sock.close()
+                    self.sock = None
+                    last_err = msg
+                    continue
             break
 
         if not self.sock:
@@ -101,11 +105,13 @@ class _AbstractTransport(object):
 
             self._setup_transport()
 
-            self._write(AMQP_PROTOCOL_HEADER)
         except (OSError, IOError, socket.error) as exc:
             if get_errno(exc) not in _UNAVAIL:
                 self.connected = False
-            raise
+                raise
+
+        outbound_buffer.append((AMQP_PROTOCOL_HEADER, None))
+        outbound_ready()
 
     def __del__(self):
         try:
@@ -183,11 +189,11 @@ class _AbstractTransport(object):
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
 
-    def __init__(self, host, connect_timeout, ssl):
+    def __init__(self, host, ssl):
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER
-        super(SSLTransport, self).__init__(host, connect_timeout)
+        super(SSLTransport, self).__init__(host)
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
@@ -281,10 +287,10 @@ class TCPTransport(_AbstractTransport):
         return result
 
 
-def create_transport(host, connect_timeout, ssl=False):
+def create_transport(host, ssl=False):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     if ssl:
-        return SSLTransport(host, connect_timeout, ssl)
+        return SSLTransport(host, ssl)
     else:
-        return TCPTransport(host, connect_timeout)
+        return TCPTransport(host)

@@ -211,11 +211,16 @@ class Connection(AbstractChannel):
         #
         self._outbound = deque()
         self._blocking = deque()
-        self.transport = self.Transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(host, ssl)
+        self.transport.connect(self._outbound, self._outbound_ready,
+                               timeout=connect_timeout)
         self._read_frame = self.transport.read_frame
         self._frame_handler = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport, self._outbound)
         self.on_inbound_frame = self._frame_handler.send
+
+    def fileno(self):
+        return self.sock.fileno()
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -303,8 +308,8 @@ class Connection(AbstractChannel):
     def FIXME(self, *args, **kwargs):
         pass
 
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
+    def Transport(self, host, ssl=False):
+        return create_transport(host, ssl)
 
     @property
     def connected(self):
