@@ -37,7 +37,7 @@ from .exceptions import (
     RecoverableConnectionError, RecoverableChannelError,
 )
 from .five import range, values, monotonic
-from .method_framing import frame_handler, frame_writer
+from .method_framing import frame_handler, frame_writer, inbound_handler
 from .promise import Thenable, ensure_promise
 from .serialization import _write_table
 from .transport import _UNAVAIL, create_transport
@@ -214,9 +214,11 @@ class Connection(AbstractChannel):
         self.transport = self.Transport(host, ssl)
         self.transport.connect(self._outbound, self._outbound_ready,
                                timeout=connect_timeout)
-        self._read_frame = self.transport.read_frame
         self._frame_handler = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport, self._outbound)
+        self._inbound = deque()
+        self._inbound_handler = inbound_handler(self, self._inbound)
+        self._read_frame = self._inbound_handler.send
         self.on_inbound_frame = self._frame_handler.send
 
     def fileno(self):
@@ -363,15 +365,19 @@ class Connection(AbstractChannel):
         return self.blocking_read(timeout)
 
     def on_readable(self, _unavail=_UNAVAIL):
+        frames = self._inbound
         if not self.connected:
             raise ConnectionError('Connection lost')
         try:
-            self.on_inbound_frame(self._read_frame())
+            self._read_frame(None)
         except socket.timeout:
             raise
         except (socket.error, IOError) as exc:
             if exc.errno not in _unavail:
                 raise
+        else:
+            while frames:
+                self.on_inbound_frame(frames.popleft())
 
     def _debug_outgoing_frame(self, frame):
         from struct import unpack_from
@@ -434,7 +440,9 @@ class Connection(AbstractChannel):
 
     def blocking_read(self, timeout=None):
         if timeout is None:
-            self.on_inbound_frame(self._read_frame())
+            self._read_frame(None)
+            while self._inbound:
+                self.on_inbound_frame(self._inbound.popleft())
             self._call_pending_blocking_callbacks()
             return
 
@@ -445,7 +453,7 @@ class Connection(AbstractChannel):
             sock.settimeout(timeout)
         try:
             try:
-                frame = self._read_frame()
+                self._read_frame(None)
             except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
@@ -455,7 +463,8 @@ class Connection(AbstractChannel):
                     raise socket.timeout()
                 raise
             else:
-                self.on_inbound_frame(frame)
+                while self._inbound:
+                    self.on_inbound_frame(self._inbound.popleft())
         finally:
             if prev != timeout:
                 sock.settimeout(prev)

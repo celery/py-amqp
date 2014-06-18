@@ -17,6 +17,7 @@
 from __future__ import absolute_import, print_function
 
 import logging
+import socket
 import sys
 
 from collections import defaultdict, deque
@@ -24,8 +25,9 @@ from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
-from .exceptions import METHOD_NAME_MAP, UnexpectedFrame
+from .exceptions import METHOD_NAME_MAP, ConnectionError, UnexpectedFrame
 from .five import range
+from .transport import _UNAVAIL
 from .utils import coro, get_logger
 
 __all__ = ['frame_handler', 'frame_writer']
@@ -59,8 +61,8 @@ def frame_handler(connection, callback,
             )
         elif frame_type == 1:
             method_sig = unpack_from('>HH', buf, 0)
-            if debug:
-                debug('<< method: %s', METHOD_NAME_MAP[method_sig])
+            #if debug:
+            #    print('<< method: %s', METHOD_NAME_MAP[method_sig])
 
             if method_sig in content_methods:
                 # Save what we've got so far and wait for the content-header
@@ -168,7 +170,6 @@ def frame_writer(connection, transport, outbound,
                     buf, borrowed = buffers.popleft(), 1
                 except IndexError:
                     buf, borrowed = bytearray(8 + framelen), 0
-                else:
             else:
                 buf, borrowed = bytearray(8 + framelen), 0
 
@@ -200,3 +201,65 @@ def frame_writer(connection, transport, outbound,
         outbound_ready()
 
         connection.bytes_sent += 1
+
+
+@coro
+def inbound_handler(conn, frames, bufsize=2 ** 20,
+                    error=socket.error, unpack_from=unpack_from):
+    recv_into = conn.sock.recv_into
+
+    buf = bytearray(bufsize)
+    view = memoryview(buf)
+    need = 8
+    offset = 0
+    boundary = 0
+
+    while 1:
+        _ = (yield)  # noqa
+        slice = view[offset:]
+        try:
+            bytes_read = recv_into(slice)
+        except error as exc:
+            if exc.errno not in _UNAVAIL:
+                raise
+
+        if bytes_read == 0:
+            raise ConnectionError('Connection broken')
+
+        frame_offset = 0
+        data = view[boundary:boundary + bytes_read + (offset - boundary)]
+        bytes_have = len(data)
+        while bytes_have - frame_offset >= need:
+            frame_start_offset = frame_offset
+            frame_type, channel, size = unpack_from(
+                '>BHI', data, frame_offset,
+            )
+            frame_offset += 7
+            if bytes_have - frame_start_offset < size + 8:
+                if offset + size > bufsize:
+                    rest = data[frame_start_offset:].tobytes()
+                    buf[0:len(rest)] = rest
+                    boundary, offset = 0, len(rest)
+                else:
+                    boundary, need, offset = (
+                        offset + frame_start_offset, 8 + size, bytes_read,
+                    )
+                break
+            assert data[frame_offset + size] == '\xCE'
+            need = 8
+            frames.append((
+                frame_type, channel,
+                data[frame_offset:frame_offset + size].tobytes(),
+            ))
+            frame_offset += size + 1
+            assert frame_offset == frame_start_offset + 8 + size
+        else:
+            rest = bytes_have - frame_offset
+            if rest:
+                offset += bytes_read
+                boundary += bytes_read
+                if offset >= bufsize:
+                    buf[0:rest] = data[frame_offset:].tobytes()
+                    boundary, offset = 0, rest
+            else:
+                boundary = offset = 0
