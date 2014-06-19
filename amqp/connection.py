@@ -385,18 +385,21 @@ class Connection(AbstractChannel):
         type_, channel, framelen = unpack_from('>BHI', frame)
         if type_ == 1:
             method_sig = unpack_from('>HH', frame, 7)
-            logger.debug(
-                'METHOD: %r CHANNEL: %r LEN: %r',
-                METHOD_NAME_MAP[method_sig], type_, channel, framelen,
-            )
+            print(
+                'METHOD: %r CHANNEL: %r LEN: %r' % (
+                METHOD_NAME_MAP[method_sig], channel, framelen,
+            ))
         else:
-            logger.debug('FRAME: %r CHANNEL: %r LEN: %r',
-                         type_, channel, framelen)
+            print('FRAME: %r CHANNEL: %r LEN: %r' %(
+                         type_, channel, framelen))
 
     def on_writable(self):
         outbound = self._outbound
         if outbound:
             buf, borrowed, callback = outbound.popleft()
+            print('WRITE: BOR: %r CB: %r -> %r' % (borrowed, callback,
+                len(buf), ))
+            self._debug_outgoing_frame(buf)
             try:
                 bytes_sent = self.sock.send(buf)
             except socket.timeout:

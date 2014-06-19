@@ -108,7 +108,7 @@ def frame_writer(connection, transport, outbound,
     # Initial support was very shaky, so could be we have to
     # check for a bugfix release.
     if sys.version_info >= (2, 7):
-        no_pybuf = 0
+        no_pybuf = 1
         #buf = bytearray(connection.frame_max - 8)
         #view = memoryview(buf)
     else:
@@ -140,6 +140,8 @@ def frame_writer(connection, transport, outbound,
                      if type_ == 1 else '')  # encode method frame
             framelen = len(frame)
             if body:
+                write((pack('>BHI%dsB' % framelen,
+                            1, channel, framelen, frame, 0xce), 0, None))
                 properties = content._serialize_properties()
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
@@ -147,19 +149,19 @@ def frame_writer(connection, transport, outbound,
                 ])
                 framelen = len(frame)
                 write((pack('>BHI%dsB' % framelen,
-                            2, channel, framelen, frame, 0xce), None))
+                            2, channel, framelen, frame, 0xce), 0, None))
 
                 pieces = []
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
-                    framelen = len(frame)
-                    pieces.append(pack('>BHI%dsB' % framelen,
-                                  3, channel, framelen, frame, 0xce))
-                outbound.extend((piece, None) for piece in pieces[:-1])
-                outbound.append((pieces[-1], callback))
+                    this_size = len(frame)
+                    pieces.append(pack('>BHI%dsB' % this_size,
+                                  3, channel, this_size, frame, 0xce))
+                outbound.extend((piece, 0, None) for piece in pieces[:-1])
+                outbound.append((pieces[-1], 0, callback))
             else:
                 write((pack('>BHI%dsB' % framelen,
-                       type_, channel, framelen, frame, 0xce), callback))
+                       type_, channel, framelen, frame, 0xce), 0, callback))
 
         else:
             frame = (''.join([pack('>HH', *method_sig), args])
@@ -204,8 +206,9 @@ def frame_writer(connection, transport, outbound,
 
 
 @coro
-def inbound_handler(conn, frames, bufsize=2 ** 20,
+def inbound_handler(conn, frames, bufsize=2 ** 17, readsize=2 ** 10,
                     error=socket.error, unpack_from=unpack_from):
+    print('HELLO')
     recv_into = conn.sock.recv_into
 
     buf = bytearray(bufsize)
@@ -215,10 +218,32 @@ def inbound_handler(conn, frames, bufsize=2 ** 20,
     boundary = 0
 
     while 1:
+        print('START')
         _ = (yield)  # noqa
+        print('OFFSET: %r' % (offset, ))
+        slice = None
         slice = view[offset:]
+        if bufsize > 2 ** 17:
+            raise Exception('WTF WTF')
+        if not len(slice):
+            print('EXTEND: %r' %(readsize, ))
+            view = slice = None
+            del(view)
+            del(slice)
+            del(data)
+            buf.extend(bytearray(readsize))
+            bufsize += readsize
+            view = memoryview(buf)
+            print('BUFSIZE: %r OFFSET: %r X: %r' % (bufsize, offset,
+                len(view[offset:]), ))
+            slice = view[offset:]
+        print("SLICE: %r BUF: %r" % (len(slice), len(buf)))
+        print('@@@ BOUND: %r OFFSET: %r LEFT: %r' % (boundary, offset,
+            len(slice)))
         try:
+            print('+ BYTES READ!')
             bytes_read = recv_into(slice)
+            print('- BYTES READ: %r' % (bytes_read, ))
         except error as exc:
             if exc.errno not in _UNAVAIL:
                 raise
@@ -244,6 +269,7 @@ def inbound_handler(conn, frames, bufsize=2 ** 20,
                     boundary, need, offset = (
                         offset + frame_start_offset, 8 + size, bytes_read,
                     )
+                print('!!!!!!!!!!!BREAKING!!!!!!!!!!!')
                 break
             assert data[frame_offset + size] == '\xCE'
             need = 8
@@ -256,6 +282,7 @@ def inbound_handler(conn, frames, bufsize=2 ** 20,
         else:
             rest = bytes_have - frame_offset
             if rest:
+                print('************* REST *************')
                 offset += bytes_read
                 boundary += bytes_read
                 if offset >= bufsize:
