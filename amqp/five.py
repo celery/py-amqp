@@ -15,7 +15,7 @@ __all__ = ['Counter', 'reload', 'UserList', 'UserDict',
            'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
            'long_t', 'text_t', 'int_types', 'module_name_t',
            'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
-           'WhateverIO', 'with_metaclass', 'open_fqdn',
+           'WhateverIO', 'with_metaclass', 'open_fqdn', 'StringIO',
            'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
 
 import io
@@ -233,11 +233,12 @@ else:  # pragma: no cover
             s = s[:-3]
         return s + ','.join(reversed(groups))
 
-_SIO_write = io.StringIO.write
-_SIO_init = io.StringIO.__init__
+StringIO = io.StringIO
+_SIO_write = StringIO.write
+_SIO_init = StringIO.__init__
 
 
-class WhateverIO(io.StringIO):
+class WhateverIO(StringIO):
 
     def __init__(self, v=None, *a, **kw):
         _SIO_init(self, v.decode() if isinstance(v, bytes) else v, *a, **kw)
