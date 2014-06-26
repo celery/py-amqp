@@ -54,7 +54,7 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout, keepalive_settings=None):
+    def __init__(self, host, connect_timeout, socket_settings=None):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -97,7 +97,7 @@ class _AbstractTransport(object):
         try:
             self.sock.settimeout(None)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            self._set_socket_tcp_options(keepalive_settings)
+            self._set_socket_options(socket_settings)
             self._setup_transport()
 
             self._write(AMQP_PROTOCOL_HEADER)
@@ -118,35 +118,14 @@ class _AbstractTransport(object):
         finally:
             self.sock = None
 
-    def _set_socket_tcp_options(self, keepalive_settings):
+    def _set_socket_options(self, socket_settings):
         self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
 
-        if isinstance(keepalive_settings, dict):
-            self._check_and_set_tcp_opt(SOL_TCP,
-                                        socket.TCP_KEEPIDLE,
-                                        keepalive_settings.get('TCP_KEEPIDLE',
-                                        None))
-
-            self._check_and_set_tcp_opt(SOL_TCP,
-                                        socket.TCP_KEEPINTVL,
-                                        keepalive_settings.get('TCP_KEEPINTVL',
-                                        None))
-
-            self._check_and_set_tcp_opt(SOL_TCP,
-                                        socket.TCP_KEEPCNT,
-                                        keepalive_settings.get('TCP_KEEPCNT',
-                                        None))
-
-    def _check_and_set_tcp_opt(self, level, option, value):
-        if not value:
-            return
-
-        try:
-            value = int(value)
-            self.sock.setsockopt(level, option, value)
-        except (ValueError, TypeError):
-            # if the passed value is not an int we don't set the option
-            return
+        if socket_settings:
+            for opt in socket_settings:
+                family, option, value = opt
+                value = int(value)
+                self.sock.setsockopt(family, option, value)
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
@@ -212,12 +191,12 @@ class _AbstractTransport(object):
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
 
-    def __init__(self, host, connect_timeout, ssl, keepalive_settings=None):
+    def __init__(self, host, connect_timeout, ssl, socket_settings=None):
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER
         super(SSLTransport, self).__init__(host, connect_timeout,
-                                           keepalive_settings)
+                                           socket_settings)
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
@@ -281,9 +260,9 @@ class SSLTransport(_AbstractTransport):
 class TCPTransport(_AbstractTransport):
     """Transport that deals directly with TCP socket."""
 
-    def __init__(self, host, connect_timeout, keepalive_settings=None):
+    def __init__(self, host, connect_timeout, socket_settings=None):
         super(TCPTransport, self).__init__(host, connect_timeout,
-                                           keepalive_settings)
+                                           socket_settings)
 
     def _setup_transport(self):
         """Setup to _write() directly to the socket, and
@@ -316,10 +295,10 @@ class TCPTransport(_AbstractTransport):
 
 
 def create_transport(host, connect_timeout, ssl=False,
-                     keepalive_settings=None):
+                     socket_settings=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     if ssl:
-        return SSLTransport(host, connect_timeout, ssl, keepalive_settings)
+        return SSLTransport(host, connect_timeout, ssl, socket_settings)
     else:
-        return TCPTransport(host, connect_timeout, keepalive_settings)
+        return TCPTransport(host, connect_timeout, socket_settings)
