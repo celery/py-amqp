@@ -15,8 +15,8 @@ import os
 import sys
 import codecs
 
-if sys.version_info < (2, 6):
-    raise Exception('amqp requires Python 2.6 or higher.')
+if sys.version_info < (2, 7):
+    raise Exception('amqp requires Python 2.7 or higher.')
 
 NAME = 'amqp'
 entrypoints = {}
@@ -28,10 +28,10 @@ classes = """
     Development Status :: 5 - Production/Stable
     Programming Language :: Python
     Programming Language :: Python :: 2
-    Programming Language :: Python :: 2.6
     Programming Language :: Python :: 2.7
     Programming Language :: Python :: 3
     Programming Language :: Python :: 3.3
+    Programming Language :: Python :: 3.4
     License :: OSI Approved :: GNU Library or \
 Lesser General Public License (LGPL)
     Intended Audience :: Developers
