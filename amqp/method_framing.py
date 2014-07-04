@@ -205,45 +205,58 @@ def frame_writer(connection, transport, outbound,
         connection.bytes_sent += 1
 
 
-@coro
-def inbound_handler(conn, frames, bufsize=2 ** 17, readsize=2 ** 10,
-                    error=socket.error, unpack_from=unpack_from):
-    print('HELLO')
-    recv_into = conn.sock.recv_into
+from io import BytesIO
+import os
 
-    buf = bytearray(bufsize)
-    view = memoryview(buf)
+class Buffer(object):
+
+    def __init__(self, maxsize):
+        self.maxsize = maxsize
+        self.buf = BytesIO()
+        self.size = 0
+        self.offset = 0
+
+    def write(self, data):
+        self.buf.write(data)
+        self.size += len(data)
+
+    def read(self):
+        self.buf.seek(self.offset)
+        try:
+            return self.buf.read()
+        finally:
+            self.buf.seek(0, os.SEEK_END)
+
+    def consume(self, size):
+        self.offset += size
+        self.size -= size
+
+        if not self.size and self.offset >= self.maxsize:
+            self.buf.close()
+            self.buf = BytesIO()
+            self.offset = 0
+
+    def flush(self):
+        self.consume(self.size)
+
+    def __len__(self):
+        return self.size
+
+
+@coro
+def inbound_handler(conn, frames, bufsize=2 ** 19, readsize=2 ** 17,
+                    error=socket.error, unpack_from=unpack_from):
+    recv_into = conn.sock.recv_into
+    recv = conn.sock.recv
     need = 8
-    offset = 0
-    boundary = 0
+
+    buffer = Buffer(bufsize)
 
     while 1:
-        print('START')
         _ = (yield)  # noqa
-        print('OFFSET: %r' % (offset, ))
-        slice = None
-        slice = view[offset:]
-        if bufsize > 2 ** 17:
-            raise Exception('WTF WTF')
-        if not len(slice):
-            print('EXTEND: %r' %(readsize, ))
-            view = slice = None
-            del(view)
-            del(slice)
-            del(data)
-            buf.extend(bytearray(readsize))
-            bufsize += readsize
-            view = memoryview(buf)
-            print('BUFSIZE: %r OFFSET: %r X: %r' % (bufsize, offset,
-                len(view[offset:]), ))
-            slice = view[offset:]
-        print("SLICE: %r BUF: %r" % (len(slice), len(buf)))
-        print('@@@ BOUND: %r OFFSET: %r LEFT: %r' % (boundary, offset,
-            len(slice)))
         try:
-            print('+ BYTES READ!')
-            bytes_read = recv_into(slice)
-            print('- BYTES READ: %r' % (bytes_read, ))
+            R = recv(readsize)
+            bytes_read = len(R)
         except error as exc:
             if exc.errno not in _UNAVAIL:
                 raise
@@ -251,42 +264,29 @@ def inbound_handler(conn, frames, bufsize=2 ** 17, readsize=2 ** 10,
         if bytes_read == 0:
             raise ConnectionError('Connection broken')
 
-        frame_offset = 0
-        data = view[boundary:boundary + bytes_read + (offset - boundary)]
+        buffer.write(R)
+        data = buffer.read()
         bytes_have = len(data)
-        while bytes_have - frame_offset >= need:
-            frame_start_offset = frame_offset
-            frame_type, channel, size = unpack_from(
-                '>BHI', data, frame_offset,
-            )
-            frame_offset += 7
-            if bytes_have - frame_start_offset < size + 8:
-                if offset + size > bufsize:
-                    rest = data[frame_start_offset:].tobytes()
-                    buf[0:len(rest)] = rest
-                    boundary, offset = 0, len(rest)
-                else:
-                    boundary, need, offset = (
-                        offset + frame_start_offset, 8 + size, bytes_read,
-                    )
-                print('!!!!!!!!!!!BREAKING!!!!!!!!!!!')
-                break
-            assert data[frame_offset + size] == '\xCE'
-            need = 8
-            frames.append((
-                frame_type, channel,
-                data[frame_offset:frame_offset + size].tobytes(),
-            ))
-            frame_offset += size + 1
-            assert frame_offset == frame_start_offset + 8 + size
-        else:
-            rest = bytes_have - frame_offset
-            if rest:
-                print('************* REST *************')
-                offset += bytes_read
-                boundary += bytes_read
-                if offset >= bufsize:
-                    buf[0:rest] = data[frame_offset:].tobytes()
-                    boundary, offset = 0, rest
-            else:
-                boundary = offset = 0
+        if bytes_have >= need:
+            frame_offset = 0
+            while bytes_have - frame_offset >= need:
+                frame_start_offset = frame_offset
+                frame_type, channel, size = unpack_from(
+                    '>BHI', data, frame_offset,
+                )
+                frame_offset += 7
+                if bytes_have - frame_start_offset < size + 8:
+                    need, frame_offset = 8 + size, frame_start_offset
+                    break
+                print('FRAME OFFSET + SIZE: %r' % (frame_offset + size, ))
+                print('OFFSET: %r SIZE: %r DATA: %r' % (buffer.offset,
+                    buffer.size, len(data)))
+                assert data[frame_offset + size] == '\xCE'
+                need = 8
+                frames.append((
+                    frame_type, channel,
+                    data[frame_offset:frame_offset + size],
+                ))
+                frame_offset += size + 1
+                assert frame_offset == frame_start_offset + 8 + size
+            buffer.consume(frame_offset)
