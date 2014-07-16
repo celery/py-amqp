@@ -125,7 +125,7 @@ class SocketOptions(unittest.TestCase):
                                                      socket_settings)
 
     def test_passing_wrong_value_options(self):
-        socket_settings = {socket.TCP_KEEPINTVL: 'a'}
+        socket_settings = {socket.TCP_KEEPINTVL: 'a'.encode()}
         with self.assertRaises(socket.error):
             self.transp = transport.create_transport(self.host,
                                                      self.connect_timeout,
@@ -133,7 +133,7 @@ class SocketOptions(unittest.TestCase):
                                                      socket_settings)
 
     def test_passing_value_as_string(self):
-        socket_settings = {socket.TCP_KEEPIDLE: '5'}
+        socket_settings = {socket.TCP_KEEPIDLE: '5'.encode()}
         with self.assertRaises(socket.error):
             self.transp = transport.create_transport(self.host,
                                                      self.connect_timeout,

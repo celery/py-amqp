@@ -143,7 +143,7 @@ class _AbstractTransport(object):
 
         tcp_opts.update(socket_settings)
 
-        for opt, val in tcp_opts.iteritems():
+        for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):
