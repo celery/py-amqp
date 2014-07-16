@@ -49,6 +49,12 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
+# available socket options for TCP level
+TCP_OPTS = (socket.TCP_CORK, socket.TCP_DEFER_ACCEPT, socket.TCP_KEEPCNT,
+            socket.TCP_KEEPIDLE, socket.TCP_KEEPINTVL, socket.TCP_LINGER2,
+            socket.TCP_MAXSEG, socket.TCP_NODELAY, socket.TCP_QUICKACK,
+            socket.TCP_SYNCNT, socket.TCP_WINDOW_CLAMP)
+
 
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
@@ -118,14 +124,27 @@ class _AbstractTransport(object):
         finally:
             self.sock = None
 
-    def _set_socket_options(self, socket_settings):
-        self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+    def _get_tcp_socket_default(self):
+        tcp_default_opts = {}
+        for opt in TCP_OPTS:
+            tcp_default_opts[opt] = self.sock.getsockopt(SOL_TCP, opt)
 
-        if socket_settings:
-            for opt in socket_settings:
-                family, option, value = opt
-                value = int(value)
-                self.sock.setsockopt(family, option, value)
+        return tcp_default_opts
+
+    def _set_socket_options(self, socket_settings):
+        if not socket_settings:
+            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            return
+
+        tcp_opts = self._get_tcp_socket_default()
+
+        if socket.TCP_NODELAY not in socket_settings:
+            tcp_opts[socket.TCP_NODELAY] = 1
+
+        tcp_opts.update(socket_settings)
+
+        for opt, val in tcp_opts.iteritems():
+            self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""

@@ -156,10 +156,8 @@ class Connection(AbstractChannel):
         a dictionary of options to pass to ssl.wrap_socket() such as
         requiring certain certificates.
 
-        The 'socket_settings" parameter is a dictionary defining keepalive
+        The 'socket_settings" parameter is a dictionary defining tcp
         settings which will be applied as socket options.
-        We want to be able to set the following TCP_KEEPALIVE options:
-        socket.TCP_KEEPINTVL, socket.TCP_KEEPIDLE, socket.TCP_KEEPCNT
 
         """
         channel_max = channel_max or 65535
