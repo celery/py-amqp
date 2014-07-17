@@ -29,17 +29,17 @@ except ImportError:
 
 from . import __version__
 from . import spec
-from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (
     ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
+from .events import Events
 from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer, inbound_handler
 from .promise import Thenable, ensure_promise
-from .serialization import _write_table
+from .serialization import _write_table, dumps
 from .transport import _UNAVAIL, create_transport
 from .utils import get_logger
 
@@ -61,7 +61,7 @@ LIBRARY_PROPERTIES = {
 logger = get_logger(__name__)
 
 
-class Connection(AbstractChannel):
+class BaseConnection(object):
     """The connection class provides methods for a client to establish a
     network connection to a server, and for both peers to operate the
     connection thereafter.
@@ -179,10 +179,13 @@ class Connection(AbstractChannel):
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
 
-        self.channels = {}
-        # The connection object itself is treated as channel 0
-        super(Connection, self).__init__(self, 0)
+        self.channel_id = 0
+        # Callbacks and events
+        self.events = Events(self)
+        self.setup_listeners()
+        self.dispatch_method = self.events.dispatch_method
 
+        self.channels = {0: self}
         self.transport = None
 
         # Properties set in the Tune method
@@ -210,7 +213,6 @@ class Connection(AbstractChannel):
         # socket connection to the broker.
         #
         self._outbound = deque()
-        self._blocking = deque()
         self.transport = self.Transport(host, ssl)
         self.transport.connect(self._outbound, self._outbound_ready,
                                timeout=connect_timeout)
@@ -221,14 +223,20 @@ class Connection(AbstractChannel):
         self._read_frame = self._inbound_handler.send
         self.on_inbound_frame = self._frame_handler.send
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
     def fileno(self):
         return self.sock.fileno()
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
 
-    def _setup_listeners(self):
-        self._callbacks.update({
+    def setup_listeners(self):
+        self.events.update({
             spec.Connection.Start: self._on_start,
             spec.Connection.OpenOk: self._on_open_ok,
             spec.Connection.Secure: self._on_secure,
@@ -239,10 +247,34 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self, callback=None):
-        # XXX NOT ASYNC
-        while not self.on_open.ready:
-            self.drain_events()
+    def call_on(self, method, p):
+        self.events.call_on(method, p)
+
+    def add_listener(self, method, p):
+        self.events[method] = p
+
+    def remove_listener(self, method):
+        self.events.pop(method, None)
+
+    def dispatch_method(self, *args, **kwargs):
+        return self.events.dispatch_method(*args, **kwargs)
+
+    def maybe_wait(self, channel, method,
+                   callback=None, returns_tuple=False, filter=None):
+        return self._maybe_wait(channel, method, ensure_promise(callback),
+                                returns_tuple, filter)
+
+    def send_method(self, channel, sig,
+                    format=None, args=None, content=None,
+                    wait=None, on_sent=None, callback=None):
+        on_sent = ensure_promise(on_sent) if not wait else on_sent
+        args = dumps(format, args) if format else ''
+        self._frame_writer.send((
+            1, channel.channel_id, sig, args, content, on_sent,
+        ))
+        if wait:
+            return self.maybe_wait(channel, wait, callback)
+        return on_sent
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
@@ -268,7 +300,7 @@ class Connection(AbstractChannel):
             cap['connection.blocked'] = True
 
         self.send_method(
-            spec.Connection.StartOk, argsig,
+            self, spec.Connection.StartOk, argsig,
             (client_properties, self.login_method,
              self.login_response, self.locale),
         )
@@ -294,17 +326,18 @@ class Connection(AbstractChannel):
             self.heartbeat = 0
 
         self.send_method(
-            spec.Connection.TuneOk, argsig,
+            self, spec.Connection.TuneOk, argsig,
             (self.channel_max, self.frame_max, self.heartbeat),
             on_sent=self._on_tune_sent,
         )
 
     def _on_tune_sent(self, argsig='ssb'):
         self.send_method(
-            spec.Connection.Open, argsig, (self.virtual_host, '', False),
+            self, spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
     def _on_open_ok(self):
+        print('CONNECTION NOW OPEN')
         self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
@@ -327,6 +360,7 @@ class Connection(AbstractChannel):
         except socket.error:
             pass  # connection already closed on the other end
         finally:
+            self.events.cleanup()
             self.transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
@@ -351,6 +385,8 @@ class Connection(AbstractChannel):
             return self.channels[channel_id]
         except KeyError:
             p = self.Channel(self, channel_id, on_open=callback)
+            print('CREATE CHANNEL: %r' % (p.channel_id, ))
+            self.channels[p.channel_id] = p
             if callback:
                 p.then(callback)
             return p
@@ -360,9 +396,6 @@ class Connection(AbstractChannel):
 
     def inbound_method(self, channel_id, method_sig, payload, content):
         self.channels[channel_id].dispatch_method(method_sig, payload, content)
-
-    def drain_events(self, timeout=None):
-        return self.blocking_read(timeout)
 
     def on_readable(self, _unavail=_UNAVAIL):
         frames = self._inbound
@@ -387,18 +420,18 @@ class Connection(AbstractChannel):
             method_sig = unpack_from('>HH', frame, 7)
             print(
                 'METHOD: %r CHANNEL: %r LEN: %r' % (
-                METHOD_NAME_MAP[method_sig], channel, framelen,
-            ))
+                    METHOD_NAME_MAP[method_sig], channel, framelen),
+            )
         else:
-            print('FRAME: %r CHANNEL: %r LEN: %r' %(
-                         type_, channel, framelen))
+            print('FRAME: %r CHANNEL: %r LEN: %r' % (
+                type_, channel, framelen))
 
     def on_writable(self):
         outbound = self._outbound
         if outbound:
             buf, borrowed, callback = outbound.popleft()
-            print('WRITE: BOR: %r CB: %r -> %r' % (borrowed, callback,
-                len(buf), ))
+            print('WRITE: BOR: %r CB: %r -> %r' % (
+                borrowed, callback, len(buf)))
             self._debug_outgoing_frame(buf)
             try:
                 bytes_sent = self.sock.send(buf)
@@ -429,50 +462,15 @@ class Connection(AbstractChannel):
                 frame, borrowed, callback = self._outbound.popleft()
                 self.transport.write(frame)
                 if borrowed:
-                    self.buffers.appendleft(buf)
+                    self.buffers.appendleft(frame)
                 if callback:
-                    self._blocking.append(callback)
+                    self._dispatch_outbound_callback(callback)
+
+    def _dispatch_outbound_callback(self, callback):
+        callback()
 
     def _outbound_empty(self):
         self.loop.remove_writer(self.sock.fileno())
-
-    def _call_pending_blocking_callbacks(self):
-        while self._blocking:
-            callback = self._blocking.popleft()
-            callback()
-
-    def blocking_read(self, timeout=None):
-        if timeout is None:
-            self._read_frame(None)
-            while self._inbound:
-                self.on_inbound_frame(self._inbound.popleft())
-            self._call_pending_blocking_callbacks()
-            return
-
-        # XXX use select
-        sock = self.sock
-        prev = sock.gettimeout()
-        if prev != timeout:
-            sock.settimeout(timeout)
-        try:
-            try:
-                self._read_frame(None)
-            except SSLError as exc:
-                # http://bugs.python.org/issue10272
-                if 'timed out' in str(exc):
-                    raise socket.timeout()
-                # Non-blocking SSL sockets can throw SSLError
-                if 'The operation did not complete' in str(exc):
-                    raise socket.timeout()
-                raise
-            else:
-                while self._inbound:
-                    self.on_inbound_frame(self._inbound.popleft())
-        finally:
-            if prev != timeout:
-                sock.settimeout(prev)
-
-        self._call_pending_blocking_callbacks()
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         return self.channels[channel_id].dispatch_method(
@@ -544,7 +542,7 @@ class Connection(AbstractChannel):
             return
 
         return self.send_method(
-            spec.Connection.Close, argsig,
+            self, spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
             wait=spec.Connection.CloseOk,
         )
@@ -630,7 +628,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, on_sent=self._do_close)
+        self.send_method(self, spec.Connection.CloseOk, on_sent=self._do_close)
 
     def _on_close_ok(self):
         """Confirm a connection close
@@ -688,4 +686,80 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
-Thenable.register(Connection)
+
+
+class AsynConnection(BaseConnection):
+
+    def connect(self):
+        pass
+
+    def _maybe_wait(self, channel, method, callback, returns_tuple, filter):
+        return channel.events.call_on(method, callback)
+Thenable.register(AsynConnection)
+
+
+class BlockingConnection(BaseConnection):
+
+    def __init__(self, *args, **kwargs):
+        self._blocking = deque()
+        super(BlockingConnection, self).__init__(*args, **kwargs)
+
+    def connect(self):
+        while not self.on_open.ready:
+            self.drain_events()
+
+    def _maybe_wait(self, channel, method, callback, returns_tuple, filter):
+        with channel.events.save_and_set_pending_for(method, callback):
+            while not callback.ready:
+                self.drain_events()
+
+            if callback.value:
+                args, kwargs = callback.value
+                if returns_tuple:
+                    return filter(*args) if filter else args
+                if args:
+                    return filter(args[0]) if filter else args[0]
+
+    def drain_events(self, timeout=None):
+        if timeout is None:
+            self._read_frame(None)
+            while self._inbound:
+                self.on_inbound_frame(self._inbound.popleft())
+            self._call_pending_blocking_callbacks()
+            return
+
+        # XXX use select
+        sock = self.sock
+        prev = sock.gettimeout()
+        if prev != timeout:
+            sock.settimeout(timeout)
+        try:
+            try:
+                self._read_frame(None)
+            except SSLError as exc:
+                # http://bugs.python.org/issue10272
+                if 'timed out' in str(exc):
+                    raise socket.timeout()
+                # Non-blocking SSL sockets can throw SSLError
+                if 'The operation did not complete' in str(exc):
+                    raise socket.timeout()
+                raise
+            else:
+                while self._inbound:
+                    self.on_inbound_frame(self._inbound.popleft())
+        finally:
+            if prev != timeout:
+                sock.settimeout(prev)
+
+        self._call_pending_blocking_callbacks()
+
+    def _dispatch_outbound_callback(self, callback):
+        self._blocking.append(callback)
+
+    def _call_pending_blocking_callbacks(self):
+        while self._blocking:
+            callback = self._blocking.popleft()
+            callback()
+Thenable.register(BlockingConnection)
+
+Connection = AsynConnection

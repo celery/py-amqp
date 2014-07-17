@@ -498,18 +498,6 @@ class GenericContent(object):
         self.body_size = 0
         self.ready = False
 
-    def __getattr__(self, name):
-        """Look for additional properties in the 'properties'
-        dictionary, and if present - the 'delivery_info'
-        dictionary."""
-        if name == '__setstate__':
-            # Allows pickling/unpickling to work
-            raise AttributeError('__setstate__')
-
-        if name in self.properties:
-            return self.properties[name]
-        raise AttributeError(name)
-
     def _load_properties(self, class_id, buf, offset=0,
                          classes=PROPERTY_CLASSES, unpack_from=unpack_from):
         """Given the raw bytes containing the property-flags and property-list

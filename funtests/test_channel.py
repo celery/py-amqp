@@ -75,7 +75,7 @@ class TestChannel(unittest.TestCase):
         msg2 = self.ch.basic_get(qname, no_ack=True)
         if sys.version_info[0] < 3:
             self.assertFalse(hasattr(msg2, 'content_encoding'))
-        self.assertTrue(isinstance(msg2.body, str))
+        self.assertTrue(isinstance(msg2.body, bytes))
         self.assertEqual(msg2.body, 'hello world')
 
         #
@@ -85,8 +85,8 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'UTF-8')
-        self.assertTrue(isinstance(msg2.body, unicode))
-        self.assertEqual(msg2.body, u'hello world')
+        self.assertTrue(isinstance(msg2.body, bytes))
+        self.assertEqual(msg2.body, 'hello world')
 
         #
         # Explicit latin_1 encoding, still comes back as unicode
@@ -95,7 +95,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertTrue(isinstance(msg2.body, bytes))
         self.assertEqual(msg2.body, u'hello world')
 
         #
@@ -105,8 +105,8 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
-        self.assertEqual(msg2.body, u'hello w\u00f6rld')
+        self.assertTrue(isinstance(msg2.body, bytes))
+        self.assertEqual(msg2.body, 'hello w\xf6rld')
 
         #
         # Plain string (bytes in Python 3.x) with bogus encoding
@@ -120,11 +120,6 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(msg2.content_encoding, 'I made this up')
         self.assertTrue(isinstance(msg2.body, bytes))
         self.assertEqual(msg2.body, test_bytes)
-
-        #
-        # Turn off auto_decode for remaining tests
-        #
-        self.ch.auto_decode = False
 
         #
         # Unicode body comes back as utf-8 encoded str

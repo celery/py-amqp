@@ -249,7 +249,7 @@ class promise(object):
             callback.cancel()
             return callback
         if self.failed:
-            Callback.throw(self.reason)
+            callback.throw(self.reason)
         elif self.ready:
             args, kwargs = self.value
             callback(*args, **kwargs)

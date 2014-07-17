@@ -16,16 +16,16 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-import logging
-
-from collections import defaultdict
 from warnings import warn
 
 from . import spec
-from .abstract_channel import AbstractChannel
-from .exceptions import ChannelError, ConsumerCancelled, error_for_code
+from .events import Events
+from .exceptions import (
+    ChannelError, ConsumerCancelled, RecoverableConnectionError,
+    error_for_code,
+)
 from .five import Queue
-from .promise import Thenable, ensure_promise
+from .promise import Thenable, ensure_promise, promise
 from .protocol import queue_declare_ok_t
 from .utils import get_logger
 
@@ -43,7 +43,7 @@ class VDeprecationWarning(DeprecationWarning):
     pass
 
 
-class Channel(AbstractChannel):
+class Channel(object):
     """Work with channels
 
     The channel class provides methods for a client to establish a
@@ -94,34 +94,27 @@ class Channel(AbstractChannel):
     _METHODS = dict((m.method_sig, m) for m in _METHODS)
 
     def __init__(self, connection,
-                 channel_id=None, auto_decode=True, on_open=None):
+                 channel_id=None, on_open=None):
         """Create a channel bound to a connection and using the specified
-        numeric channel_id, and open on the server.
-
-        The 'auto_decode' parameter (defaults to True), indicates
-        whether the library should attempt to decode the body
-        of Messages to a Unicode string if there's a 'content_encoding'
-        property for the message.  If there's no 'content_encoding'
-        property, or the decode raises an Exception, the message body
-        is left as plain bytes.
-
-        """
+        numeric channel_id, and open on the server."""
         if channel_id:
             connection._claim_channel_id(channel_id)
         else:
             channel_id = connection._get_free_channel_id()
 
         logger.debug('using channel_id: %d', channel_id)
+        self.channel_id = channel_id
+        self.connection = connection
 
-        super(Channel, self).__init__(connection, channel_id)
+        self.events = Events(self)
+        self.setup_listeners()
+        self.dispatch_method = self.events.dispatch_method
 
         self.is_open = False
         self.active = True  # Flow control
         self.returned_messages = Queue()
         self.callbacks = {}
         self.cancel_callbacks = {}
-        self.auto_decode = auto_decode
-        self.events = defaultdict(set)
         self.no_ack_consumers = set()
 
         self.on_open = ensure_promise(on_open)
@@ -137,8 +130,23 @@ class Channel(AbstractChannel):
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
 
-    def _setup_listeners(self):
-        self._callbacks.update({
+    def call_on(self, method, p):
+        self.events.call_on(method, p)
+
+    def add_listener(self, method, p):
+        self.events[method] = p
+
+    def remove_listener(self, method):
+        self.events.pop(method, None)
+
+    def maybe_wait(self, *args, **kwargs):
+        return self.connection.maybe_wait(self, *args, **kwargs)
+
+    def dispatch_method(self, *args, **kwargs):
+        return self.events.dispatch_method(*args, **kwargs)
+
+    def setup_listeners(self):
+        self.events.update({
             spec.Channel.Close: self._on_close,
             spec.Channel.CloseOk: self._on_close_ok,
             spec.Channel.Flow: self._on_flow,
@@ -149,6 +157,12 @@ class Channel(AbstractChannel):
             spec.Basic.Return: self._on_basic_return,
             spec.Basic.Ack: self._on_basic_ack,
         })
+
+    def send_method(self, *args, **kwargs):
+        conn = self.connection
+        if conn is None:
+            raise RecoverableConnectionError('connection already closed')
+        return conn.send_method(self, *args, **kwargs)
 
     def _do_close(self):
         """Tear down this object, after we've agreed to close
@@ -162,7 +176,7 @@ class Channel(AbstractChannel):
             connection._avail_channel_ids.append(channel_id)
         self.callbacks.clear()
         self.cancel_callbacks.clear()
-        self.events.clear()
+        self.events.cleanup()
         self.no_ack_consumers.clear()
 
     def _do_revive(self):
@@ -1114,7 +1128,7 @@ class Channel(AbstractChannel):
         )
         if nowait:
             return p
-        return self.wait(
+        return self.maybe_wait(
             spec.Queue.DeclareOk, returns_tuple=True,
             filter=queue_declare_ok_t, callback=callback,
         )
@@ -1538,25 +1552,27 @@ class Channel(AbstractChannel):
 
         """
 
-        p = self.send_method(
+        on_consume_ready = promise(
+            self._on_consume_ready, (callback, on_cancel, no_ack, ),
+        )
+        if on_reply:
+            on_consume_ready.then(on_reply)
+
+        return self.send_method(
             spec.Basic.Consume, argsig,
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
              nowait, arguments),
-            on_sent=on_sent, callback=on_reply,
+            on_sent=on_sent, callback=on_consume_ready,
             wait=None if nowait else spec.Basic.ConsumeOk,
         )
 
-        # XXX Fix this hack
-        if not nowait and not consumer_tag:
-            consumer_tag = p
-
+    def _on_consume_ready(self, callback, on_cancel, no_ack, consumer_tag):
         self.callbacks[consumer_tag] = callback
 
         if on_cancel:
             self.cancel_callbacks[consumer_tag] = on_cancel
         if no_ack:
             self.no_ack_consumers.add(consumer_tag)
-        return p
 
     def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
                           exchange, routing_key, msg):
@@ -1712,7 +1728,7 @@ class Channel(AbstractChannel):
             self._confirm_selected = True
             self.confirm_select()
         ret = self._basic_publish(*args, **kwargs)
-        self.wait(spec.Basic.Ack)
+        self.maybe_wait(spec.Basic.Ack)
         return ret
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
@@ -1934,14 +1950,9 @@ class Channel(AbstractChannel):
                 message was published.
 
         """
-        exc = error_for_code(
+        raise error_for_code(
             reply_code, reply_text, spec.Basic.Return, ChannelError,
         )
-        handlers = self.events.get('basic_return')
-        if not handlers:
-            raise exc
-        for callback in handlers:
-            callback(exc, exchange, routing_key, message)
 
     #############
     #
@@ -2027,6 +2038,5 @@ class Channel(AbstractChannel):
         )
 
     def _on_basic_ack(self, delivery_tag, multiple):
-        for callback in self.events['basic_ack']:
-            callback(delivery_tag, multiple)
+        pass
 Thenable.register(Channel)
