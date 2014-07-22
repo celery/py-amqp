@@ -58,6 +58,8 @@ class Events(object):
         get_listener = self._listeners.__getitem__
         reserve_pending = self._pending.pop
 
+        from amqp.exceptions import METHOD_NAME_MAP
+
         def dispatch(method_sig, payload, content):
             try:
                 amqp_method = get_method(method_sig)
@@ -83,7 +85,6 @@ class Events(object):
                 args.append(content)
 
             for callback in callbacks:
-                print('CALLING: %r' % (callback, ))
                 callback(*args)
         return dispatch
 

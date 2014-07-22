@@ -125,8 +125,6 @@ class Channel(object):
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
 
-        self._x_open()
-
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
 
@@ -181,7 +179,7 @@ class Channel(object):
 
     def _do_revive(self):
         self.is_open = False
-        self._x_open()
+        self.open()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BsBB', on_sent=None, callback=None):
@@ -367,7 +365,7 @@ class Channel(object):
         self.active = active
         self.send_method(spec.Channel.FlowOk, 'b', (active, ))
 
-    def _x_open(self):
+    def open(self):
         """Open a channel for use
 
         This method opens a virtual connection (a channel).
@@ -1121,6 +1119,10 @@ class Channel(object):
             consumer count
 
         """
+        on_ready = None
+        if callback:
+            on_ready = promise()
+            on_ready.then(callback)  # Need the original args passed for filter
         p = self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
@@ -1130,7 +1132,7 @@ class Channel(object):
             return p
         return self.maybe_wait(
             spec.Queue.DeclareOk, returns_tuple=True,
-            filter=queue_declare_ok_t, callback=callback,
+            filter=queue_declare_ok_t, callback=on_ready,
         )
 
     def queue_delete(self, queue='', if_unused=False, if_empty=False,
@@ -1551,7 +1553,6 @@ class Channel(object):
                 be set to True in that case.
 
         """
-
         on_consume_ready = promise(
             self._on_consume_ready, (callback, on_cancel, no_ack, ),
         )
@@ -1716,6 +1717,7 @@ class Channel(object):
                     The server SHOULD implement the immediate flag.
 
         """
+        print('BASIC PUBLISH: %r' % (msg, ))
         return self.send_method(
             spec.Basic.Publish, argsig,
             (0, exchange, routing_key, mandatory, immediate), msg,

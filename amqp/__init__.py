@@ -29,10 +29,10 @@ __docformat__ = 'restructuredtext'
 #
 # Pull in the public items from the various sub-modules
 #
-from .basic_message import Message      # noqa
+from .basic_message import Message                                      # noqa
 from .channel import Channel            # noqa
-from .connection import Connection      # noqa
-from .exceptions import (               # noqa
+from .connection import AsynConnection, BlockingConnection, Connection  # noqa
+from .exceptions import (                                               # noqa
     AMQPError,
     ConnectionError,
     RecoverableConnectionError,
@@ -61,9 +61,11 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
-from .promise import promise, barrier, maybe_promise  # noqa
+from .promise import promise, barrier, maybe_promise                    # noqa
 
 __all__ = [
+    'AsynConnection',
+    'BlockingConnection',
     'Connection',
     'Channel',
     'Message',

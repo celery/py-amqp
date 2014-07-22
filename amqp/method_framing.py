@@ -46,13 +46,13 @@ _CONTENT_METHODS = frozenset([
 ])
 
 
-@coro
 def frame_handler(connection, callback,
                   unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
-    while 1:
-        frame_type, channel, buf = yield
+
+    def on_frame(frame):
+        frame_type, channel, buf = frame
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
             raise UnexpectedFrame(
@@ -95,6 +95,8 @@ def frame_handler(connection, callback,
         elif frame_type == 8:
             # bytes_recv already updated
             pass
+
+    return on_frame
 
 
 @coro
@@ -198,7 +200,6 @@ def frame_writer(connection, transport, outbound,
                           3, channel, framelen, body, 0xce)
                 offset += 8 + framelen
 
-            #print('FRAME: %r' % (view[:offset].tobytes(), ))
             write((view[:offset], borrowed, callback))
         outbound_ready()
 
@@ -243,17 +244,15 @@ class Buffer(object):
         return self.size
 
 
-@coro
 def inbound_handler(conn, frames, bufsize=2 ** 19, readsize=2 ** 17,
                     error=socket.error, unpack_from=unpack_from):
     recv_into = conn.sock.recv_into
     recv = conn.sock.recv
-    need = 8
+    need = [8]
 
     buffer = Buffer(bufsize)
 
-    while 1:
-        _ = (yield)  # noqa
+    def on_readable():
         try:
             R = recv(readsize)
             bytes_read = len(R)
@@ -267,22 +266,19 @@ def inbound_handler(conn, frames, bufsize=2 ** 19, readsize=2 ** 17,
         buffer.write(R)
         data = buffer.read()
         bytes_have = len(data)
-        if bytes_have >= need:
+        if bytes_have >= need[0]:
             frame_offset = 0
-            while bytes_have - frame_offset >= need:
+            while bytes_have - frame_offset >= need[0]:
                 frame_start_offset = frame_offset
                 frame_type, channel, size = unpack_from(
                     '>BHI', data, frame_offset,
                 )
                 frame_offset += 7
                 if bytes_have - frame_start_offset < size + 8:
-                    need, frame_offset = 8 + size, frame_start_offset
+                    need[0], frame_offset = 8 + size, frame_start_offset
                     break
-                print('FRAME OFFSET + SIZE: %r' % (frame_offset + size, ))
-                print('OFFSET: %r SIZE: %r DATA: %r' % (buffer.offset,
-                    buffer.size, len(data)))
                 assert data[frame_offset + size] == '\xCE'
-                need = 8
+                need[0] = 8
                 frames.append((
                     frame_type, channel,
                     data[frame_offset:frame_offset + size],
@@ -290,3 +286,4 @@ def inbound_handler(conn, frames, bufsize=2 ** 19, readsize=2 ** 17,
                 frame_offset += size + 1
                 assert frame_offset == frame_start_offset + 8 + size
             buffer.consume(frame_offset)
+    return on_readable

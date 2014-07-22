@@ -295,6 +295,12 @@ class promise(object):
                     raise
                 raise exc
 
+    @property
+    def listeners(self):
+        if self._lvpending:
+            return self._lvpending
+        return self._svpending
+
     def throw(self, exc=None):
         if exc is None:
             return self.set_error_state()

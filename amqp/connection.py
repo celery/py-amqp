@@ -59,6 +59,7 @@ LIBRARY_PROPERTIES = {
 }
 
 logger = get_logger(__name__)
+debug = logger.debug
 
 
 class BaseConnection(object):
@@ -145,7 +146,7 @@ class BaseConnection(object):
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
-                 on_tune_ok=None, **kwargs):
+                 on_tune_ok=None, loop=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -196,6 +197,7 @@ class BaseConnection(object):
         self.confirm_publish = confirm_publish
 
         # Callbacks
+        self._blocking = deque()
         self.on_blocked = on_blocked
         self.on_unblocked = on_unblocked
         self.on_open = ensure_promise(on_open)
@@ -216,12 +218,16 @@ class BaseConnection(object):
         self.transport = self.Transport(host, ssl)
         self.transport.connect(self._outbound, self._outbound_ready,
                                timeout=connect_timeout)
-        self._frame_handler = frame_handler(self, self.on_inbound_method)
+        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport, self._outbound)
         self._inbound = deque()
-        self._inbound_handler = inbound_handler(self, self._inbound)
-        self._read_frame = self._inbound_handler.send
-        self.on_inbound_frame = self._frame_handler.send
+        self._read_frame = inbound_handler(self, self._inbound)
+        if loop:
+            self._on_loop_set(loop)
+        self.connect()
+
+    def _on_loop_set(self, loop):
+        pass
 
     def __enter__(self):
         return self
@@ -273,6 +279,7 @@ class BaseConnection(object):
             1, channel.channel_id, sig, args, content, on_sent,
         ))
         if wait:
+            print('WAIT ========= %r' % (self._maybe_wait, ))
             return self.maybe_wait(channel, wait, callback)
         return on_sent
 
@@ -337,7 +344,6 @@ class BaseConnection(object):
         )
 
     def _on_open_ok(self):
-        print('CONNECTION NOW OPEN')
         self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
@@ -385,10 +391,10 @@ class BaseConnection(object):
             return self.channels[channel_id]
         except KeyError:
             p = self.Channel(self, channel_id, on_open=callback)
-            print('CREATE CHANNEL: %r' % (p.channel_id, ))
             self.channels[p.channel_id] = p
             if callback:
                 p.then(callback)
+            p.open()
             return p
 
     def is_alive(self):
@@ -402,7 +408,7 @@ class BaseConnection(object):
         if not self.connected:
             raise ConnectionError('Connection lost')
         try:
-            self._read_frame(None)
+            self._read_frame()
         except socket.timeout:
             raise
         except (socket.error, IOError) as exc:
@@ -418,20 +424,18 @@ class BaseConnection(object):
         type_, channel, framelen = unpack_from('>BHI', frame)
         if type_ == 1:
             method_sig = unpack_from('>HH', frame, 7)
-            print(
+            debug(
                 'METHOD: %r CHANNEL: %r LEN: %r' % (
                     METHOD_NAME_MAP[method_sig], channel, framelen),
             )
         else:
-            print('FRAME: %r CHANNEL: %r LEN: %r' % (
+            debug('FRAME: %r CHANNEL: %r LEN: %r' % (
                 type_, channel, framelen))
 
     def on_writable(self):
         outbound = self._outbound
         if outbound:
             buf, borrowed, callback = outbound.popleft()
-            print('WRITE: BOR: %r CB: %r -> %r' % (
-                borrowed, callback, len(buf)))
             self._debug_outgoing_frame(buf)
             try:
                 bytes_sent = self.sock.send(buf)
@@ -687,28 +691,20 @@ class BaseConnection(object):
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
 
+    def setblocking(self, blocking):
+        print('SETBLOCKING: %r' % (blocking, ))
+        if blocking:
+            self._maybe_wait = self._wait_block
+            self.sock.setblocking(1)
+        else:
+            self._maybe_wait = self._wait_async
+            self.sock.setblocking(0)
 
-class AsynConnection(BaseConnection):
-
-    def connect(self):
-        pass
-
-    def _maybe_wait(self, channel, method, callback, returns_tuple, filter):
+    def _wait_async(self, channel, method, callback, returns_tuple, filter):
         return channel.events.call_on(method, callback)
-Thenable.register(AsynConnection)
 
-
-class BlockingConnection(BaseConnection):
-
-    def __init__(self, *args, **kwargs):
-        self._blocking = deque()
-        super(BlockingConnection, self).__init__(*args, **kwargs)
-
-    def connect(self):
-        while not self.on_open.ready:
-            self.drain_events()
-
-    def _maybe_wait(self, channel, method, callback, returns_tuple, filter):
+    def _wait_block(self, channel, method, callback, returns_tuple, filter):
+        from amqp.exceptions import METHOD_NAME_MAP
         with channel.events.save_and_set_pending_for(method, callback):
             while not callback.ready:
                 self.drain_events()
@@ -721,8 +717,11 @@ class BlockingConnection(BaseConnection):
                     return filter(args[0]) if filter else args[0]
 
     def drain_events(self, timeout=None):
+        print('DRAIN EVENTS')
+        #import traceback
+        #traceback.print_stack()
         if timeout is None:
-            self._read_frame(None)
+            self._read_frame()
             while self._inbound:
                 self.on_inbound_frame(self._inbound.popleft())
             self._call_pending_blocking_callbacks()
@@ -735,7 +734,7 @@ class BlockingConnection(BaseConnection):
             sock.settimeout(timeout)
         try:
             try:
-                self._read_frame(None)
+                self._read_frame()
             except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
@@ -760,6 +759,31 @@ class BlockingConnection(BaseConnection):
         while self._blocking:
             callback = self._blocking.popleft()
             callback()
+
+    def register_with_event_loop(self, loop):
+        print('REGISTER WITH EVENT LOOP: %r' % (loop, ))
+        self.loop = loop
+        self.setblocking(0)
+        loop.add_reader(self.sock, self.on_readable)
+
+
+class AsynConnection(BaseConnection):
+    _maybe_wait = BaseConnection._wait_async
+
+    def connect(self):
+        pass
+
+    def _on_loop_set(self, loop):
+        self.register_with_event_loop(loop)
+Thenable.register(AsynConnection)
+
+
+class BlockingConnection(BaseConnection):
+    _maybe_wait = BaseConnection._wait_block
+
+    def connect(self):
+        while not self.on_open.ready:
+            self.drain_events()
 Thenable.register(BlockingConnection)
 
-Connection = AsynConnection
+Connection = BlockingConnection
