@@ -149,11 +149,16 @@ class _AbstractTransport(object):
 
     def read_frame(self, unpack=unpack):
         read = self._read
+        read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_type, channel, size = unpack('>BHI', read(7, True))
+            frame_header = read(7, True)
+            read_frame_buffer += frame_header
+            frame_type, channel, size = unpack('>BHI', frame_header)
             payload = read(size)
+            read_frame_buffer += payload
             ch = ord(read(1))
         except socket.timeout:
+            self._read_buffer = read_frame_buffer + self._read_buffer
             raise
         except (OSError, IOError, socket.error) as exc:
             # Don't disconnect for ssl read time outs
