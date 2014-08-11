@@ -61,7 +61,7 @@ class Channel(AbstractChannel):
 
     """
     _METHODS = set([
-        spec.method(spec.Channel.Close, 'ssBB'),
+        spec.method(spec.Channel.Close, 'BsBB'),
         spec.method(spec.Channel.CloseOk),
         spec.method(spec.Channel.Flow, 'b'),
         spec.method(spec.Channel.FlowOk, 'b'),
