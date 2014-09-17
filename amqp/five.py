@@ -233,7 +233,7 @@ else:  # pragma: no cover
             s = s[:-3]
         return s + ','.join(reversed(groups))
 
-StringIO = io.StringIO
+StringIO = io.BytesIO
 _SIO_write = StringIO.write
 _SIO_init = StringIO.__init__
 
@@ -241,7 +241,7 @@ _SIO_init = StringIO.__init__
 class WhateverIO(StringIO):
 
     def __init__(self, v=None, *a, **kw):
-        _SIO_init(self, v.decode() if isinstance(v, bytes) else v, *a, **kw)
+        _SIO_init(self, v.encode() if not isinstance(v, bytes) else v, *a, **kw)
 
     def write(self, data):
-        _SIO_write(self, data.decode() if isinstance(data, bytes) else data)
+        _SIO_write(self, data.encode() if not isinstance(data, bytes) else data)
