@@ -168,7 +168,7 @@ class Channel(AbstractChannel):
         self.is_open = False
         self._x_open()
 
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
+    def close(self, reply_code=0, reply_text=b'', method_sig=(0, 0),
               argsig='BsBB'):
         """Request a channel close
 
