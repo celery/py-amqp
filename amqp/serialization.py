@@ -53,6 +53,9 @@ ILLEGAL_TABLE_TYPE = """\
 
 def _read_item(buf, offset=0, unpack_from=unpack_from):
     ftype = buf[offset]
+    if IS_PY3K:
+        ftype = chr(ftype)
+
     offset += 1
 
     # 'S': long string
