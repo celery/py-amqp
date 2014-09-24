@@ -210,9 +210,8 @@ class Connection(AbstractChannel):
         # socket connection to the broker.
         #
         self.transport = self.Transport(host, connect_timeout, ssl)
-        self._frame_handler = frame_handler(self, self.on_inbound_method)
+        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
-        self.on_inbound_frame = self._frame_handler.send
 
         self.connect()
 

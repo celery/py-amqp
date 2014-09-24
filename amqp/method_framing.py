@@ -39,13 +39,13 @@ _CONTENT_METHODS = frozenset([
 ])
 
 
-@coro
 def frame_handler(connection, callback,
                   unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
-    while 1:
-        frame_type, channel, buf = yield
+
+    def on_frame(frame):
+        frame_type, channel, buf = frame
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
             raise UnexpectedFrame(
@@ -86,6 +86,8 @@ def frame_handler(connection, callback,
         elif frame_type == 8:
             # bytes_recv already updated
             pass
+
+    return on_frame
 
 
 @coro
