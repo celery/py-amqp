@@ -5,6 +5,22 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-1.4.6:
+
+1.4.6
+=====
+:release-date: 2014-08-11 06:00 P.M UTC
+:release-by: Ask Solem
+
+- Now keeps buffer when socket times out.
+
+    Fix contributed by Artyom Koval.
+
+- Adds ``Connection.Transport`` attribute that can be used to specify
+  a different transport implementation.
+
+    Contributed by Yury Selivanov.
+
 .. _version-1.4.5:
 
 1.4.5
