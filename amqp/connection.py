@@ -145,7 +145,8 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 **kwargs):
+                 keepalive_idle=None, keepalive_interval=None,
+                 keepalive_count=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -213,7 +214,10 @@ class Connection(AbstractChannel):
         # socket connection to the broker.
         #
         self.transport = self.Transport(
-            host, connect_timeout, ssl, write_timeout, read_timeout,
+            host, connect_timeout, ssl, read_timeout, write_timeout,
+            keepalive_idle=keepalive_idle,
+            keepalive_interval=keepalive_interval,
+            keepalive_count=keepalive_count,
         )
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
@@ -308,9 +312,15 @@ class Connection(AbstractChannel):
         pass
 
     def Transport(self, host, connect_timeout,
-                  ssl=False, write_timeout=None, read_timeout=None):
+                  ssl=False, read_timeout=None, write_timeout=None,
+                  keepalive_idle=None,
+                  keepalive_interval=None,
+                  keepalive_count=None):
         return create_transport(
-            host, connect_timeout, ssl, write_timeout, read_timeout,
+            host, connect_timeout, ssl, read_timeout, write_timeout,
+            keepalive_idle=keepalive_idle,
+            keepalive_interval=keepalive_interval,
+            keepalive_count=keepalive_count,
         )
 
     @property
