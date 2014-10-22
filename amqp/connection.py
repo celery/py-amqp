@@ -556,7 +556,10 @@ class Connection(AbstractChannel):
         self._do_close()
 
     def send_heartbeat(self):
-        self._frame_writer.send((8, 0, None, None, None))
+        try:
+            self._frame_writer.send((8, 0, None, None, None))
+        except StopIteration:
+            raise RecoverableConnectionError('connection already closed')
 
     def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
