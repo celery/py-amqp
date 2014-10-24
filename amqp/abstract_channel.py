@@ -56,7 +56,11 @@ class AbstractChannel(object):
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
-        conn._frame_writer.send((1, self.channel_id, sig, args, content))
+        try:
+            conn._frame_writer.send((1, self.channel_id, sig, args, content))
+        except StopIteration:
+            raise RecoverableConnectionError('connection already closed')
+
         # TODO temp: callback should be after write_method ... ;)
         if callback:
             p.then(callback)

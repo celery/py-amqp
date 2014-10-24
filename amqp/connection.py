@@ -210,9 +210,8 @@ class Connection(AbstractChannel):
         # socket connection to the broker.
         #
         self.transport = self.Transport(host, connect_timeout, ssl)
-        self._frame_handler = frame_handler(self, self.on_inbound_method)
+        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
-        self.on_inbound_frame = self._frame_handler.send
 
         self.connect()
 
@@ -301,6 +300,9 @@ class Connection(AbstractChannel):
 
     def FIXME(self, *args, **kwargs):
         pass
+
+    def Transport(self, host, connect_timeout, ssl=False):
+        return create_transport(host, connect_timeout, ssl)
 
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
@@ -554,7 +556,10 @@ class Connection(AbstractChannel):
         self._do_close()
 
     def send_heartbeat(self):
-        self._frame_writer.send((8, 0, None, None, None))
+        try:
+            self._frame_writer.send((8, 0, None, None, None))
+        except StopIteration:
+            raise RecoverableConnectionError('connection already closed')
 
     def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
