@@ -95,7 +95,6 @@ class _AbstractTransport(object):
             raise socket.error(last_err)
 
         try:
-            self.sock.settimeout(None)
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
