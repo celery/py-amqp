@@ -172,7 +172,7 @@ class _AbstractTransport(object):
             return frame_type, channel, payload
         else:
             raise UnexpectedFrame(
-                'Received 0x{0:02x} while expecting 0xce'.format(ch))
+                'Received {0:#04x} while expecting 0xce'.format(ch))
 
     def write(self, s):
         try:
