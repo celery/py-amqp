@@ -149,7 +149,7 @@ class Channel(AbstractChannel):
             spec.Basic.Ack: self._on_basic_ack,
         })
 
-    def _do_close(self):
+    def collect(self):
         """Tear down this object, after we've agreed to close
         with the server."""
         AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
@@ -296,7 +296,7 @@ class Channel(AbstractChannel):
             the error.
 
         """
-        self._do_close()
+        self.collect()
 
     def flow(self, active):
         """Enable/disable flow from peer

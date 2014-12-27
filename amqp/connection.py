@@ -213,6 +213,7 @@ class Connection(AbstractChannel):
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
 
+        self.connect_timeout = connect_timeout
         self.connect()
 
     def then(self, on_success, on_error=None):
@@ -232,7 +233,7 @@ class Connection(AbstractChannel):
 
     def connect(self, callback=None):
         while not self._handshake_complete:
-            self.drain_events()
+            self.drain_events(timeout=self.connect_timeout)
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
@@ -311,13 +312,13 @@ class Connection(AbstractChannel):
     def connected(self):
         return self.transport and self.transport.connected
 
-    def _do_close(self):
+    def collect(self):
         try:
             self.transport.close()
 
             temp_list = [x for x in values(self.channels) if x is not self]
             for ch in temp_list:
-                ch._do_close()
+                ch.collect()
         except socket.error:
             pass  # connection already closed on the other end
         finally:
@@ -538,7 +539,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, callback=self._do_close)
+        self.send_method(spec.Connection.CloseOk, callback=self.collect)
 
     def _on_close_ok(self):
         """Confirm a connection close
@@ -553,7 +554,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._do_close()
+        self.collect()
 
     def send_heartbeat(self):
         try:
