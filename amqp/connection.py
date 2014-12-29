@@ -142,8 +142,9 @@ class Connection(AbstractChannel):
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
-                 on_unblocked=None, confirm_publish=False,
-                 on_tune_ok=None, **kwargs):
+                 on_unblocked=None, confirm_publish=False, on_tune_ok=None,
+                 keepalive_idle=None, keepalive_interval=None,
+                 keepalive_count=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -209,7 +210,10 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.Transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(host, connect_timeout, ssl,
+                                        keepalive_idle=keepalive_idle,
+                                        keepalive_interval=keepalive_interval,
+                                        keepalive_count=keepalive_count)
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
 
@@ -302,11 +306,14 @@ class Connection(AbstractChannel):
     def FIXME(self, *args, **kwargs):
         pass
 
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
-
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
+    def Transport(self, host, connect_timeout, ssl=False,
+                  keepalive_idle=None,
+                  keepalive_interval=None,
+                  keepalive_count=None):
+        return create_transport(host, connect_timeout, ssl,
+                                keepalive_idle=keepalive_idle,
+                                keepalive_interval=keepalive_interval,
+                                keepalive_count=keepalive_count)
 
     @property
     def connected(self):
