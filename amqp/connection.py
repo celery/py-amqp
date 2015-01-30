@@ -305,9 +305,6 @@ class Connection(AbstractChannel):
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
 
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
-
     @property
     def connected(self):
         return self.transport and self.transport.connected
