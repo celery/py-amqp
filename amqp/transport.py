@@ -197,7 +197,12 @@ class SSLTransport(_AbstractTransport):
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
         if hasattr(self, 'sslopts'):
-            self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
+            if 'context' in self.sslopts:
+                ctx = self.sslopts['context']
+                opts = {k:v for k, v in self.sslopts.items() if k != 'context'}
+                self.sock = ctx.wrap_socket(self.sock, **opts)
+            else:
+                self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
         else:
             self.sock = ssl.wrap_socket(self.sock)
         self.sock.do_handshake()
