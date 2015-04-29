@@ -108,7 +108,7 @@ class AccessRefused(IrrecoverableChannelError):
     code = 403
 
 
-class NotFound(IrrecoverableChannelError):
+class NotFound(RecoverableChannelError):
     code = 404
 
 

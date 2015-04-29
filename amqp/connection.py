@@ -16,7 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import errno
 import logging
+import select
 import socket
 
 from array import array
@@ -41,6 +43,11 @@ from .transport import create_transport
 
 HAS_MSG_PEEK = hasattr(socket, 'MSG_PEEK')
 
+try:
+    SELECT_BAD_FD = set((errno.EBADF, errno.WSAENOTSOCK))
+except AttributeError:
+    SELECT_BAD_FD = set((errno.EBADF,))
+
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 """.strip()
@@ -57,6 +64,40 @@ LIBRARY_PROPERTIES = {
 }
 
 AMQP_LOGGER = logging.getLogger('amqp')
+
+
+if hasattr(select, 'poll'):
+    def _select(readers, writers, err, timeout=0,
+                _poll=select.poll, POLLIN=select.POLLIN,
+                POLLOUT=select.POLLOUT, POLLERR=select.POLLERR):
+        poller = _poll()
+
+        register = poller.register
+        if readers:
+            [register(fd, POLLIN) for fd in readers]
+        if writers:
+            [register(fd, POLLOUT) for fd in writers]
+        if err:
+            [register(fd, POLLERR) for fd in err]
+
+        R, W = set(), set()
+        timeout = 0 if timeout and timeout < 0 else round(timeout * 1e3)
+        events = poller.poll(timeout)
+        for fd, event in events:
+            if event & POLLIN:
+                R.add(fd)
+            if event & POLLOUT:
+                R.add(fd)
+            if event & POLLERR:
+                R.add(fd)
+        return R, W
+else:
+    def _select(readers, writers, err, timeout=0,
+                _poll=select.select):
+        r, w, e = _poll(readers, writers, err, timeout)
+        if e:
+            r = list(set(r) | set(e))
+        return r, w
 
 
 class Connection(AbstractChannel):
@@ -182,6 +223,20 @@ class Connection(AbstractChannel):
 
         return self._x_open(virtual_host)
 
+    def _select(self, readers, writers, err, timeout=0):
+        try:
+            return _select(readers, writers, [], timeout)
+        except (select.error, socket.error) as exc:
+            _errno = getattr(exc, 'errno', None)
+            if _errno == errno.EINTR:
+                return [], []
+            elif _errno in SELECT_BAD_FD:
+                raise self.ConnectionError('Socket closed: {0!r}'.format(exc))
+            raise self.ConnectionError('Socket error: {0!r}'.format(exc))
+
+    def _readable(self):
+        return self._select([self.sock], [], [self.sock])[0]
+
     def Transport(self, host, connect_timeout, ssl=False):
         return create_transport(host, connect_timeout, ssl)
 
@@ -295,14 +350,8 @@ class Connection(AbstractChannel):
                 sock.settimeout(prev)
         return True
 
-    def drain_events(self, timeout=None):
-        """Wait for an event on a channel."""
-        chanmap = self.channels
-        chanid, method_sig, args, content = self._wait_multiple(
-            chanmap, None, timeout=timeout,
-        )
-
-        channel = chanmap[chanid]
+    def _dispatch_method(self, chanid, method_sig, args, content):
+        channel = self.channels[chanid]
 
         if (content and
                 channel.auto_decode and
@@ -323,6 +372,12 @@ class Connection(AbstractChannel):
             return amqp_method(channel, args)
         else:
             return amqp_method(channel, args, content)
+
+    def drain_events(self, timeout=None):
+        """Wait for an event on a channel."""
+        self._dispatch_method(*self._wait_multiple(
+            self.channels, None, timeout=timeout,
+        ))
 
     def read_timeout(self, timeout=None):
         if timeout is None:
@@ -345,6 +400,12 @@ class Connection(AbstractChannel):
         finally:
             if prev != timeout:
                 sock.settimeout(prev)
+
+    def _maybe_read_error(self, wanted_channel):
+        channel, method_sig, args, content = self.method_reader.read_method()
+        if channel == wanted_channel and method_sig == (20, 40):
+            return self._dispatch_method(channel, method_sig, args, content)
+        self.channels[channel].method_queue.append((method_sig, args, content))
 
     def _wait_multiple(self, channels, allowed_methods, timeout=None):
         for channel_id, channel in items(channels):

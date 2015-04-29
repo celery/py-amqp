@@ -22,7 +22,9 @@ from collections import defaultdict
 from warnings import warn
 
 from .abstract_channel import AbstractChannel
-from .exceptions import ChannelError, ConsumerCancelled, error_for_code
+from .exceptions import (
+    ChannelError, ConnectionError, ConsumerCancelled, error_for_code,
+)
 from .five import Queue
 from .protocol import basic_return_t, queue_declare_ok_t
 from .serialization import AMQPWriter
@@ -2120,7 +2122,13 @@ class Channel(AbstractChannel):
         args.write_bit(immediate)
 
         self._send_method((60, 40), args, msg)
-    basic_publish = _basic_publish
+
+    def basic_publish(self, *args, **kwargs):
+        if self.connection is None:
+            raise ConnectionError('Channel already closed.')
+        if self.connection._readable():
+            self.connection._maybe_read_error(self.channel_id)
+        return self._basic_publish(*args, **kwargs)
 
     def basic_publish_confirm(self, *args, **kwargs):
         if not self._confirm_selected:
