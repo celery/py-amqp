@@ -54,7 +54,7 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout):
+    def __init__(self, host, connect_timeout, client_timeout):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -95,7 +95,7 @@ class _AbstractTransport(object):
             raise socket.error(last_err)
 
         try:
-            self.sock.settimeout(None)
+            self.sock.settimeout(client_timeout)
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
@@ -286,10 +286,10 @@ class TCPTransport(_AbstractTransport):
         return result
 
 
-def create_transport(host, connect_timeout, ssl=False):
+def create_transport(host, connect_timeout, client_timeout, ssl=False):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     if ssl:
-        return SSLTransport(host, connect_timeout, ssl)
+        return SSLTransport(host, connect_timeout, client_timeout, ssl)
     else:
-        return TCPTransport(host, connect_timeout)
+        return TCPTransport(host, connect_timeout, client_timeout)
