@@ -209,7 +209,7 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.Transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(host, connect_timeout, ssl, kwargs.get('write_timeout'), kwargs.get('read_timeout'))
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
 
@@ -302,11 +302,8 @@ class Connection(AbstractChannel):
     def FIXME(self, *args, **kwargs):
         pass
 
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
-
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
+    def Transport(self, host, connect_timeout, ssl=False, write_timeout=None, read_timeout=None):
+        return create_transport(host, connect_timeout, ssl, write_timeout, read_timeout)
 
     @property
     def connected(self):
