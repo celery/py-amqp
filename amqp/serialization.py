@@ -21,6 +21,7 @@ Convert between bytestreams and higher-level AMQP types.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import calendar
 import sys
 
 from datetime import datetime
@@ -240,7 +241,7 @@ def loads(format, buf, offset=0,
             bitcount = bits = 0
             val, = unpack_from('>Q', buf, offset)
             offset += 8
-            val = datetime.fromtimestamp(val)
+            val = datetime.utcfromtimestamp(val)
         append(val)
     return values, offset
 
@@ -375,8 +376,7 @@ def _write_item(v, write, bits, pack=pack,
             v = -v
         write('>cBi', b'D', -exponent, v)
     elif isinstance(v, datetime):
-        # ## FIXME timezone ?
-        write(pack('>cq', b'T', long_t(mktime(v.timetuple()))))
+        write(pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
     elif isinstance(v, dict):
         write(b'F')
         _write_table(v, write, bits)
