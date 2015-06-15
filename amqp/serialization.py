@@ -21,13 +21,13 @@ Convert between bytestreams and higher-level AMQP types.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import calendar
 import sys
 
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack
-from time import mktime
 
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
@@ -224,7 +224,7 @@ class AMQPReader(object):
         expressed as localtime.
 
         """
-        return datetime.fromtimestamp(self.read_longlong())
+        return datetime.utcfromtimestamp(self.read_longlong())
 
 
 class AMQPWriter(object):
@@ -377,7 +377,6 @@ class AMQPWriter(object):
         elif isinstance(v, datetime):
             self.write(b'T')
             self.write_timestamp(v)
-            ## FIXME: timezone ?
         elif isinstance(v, dict):
             self.write(b'F')
             self.write_table(v)
@@ -402,7 +401,7 @@ class AMQPWriter(object):
     def write_timestamp(self, v):
         """Write out a Python datetime.datetime object as a 64-bit integer
         representing seconds since the Unix epoch."""
-        self.out.write(pack('>q', long_t(mktime(v.timetuple()))))
+        self.out.write(pack('>Q', long_t(calendar.timegm(v.utctimetuple()))))
 
 
 class GenericContent(object):
