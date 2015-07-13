@@ -126,7 +126,7 @@ class Connection(AbstractChannel):
         IOError,
         OSError,
     )
-    channel_errors = (ChannelError, )
+    channel_errors = (ChannelError,)
     recoverable_connection_errors = (
         RecoverableConnectionError,
         socket.error,
@@ -334,7 +334,7 @@ class Connection(AbstractChannel):
             return self._avail_channel_ids.remove(channel_id)
         except ValueError:
             raise ConnectionError(
-                'Channel %r already open' % (channel_id, ))
+                'Channel %r already open' % (channel_id,))
 
     def channel(self, channel_id=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or

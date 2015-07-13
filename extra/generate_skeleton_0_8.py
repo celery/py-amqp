@@ -242,7 +242,7 @@ def generate_methods(class_element, out):
 
         if 'client' in chassis:
             out.write('    def _%s(self, args):\n' % (
-                _fixup_method_name(class_element, amqp_method), ))
+                _fixup_method_name(class_element, amqp_method),))
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
                 out.write(s)
@@ -261,7 +261,7 @@ def generate_methods(class_element, out):
 
 def generate_class(spec, class_element, out):
     out.write('class %s(object):\n' % (
-        class_element.attrib['name'].capitalize(), ))
+        class_element.attrib['name'].capitalize(),))
     s = generate_docstr(class_element, '    ', '    """')
     if s:
         out.write(s)

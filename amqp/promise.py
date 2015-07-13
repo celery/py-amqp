@@ -117,11 +117,11 @@ class promise(object):
 
         >>> from __future__ import print_statement  # noqa
         >>> p = promise()
-        >>> p.then(promise(print, ('OK', )))  # noqa
-        >>> p.on_error = promise(print, ('ERROR', ))  # noqa
+        >>> p.then(promise(print, ('OK',)))  # noqa
+        >>> p.on_error = promise(print, ('ERROR',))  # noqa
         >>> p(20)
         OK, 20
-        >>> p.then(promise(print, ('hello', )))  # noqa
+        >>> p.then(promise(print, ('hello',)))  # noqa
         hello, 20
 
 
@@ -216,7 +216,7 @@ class promise(object):
                     *(self.args + args if args else self.args),
                     **(dict(self.kwargs, **kwargs) if kwargs else self.kwargs)
                 )
-                self.value = (ca, ck) = (retval, ), {}
+                self.value = (ca, ck) = (retval,), {}
             except Exception:
                 return self.set_error_state()
         else:
@@ -316,7 +316,7 @@ def wrap(p):
 
 def _transback(filter_, callback, args, kwargs, ret):
     try:
-        ret = filter_(*args + (ret, ), **kwargs)
+        ret = filter_(*args + (ret,), **kwargs)
     except Exception:
         callback.throw()
     else:

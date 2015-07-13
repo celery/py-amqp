@@ -345,7 +345,7 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            spec.Channel.Flow, 'b', (active, ), wait=spec.Channel.FlowOk,
+            spec.Channel.Flow, 'b', (active,), wait=spec.Channel.FlowOk,
         )
 
     def _on_flow(self, active):
@@ -413,7 +413,7 @@ class Channel(AbstractChannel):
                 to send content frames; False means it will not.
 
         """
-        return self.send_method(spec.Channel.FlowOk, 'b', (active, ))
+        return self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
     def _x_open(self):
         """Open a channel for use
@@ -439,7 +439,7 @@ class Channel(AbstractChannel):
             return
 
         return self.send_method(
-            spec.Channel.Open, 's', ('', ), wait=spec.Channel.OpenOk,
+            spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
         )
 
     def _on_open_ok(self):
@@ -1850,10 +1850,10 @@ class Channel(AbstractChannel):
                 subscriber.
 
         """
-        return self.send_method(spec.Basic.Recover, 'b', (requeue, ))
+        return self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
     def basic_recover_async(self, requeue=False):
-        return self.send_method(spec.Basic.RecoverAsync, 'b', (requeue, ))
+        return self.send_method(spec.Basic.RecoverAsync, 'b', (requeue,))
 
     def basic_reject(self, delivery_tag, requeue, argsig='Lb'):
         """Reject an incoming message
@@ -2044,7 +2044,7 @@ class Channel(AbstractChannel):
 
         """
         return self.send_method(
-            spec.Confirm.Select, 'b', (nowait, ),
+            spec.Confirm.Select, 'b', (nowait,),
             wait=None if nowait else spec.Confirm.SelectOk,
         )
 

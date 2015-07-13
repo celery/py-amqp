@@ -127,7 +127,7 @@ if PY3:  # pragma: no cover
     long_t = int
     text_t = str
     range = range
-    int_types = (int, )
+    int_types = (int,)
     module_name_t = str
 
     open_fqdn = 'builtins.open'
