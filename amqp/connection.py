@@ -18,6 +18,7 @@ from __future__ import absolute_import
 
 import logging
 import socket
+import uuid
 
 from array import array
 from io import BytesIO
@@ -157,6 +158,7 @@ class Connection(AbstractChannel):
         requiring certain certificates.
 
         """
+        self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
         if (login_response is None) \
@@ -566,6 +568,8 @@ class Connection(AbstractChannel):
 
         :keyword rate: Ignored
         """
+        AMQP_LOGGER.debug('heartbeat_tick : for connection %s'
+                          % self._connection_id)
         if not self.heartbeat:
             return
 
@@ -576,10 +580,24 @@ class Connection(AbstractChannel):
             self.last_heartbeat_sent = monotonic()
         if self.prev_recv is None or self.prev_recv != recv_now:
             self.last_heartbeat_received = monotonic()
+
+        mntnc = monotonic()
+        AMQP_LOGGER.debug('heartbeat_tick : Prev sent/recv: %s/%s, '
+                          'now - %s/%s, monotonic - %s, '
+                          'last_heartbeat_sent - %s, heartbeat int. - %s '
+                          'for connection %s' %
+                          (str(self.prev_sent), str(self.prev_recv),
+                           str(sent_now), str(recv_now), str(mntnc),
+                           str(self.last_heartbeat_sent),
+                           str(self.heartbeat),
+                           self._connection_id))
+
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if monotonic() > self.last_heartbeat_sent + self.heartbeat:
+        if mntnc > self.last_heartbeat_sent + self.heartbeat:
+            AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
+                              'connection %s' % self._connection_id)
             self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 
