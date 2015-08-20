@@ -109,8 +109,13 @@ def frame_writer(connection, transport,
         chunk_size = connection.frame_max - 8
         offset = 0
         type_, channel, method_sig, args, content = yield
+        if sys.version_info[0] >= 3 and not isinstance(args, bytes):
+            args = args.encode('utf-8')
+
         if content:
             body = content.body
+            if sys.version_info[0] >= 3 and not isinstance(body, bytes):
+                body = body.encode('utf-8')
             bodylen = len(body)
             bigbody = bodylen > chunk_size
         else:
@@ -118,8 +123,8 @@ def frame_writer(connection, transport,
 
         if no_pybuf or bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (''.join([pack('>HH', *method_sig), args])
-                     if type_ == 1 else '')  # encode method frame
+            frame = (b''.join([pack('>HH', *method_sig), args])
+                     if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
             write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
@@ -141,8 +146,8 @@ def frame_writer(connection, transport,
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (''.join([pack('>HH', *method_sig), args])
-                     if type_ == 1 else '')
+            frame = (b''.join([pack('>HH', *method_sig), args])
+                     if type_ == 1 else b'')
             framelen = len(frame)
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
