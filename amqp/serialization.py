@@ -34,13 +34,9 @@ from . import spec
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
 
-IS_PY3K = sys.version_info[0] >= 3
+IS_PY3 = sys.version_info[0] >= 3
 
-if IS_PY3K:
-    def byte(n):
-        return bytes([n])
-else:
-    byte = chr
+ftype_t = chr if IS_PY3 else None
 
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
@@ -52,8 +48,8 @@ ILLEGAL_TABLE_TYPE = """\
 """
 
 
-def _read_item(buf, offset=0, unpack_from=unpack_from):
-    ftype = buf[offset]
+def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
+    ftype = ftype_t(buf[offset]) if ftype_t else buf[offset]
     offset += 1
 
     # 'S': long string

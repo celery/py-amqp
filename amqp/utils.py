@@ -1,8 +1,12 @@
 from __future__ import absolute_import
 
+import sys
+
 from functools import wraps
 
 from .promise import promise   # noqa
+
+is_py3k = sys.version_info[0] == 3
 
 try:
     import fcntl
@@ -51,3 +55,17 @@ def coro(gen):
         return co
 
     return _boot
+
+
+if is_py3k:  # pragma: no cover
+
+    def str_to_bytes(s):
+        if isinstance(s, str):
+            return s.encode()
+        return s
+else:
+
+    def str_to_bytes(s):                # noqa
+        if isinstance(s, unicode):
+            return s.encode()
+        return s

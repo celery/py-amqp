@@ -25,7 +25,7 @@ from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .five import range
-from .utils import coro
+from .utils import coro, str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
@@ -92,7 +92,8 @@ def frame_handler(connection, callback,
 
 @coro
 def frame_writer(connection, transport,
-                 pack=pack, pack_into=pack_into, range=range, len=len):
+                 pack=pack, pack_into=pack_into, range=range, len=len,
+                 bytes=bytes, str_to_bytes=str_to_bytes):
     write = transport.write
 
     # memoryview first supported in Python 2.7
@@ -118,8 +119,8 @@ def frame_writer(connection, transport,
 
         if no_pybuf or bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (''.join([pack('>HH', *method_sig), args])
-                     if type_ == 1 else '')  # encode method frame
+            frame = (bytes().join([pack('>HH', *method_sig), str_to_bytes(args)])
+                     if type_ == 1 else bytes())  # encode method frame
             framelen = len(frame)
             write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
@@ -137,7 +138,7 @@ def frame_writer(connection, transport,
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
-                               3, channel, framelen, frame, 0xce))
+                               3, channel, framelen, str_to_bytes(frame), 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
