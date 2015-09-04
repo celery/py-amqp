@@ -33,7 +33,7 @@ except ImportError:
     class SSLError(Exception):  # noqa
         pass
 
-from struct import pack, unpack
+from struct import unpack
 
 from .exceptions import UnexpectedFrame
 from .utils import get_errno, set_cloexec
@@ -55,7 +55,8 @@ class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout, write_timeout=None, read_timeout=None):
+    def __init__(self, host, connect_timeout,
+                 write_timeout=None, read_timeout=None):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -96,14 +97,18 @@ class _AbstractTransport(object):
             raise socket.error(last_err)
 
         try:
-            self.sock.settimeout(None) # set socket back to blocking mode
+            self.sock.settimeout(None)  # set socket back to blocking mode
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
             # set socket timeouts
-            for (timeout, interval) in ((socket.SO_SNDTIMEO, write_timeout), (socket.SO_RCVTIMEO, read_timeout)):
+            for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
+                                      (socket.SO_RCVTIMEO, read_timeout)):
                 if interval is not None:
-                    self.sock.setsockopt(socket.SOL_SOCKET, timeout, struct.pack('ll', interval, 0))
+                    self.sock.setsockopt(
+                        socket.SOL_SOCKET, timeout,
+                        struct.pack('ll', interval, 0),
+                    )
 
             self._setup_transport()
 
@@ -194,11 +199,13 @@ class _AbstractTransport(object):
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
 
-    def __init__(self, host, connect_timeout, ssl, write_timeout=None, read_timeout=None):
+    def __init__(self, host, connect_timeout, ssl,
+                 write_timeout=None, read_timeout=None):
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER
-        super(SSLTransport, self).__init__(host, connect_timeout, write_timeout, read_timeout)
+        super(SSLTransport, self).__init__(host, connect_timeout,
+                                           write_timeout, read_timeout)
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
@@ -297,10 +304,15 @@ class TCPTransport(_AbstractTransport):
         return result
 
 
-def create_transport(host, connect_timeout, ssl=False, write_timeout=None, read_timeout=None):
+def create_transport(host, connect_timeout,
+                     ssl=False, write_timeout=None, read_timeout=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     if ssl:
-        return SSLTransport(host, connect_timeout, ssl, write_timeout, read_timeout)
+        return SSLTransport(
+            host, connect_timeout, ssl, write_timeout, read_timeout,
+        )
     else:
-        return TCPTransport(host, connect_timeout, write_timeout, read_timeout)
+        return TCPTransport(
+            host, connect_timeout, write_timeout, read_timeout,
+        )

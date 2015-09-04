@@ -122,7 +122,6 @@ class AbstractChannel(object):
             else:
                 listeners.append(one_shot)
 
-
         args = []
         if amqp_method.args:
             args, _ = loads(amqp_method.args, payload, 4)
