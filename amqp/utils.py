@@ -63,9 +63,17 @@ if is_py3k:  # pragma: no cover
         if isinstance(s, str):
             return s.encode()
         return s
+
+    def bytes_to_str(s):
+        if isinstance(s, bytes):
+            return s.decode()
+        return s
 else:
 
     def str_to_bytes(s):                # noqa
         if isinstance(s, unicode):
             return s.encode()
+        return s
+
+    def bytes_to_str(s):                # noqa
         return s

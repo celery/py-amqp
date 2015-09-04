@@ -33,10 +33,12 @@ from time import mktime
 from . import spec
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
+from .utils import bytes_to_str
 
 IS_PY3 = sys.version_info[0] >= 3
 
 ftype_t = chr if IS_PY3 else None
+pstr_t = bytes_to_str if IS_PY3 else lambda s: s
 
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
@@ -56,13 +58,13 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
     if ftype == 'S':
         slen, = unpack_from('>I', buf, offset)
         offset += 4
-        val = buf[offset:offset + slen]
+        val = pstr_t(buf[offset:offset + slen])
         offset += slen
     # 's': short string
     elif ftype == 's':
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        val = buf[offset:offset + slen]
+        val = pstr_t(buf[offset:offset + slen])
         offset += slen
     # 'b': short-short int
     elif ftype == 'b':
@@ -153,7 +155,8 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
 
 
 def loads(format, buf, offset=0,
-          ord=ord, unpack_from=unpack_from, _read_item=_read_item):
+          ord=ord, unpack_from=unpack_from,
+          _read_item=_read_item, pstr_t=pstr_t):
     """
     bit = b
     octet = o
@@ -221,7 +224,7 @@ def loads(format, buf, offset=0,
             while offset < limit:
                 keylen, = unpack_from('>B', buf, offset)
                 offset += 1
-                key = buf[offset:offset + keylen]
+                key = pstr_t(buf[offset:offset + keylen])
                 offset += keylen
                 val[key], offset = _read_item(buf, offset)
         elif p == 'A':
@@ -399,7 +402,8 @@ def encode_properties_basic(p, pack=pack):
         extend((pack('>B', len(content_enc)), content_enc))
 
 
-def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
+def decode_properties_basic(buf, offset=0,
+                            unpack_from=unpack_from, pstr_t=pstr_t):
     properties = {}
 
     flags, = unpack_from('>H', buf, offset)
@@ -408,12 +412,12 @@ def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
     if flags & 0x8000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_type'] = buf[offset:offset + slen]
+        properties['content_type'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x4000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_encoding'] = buf[offset:offset + slen]
+        properties['content_encoding'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x2000:
         _f, offset = loads('F', buf, offset)
@@ -427,21 +431,21 @@ def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
     if flags & 0x0400:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['correlation_id'] = buf[offset:offset + slen]
+        properties['correlation_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0200:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['reply_to'] = buf[offset:offset + slen]
+        properties['reply_to'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0100:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['expiration'] = buf[offset:offset + slen]
+        properties['expiration'] = pstr_t(buf[offset:offset + slen])
     if flags & 0x0080:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['message_id'] = buf[offset:offset + slen]
+        properties['message_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0040:
         properties['timestamp'], = unpack_from('>Q', buf, offset)
@@ -449,22 +453,22 @@ def decode_properties_basic(buf, offset=0, unpack_from=unpack_from):
     if flags & 0x0020:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['type'] = buf[offset:offset + slen]
+        properties['type'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0010:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['user_id'] = buf[offset:offset + slen]
+        properties['user_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0008:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['app_id'] = buf[offset:offset + slen]
+        properties['app_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0004:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['cluster_id'] = buf[offset:offset + slen]
+        properties['cluster_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     return properties, offset
 
