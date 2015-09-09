@@ -145,8 +145,7 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 keepalive_idle=None, keepalive_interval=None,
-                 keepalive_count=None, **kwargs):
+                 socket_settings=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -158,6 +157,9 @@ class Connection(AbstractChannel):
         The 'ssl' parameter may be simply True/False, or for Python >= 2.6
         a dictionary of options to pass to ssl.wrap_socket() such as
         requiring certain certificates.
+
+        The 'socket_settings" parameter is a dictionary defining tcp
+        settings which will be applied as socket options.
 
         """
         self._connection_id = uuid.uuid4().hex
@@ -215,9 +217,7 @@ class Connection(AbstractChannel):
         #
         self.transport = self.Transport(
             host, connect_timeout, ssl, read_timeout, write_timeout,
-            keepalive_idle=keepalive_idle,
-            keepalive_interval=keepalive_interval,
-            keepalive_count=keepalive_count,
+            socket_settings=socket_settings,
         )
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
         self._frame_writer = frame_writer(self, self.transport)
@@ -313,14 +313,10 @@ class Connection(AbstractChannel):
 
     def Transport(self, host, connect_timeout,
                   ssl=False, read_timeout=None, write_timeout=None,
-                  keepalive_idle=None,
-                  keepalive_interval=None,
-                  keepalive_count=None):
+                  socket_options=None):
         return create_transport(
             host, connect_timeout, ssl, read_timeout, write_timeout,
-            keepalive_idle=keepalive_idle,
-            keepalive_interval=keepalive_interval,
-            keepalive_count=keepalive_count,
+            socket_options=socket_options,
         )
 
     @property

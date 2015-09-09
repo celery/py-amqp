@@ -36,6 +36,7 @@ except ImportError:
 from struct import unpack
 
 from .exceptions import UnexpectedFrame
+from .five import items
 from .utils import get_errno, set_cloexec
 
 _UNAVAIL = errno.EAGAIN, errno.EINTR, errno.ENOENT
@@ -50,6 +51,16 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
+# available socket options for TCP level
+KNOWN_TCP_OPTS = (
+    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
+    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
+    'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
+    'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
+)
+TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
+            if hasattr(socket, opt)]
+
 
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
@@ -57,10 +68,7 @@ class _AbstractTransport(object):
 
     def __init__(self, host, connect_timeout,
                  read_timeout=None, write_timeout=None,
-                 ssl=None,
-                 keepalive_idle=None,
-                 keepalive_interval=None,
-                 keepalive_count=None):
+                 ssl=None, socket_settings=None):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -102,8 +110,8 @@ class _AbstractTransport(object):
 
         try:
             self.sock.settimeout(None)  # set socket back to blocking mode
-            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self._set_socket_options(socket_settings)
 
             # set socket timeouts
             for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
@@ -113,15 +121,6 @@ class _AbstractTransport(object):
                         socket.SOL_SOCKET, timeout,
                         struct.pack('ll', interval, 0),
                     )
-            if keepalive_idle:
-                self.sock.setsockopt(socket.IPPROTO_TCP,
-                                     socket.TCP_KEEPIDLE, keepalive_idle)
-            if keepalive_interval:
-                self.sock.setsockopt(socket.IPPROTO_TCP,
-                                     socket.TCP_KEEPINTVL, keepalive_interval)
-            if keepalive_count:
-                self.sock.setsockopt(socket.IPPROTO_TCP,
-                                     socket.TCP_KEEPCNT, keepalive_count)
             self._setup_transport()
 
             self._write(AMQP_PROTOCOL_HEADER)
@@ -141,6 +140,24 @@ class _AbstractTransport(object):
                     pass
         finally:
             self.sock = None
+
+    def _get_tcp_socket_defaults(self, sock):
+        return {
+            opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
+        }
+
+    def _set_socket_options(self, socket_settings):
+        print('SOCKET SETTINGS: %r' %(socket_settings,))
+        if not socket_settings:
+            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            return
+
+        tcp_opts = self._get_tcp_socket_defaults(self.sock)
+        tcp_opts.setdefault(socket.TCP_NODELAY, 1)
+        tcp_opts.update(socket_settings)
+
+        for opt, val in items(tcp_opts):
+            self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
@@ -213,18 +230,14 @@ class SSLTransport(_AbstractTransport):
 
     def __init__(self, host, connect_timeout,
                  read_timeout=None, write_timeout=None,
-                 ssl=None,
-                 keepalive_idle=None,
-                 keepalive_interval=None,
-                 keepalive_count=None):
+                 ssl=None, socket_settings=None):
+        print('SSL: %r' % (socket_settings,))
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER
         super(SSLTransport, self).__init__(
-            host, connect_timeout, read_timeout, write_timeout,
-            keepalive_idle=keepalive_idle,
-            keepalive_interval=keepalive_interval,
-            keepalive_count=keepalive_count,
+            host, connect_timeout, read_timeout=read_timeout,
+            write_timeout=write_timeout, socket_settings=socket_settings,
         )
 
     def _setup_transport(self):
@@ -333,16 +346,11 @@ class TCPTransport(_AbstractTransport):
 
 def create_transport(host, connect_timeout,
                      read_timeout=None, write_timeout=None,
-                     ssl=False,
-                     keepalive_idle=None,
-                     keepalive_interval=None,
-                     keepalive_count=None):
+                     ssl=False, socket_settings=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
     transport = SSLTransport if ssl else TCPTransport
     return transport(host, connect_timeout, ssl=ssl,
                      read_timeout=read_timeout,
                      write_timeout=write_timeout,
-                     keepalive_idle=keepalive_idle,
-                     keepalive_interval=keepalive_interval,
-                     keepalive_count=keepalive_count)
+                     socket_settings=socket_settings)
