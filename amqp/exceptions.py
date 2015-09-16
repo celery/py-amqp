@@ -27,7 +27,7 @@ __all__ = [
     'ConnectionForced', 'InvalidPath', 'AccessRefused', 'NotFound',
     'ResourceLocked', 'PreconditionFailed', 'FrameError', 'FrameSyntaxError',
     'InvalidCommand', 'ChannelNotOpen', 'UnexpectedFrame', 'ResourceError',
-    'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
+    'NotConfirmed', 'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
 ]
 
 
@@ -110,6 +110,10 @@ class AccessRefused(IrrecoverableChannelError):
 
 class NotFound(RecoverableChannelError):
     code = 404
+
+
+class NotConfirmed(RecoverableConnectionError):
+    pass
 
 
 class ResourceLocked(RecoverableChannelError):
