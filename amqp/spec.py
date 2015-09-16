@@ -81,6 +81,7 @@ class Basic:
     GetOk = (60, 71)
     GetEmpty = (60, 80)
     Ack = (60, 80)
+    Nack = (60, 120)
     Reject = (60, 90)
     RecoverAsync = (60, 100)
     Recover = (60, 110)
