@@ -147,7 +147,6 @@ class _AbstractTransport(object):
         }
 
     def _set_socket_options(self, socket_settings):
-        print('SOCKET SETTINGS: %r' %(socket_settings,))
         if not socket_settings:
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             return
@@ -231,7 +230,6 @@ class SSLTransport(_AbstractTransport):
     def __init__(self, host, connect_timeout,
                  read_timeout=None, write_timeout=None,
                  ssl=None, socket_settings=None):
-        print('SSL: %r' % (socket_settings,))
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER

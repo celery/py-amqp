@@ -313,10 +313,10 @@ class Connection(AbstractChannel):
 
     def Transport(self, host, connect_timeout,
                   ssl=False, read_timeout=None, write_timeout=None,
-                  socket_options=None):
+                  socket_settings=None):
         return create_transport(
             host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_options=socket_options,
+            socket_settings=socket_settings,
         )
 
     @property

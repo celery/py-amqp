@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import socket
 
 from amqp import transport
-from amqp.tests.case import Case, Mock, SkipTest, patch
+from amqp.tests.case import Case, Mock, patch
 
 
 class MockSocket(object):
