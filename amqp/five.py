@@ -10,15 +10,8 @@
 """
 from __future__ import absolute_import
 
-__all__ = ['Counter', 'reload', 'UserList', 'UserDict',
-           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins',
-           'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
-           'long_t', 'text_t', 'int_types', 'module_name_t',
-           'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
-           'WhateverIO', 'with_metaclass', 'open_fqdn', 'StringIO',
-           'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
-
 import io
+import sys
 
 try:
     from collections import Counter
@@ -38,8 +31,16 @@ except NameError:  # pragma: no cover
 
 bytes_t = bytes
 
+__all__ = ['Counter', 'reload', 'UserList', 'UserDict',
+           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins',
+           'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
+           'long_t', 'text_t', 'int_types', 'module_name_t',
+           'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
+           'WhateverIO', 'with_metaclass', 'open_fqdn', 'StringIO',
+           'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
+
+
 #  ############# py3k ########################################################
-import sys
 PY3 = sys.version_info[0] == 3
 
 try:
