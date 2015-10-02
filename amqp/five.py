@@ -10,7 +10,7 @@
 """
 from __future__ import absolute_import
 
-############## py3k #########################################################
+# ############# py3k #########################################################
 import sys
 PY3 = sys.version_info[0] == 3
 
@@ -132,7 +132,7 @@ def with_metaclass(Type, skip_attrs=set(['__dict__', '__weakref__'])):
 
     return _clone_with_metaclass
 
-############## time.monotonic ################################################
+# ############# time.monotonic ################################################
 
 if sys.version_info < (3, 3):
 
