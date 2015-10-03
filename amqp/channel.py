@@ -22,14 +22,9 @@ from collections import defaultdict
 from warnings import warn
 
 from .abstract_channel import AbstractChannel
-<<<<<<< HEAD
 from .exceptions import (
-    ChannelError, ConnectionError,
-    ConsumerCancelled, NotConfirmed, error_for_code,
+    ChannelError, ConsumerCancelled, NotConfirmed, error_for_code,
 )
-=======
-from .exceptions import ChannelError, ConsumerCancelled, error_for_code
->>>>>>> parent of 96e1c85... basic_publish now attempts to read error frames from socket (Issue celery/celery#2595
 from .five import Queue
 from .protocol import basic_return_t, queue_declare_ok_t
 from .serialization import AMQPWriter

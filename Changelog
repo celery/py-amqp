@@ -9,14 +9,12 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 1.4.7
 =====
-:release-date: 2015-10-02 03:00 P.M PDT
+:release-date: 2015-10-02 05:30 P.M PDT
 :release-by: Ask Solem
 
 - Fixed libSystem error on OS X 10.11 (El Capitan)
 
     Fix contributed by Eric Wang.
-
-- ``basic_publish`` now attempts to read error frames.
 
 - ``channel.basic_publish`` now raises :exc:`amqp.exceptions.NotConfirmed` on
     ``basic.nack``.
