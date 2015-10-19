@@ -404,7 +404,7 @@ class Connection(AbstractChannel):
             return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              argsig='BssBB'):
+              nowait=False, argsig='BssBB'):
 
         """Request a connection close
 
@@ -458,6 +458,14 @@ class Connection(AbstractChannel):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
 
+            nowait: boolean
+
+                do not wait for the reply method
+
+                If set, the client will not wait for a reply method.
+                The server's reply should be processed by calling
+                drain_events().
+
         """
         if self.transport is None:
             # already closed
@@ -466,7 +474,7 @@ class Connection(AbstractChannel):
         return self.send_method(
             spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=spec.Connection.CloseOk,
+            wait=(None if nowait else spec.Connection.CloseOk),
         )
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
