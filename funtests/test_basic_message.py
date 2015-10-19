@@ -33,6 +33,7 @@ except ImportError:
 import settings
 
 from amqp.basic_message import Message
+from amqp import spec
 
 
 class TestBasicMessage(unittest.TestCase):
@@ -42,7 +43,7 @@ class TestBasicMessage(unittest.TestCase):
         raw_properties = msg._serialize_properties()
 
         new_msg = Message()
-        new_msg._load_properties(raw_properties)
+        new_msg._load_properties(spec.Basic.CLASS_ID, raw_properties)
         new_msg.body = msg.body
 
         self.assertEqual(msg, new_msg)
