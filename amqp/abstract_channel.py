@@ -16,6 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+from collections import deque
+
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .promise import ensure_promise, promise
 from .serialization import dumps, loads
@@ -76,21 +78,17 @@ class AbstractChannel(object):
     def wait(self, method, callback=None, returns_tuple=False):
         p = ensure_promise(callback)
         pending = self._pending
-        prev_p, pending[method] = pending.get(method), p
-        self._pending[method] = p
+        q = pending.get(method, None)
+        if q is None:
+            pending[method] = q = deque()
+        q.append(p)
 
-        try:
-            while not p.ready:
-                self.connection.drain_events()
+        while not p.ready:
+            self.connection.drain_events()
 
-            if p.value:
-                args, kwargs = p.value
-                return args if returns_tuple else (args and args[0])
-        finally:
-            if prev_p is not None:
-                pending[method] = prev_p
-            else:
-                pending.pop(method, None)
+        if p.value:
+            args, kwargs = p.value
+            return args if returns_tuple else (args and args[0])
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \
@@ -112,8 +110,8 @@ class AbstractChannel(object):
         except KeyError:
             listeners = None
         try:
-            one_shot = self._pending.pop(method_sig)
-        except KeyError:
+            one_shot = self._pending[method_sig].popleft()
+        except (KeyError,IndexError):
             if not listeners:
                 return
         else:
