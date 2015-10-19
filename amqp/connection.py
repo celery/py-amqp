@@ -404,7 +404,7 @@ class Connection(AbstractChannel):
             return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              nowait=False, argsig='BssBB'):
+              nowait=False, argsig='BsBB'):
 
         """Request a connection close
 
