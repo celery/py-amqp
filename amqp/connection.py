@@ -119,7 +119,7 @@ class Connection(AbstractChannel):
         spec.method(spec.Connection.Unblocked),
         spec.method(spec.Connection.CloseOk),
     ])
-    _METHODS = dict((m.method_sig, m) for m in _METHODS)
+    _METHODS = {m.method_sig: m for m in _METHODS}
 
     connection_errors = (
         ConnectionError,

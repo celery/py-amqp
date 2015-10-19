@@ -90,7 +90,7 @@ class Channel(AbstractChannel):
         spec.method(spec.Confirm.SelectOk),
         spec.method(spec.Basic.Ack, 'Lb'),
     ])
-    _METHODS = dict((m.method_sig, m) for m in _METHODS)
+    _METHODS = {m.method_sig: m for m in _METHODS}
 
     def __init__(self, connection,
                  channel_id=None, auto_decode=True, on_open=None):
