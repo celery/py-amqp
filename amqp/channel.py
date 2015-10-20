@@ -116,7 +116,6 @@ class Channel(AbstractChannel):
 
         self.is_open = False
         self.active = True  # Flow control
-        self.returned_messages = Queue()
         self.callbacks = {}
         self.cancel_callbacks = {}
         self.auto_decode = auto_decode
@@ -1654,8 +1653,8 @@ class Channel(AbstractChannel):
         """
         return self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
-            wait=spec.Basic.GetOk,
-        )
+            wait=spec.Basic.GetOk, returns_tuple=True
+        )[5]
 
     def _get_to_message(self, delivery_tag, redelivered, exchange, routing_key,
                         message_count, msg):

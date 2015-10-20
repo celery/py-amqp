@@ -24,7 +24,7 @@ from struct import pack, unpack_from, pack_into
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .five import range
+from .five import range, string
 from .utils import coro, str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
@@ -126,7 +126,7 @@ def frame_writer(connection, transport,
             write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
             if body:
-                properties = content._serialize_properties()
+                properties = content._serialize_properties(isinstance(body,string))
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
@@ -144,14 +144,14 @@ def frame_writer(connection, transport,
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (''.join([pack('>HH', *method_sig), args])
-                     if type_ == 1 else '')
+            frame = (b''.join([pack('>HH', *method_sig), str_to_bytes(args)])
+                     if type_ == 1 else b'')
             framelen = len(frame)
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
-                properties = content._serialize_properties()
+                properties = content._serialize_properties(isinstance(body,string))
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,

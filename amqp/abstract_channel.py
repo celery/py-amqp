@@ -52,7 +52,7 @@ class AbstractChannel(object):
 
     def send_method(self, sig,
                     format=None, args=None, content=None,
-                    wait=None, callback=None):
+                    wait=None, callback=None, returns_tuple=False):
         p = promise()
         conn = self.connection
         if conn is None:
@@ -68,7 +68,7 @@ class AbstractChannel(object):
             p.then(callback)
         p()
         if wait:
-            return self.wait(wait)
+            return self.wait(wait, returns_tuple=returns_tuple)
         return p
 
     def close(self):

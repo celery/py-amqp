@@ -522,7 +522,7 @@ class GenericContent(object):
         self.properties = props
         return offset
 
-    def _serialize_properties(self):
+    def _serialize_properties(self, set_utf8=True):
         """serialize the 'properties' attribute (a dictionary) into
         the raw bytes making up a set of property flags and a
         property list, suitable for putting into a content frame header."""
@@ -531,7 +531,8 @@ class GenericContent(object):
         flags = []
         sformat, svalues = [], []
         props = self.properties
-        props.setdefault('content_encoding', 'utf-8')
+        if set_utf8:
+            props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
             val = props.get(key, None)
             if val is not None:
