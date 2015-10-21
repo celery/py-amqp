@@ -25,6 +25,8 @@ import unittest
 import settings
 
 from amqp import ChannelError, Connection, Message, FrameSyntaxError
+from amqp.five import string
+from amqp.utils import str_to_bytes
 
 
 class TestChannel(unittest.TestCase):
@@ -74,8 +76,8 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertFalse(hasattr(msg2, 'content_encoding'))
-        self.assertTrue(isinstance(msg2.body, str))
-        self.assertEqual(msg2.body, 'hello world')
+        self.assertTrue(isinstance(msg2.body, bytes))
+        self.assertEqual(msg2.body, str_to_bytes('hello world'))
 
         #
         # Default UTF-8 encoding of unicode body, returned as unicode
@@ -83,8 +85,8 @@ class TestChannel(unittest.TestCase):
         msg = Message(u'hello world')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        self.assertEqual(msg2.content_encoding, 'UTF-8')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertEqual(msg2.content_encoding.upper(), 'UTF-8')
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello world')
 
         #
@@ -94,7 +96,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello world')
 
         #
@@ -104,7 +106,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello w\u00f6rld')
 
         #
@@ -131,7 +133,7 @@ class TestChannel(unittest.TestCase):
         msg = Message(u'hello w\u00f6rld')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        self.assertEqual(msg2.content_encoding, 'UTF-8')
+        self.assertEqual(msg2.content_encoding.upper(), 'UTF-8')
         self.assertTrue(isinstance(msg2.body, bytes))
         self.assertEqual(msg2.body, u'hello w\xc3\xb6rld'.encode('latin_1'))
 

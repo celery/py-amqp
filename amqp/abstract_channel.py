@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from collections import deque
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
+from .method_framing import frame_writer
 from .promise import ensure_promise, promise
 from .serialization import dumps, loads
 
@@ -62,6 +63,11 @@ class AbstractChannel(object):
             conn._frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
+        except Exception:
+            # the frame writer coroutine has terminated due to throwing the
+            # exception (e.g. due to a codec error). Restart it.
+            conn._frame_writer = frame_writer(conn)
+            raise
 
         # TODO temp: callback should be after write_method ... ;)
         if callback:

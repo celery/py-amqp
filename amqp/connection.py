@@ -220,7 +220,7 @@ class Connection(AbstractChannel):
             socket_settings=socket_settings,
         )
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self, self.transport)
+        self._frame_writer = frame_writer(self)
 
         self.connect_timeout = connect_timeout
         self.connect()

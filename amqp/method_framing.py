@@ -91,10 +91,10 @@ def frame_handler(connection, callback,
 
 
 @coro
-def frame_writer(connection, transport,
+def frame_writer(connection,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
-    write = transport.write
+    write = connection.transport.write
 
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
@@ -112,10 +112,15 @@ def frame_writer(connection, transport,
         type_, channel, method_sig, args, content = yield
         if content:
             body = content.body
+            properties = content._serialize_properties(isinstance(body,string))
+            if isinstance(body,string):
+                body = body.encode(content.content_encoding)
             bodylen = len(body)
             bigbody = bodylen > chunk_size
         else:
-            body, bodylen, bigbody = None, 0, 0
+            bigbody = False
+            # The other variables are intentionally left un-set
+            # so that accessing them raises an exception
 
         if no_pybuf or bigbody:
             # ## SLOW: string copy and write for every frame
@@ -125,8 +130,7 @@ def frame_writer(connection, transport,
             framelen = len(frame)
             write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
-            if body:
-                properties = content._serialize_properties(isinstance(body,string))
+            if content:
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
@@ -140,7 +144,7 @@ def frame_writer(connection, transport,
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
-                               str_to_bytes(frame), 0xce))
+                               frame, 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
@@ -150,8 +154,7 @@ def frame_writer(connection, transport,
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
-            if body:
-                properties = content._serialize_properties(isinstance(body,string))
+            if content:
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
