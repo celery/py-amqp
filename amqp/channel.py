@@ -79,7 +79,6 @@ class Channel(AbstractChannel):
         spec.method(spec.Basic.CancelOk, 's'),
         spec.method(spec.Basic.ConsumeOk, 's'),
         spec.method(spec.Basic.Deliver, 'sLbss', content=True),
-        spec.method(spec.Basic.GetEmpty, 's'),
         spec.method(spec.Basic.GetOk, 'Lbssl', content=True),
         spec.method(spec.Basic.QosOk),
         spec.method(spec.Basic.RecoverOk),

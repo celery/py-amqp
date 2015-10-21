@@ -79,7 +79,6 @@ class Basic:
     Deliver = (60, 60)
     Get = (60, 70)
     GetOk = (60, 71)
-    GetEmpty = (60, 80)
     Ack = (60, 80)
     Nack = (60, 120)
     Reject = (60, 90)
