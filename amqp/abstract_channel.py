@@ -17,15 +17,52 @@
 from __future__ import absolute_import
 
 from collections import deque, defaultdict
+from functools import wraps
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .method_framing import frame_writer
 from .promise import ensure_promise, promise
 from .serialization import dumps, loads
+from .five import with_metaclass
 
 __all__ = ['AbstractChannel']
 
 
+class AsyncHelper(type):
+    """This metaclass renames all methods marked with "add_async" to
+    NAME_async, and creates a helper that makes the original NAME
+    synchronous."""
+    def __new__(meta, name, bases, dct):
+        for k,v in tuple(dct.items()):
+            if getattr(v,'add_async',False):
+                def make_sync(fn):
+                    @wraps(fn)
+                    def sync_call(self,*a,**k):
+                        p = fn(self,*a,**k)
+                        if not isinstance(p, promise):
+                            return p
+                        while not p.ready and not p.failed:
+                            self.connection.drain_events()
+                        if p.failed:
+                            raise p.reason
+                        assert p.ready, (p,p.fun)
+                        if p.value[0]:
+                            return p.value[0][0]
+                        return None
+                    return sync_call
+                dct[k] = make_sync(v)
+                k += '_async'
+                if k not in dct:
+                    dct[k] = v
+        return super(AsyncHelper, meta).__new__(meta, name, bases, dct)
+
+def with_async(fn):
+    """Mark a method with an "add_async" attribute
+    so that it'll get wrapped by the async_helper metaclass."""
+    fn.add_async = True
+    return fn
+
+@with_metaclass(AsyncHelper)
 class AbstractChannel(object):
     """Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.

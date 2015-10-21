@@ -57,10 +57,34 @@ class TestChannel(unittest.TestCase):
         msg2 = self.ch.basic_get(no_ack=True)
         self.assertEqual(msg, msg2)
 
-        n = self.ch.queue_purge().value[0][0]
+        n = self.ch.queue_purge()
         self.assertEqual(n, 0)
 
-        n = self.ch.queue_delete().value[0][0]
+        n = self.ch.queue_delete()
+        self.assertEqual(n, 0)
+
+    def test_defaults_confirmed(self):
+        """Same as test_defaults but with two confirmed messages"""
+        msg = Message(
+            'funtest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'},
+        )
+
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.basic_publish_confirm(msg, routing_key=qname)
+        self.ch.basic_publish_confirm(msg, routing_key=qname)
+
+        msg2 = self.ch.basic_get(no_ack=True)
+        self.assertEqual(msg, msg2)
+
+        msg3 = self.ch.basic_get(no_ack=True)
+        self.assertEqual(msg, msg3)
+
+        n = self.ch.queue_purge()
+        self.assertEqual(n, 0)
+
+        n = self.ch.queue_delete()
         self.assertEqual(n, 0)
 
     def test_encoding(self):
@@ -159,7 +183,7 @@ class TestChannel(unittest.TestCase):
 
     def test_queue_delete_empty(self):
         self.assertFalse(
-            self.ch.queue_delete('bogus_queue_that_does_not_exist').value[0][0]
+            self.ch.queue_delete('bogus_queue_that_does_not_exist')
         )
 
     def xtest_survives_channel_error(self):
