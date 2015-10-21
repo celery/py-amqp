@@ -77,3 +77,22 @@ else:
 
     def bytes_to_str(s):                # noqa
         return s
+
+fake_lock = None
+class FakeLock(object):
+    """This is a lock which does nothing.
+    Since it has no state, it's a Singleton."""
+    def __new__(cls):
+        global fake_lock
+        if fake_lock is None:
+            fake_lock = super(FakeLock,cls).__new__(cls)
+        return fake_lock
+    def __enter__(self):
+        pass
+    def __exit__(self, a,b,c):
+        pass
+    def acquire(self, nowait=False):
+        return True
+    def release(self):
+        pass
+

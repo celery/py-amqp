@@ -25,7 +25,7 @@ from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
-from .promise import ensure_promise
+from .promise import ensure_promise, promise
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
@@ -1155,15 +1155,19 @@ class Channel(AbstractChannel):
             consumer count
 
         """
-        self.send_method(
+        res = self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
              nowait, arguments),
+             wait=spec.Queue.DeclareOk if not nowait else None,
+             returns_tuple=True,
         )
-        if not nowait:
-            return queue_declare_ok_t(*self.wait(
-                spec.Queue.DeclareOk, returns_tuple=True,
-            ))
+        if isinstance(res, promise):
+            p = promise(fun=queue_declare_ok_t)
+            res.then(p)
+            return p.value[0][0]
+        else:
+            return queue_declare_ok_t(*res).value[0][0]
 
     def queue_delete(self, queue='',
                      if_unused=False, if_empty=False, nowait=False,
@@ -1654,7 +1658,7 @@ class Channel(AbstractChannel):
         return self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
             wait=spec.Basic.GetOk, returns_tuple=True
-        )[5]
+        ).value[0][5]
 
     def _get_to_message(self, delivery_tag, redelivered, exchange, routing_key,
                         message_count, msg):
@@ -1742,12 +1746,19 @@ class Channel(AbstractChannel):
     basic_publish = _basic_publish
 
     def basic_publish_confirm(self, *args, **kwargs):
+        pr = promise()
+        def pub():
+            with self._lock:
+                self._pending[spec.Basic.Ack].append(p)
+                return self._basic_publish(*args, **kwargs)
+
         if not self._confirm_selected:
             self._confirm_selected = True
-            self.confirm_select()
-        ret = self._basic_publish(*args, **kwargs)
-        self.wait(spec.Basic.Ack)
-        return ret
+            p = ensure_promise(self.confirm_select())
+            p.then(pub)
+        else:
+            pub()
+        return pr
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
                   argsig='lBb'):

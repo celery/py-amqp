@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-from collections import deque
+from collections import deque, defaultdict
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .method_framing import frame_writer
@@ -40,10 +40,11 @@ class AbstractChannel(object):
         connection.channels[channel_id] = self
         self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
-        self._pending = {}
+        self._pending = defaultdict(deque)
         self._callbacks = {}
 
         self._setup_listeners()
+        self._lock = connection.make_lock()
 
     def __enter__(self):
         return self
@@ -60,41 +61,43 @@ class AbstractChannel(object):
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            conn._frame_writer.send((1, self.channel_id, sig, args, content))
+            # If two threads try to write to the same channel,
+            # make sure data won't get interleaved and the results
+            # will be processed in the correct order.
+            with self._lock:
+                if wait:
+                    self._pending[wait].append(p)
+                conn._frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
+            if wait:
+                self._pending[wait].remove(p)
             raise RecoverableConnectionError('connection already closed')
         except Exception:
             # the frame writer coroutine has terminated due to throwing the
-            # exception (e.g. due to a codec error). Restart it.
+            # exception (e.g. a codec error). Restart it.
+            if wait:
+                self._pending[wait].remove(p)
             conn._frame_writer = frame_writer(conn)
             raise
 
-        # TODO temp: callback should be after write_method ... ;)
         if callback:
             p.then(callback)
-        p()
         if wait:
-            return self.wait(wait, returns_tuple=returns_tuple)
+            self.wait(p)
+        else:
+            p()
         return p
 
     def close(self):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, method, callback=None, returns_tuple=False):
-        p = ensure_promise(callback)
-        pending = self._pending
-        q = pending.get(method, None)
-        if q is None:
-            pending[method] = q = deque()
-        q.append(p)
-
-        while not p.ready:
+    def wait(self, callback):
+        """Wait for a method to be called.
+        This just drains events until the callback fires;
+        all the real work has been done in send_method()."""
+        while not callback.ready:
             self.connection.drain_events()
-
-        if p.value:
-            args, kwargs = p.value
-            return args if returns_tuple else (args and args[0])
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \

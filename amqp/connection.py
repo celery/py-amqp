@@ -42,6 +42,7 @@ from .method_framing import frame_handler, frame_writer
 from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import create_transport
+from .utils import FakeLock
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -145,7 +146,7 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 socket_settings=None, **kwargs):
+                 socket_settings=None, lock_factory=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -160,6 +161,10 @@ class Connection(AbstractChannel):
 
         The 'socket_settings" parameter is a dictionary defining tcp
         settings which will be applied as socket options.
+        
+        'lock_factory' is a class that will be used to prevent conflicting
+        accesses to a connection or its channels. If None, no locking will
+        be performed.
 
         """
         self._connection_id = uuid.uuid4().hex
@@ -182,6 +187,7 @@ class Connection(AbstractChannel):
         self.locale = locale
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
+        self.make_lock = lock_factory or FakeLock
 
         self._handshake_complete = False
 

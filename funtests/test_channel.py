@@ -57,10 +57,10 @@ class TestChannel(unittest.TestCase):
         msg2 = self.ch.basic_get(no_ack=True)
         self.assertEqual(msg, msg2)
 
-        n = self.ch.queue_purge()
+        n = self.ch.queue_purge().value[0][0]
         self.assertEqual(n, 0)
 
-        n = self.ch.queue_delete()
+        n = self.ch.queue_delete().value[0][0]
         self.assertEqual(n, 0)
 
     def test_encoding(self):
@@ -159,7 +159,7 @@ class TestChannel(unittest.TestCase):
 
     def test_queue_delete_empty(self):
         self.assertFalse(
-            self.ch.queue_delete('bogus_queue_that_does_not_exist')
+            self.ch.queue_delete('bogus_queue_that_does_not_exist').value[0][0]
         )
 
     def xtest_survives_channel_error(self):
