@@ -216,6 +216,10 @@ class promise(object):
                     *(self.args + args if args else self.args),
                     **(dict(self.kwargs, **kwargs) if kwargs else self.kwargs)
                 )
+                if isinstance(retval, promise):
+                    self.fun = None
+                    retval.then(self)
+                    return retval
                 self.value = (ca, ck) = (retval,), {}
             except Exception:
                 return self.set_error_state()

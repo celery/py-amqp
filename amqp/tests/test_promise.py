@@ -263,3 +263,18 @@ class test_promise(Case):
         d = promise(Mock(name='d'), on_error=de)
         p2.then(d)
         de.fun.assert_called_with(exc)
+
+    def test_promise_func(self):
+        def incr(x):
+            return x + 1
+        a = promise(Mock(name='a', side_effect=incr))
+        def pfun(*x):
+            return a
+        b = promise(pfun)
+        mc = Mock(name='c')
+        b.then(mc)
+        b()
+        mc.assert_not_called()
+        a(42)
+        mc.assert_called_with(43)
+
