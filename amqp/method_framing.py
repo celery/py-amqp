@@ -16,216 +16,160 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-from collections import defaultdict, deque
-from struct import pack, unpack
+import sys
 
+from collections import defaultdict
+from struct import pack, unpack_from, pack_into
+
+from . import spec
 from .basic_message import Message
-from .exceptions import AMQPError, UnexpectedFrame
+from .exceptions import UnexpectedFrame
 from .five import range, string
-from .serialization import AMQPReader
+from .utils import coro, str_to_bytes
 
-__all__ = ['MethodReader']
+__all__ = ['frame_handler', 'frame_writer']
 
 #
-# MethodReader needs to know which methods are supposed
-# to be followed by content headers and bodies.
+# set of methods that require both a content frame and a body frame.
 #
-_CONTENT_METHODS = [
-    (60, 50),  # Basic.return
-    (60, 60),  # Basic.deliver
-    (60, 71),  # Basic.get_ok
-]
+_CONTENT_METHODS = frozenset([
+    spec.Basic.Return,
+    spec.Basic.Deliver,
+    spec.Basic.GetOk,
+])
 
 
-class _PartialMessage(object):
-    """Helper class to build up a multi-frame method."""
+def frame_handler(connection, callback,
+                  unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
+    expected_types = defaultdict(lambda: 1)
+    partial_messages = {}
 
-    def __init__(self, method_sig, args, channel):
-        self.method_sig = method_sig
-        self.args = args
-        self.msg = Message()
-        self.body_parts = []
-        self.body_received = 0
-        self.body_size = None
-        self.complete = False
-
-    def add_header(self, payload):
-        class_id, weight, self.body_size = unpack('>HHQ', payload[:12])
-        self.msg._load_properties(payload[12:])
-        self.complete = (self.body_size == 0)
-
-    def add_payload(self, payload):
-        parts = self.body_parts
-        self.body_received += len(payload)
-        if self.body_received == self.body_size:
-            if parts:
-                parts.append(payload)
-                self.msg.body = bytes().join(parts)
-            else:
-                self.msg.body = payload
-            self.complete = True
-        else:
-            parts.append(payload)
-
-
-class MethodReader(object):
-    """Helper class to receive frames from the broker, combine them if
-    necessary with content-headers and content-bodies into complete methods.
-
-    Normally a method is represented as a tuple containing
-    (channel, method_sig, args, content).
-
-    In the case of a framing error, an :exc:`ConnectionError` is placed
-    in the queue.
-
-    In the case of unexpected frames, a tuple made up of
-    ``(channel, ChannelError)`` is placed in the queue.
-
-    """
-
-    def __init__(self, source):
-        self.source = source
-        self.queue = deque()
-        self.running = False
-        self.partial_messages = {}
-        self.heartbeats = 0
-        # For each channel, which type is expected next
-        self.expected_types = defaultdict(lambda: 1)
-        # not an actual byte count, just incremented whenever we receive
-        self.bytes_recv = 0
-        self._quick_put = self.queue.append
-        self._quick_get = self.queue.popleft
-
-    def _next_method(self):
-        """Read the next method from the source, once one complete method has
-        been assembled it is placed in the internal queue."""
-        queue = self.queue
-        put = self._quick_put
-        read_frame = self.source.read_frame
-        while not queue:
-            try:
-                frame_type, channel, payload = read_frame()
-            except Exception as exc:
-                #
-                # Connection was closed?  Framing Error?
-                #
-                put(exc)
-                break
-
-            self.bytes_recv += 1
-
-            if frame_type not in (self.expected_types[channel], 8):
-                put((
-                    channel,
-                    UnexpectedFrame(
-                        'Received frame {0} while expecting type: {1}'.format(
-                            frame_type, self.expected_types[channel]))))
-            elif frame_type == 1:
-                self._process_method_frame(channel, payload)
-            elif frame_type == 2:
-                self._process_content_header(channel, payload)
-            elif frame_type == 3:
-                self._process_content_body(channel, payload)
-            elif frame_type == 8:
-                self._process_heartbeat(channel, payload)
-
-    def _process_heartbeat(self, channel, payload):
-        self.heartbeats += 1
-
-    def _process_method_frame(self, channel, payload):
-        """Process Method frames"""
-        method_sig = unpack('>HH', payload[:4])
-        args = AMQPReader(payload[4:])
-
-        if method_sig in _CONTENT_METHODS:
-            #
-            # Save what we've got so far and wait for the content-header
-            #
-            self.partial_messages[channel] = _PartialMessage(
-                method_sig, args, channel,
+    def on_frame(frame):
+        frame_type, channel, buf = frame
+        connection.bytes_recv += 1
+        if frame_type not in (expected_types[channel], 8):
+            raise UnexpectedFrame(
+                'Received frame {0} while expecting type: {1}'.format(
+                    frame_type, expected_types[channel]),
             )
-            self.expected_types[channel] = 2
-        else:
-            self._quick_put((channel, method_sig, args, None))
+        elif frame_type == 1:
+            method_sig = unpack_from('>HH', buf, 0)
 
-    def _process_content_header(self, channel, payload):
-        """Process Content Header frames"""
-        partial = self.partial_messages[channel]
-        partial.add_header(payload)
+            if method_sig in content_methods:
+                # Save what we've got so far and wait for the content-header
+                partial_messages[channel] = Message(
+                    frame_method=method_sig, frame_args=buf,
+                )
+                expected_types[channel] = 2
+            else:
+                callback(channel, method_sig, buf, None)
 
-        if partial.complete:
-            #
-            # a bodyless message, we're done
-            #
-            self._quick_put((channel, partial.method_sig,
-                             partial.args, partial.msg))
-            self.partial_messages.pop(channel, None)
-            self.expected_types[channel] = 1
-        else:
-            #
-            # wait for the content-body
-            #
-            self.expected_types[channel] = 3
+        elif frame_type == 2:
+            msg = partial_messages[channel]
+            msg.inbound_header(buf)
 
-    def _process_content_body(self, channel, payload):
-        """Process Content Body frames"""
-        partial = self.partial_messages[channel]
-        partial.add_payload(payload)
-        if partial.complete:
-            #
-            # Stick the message in the queue and go back to
-            # waiting for method frames
-            #
-            self._quick_put((channel, partial.method_sig,
-                             partial.args, partial.msg))
-            self.partial_messages.pop(channel, None)
-            self.expected_types[channel] = 1
+            if msg.ready:
+                # bodyless message, we're done
+                expected_types[channel] = 1
+                partial_messages.pop(channel, None)
+                callback(channel, msg.frame_method, msg.frame_args, msg)
+            else:
+                # wait for the content-body
+                expected_types[channel] = 3
+        elif frame_type == 3:
+            msg = partial_messages[channel]
+            msg.inbound_body(buf)
+            if msg.ready:
+                expected_types[channel] = 1
+                partial_messages.pop(channel, None)
+                callback(channel, msg.frame_method, msg.frame_args, msg)
+        elif frame_type == 8:
+            # bytes_recv already updated
+            pass
 
-    def read_method(self):
-        """Read a method from the peer."""
-        self._next_method()
-        m = self._quick_get()
-        if isinstance(m, Exception):
-            raise m
-        if isinstance(m, tuple) and isinstance(m[1], AMQPError):
-            raise m[1]
-        return m
+    return on_frame
 
 
-class MethodWriter(object):
-    """Convert AMQP methods into AMQP frames and send them out
-    to the peer."""
+@coro
+def frame_writer(connection,
+                 pack=pack, pack_into=pack_into, range=range, len=len,
+                 bytes=bytes, str_to_bytes=str_to_bytes):
+    write = connection.transport.write
 
-    def __init__(self, dest, frame_max):
-        self.dest = dest
-        self.frame_max = frame_max
-        self.bytes_sent = 0
+    # memoryview first supported in Python 2.7
+    # Initial support was very shaky, so could be we have to
+    # check for a bugfix release.
+    if sys.version_info < (2, 7):
+        no_pybuf = 0
+        buf = bytearray(connection.frame_max - 8)
+        view = memoryview(buf)
+    else:
+        no_pybuf, buf, view = 1, None, None
 
-    def write_method(self, channel, method_sig, args, content=None):
-        write_frame = self.dest.write_frame
-        payload = pack('>HH', method_sig[0], method_sig[1]) + args
-
+    while 1:
+        chunk_size = connection.frame_max - 8
+        offset = 0
+        type_, channel, method_sig, args, content = yield
         if content:
-            # do this early, so we can raise an exception if there's a
-            # problem with the content properties, before sending the
-            # first frame
             body = content.body
-            if isinstance(body, string):
-                coding = content.properties.get('content_encoding', None)
-                if coding is None:
-                    coding = content.properties['content_encoding'] = 'UTF-8'
+            properties = content._serialize_properties(isinstance(body,string))
+            if isinstance(body,string):
+                body = body.encode(content.content_encoding)
+            bodylen = len(body)
+            bigbody = bodylen > chunk_size
+        else:
+            bigbody = False
+            # The other variables are intentionally left un-set
+            # so that accessing them raises an exception
 
-                body = body.encode(coding)
-            properties = content._serialize_properties()
+        if no_pybuf or bigbody:
+            # ## SLOW: string copy and write for every frame
+            frame = (b''.join([pack('>HH', *method_sig),
+                               str_to_bytes(args)])
+                     if type_ == 1 else b'')  # encode method frame
+            framelen = len(frame)
+            write(pack('>BHI%dsB' % framelen,
+                       type_, channel, framelen, frame, 0xce))
+            if content:
+                frame = b''.join([
+                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    properties,
+                ])
+                framelen = len(frame)
+                write(pack('>BHI%dsB' % framelen,
+                           2, channel, framelen, frame, 0xce))
 
-        write_frame(1, channel, payload)
+                for i in range(0, bodylen, chunk_size):
+                    frame = body[i:i + chunk_size]
+                    framelen = len(frame)
+                    write(pack('>BHI%dsB' % framelen,
+                               3, channel, framelen,
+                               frame, 0xce))
 
-        if content:
-            payload = pack('>HHQ', method_sig[0], 0, len(body)) + properties
+        else:
+            # ## FAST: pack into buffer and single write
+            frame = (b''.join([pack('>HH', *method_sig), str_to_bytes(args)])
+                     if type_ == 1 else b'')
+            framelen = len(frame)
+            pack_into('>BHI%dsB' % framelen, buf, offset,
+                      type_, channel, framelen, frame, 0xce)
+            offset += 8 + framelen
+            if content:
+                frame = b''.join([
+                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    properties,
+                ])
+                framelen = len(frame)
 
-            write_frame(2, channel, payload)
+                pack_into('>BHI%dsB' % framelen, buf, offset,
+                          2, channel, framelen, frame, 0xce)
+                offset += 8 + framelen
 
-            chunk_size = self.frame_max - 8
-            for i in range(0, len(body), chunk_size):
-                write_frame(3, channel, body[i:i + chunk_size])
-        self.bytes_sent += 1
+                framelen = len(body)
+                pack_into('>BHI%dsB' % framelen, buf, offset,
+                          3, channel, framelen, body, 0xce)
+                offset += 8 + framelen
+
+            write(view[:offset])
+
+        connection.bytes_sent += 1

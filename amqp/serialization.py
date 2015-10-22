@@ -26,19 +26,19 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from struct import pack, unpack
+from struct import pack, unpack_from
+from struct import error as FrameDataError
 from time import mktime
 
+from . import spec
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
+from .utils import bytes_to_str
 
-IS_PY3K = sys.version_info[0] >= 3
+IS_PY3 = sys.version_info[0] >= 3
 
-if IS_PY3K:
-    def byte(n):
-        return bytes([n])
-else:
-    byte = chr
+ftype_t = chr if IS_PY3 else None
+pstr_t = bytes_to_str if IS_PY3 else lambda s: s
 
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
@@ -50,359 +50,436 @@ ILLEGAL_TABLE_TYPE = """\
 """
 
 
-class AMQPReader(object):
-    """Read higher-level AMQP types from a bytestream."""
-    def __init__(self, source):
-        """Source should be either a file-like object with a read() method, or
-        a plain (non-unicode) string."""
-        if isinstance(source, bytes):
-            self.input = BytesIO(source)
-        elif hasattr(source, 'read'):
-            self.input = source
-        else:
-            raise ValueError(
-                'AMQPReader needs a file-like object or plain string')
+def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
+    ftype = ftype_t(buf[offset]) if ftype_t else buf[offset]
+    offset += 1
 
-        self.bitcount = self.bits = 0
-
-    def close(self):
-        self.input.close()
-
-    def read(self, n):
-        """Read n bytes."""
-        self.bitcount = self.bits = 0
-        return self.input.read(n)
-
-    def read_bit(self):
-        """Read a single boolean value."""
-        if not self.bitcount:
-            self.bits = ord(self.input.read(1))
-            self.bitcount = 8
-        result = (self.bits & 1) == 1
-        self.bits >>= 1
-        self.bitcount -= 1
-        return result
-
-    def read_octet(self):
-        """Read one byte, return as an integer"""
-        self.bitcount = self.bits = 0
-        return unpack('B', self.input.read(1))[0]
-
-    def read_short(self):
-        """Read an unsigned 16-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>H', self.input.read(2))[0]
-
-    def read_long(self):
-        """Read an unsigned 32-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>I', self.input.read(4))[0]
-
-    def read_longlong(self):
-        """Read an unsigned 64-bit integer"""
-        self.bitcount = self.bits = 0
-        return unpack('>Q', self.input.read(8))[0]
-
-    def read_float(self):
-        """Read float value."""
-        self.bitcount = self.bits = 0
-        return unpack('>d', self.input.read(8))[0]
-
-    def read_shortstr(self):
-        """Read a short string that's stored in up to 255 bytes.
-
-        The encoding isn't specified in the AMQP spec, so
-        assume it's utf-8
-
-        """
-        self.bitcount = self.bits = 0
-        slen = unpack('B', self.input.read(1))[0]
-        return self.input.read(slen).decode('utf-8')
-
-    def read_longstr(self):
-        """Read a string that's up to 2**32 bytes.
-
-        The encoding isn't specified in the AMQP spec, so
-        assume it's utf-8
-
-        """
-        self.bitcount = self.bits = 0
-        slen = unpack('>I', self.input.read(4))[0]
-        return self.input.read(slen).decode('utf-8')
-
-    def read_table(self):
-        """Read an AMQP table, and return as a Python dictionary."""
-        self.bitcount = self.bits = 0
-        tlen = unpack('>I', self.input.read(4))[0]
-        table_data = AMQPReader(self.input.read(tlen))
-        result = {}
-        while table_data.input.tell() < tlen:
-            name = table_data.read_shortstr()
-            val = table_data.read_item()
-            result[name] = val
-        return result
-
-    def read_item(self):
-        ftype = ord(self.input.read(1))
-
-        # 'S': long string
-        if ftype == 83:
-            val = self.read_longstr()
-        # 's': short string
-        elif ftype == 115:
-            val = self.read_shortstr()
-        # 'b': short-short int
-        elif ftype == 98:
-            val, = unpack('>B', self.input.read(1))
-        # 'B': short-short unsigned int
-        elif ftype == 66:
-            val, = unpack('>b', self.input.read(1))
-        # 'U': short int
-        elif ftype == 85:
-            val, = unpack('>h', self.input.read(2))
-        # 'u': short unsigned int
-        elif ftype == 117:
-            val, = unpack('>H', self.input.read(2))
-        # 'I': long int
-        elif ftype == 73:
-            val, = unpack('>i', self.input.read(4))
-        # 'i': long unsigned int
-        elif ftype == 105:  # 'l'
-            val, = unpack('>I', self.input.read(4))
-        # 'L': long long int
-        elif ftype == 76:
-            val, = unpack('>q', self.input.read(8))
-        # 'l': long long unsigned int
-        elif ftype == 108:
-            val, = unpack('>Q', self.input.read(8))
-        # 'f': float
-        elif ftype == 102:
-            val, = unpack('>f', self.input.read(4))
-        # 'd': double
-        elif ftype == 100:
-            val = self.read_float()
-        # 'D': decimal
-        elif ftype == 68:
-            d = self.read_octet()
-            n, = unpack('>i', self.input.read(4))
-            val = Decimal(n) / Decimal(10 ** d)
-        # 'F': table
-        elif ftype == 70:
-            val = self.read_table()  # recurse
-        # 'A': array
-        elif ftype == 65:
-            val = self.read_array()
-        # 't' (bool)
-        elif ftype == 116:
-            val = self.read_bit()
-        # 'T': timestamp
-        elif ftype == 84:
-            val = self.read_timestamp()
-        # 'V': void
-        elif ftype == 86:
-            val = None
-        else:
-            raise FrameSyntaxError(
-                'Unknown value in table: {0!r} ({1!r})'.format(
-                    ftype, type(ftype)))
-        return val
-
-    def read_array(self):
-        array_length = unpack('>I', self.input.read(4))[0]
-        array_data = AMQPReader(self.input.read(array_length))
-        result = []
-        while array_data.input.tell() < array_length:
-            val = array_data.read_item()
-            result.append(val)
-        return result
-
-    def read_timestamp(self):
-        """Read and AMQP timestamp, which is a 64-bit integer representing
-        seconds since the Unix epoch in 1-second resolution.
-
-        Return as a Python datetime.datetime object,
-        expressed as localtime.
-
-        """
-        return datetime.fromtimestamp(self.read_longlong())
+    # 'S': long string
+    if ftype == 'S':
+        slen, = unpack_from('>I', buf, offset)
+        offset += 4
+        val = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    # 's': short string
+    elif ftype == 's':
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        val = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    # 'b': short-short int
+    elif ftype == 'b':
+        val, = unpack_from('>B', buf, offset)
+        offset += 1
+    # 'B': short-short unsigned int
+    elif ftype == 'B':
+        val, = unpack_from('>b', buf, offset)
+        offset += 1
+    # 'U': short int
+    elif ftype == 'U':
+        val, = unpack_from('>h', buf, offset)
+        offset += 2
+    # 'u': short unsigned int
+    elif ftype == 'u':
+        val, = unpack_from('>H', buf, offset)
+        offset += 2
+    # 'I': long int
+    elif ftype == 'I':
+        val, = unpack_from('>i', buf, offset)
+        offset += 4
+    # 'i': long unsigned int
+    elif ftype == 'i':
+        val, = unpack_from('>I', buf, offset)
+        offset += 4
+    # 'L': long long int
+    elif ftype == 'L':
+        val, = unpack_from('>q', buf, offset)
+        offset += 8
+    # 'l': long long unsigned int
+    elif ftype == 'l':
+        val, = unpack_from('>Q', buf, offset)
+        offset += 8
+    # 'f': float
+    elif ftype == 'f':
+        val, = unpack_from('>f', buf, offset)
+        offset += 4
+    # 'd': double
+    elif ftype == 'd':
+        val, = unpack_from('>d', buf, offset)
+        offset += 8
+    # 'D': decimal
+    elif ftype == 'D':
+        d, = unpack_from('>B', buf, offset)
+        offset += 1
+        n, = unpack_from('>i', buf, offset)
+        offset += 4
+        val = Decimal(n) / Decimal(10 ** d)
+    # 'F': table
+    elif ftype == 'F':
+        tlen, = unpack_from('>I', buf, offset)
+        offset += 4
+        limit = offset + tlen
+        val = {}
+        while offset < limit:
+            keylen, = unpack_from('>B', buf, offset)
+            offset += 1
+            key = pstr_t(buf[offset:offset + keylen])
+            offset += keylen
+            val[key], offset = _read_item(buf, offset)
+    # 'A': array
+    elif ftype == 'A':
+        alen, = unpack_from('>I', buf, offset)
+        offset += 4
+        limit = offset + alen
+        val = []
+        while offset < limit:
+            v, offset = _read_item(buf, offset)
+            val.append(v)
+    # 't' (bool)
+    elif ftype == 't':
+        val, = unpack_from('>B', buf, offset)
+        val = bool(val)
+        offset += 1
+    # 'T': timestamp
+    elif ftype == 'T':
+        val, = unpack_from('>Q', buf, offset)
+        offset += 8
+        val = datetime.fromtimestamp(val)
+    # 'V': void
+    elif ftype == 'V':
+        val = None
+    else:
+        raise FrameSyntaxError(
+            'Unknown value in table: {0!r} ({1!r})'.format(
+                ftype, type(ftype)))
+    return val, offset
 
 
-class AMQPWriter(object):
-    """Convert higher-level AMQP types to bytestreams."""
+def loads(format, buf, offset=0,
+          ord=ord, unpack_from=unpack_from,
+          _read_item=_read_item, pstr_t=pstr_t):
+    """
+    bit = b
+    octet = o
+    short = B
+    long = l
+    long long = L
+    float = f
+    shortstr = s
+    longstr = S
+    table = F
+    array = A
+    """
+    bitcount = bits = 0
 
-    def __init__(self, dest=None):
-        """dest may be a file-type object (with a write() method).  If None
-        then a BytesIO is created, and the contents can be accessed with
-        this class's getvalue() method."""
-        self.out = BytesIO() if dest is None else dest
-        self.bits = []
-        self.bitcount = 0
+    values = []
+    append = values.append
 
-    def _flushbits(self):
-        if self.bits:
-            out = self.out
-            for b in self.bits:
-                out.write(pack('B', b))
-            self.bits = []
-            self.bitcount = 0
+    for p in format:
+        if p == 'b':
+            if not bitcount:
+                bits = ord(buf[offset:offset+1])
+                bitcount = 8
+                offset += 1
+            val = (bits & 1) == 1
+            bits >>= 1
+            bitcount -= 1
+        elif p == 'o':
+            bitcount = bits = 0
+            val, = unpack_from('>B', buf, offset)
+            offset += 1
+        elif p == 'B':
+            bitcount = bits = 0
+            val, = unpack_from('>H', buf, offset)
+            offset += 2
+        elif p == 'l':
+            bitcount = bits = 0
+            val, = unpack_from('>I', buf, offset)
+            offset += 4
+        elif p == 'L':
+            bitcount = bits = 0
+            val, = unpack_from('>Q', buf, offset)
+            offset += 8
+        elif p == 'f':
+            bitcount = bits = 0
+            val, = unpack_from('>d', buf, offset)
+            offset += 8
+        elif p == 's':
+            bitcount = bits = 0
+            slen, = unpack_from('B', buf, offset)
+            offset += 1
+            val = buf[offset:offset + slen].decode('utf-8')
+            offset += slen
+        elif p == 'S':
+            bitcount = bits = 0
+            slen, = unpack_from('>I', buf, offset)
+            offset += 4
+            val = buf[offset:offset + slen].decode('utf-8')
+            offset += slen
+        elif p == 'F':
+            bitcount = bits = 0
+            tlen, = unpack_from('>I', buf, offset)
+            offset += 4
+            limit = offset + tlen
+            val = {}
+            while offset < limit:
+                keylen, = unpack_from('>B', buf, offset)
+                offset += 1
+                key = pstr_t(buf[offset:offset + keylen])
+                offset += keylen
+                val[key], offset = _read_item(buf, offset)
+        elif p == 'A':
+            bitcount = bits = 0
+            alen, = unpack_from('>I', buf, offset)
+            offset += 4
+            limit = offset + alen
+            val = []
+            while offset < limit:
+                aval, offset = _read_item(buf, offset)
+                val.append(aval)
+        elif p == 'T':
+            bitcount = bits = 0
+            val, = unpack_from('>Q', buf, offset)
+            offset += 8
+            val = datetime.fromtimestamp(val)
+        append(val)
+    return values, offset
 
-    def close(self):
-        """Pass through if possible to any file-like destinations."""
+
+def _flushbits(bits, write, pack=pack):
+    if bits:
+        write(pack('B' * len(bits), *bits))
+        bits[:] = []
+    return 0
+
+
+def dumps(format, values):
+    """"
+    bit = b
+    octet = o
+    short = B
+    long = l
+    long long = L
+    shortstr = s
+    longstr = S
+    table = F
+    array = A
+
+    """
+    bitcount = 0
+    bits = []
+    out = BytesIO()
+    write = out.write
+
+    for i, val in enumerate(values):
+        p = format[i]
+        if p == 'b':
+            val = 1 if val else 0
+            shift = bitcount % 8
+            if shift == 0:
+                bits.append(0)
+            bits[-1] |= (val << shift)
+            bitcount += 1
+        elif p == 'o':
+            bitcount = _flushbits(bits, write)
+            write(pack('B', val))
+        elif p == 'B':
+            bitcount = _flushbits(bits, write)
+            write(pack('>H', int(val)))
+        elif p == 'l':
+            bitcount = _flushbits(bits, write)
+            write(pack('>I', val))
+        elif p == 'L':
+            bitcount = _flushbits(bits, write)
+            write(pack('>Q', val))
+        elif p == 's':
+            val = val or ''
+            bitcount = _flushbits(bits, write)
+            if isinstance(val, string):
+                val = val.encode('utf-8')
+            write(pack('B', len(val)))
+            write(val)
+        elif p == 'S':
+            val = val or ''
+            bitcount = _flushbits(bits, write)
+            if isinstance(val, string):
+                val = val.encode('utf-8')
+            write(pack('>I', len(val)))
+            write(val)
+        elif p == 'F':
+            bitcount = _flushbits(bits, write)
+            _write_table(val or {}, write, bits)
+        elif p == 'A':
+            bitcount = _flushbits(bits, write)
+            _write_array(val or [], write, bits)
+        elif p == 'T':
+            write(pack('>q', long_t(mktime(val.timetuple()))))
+    _flushbits(bits, write)
+
+    return out.getvalue()
+
+
+def _write_table(d, write, bits, pack=pack):
+    out = BytesIO()
+    twrite = out.write
+    for k, v in items(d):
+        if isinstance(k, string):
+            k = k.encode('utf-8')
+        twrite(pack('B', len(k)))
+        twrite(k)
         try:
-            self.out.close()
-        except AttributeError:
-            pass
+            _write_item(v, twrite, bits)
+        except ValueError:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v))
+    table_data = out.getvalue()
+    write(pack('>I', len(table_data)))
+    write(table_data)
 
-    def flush(self):
-        """Pass through if possible to any file-like destinations."""
+
+def _write_array(l, write, bits, pack=pack):
+    out = BytesIO()
+    awrite = out.write
+    for v in l:
         try:
-            self.out.flush()
-        except AttributeError:
-            pass
-
-    def getvalue(self):
-        """Get what's been encoded so far if we're working with a BytesIO."""
-        self._flushbits()
-        return self.out.getvalue()
-
-    def write(self, s):
-        """Write a plain Python string with no special encoding in Python 2.x,
-        or bytes in Python 3.x"""
-        self._flushbits()
-        self.out.write(s)
-
-    def write_bit(self, b):
-        """Write a boolean value."""
-        b = 1 if b else 0
-        shift = self.bitcount % 8
-        if shift == 0:
-            self.bits.append(0)
-        self.bits[-1] |= (b << shift)
-        self.bitcount += 1
-
-    def write_octet(self, n):
-        """Write an integer as an unsigned 8-bit value."""
-        if n < 0 or n > 255:
+            _write_item(v, awrite, bits)
+        except ValueError:
             raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..255'.format(n))
-        self._flushbits()
-        self.out.write(pack('B', n))
+                ILLEGAL_TABLE_TYPE.format(type(v), v))
+    array_data = out.getvalue()
+    write(pack('>I', len(array_data)))
+    write(array_data)
 
-    def write_short(self, n):
-        """Write an integer as an unsigned 16-bit value."""
-        if n < 0 or n > 65535:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..65535'.format(n))
-        self._flushbits()
-        self.out.write(pack('>H', int(n)))
 
-    def write_long(self, n):
-        """Write an integer as an unsigned2 32-bit value."""
-        if n < 0 or n >= 4294967296:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..2**31-1'.format(n))
-        self._flushbits()
-        self.out.write(pack('>I', n))
-
-    def write_longlong(self, n):
-        """Write an integer as an unsigned 64-bit value."""
-        if n < 0 or n >= 18446744073709551616:
-            raise FrameSyntaxError(
-                'Octet {0!r} out of range 0..2**64-1'.format(n))
-        self._flushbits()
-        self.out.write(pack('>Q', n))
-
-    def write_shortstr(self, s):
-        """Write a string up to 255 bytes long (after any encoding).
-
-        If passed a unicode string, encode with UTF-8.
-
-        """
-        self._flushbits()
-        if isinstance(s, string):
-            s = s.encode('utf-8')
-        if len(s) > 255:
-            raise FrameSyntaxError(
-                'Shortstring overflow ({0} > 255)'.format(len(s)))
-        self.write_octet(len(s))
-        self.out.write(s)
-
-    def write_longstr(self, s):
-        """Write a string up to 2**32 bytes long after encoding.
-
-        If passed a unicode string, encode as UTF-8.
-
-        """
-        self._flushbits()
-        if isinstance(s, string):
-            s = s.encode('utf-8')
-        self.write_long(len(s))
-        self.out.write(s)
-
-    def write_table(self, d):
-        """Write out a Python dictionary made of up string keys, and values
-        that are strings, signed integers, Decimal, datetime.datetime, or
-        sub-dictionaries following the same constraints."""
-        self._flushbits()
-        table_data = AMQPWriter()
-        for k, v in items(d):
-            table_data.write_shortstr(k)
-            table_data.write_item(v, k)
-        table_data = table_data.getvalue()
-        self.write_long(len(table_data))
-        self.out.write(table_data)
-
-    def write_item(self, v, k=None):
-        if isinstance(v, (string_t, bytes)):
-            if isinstance(v, string):
-                v = v.encode('utf-8')
-            self.write(b'S')
-            self.write_longstr(v)
-        elif isinstance(v, bool):
-            self.write(pack('>cB', b't', int(v)))
-        elif isinstance(v, float):
-            self.write(pack('>cd', b'd', v))
-        elif isinstance(v, int_types):
-            self.write(pack('>ci', b'I', v))
-        elif isinstance(v, Decimal):
-            self.write(b'D')
-            sign, digits, exponent = v.as_tuple()
-            v = 0
-            for d in digits:
-                v = (v * 10) + d
-            if sign:
-                v = -v
-            self.write_octet(-exponent)
-            self.write(pack('>i', v))
-        elif isinstance(v, datetime):
-            self.write(b'T')
-            self.write_timestamp(v)
-            ## FIXME: timezone ?
-        elif isinstance(v, dict):
-            self.write(b'F')
-            self.write_table(v)
-        elif isinstance(v, (list, tuple)):
-            self.write(b'A')
-            self.write_array(v)
-        elif v is None:
-            self.write(b'V')
+def _write_item(v, write, bits, pack=pack,
+                string_t=string_t, bytes=bytes, string=string, bool=bool,
+                float=float, int_types=int_types, Decimal=Decimal,
+                datetime=datetime, dict=dict, list=list, tuple=tuple,
+                None_t=None):
+    if isinstance(v, (string_t, bytes)):
+        if isinstance(v, string):
+            v = v.encode('utf-8')
+        write(pack('>cI', b'S', len(v)))
+        write(v)
+    elif isinstance(v, bool):
+        write(pack('>cB', b't', int(v)))
+    elif isinstance(v, float):
+        write(pack('>cd', b'd', v))
+    elif isinstance(v, int_types):
+        write(pack('>ci', b'I', v))
+    elif isinstance(v, Decimal):
+        sign, digits, exponent = v.as_tuple()
+        v = 0
+        for d in digits:
+            v = (v * 10) + d
+        if sign:
+            v = -v
+        write(pack('>cBi', b'D', -exponent, v))
+    elif isinstance(v, datetime):
+        if IS_PY3:
+            timestamp = int(v.timestamp())
         else:
-            err = (ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v) if k
-                   else ILLEGAL_TABLE_TYPE.format(type(v), v))
-            raise FrameSyntaxError(err)
+            timestamp = int(v.strftime("%s"))
+        write(pack('>cQ', b'T', timestamp))
+    elif isinstance(v, dict):
+        write(b'F')
+        _write_table(v, write, bits)
+    elif isinstance(v, (list, tuple)):
+        write(b'A')
+        _write_array(v, write, bits)
+    elif v is None_t:
+        write(b'V')
+    else:
+        raise ValueError()
 
-    def write_array(self, a):
-        array_data = AMQPWriter()
-        for v in a:
-            array_data.write_item(v)
-        array_data = array_data.getvalue()
-        self.write_long(len(array_data))
-        self.out.write(array_data)
 
-    def write_timestamp(self, v):
-        """Write out a Python datetime.datetime object as a 64-bit integer
-        representing seconds since the Unix epoch."""
-        self.out.write(pack('>q', long_t(mktime(v.timetuple()))))
+def encode_properties_basic(p, pack=pack):
+    # TODO
+    parts, flags = [], 0
+    extend = parts.extend
+    content_type = p['content_type'] if 'content_type' in p else None
+    if content_type:
+        flags |= 0x8000
+        extend((pack('>B', len(content_type)), content_type))
+    content_enc = p['content_encoding'] if 'content_encoding' in p else None
+    if content_enc:
+        flags |= 0x4000
+        extend((pack('>B', len(content_enc)), content_enc))
+
+
+def decode_properties_basic(buf, offset=0,
+                            unpack_from=unpack_from, pstr_t=pstr_t):
+    properties = {}
+
+    flags, = unpack_from('>H', buf, offset)
+    offset += 2
+
+    if flags & 0x8000:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['content_type'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x4000:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['content_encoding'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x2000:
+        _f, offset = loads('F', buf, offset)
+        properties['application_headers'], = _f
+    if flags & 0x1000:
+        properties['delivery_mode'], = unpack_from('>B', buf, offset)
+        offset += 1
+    if flags & 0x0800:
+        properties['priority'], = unpack_from('>B', buf, offset)
+        offset += 1
+    if flags & 0x0400:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['correlation_id'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0200:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['reply_to'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0100:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['expiration'] = pstr_t(buf[offset:offset + slen])
+    if flags & 0x0080:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['message_id'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0040:
+        val, = unpack_from('>Q', buf, offset)
+        properties['timestamp'] = datetime.fromtimestamp(val)
+        offset += 8
+    if flags & 0x0020:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['type'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0010:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['user_id'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0008:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['app_id'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    if flags & 0x0004:
+        slen, = unpack_from('>B', buf, offset)
+        offset += 1
+        properties['cluster_id'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
+    return properties, offset
+
+PROPERTY_CLASSES = {
+    spec.Basic.CLASS_ID: decode_properties_basic,
+}
 
 
 class GenericContent(object):
@@ -411,26 +488,20 @@ class GenericContent(object):
     Subclasses should override the PROPERTIES attribute.
 
     """
-    PROPERTIES = [('dummy', 'shortstr')]
+    CLASS_ID = None
+    PROPERTIES = [('dummy', 's')]
 
-    def __init__(self, **props):
+    def __init__(self, frame_method=None, frame_args=None, **props):
         """Save the properties appropriate to this AMQP content type
         in a 'properties' dictionary."""
-        d = {}
-        for propname, _ in self.PROPERTIES:
-            if propname in props:
-                d[propname] = props[propname]
-            # FIXME: should we ignore unknown properties?
+        self.frame_method = frame_method
+        self.frame_args = frame_args
 
-        self.properties = d
-
-    def __eq__(self, other):
-        """Check if this object has the same properties as another
-        content object."""
-        try:
-            return self.properties == other.properties
-        except AttributeError:
-            return NotImplemented
+        self.properties = props
+        self._pending_chunks = []
+        self.body_received = 0
+        self.body_size = 0
+        self.ready = False
 
     def __getattr__(self, name):
         """Look for additional properties in the 'properties'
@@ -442,53 +513,33 @@ class GenericContent(object):
 
         if name in self.properties:
             return self.properties[name]
-
-        if 'delivery_info' in self.__dict__ \
-                and name in self.delivery_info:
-            return self.delivery_info[name]
-
         raise AttributeError(name)
 
-    def _load_properties(self, raw_bytes):
+    def _load_properties(self, class_id, buf, offset=0,
+                         classes=PROPERTY_CLASSES, unpack_from=unpack_from):
         """Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert into a dictionary
         stored in this object as an attribute named 'properties'."""
-        r = AMQPReader(raw_bytes)
-
         #
         # Read 16-bit shorts until we get one with a low bit set to zero
         #
-        flags = []
-        while 1:
-            flag_bits = r.read_short()
-            flags.append(flag_bits)
-            if flag_bits & 1 == 0:
-                break
+        props, offset = classes[class_id](buf, offset)
+        self.properties = props
+        return offset
 
-        shift = 0
-        d = {}
-        for key, proptype in self.PROPERTIES:
-            if shift == 0:
-                if not flags:
-                    break
-                flag_bits, flags = flags[0], flags[1:]
-                shift = 15
-            if flag_bits & (1 << shift):
-                d[key] = getattr(r, 'read_' + proptype)()
-            shift -= 1
-
-        self.properties = d
-
-    def _serialize_properties(self):
+    def _serialize_properties(self, set_utf8=True):
         """serialize the 'properties' attribute (a dictionary) into
         the raw bytes making up a set of property flags and a
         property list, suitable for putting into a content frame header."""
         shift = 15
         flag_bits = 0
         flags = []
-        raw_bytes = AMQPWriter()
+        sformat, svalues = [], []
+        props = self.properties
+        if set_utf8:
+            props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
-            val = self.properties.get(key, None)
+            val = props.get(key, None)
             if val is not None:
                 if shift == 0:
                     flags.append(flag_bits)
@@ -497,14 +548,43 @@ class GenericContent(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    getattr(raw_bytes, 'write_' + proptype)(val)
+                    sformat.append(proptype)
+                    svalues.append(val)
 
             shift -= 1
-
         flags.append(flag_bits)
-        result = AMQPWriter()
+        result = BytesIO()
+        write = result.write
         for flag_bits in flags:
-            result.write_short(flag_bits)
-        result.write(raw_bytes.getvalue())
-
+            write(pack('>H', flag_bits))
+        write(dumps(''.join(sformat), svalues))
         return result.getvalue()
+
+    def __eq__(self, other):
+        if self.properties != getattr(other, 'properties', {}):
+            return False
+        if getattr(self, 'body', '') != getattr(other, 'body', ''):
+            return False
+        return True
+
+    def inbound_header(self, buf, offset=0):
+        class_id, self.body_size = unpack_from('>HxxQ', buf, offset)
+        offset += 12
+        self._load_properties(class_id, buf, offset)
+        if not self.body_size:
+            self.ready = True
+        return offset
+
+    def inbound_body(self, buf):
+        chunks = self._pending_chunks
+        self.body_received += len(buf)
+        if self.body_received >= self.body_size:
+            if chunks:
+                chunks.append(buf)
+                self.body = bytes().join(chunks)
+                chunks[:] = []
+            else:
+                self.body = buf
+            self.ready = True
+        else:
+            chunks.append(buf)

@@ -18,8 +18,10 @@ from __future__ import absolute_import
 
 import logging
 import socket
+import uuid
 
 from array import array
+from io import BytesIO
 try:
     from ssl import SSLError
 except ImportError:
@@ -27,19 +29,20 @@ except ImportError:
         pass
 
 from . import __version__
+from . import spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (
-    AMQPNotImplementedError, ChannelError, ResourceError,
+    ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import items, range, values, monotonic
-from .method_framing import MethodReader, MethodWriter
-from .serialization import AMQPWriter
+from .five import range, values, monotonic
+from .method_framing import frame_handler, frame_writer
+from .promise import ensure_promise
+from .serialization import _write_table
 from .transport import create_transport
-
-HAS_MSG_PEEK = hasattr(socket, 'MSG_PEEK')
+from .utils import FakeLock
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -95,18 +98,55 @@ class Connection(AbstractChannel):
     #: Time of last heartbeat received (in monotonic time, if available).
     last_heartbeat_received = 0
 
+    #: Number of successful writes to socket.
+    bytes_sent = 0
+
+    #: Number of successful reads from socket.
+    bytes_recv = 0
+
     #: Number of bytes sent to socket at the last heartbeat check.
     prev_sent = None
 
     #: Number of bytes received from socket at the last heartbeat check.
     prev_recv = None
 
+    _METHODS = set([
+        spec.method(spec.Connection.Start, 'ooFSS'),
+        spec.method(spec.Connection.OpenOk),
+        spec.method(spec.Connection.Secure, 's'),
+        spec.method(spec.Connection.Tune, 'BlB'),
+        spec.method(spec.Connection.Close, 'BsBB'),
+        spec.method(spec.Connection.Blocked),
+        spec.method(spec.Connection.Unblocked),
+        spec.method(spec.Connection.CloseOk),
+    ])
+    _METHODS = dict((m.method_sig, m) for m in _METHODS)
+
+    connection_errors = (
+        ConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
+    channel_errors = (ChannelError,)
+    recoverable_connection_errors = (
+        RecoverableConnectionError,
+        socket.error,
+        IOError,
+        OSError,
+    )
+    recoverable_channel_errors = (
+        RecoverableChannelError,
+    )
+
     def __init__(self, host='localhost', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
-                 frame_max=None, heartbeat=0, on_blocked=None,
-                 on_unblocked=None, confirm_publish=False, **kwargs):
+                 frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
+                 on_unblocked=None, confirm_publish=False,
+                 on_tune_ok=None, read_timeout=None, write_timeout=None,
+                 socket_settings=None, lock_factory=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -119,19 +159,37 @@ class Connection(AbstractChannel):
         a dictionary of options to pass to ssl.wrap_socket() such as
         requiring certain certificates.
 
+        The 'socket_settings" parameter is a dictionary defining tcp
+        settings which will be applied as socket options.
+        
+        'lock_factory' is a class that will be used to prevent conflicting
+        accesses to a connection or its channels. If None, no locking will
+        be performed.
+
         """
+        self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
-            login_response = AMQPWriter()
-            login_response.write_table({'LOGIN': userid, 'PASSWORD': password})
-            login_response = login_response.getvalue()[4:]  # Skip the length
-                                                            # at the beginning
+            login_response = BytesIO()
+            _write_table({'LOGIN': userid, 'PASSWORD': password},
+                         login_response.write, [])
+            # Skip the length at the beginning
+            login_response = login_response.getvalue()[4:]
 
-        d = dict(LIBRARY_PROPERTIES, **client_properties or {})
-        self._method_override = {(60, 50): self._dispatch_basic_return}
+        self.client_properties = dict(
+            LIBRARY_PROPERTIES, **client_properties or {}
+        )
+        self.login_method = login_method
+        self.login_response = login_response
+        self.locale = locale
+        self.virtual_host = virtual_host
+        self.on_tune_ok = ensure_promise(on_tune_ok)
+        self.make_lock = lock_factory or FakeLock
+
+        self._handshake_complete = False
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -149,6 +207,7 @@ class Connection(AbstractChannel):
         # Callbacks
         self.on_blocked = on_blocked
         self.on_unblocked = on_unblocked
+        self.on_open = ensure_promise(on_open)
 
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
 
@@ -162,40 +221,121 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.Transport(host, connect_timeout, ssl)
+        self.transport = self.Transport(
+            host, connect_timeout, ssl, read_timeout, write_timeout,
+            socket_settings=socket_settings,
+        )
+        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
+        self._frame_writer = frame_writer(self)
 
-        self.method_reader = MethodReader(self.transport)
-        self.method_writer = MethodWriter(self.transport, self.frame_max)
+        self.connect_timeout = connect_timeout
+        self.connect()
 
-        self.wait(allowed_methods=[
-            (10, 10),  # start
-        ])
+    def then(self, on_success, on_error=None):
+        return self.on_open.then(on_success, on_error)
 
-        self._x_start_ok(d, login_method, login_response, locale)
+    def _setup_listeners(self):
+        self._callbacks.update({
+            spec.Connection.Start: self._on_start,
+            spec.Connection.OpenOk: self._on_open_ok,
+            spec.Connection.Secure: self._on_secure,
+            spec.Connection.Tune: self._on_tune,
+            spec.Connection.Close: self._on_close,
+            spec.Connection.Blocked: self._on_blocked,
+            spec.Connection.Unblocked: self._on_unblocked,
+            spec.Connection.CloseOk: self._on_close_ok,
+        })
 
-        self._wait_tune_ok = True
-        while self._wait_tune_ok:
-            self.wait(allowed_methods=[
-                (10, 20),  # secure
-                (10, 30),  # tune
-            ])
+    def connect(self, callback=None):
+        while not self._handshake_complete:
+            self.drain_events(timeout=self.connect_timeout)
 
-        return self._x_open(virtual_host)
+    def _on_start(self, version_major, version_minor, server_properties,
+                  mechanisms, locales, argsig='FsSs'):
+        client_properties = self.client_properties
+        self.version_major = version_major
+        self.version_minor = version_minor
+        self.server_properties = server_properties
+        self.mechanisms = mechanisms.split(' ')
+        self.locales = locales.split(' ')
+        AMQP_LOGGER.debug(
+            START_DEBUG_FMT,
+            self.version_major, self.version_minor,
+            self.server_properties, self.mechanisms, self.locales,
+        )
 
-    def Transport(self, host, connect_timeout, ssl=False):
-        return create_transport(host, connect_timeout, ssl)
+        scap = server_properties.get('capabilities') or {}
+
+        if scap.get('consumer_cancel_notify'):
+            cap = client_properties.setdefault('capabilities', {})
+            cap['consumer_cancel_notify'] = True
+        if scap.get('connection.blocked'):
+            cap = client_properties.setdefault('capabilities', {})
+            cap['connection.blocked'] = True
+
+        self.send_method(
+            spec.Connection.StartOk, argsig,
+            (client_properties, self.login_method,
+             self.login_response, self.locale),
+        )
+
+    def _on_secure(self, challenge):
+        pass
+
+    def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
+        client_heartbeat = self.client_heartbeat or 0
+        self.channel_max = channel_max or self.channel_max
+        self.frame_max = frame_max or self.frame_max
+        self.server_heartbeat = server_heartbeat or 0
+
+        # negotiate the heartbeat interval to the smaller of the
+        # specified values
+        if self.server_heartbeat == 0 or client_heartbeat == 0:
+            self.heartbeat = max(self.server_heartbeat, client_heartbeat)
+        else:
+            self.heartbeat = min(self.server_heartbeat, client_heartbeat)
+
+        # Ignore server heartbeat if client_heartbeat is disabled
+        if not self.client_heartbeat:
+            self.heartbeat = 0
+
+        self.send_method(
+            spec.Connection.TuneOk, argsig,
+            (self.channel_max, self.frame_max, self.heartbeat),
+            callback=self._on_tune_sent,
+        )
+
+    def _on_tune_sent(self, argsig='ssb'):
+        self.send_method(
+            spec.Connection.Open, argsig, (self.virtual_host, '', False),
+        )
+
+    def _on_open_ok(self):
+        self._handshake_complete = True
+        self.on_open(self)
+
+    def FIXME(self, *args, **kwargs):
+        pass
+
+    def Transport(self, host, connect_timeout,
+                  ssl=False, read_timeout=None, write_timeout=None,
+                  socket_settings=None):
+        return create_transport(
+            host, connect_timeout, ssl, read_timeout, write_timeout,
+            socket_settings=socket_settings,
+        )
 
     @property
     def connected(self):
         return self.transport and self.transport.connected
 
-    def _do_close(self):
+    def collect(self):
         try:
             self.transport.close()
 
             temp_list = [x for x in values(self.channels) if x is not self]
             for ch in temp_list:
-                ch._do_close()
+                ch.collect()
         except socket.error:
             pass  # connection already closed on the other end
         finally:
@@ -207,195 +347,71 @@ class Connection(AbstractChannel):
         except IndexError:
             raise ResourceError(
                 'No free channel ids, current={0}, channel_max={1}'.format(
-                    len(self.channels), self.channel_max), (20, 10))
+                    len(self.channels), self.channel_max), spec.Channel.open)
 
     def _claim_channel_id(self, channel_id):
         try:
             return self._avail_channel_ids.remove(channel_id)
         except ValueError:
             raise ConnectionError(
-                'Channel %r already open' % (channel_id, ))
+                'Channel %r already open' % (channel_id,))
 
-    def _wait_method(self, channel_id, allowed_methods):
-        """Wait for a method from the server destined for
-        a particular channel."""
-        #
-        # Check the channel's deferred methods
-        #
-        method_queue = self.channels[channel_id].method_queue
-
-        for queued_method in method_queue:
-            method_sig = queued_method[0]
-            if (allowed_methods is None) \
-                    or (method_sig in allowed_methods) \
-                    or (method_sig == (20, 40)):
-                method_queue.remove(queued_method)
-                return queued_method
-
-        #
-        # Nothing queued, need to wait for a method from the peer
-        #
-        while 1:
-            channel, method_sig, args, content = \
-                self.method_reader.read_method()
-
-            if channel == channel_id and (
-                    allowed_methods is None or
-                    method_sig in allowed_methods or
-                    method_sig == (20, 40)):
-                return method_sig, args, content
-
-            #
-            # Certain methods like basic_return should be dispatched
-            # immediately rather than being queued, even if they're not
-            # one of the 'allowed_methods' we're looking for.
-            #
-            if channel and method_sig in self.Channel._IMMEDIATE_METHODS:
-                self.channels[channel].dispatch_method(
-                    method_sig, args, content,
-                )
-                continue
-
-            #
-            # Not the channel and/or method we were looking for.  Queue
-            # this method for later
-            #
-            self.channels[channel].method_queue.append(
-                (method_sig, args, content),
-            )
-
-            #
-            # If we just queued up a method for channel 0 (the Connection
-            # itself) it's probably a close method in reaction to some
-            # error, so deal with it right away.
-            #
-            if not channel:
-                self.wait()
-
-    def channel(self, channel_id=None):
+    def channel(self, channel_id=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
         try:
             return self.channels[channel_id]
         except KeyError:
-            return self.Channel(self, channel_id)
+            return self.Channel(self, channel_id, on_open=callback)
 
     def is_alive(self):
-        if HAS_MSG_PEEK:
-            sock = self.sock
-            prev = sock.gettimeout()
-            sock.settimeout(0.0001)
-            try:
-                sock.recv(1, socket.MSG_PEEK)
-            except socket.timeout:
-                pass
-            except socket.error:
-                return False
-            finally:
-                sock.settimeout(prev)
-        return True
+        raise NotImplementedError('Use AMQP heartbeats')
+
+    def inbound_method(self, channel_id, method_sig, payload, content):
+        self.channels[channel_id].dispatch_method(method_sig, payload, content)
 
     def drain_events(self, timeout=None):
-        """Wait for an event on a channel."""
-        chanmap = self.channels
-        chanid, method_sig, args, content = self._wait_multiple(
-            chanmap, None, timeout=timeout,
-        )
+        return self.blocking_read(timeout)
 
-        channel = chanmap[chanid]
-
-        if (content and
-                channel.auto_decode and
-                hasattr(content, 'content_encoding')):
-            try:
-                content.body = content.body.decode(content.content_encoding)
-            except Exception:
-                pass
-
-        amqp_method = (self._method_override.get(method_sig) or
-                       channel._METHOD_MAP.get(method_sig, None))
-
-        if amqp_method is None:
-            raise AMQPNotImplementedError(
-                'Unknown AMQP method {0!r}'.format(method_sig))
-
-        if content is None:
-            return amqp_method(channel, args)
-        else:
-            return amqp_method(channel, args, content)
-
-    def read_timeout(self, timeout=None):
+    def blocking_read(self, timeout=None):
+        read_frame = self.transport.read_frame
         if timeout is None:
-            return self.method_reader.read_method()
+            return self.on_inbound_frame(read_frame())
+
+        # XXX use select
         sock = self.sock
         prev = sock.gettimeout()
         if prev != timeout:
             sock.settimeout(timeout)
         try:
             try:
-                return self.method_reader.read_method()
+                frame = read_frame()
             except SSLError as exc:
                 # http://bugs.python.org/issue10272
                 if 'timed out' in str(exc):
                     raise socket.timeout()
-               # Non-blocking SSL sockets can throw SSLError
+                # Non-blocking SSL sockets can throw SSLError
                 if 'The operation did not complete' in str(exc):
                     raise socket.timeout()
                 raise
+            else:
+                self.on_inbound_frame(frame)
         finally:
             if prev != timeout:
                 sock.settimeout(prev)
 
-    def _wait_multiple(self, channels, allowed_methods, timeout=None):
-        for channel_id, channel in items(channels):
-            method_queue = channel.method_queue
-            for queued_method in method_queue:
-                method_sig = queued_method[0]
-                if (allowed_methods is None or
-                        method_sig in allowed_methods or
-                        method_sig == (20, 40)):
-                    method_queue.remove(queued_method)
-                    method_sig, args, content = queued_method
-                    return channel_id, method_sig, args, content
+    def on_inbound_method(self, channel_id, method_sig, payload, content):
+        return self.channels[channel_id].dispatch_method(
+            method_sig, payload, content,
+        )
 
-        # Nothing queued, need to wait for a method from the peer
-        read_timeout = self.read_timeout
-        wait = self.wait
-        while 1:
-            channel, method_sig, args, content = read_timeout(timeout)
+    def read_timeout(self, timeout=None):
+        if timeout is None:
+            return self.method_reader.read_method()
 
-            if channel in channels and (
-                    allowed_methods is None or
-                    method_sig in allowed_methods or
-                    method_sig == (20, 40)):
-                return channel, method_sig, args, content
+    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
+              nowait=False, argsig='BsBB'):
 
-            # Not the channel and/or method we were looking for. Queue
-            # this method for later
-            channels[channel].method_queue.append((method_sig, args, content))
-
-            #
-            # If we just queued up a method for channel 0 (the Connection
-            # itself) it's probably a close method in reaction to some
-            # error, so deal with it right away.
-            #
-            if channel == 0:
-                wait()
-
-    def _dispatch_basic_return(self, channel, args, msg):
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        exchange = args.read_shortstr()
-        routing_key = args.read_shortstr()
-
-        exc = error_for_code(reply_code, reply_text, (50, 60), ChannelError)
-        handlers = channel.events.get('basic_return')
-        if not handlers:
-            raise exc
-        for callback in handlers:
-            callback(exc, exchange, routing_key, msg)
-
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0), nowait=False):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -461,19 +477,13 @@ class Connection(AbstractChannel):
             # already closed
             return
 
-        args = AMQPWriter()
-        args.write_short(reply_code)
-        args.write_shortstr(reply_text)
-        args.write_short(method_sig[0])  # class_id
-        args.write_short(method_sig[1])  # method_id
-        self._send_method((10, 50), args)
-        if not nowait:
-            return self.wait(allowed_methods=[
-                (10, 50),  # Connection.close
-                (10, 51),  # Connection.close_ok
-            ])
+        return self.send_method(
+            spec.Connection.Close, argsig,
+            (reply_code, reply_text, method_sig[0], method_sig[1]),
+            wait=(None if nowait else spec.Connection.CloseOk),
+        )
 
-    def _close(self, args):
+    def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -527,23 +537,17 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
-        reply_code = args.read_short()
-        reply_text = args.read_shortstr()
-        class_id = args.read_short()
-        method_id = args.read_short()
-
         self._x_close_ok()
-
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    def _blocked(self, args):
+    def _on_blocked(self):
         """RabbitMQ Extension."""
-        reason = args.read_shortstr()
+        reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
-    def _unblocked(self, *args):
+    def _on_unblocked(self):
         if self.on_unblocked:
             return self.on_unblocked()
 
@@ -560,10 +564,9 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._send_method((10, 51))
-        self._do_close()
+        self.send_method(spec.Connection.CloseOk, callback=self.collect)
 
-    def _close_ok(self, args):
+    def _on_close_ok(self):
         """Confirm a connection close
 
         This method confirms a Connection.Close method and tells the
@@ -576,320 +579,13 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self._do_close()
-
-    def _x_open(self, virtual_host, capabilities=''):
-        """Open connection to virtual host
-
-        This method opens a connection to a virtual host, which is a
-        collection of resources, and acts to separate multiple
-        application domains within a server.
-
-        RULE:
-
-            The client MUST open the context before doing any work on
-            the connection.
-
-        PARAMETERS:
-            virtual_host: shortstr
-
-                virtual host name
-
-                The name of the virtual host to work with.
-
-                RULE:
-
-                    If the server supports multiple virtual hosts, it
-                    MUST enforce a full separation of exchanges,
-                    queues, and all associated entities per virtual
-                    host. An application, connected to a specific
-                    virtual host, MUST NOT be able to access resources
-                    of another virtual host.
-
-                RULE:
-
-                    The server SHOULD verify that the client has
-                    permission to access the specified virtual host.
-
-                RULE:
-
-                    The server MAY configure arbitrary limits per
-                    virtual host, such as the number of each type of
-                    entity that may be used, per connection and/or in
-                    total.
-
-            capabilities: shortstr
-
-                required capabilities
-
-                The client may specify a number of capability names,
-                delimited by spaces.  The server can use this string
-                to how to process the client's connection request.
-
-        """
-        args = AMQPWriter()
-        args.write_shortstr(virtual_host)
-        args.write_shortstr(capabilities)
-        args.write_bit(False)
-        self._send_method((10, 40), args)
-        return self.wait(allowed_methods=[
-            (10, 41),    # Connection.open_ok
-        ])
-
-    def _open_ok(self, args):
-        """Signal that the connection is ready
-
-        This method signals to the client that the connection is ready
-        for use.
-
-        PARAMETERS:
-            known_hosts: shortstr (deprecated)
-
-        """
-        AMQP_LOGGER.debug('Open OK!')
-
-    def _secure(self, args):
-        """Security mechanism challenge
-
-        The SASL protocol works by exchanging challenges and responses
-        until both peers have received sufficient information to
-        authenticate each other.  This method challenges the client to
-        provide more information.
-
-        PARAMETERS:
-            challenge: longstr
-
-                security challenge data
-
-                Challenge information, a block of opaque binary data
-                passed to the security mechanism.
-
-        """
-        challenge = args.read_longstr()  # noqa
-
-    def _x_secure_ok(self, response):
-        """Security mechanism response
-
-        This method attempts to authenticate, passing a block of SASL
-        data for the security mechanism at the server side.
-
-        PARAMETERS:
-            response: longstr
-
-                security response data
-
-                A block of opaque data passed to the security
-                mechanism.  The contents of this data are defined by
-                the SASL security mechanism.
-
-        """
-        args = AMQPWriter()
-        args.write_longstr(response)
-        self._send_method((10, 21), args)
-
-    def _start(self, args):
-        """Start connection negotiation
-
-        This method starts the connection negotiation process by
-        telling the client the protocol version that the server
-        proposes, along with a list of security mechanisms which the
-        client can use for authentication.
-
-        RULE:
-
-            If the client cannot handle the protocol version suggested
-            by the server it MUST close the socket connection.
-
-        RULE:
-
-            The server MUST provide a protocol version that is lower
-            than or equal to that requested by the client in the
-            protocol header. If the server cannot support the
-            specified protocol it MUST NOT send this method, but MUST
-            close the socket connection.
-
-        PARAMETERS:
-            version_major: octet
-
-                protocol major version
-
-                The protocol major version that the server agrees to
-                use, which cannot be higher than the client's major
-                version.
-
-            version_minor: octet
-
-                protocol major version
-
-                The protocol minor version that the server agrees to
-                use, which cannot be higher than the client's minor
-                version.
-
-            server_properties: table
-
-                server properties
-
-            mechanisms: longstr
-
-                available security mechanisms
-
-                A list of the security mechanisms that the server
-                supports, delimited by spaces.  Currently ASL supports
-                these mechanisms: PLAIN.
-
-            locales: longstr
-
-                available message locales
-
-                A list of the message locales that the server
-                supports, delimited by spaces.  The locale defines the
-                language in which the server will send reply texts.
-
-                RULE:
-
-                    All servers MUST support at least the en_US
-                    locale.
-
-        """
-        self.version_major = args.read_octet()
-        self.version_minor = args.read_octet()
-        self.server_properties = args.read_table()
-        self.mechanisms = args.read_longstr().split(' ')
-        self.locales = args.read_longstr().split(' ')
-
-        AMQP_LOGGER.debug(
-            START_DEBUG_FMT,
-            self.version_major, self.version_minor,
-            self.server_properties, self.mechanisms, self.locales,
-        )
-
-    def _x_start_ok(self, client_properties, mechanism, response, locale):
-        """Select security mechanism and locale
-
-        This method selects a SASL security mechanism. ASL uses SASL
-        (RFC2222) to negotiate authentication and encryption.
-
-        PARAMETERS:
-            client_properties: table
-
-                client properties
-
-            mechanism: shortstr
-
-                selected security mechanism
-
-                A single security mechanisms selected by the client,
-                which must be one of those specified by the server.
-
-                RULE:
-
-                    The client SHOULD authenticate using the highest-
-                    level security profile it can handle from the list
-                    provided by the server.
-
-                RULE:
-
-                    The mechanism field MUST contain one of the
-                    security mechanisms proposed by the server in the
-                    Start method. If it doesn't, the server MUST close
-                    the socket.
-
-            response: longstr
-
-                security response data
-
-                A block of opaque data passed to the security
-                mechanism. The contents of this data are defined by
-                the SASL security mechanism.  For the PLAIN security
-                mechanism this is defined as a field table holding two
-                fields, LOGIN and PASSWORD.
-
-            locale: shortstr
-
-                selected message locale
-
-                A single message local selected by the client, which
-                must be one of those specified by the server.
-
-        """
-        if self.server_capabilities.get('consumer_cancel_notify'):
-            if 'capabilities' not in client_properties:
-                client_properties['capabilities'] = {}
-            client_properties['capabilities']['consumer_cancel_notify'] = True
-        if self.server_capabilities.get('connection.blocked'):
-            if 'capabilities' not in client_properties:
-                client_properties['capabilities'] = {}
-            client_properties['capabilities']['connection.blocked'] = True
-        args = AMQPWriter()
-        args.write_table(client_properties)
-        args.write_shortstr(mechanism)
-        args.write_longstr(response)
-        args.write_shortstr(locale)
-        self._send_method((10, 11), args)
-
-    def _tune(self, args):
-        """Propose connection tuning parameters
-
-        This method proposes a set of connection configuration values
-        to the client.  The client can accept and/or adjust these.
-
-        PARAMETERS:
-            channel_max: short
-
-                proposed maximum channels
-
-                The maximum total number of channels that the server
-                allows per connection. Zero means that the server does
-                not impose a fixed limit, but the number of allowed
-                channels may be limited by available server resources.
-
-            frame_max: long
-
-                proposed maximum frame size
-
-                The largest frame size that the server proposes for
-                the connection. The client can negotiate a lower
-                value.  Zero means that the server does not impose any
-                specific limit but may reject very large frames if it
-                cannot allocate resources for them.
-
-                RULE:
-
-                    Until the frame-max has been negotiated, both
-                    peers MUST accept frames of up to 4096 octets
-                    large. The minimum non-zero value for the frame-
-                    max field is 4096.
-
-            heartbeat: short
-
-                desired heartbeat delay
-
-                The delay, in seconds, of the connection heartbeat
-                that the server wants.  Zero means the server does not
-                want a heartbeat.
-
-        """
-        client_heartbeat = self.client_heartbeat or 0
-        self.channel_max = args.read_short() or self.channel_max
-        self.frame_max = args.read_long() or self.frame_max
-        self.method_writer.frame_max = self.frame_max
-        self.server_heartbeat = args.read_short() or 0
-
-        # negotiate the heartbeat interval to the smaller of the
-        # specified values
-        if self.server_heartbeat == 0 or client_heartbeat == 0:
-            self.heartbeat = max(self.server_heartbeat, client_heartbeat)
-        else:
-            self.heartbeat = min(self.server_heartbeat, client_heartbeat)
-
-        # Ignore server heartbeat if client_heartbeat is disabled
-        if not self.client_heartbeat:
-            self.heartbeat = 0
-
-        self._x_tune_ok(self.channel_max, self.frame_max, self.heartbeat)
+        self.collect()
 
     def send_heartbeat(self):
-        self.transport.write_frame(8, 0, bytes())
+        try:
+            self._frame_writer.send((8, 0, None, None, None))
+        except StopIteration:
+            raise RecoverableConnectionError('connection already closed')
 
     def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
@@ -898,20 +594,36 @@ class Connection(AbstractChannel):
 
         :keyword rate: Ignored
         """
+        AMQP_LOGGER.debug('heartbeat_tick : for connection %s'
+                          % self._connection_id)
         if not self.heartbeat:
             return
 
         # treat actual data exchange in either direction as a heartbeat
-        sent_now = self.method_writer.bytes_sent
-        recv_now = self.method_reader.bytes_recv
+        sent_now = self.bytes_sent
+        recv_now = self.bytes_recv
         if self.prev_sent is None or self.prev_sent != sent_now:
             self.last_heartbeat_sent = monotonic()
         if self.prev_recv is None or self.prev_recv != recv_now:
             self.last_heartbeat_received = monotonic()
+
+        mntnc = monotonic()
+        AMQP_LOGGER.debug('heartbeat_tick : Prev sent/recv: %s/%s, '
+                          'now - %s/%s, monotonic - %s, '
+                          'last_heartbeat_sent - %s, heartbeat int. - %s '
+                          'for connection %s' %
+                          (str(self.prev_sent), str(self.prev_recv),
+                           str(sent_now), str(recv_now), str(mntnc),
+                           str(self.last_heartbeat_sent),
+                           str(self.heartbeat),
+                           self._connection_id))
+
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if monotonic() > self.last_heartbeat_sent + self.heartbeat:
+        if mntnc > self.last_heartbeat_sent + self.heartbeat:
+            AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
+                              'connection %s' % self._connection_id)
             self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 
@@ -922,62 +634,6 @@ class Connection(AbstractChannel):
                 self.heartbeat < monotonic()):
             raise ConnectionForced('Too many heartbeats missed')
 
-    def _x_tune_ok(self, channel_max, frame_max, heartbeat):
-        """Negotiate connection tuning parameters
-
-        This method sends the client's connection tuning parameters to
-        the server. Certain fields are negotiated, others provide
-        capability information.
-
-        PARAMETERS:
-            channel_max: short
-
-                negotiated maximum channels
-
-                The maximum total number of channels that the client
-                will use per connection.  May not be higher than the
-                value specified by the server.
-
-                RULE:
-
-                    The server MAY ignore the channel-max value or MAY
-                    use it for tuning its resource allocation.
-
-            frame_max: long
-
-                negotiated maximum frame size
-
-                The largest frame size that the client and server will
-                use for the connection.  Zero means that the client
-                does not impose any specific limit but may reject very
-                large frames if it cannot allocate resources for them.
-                Note that the frame-max limit applies principally to
-                content frames, where large contents can be broken
-                into frames of arbitrary size.
-
-                RULE:
-
-                    Until the frame-max has been negotiated, both
-                    peers must accept frames of up to 4096 octets
-                    large. The minimum non-zero value for the frame-
-                    max field is 4096.
-
-            heartbeat: short
-
-                desired heartbeat delay
-
-                The delay, in seconds, of the connection heartbeat
-                that the client wants. Zero means the client does not
-                want a heartbeat.
-
-        """
-        args = AMQPWriter()
-        args.write_short(channel_max)
-        args.write_long(frame_max)
-        args.write_short(heartbeat or 0)
-        self._send_method((10, 31), args)
-        self._wait_tune_ok = False
-
     @property
     def sock(self):
         return self.transport.sock
@@ -985,32 +641,3 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
-
-    _METHOD_MAP = {
-        (10, 10): _start,
-        (10, 20): _secure,
-        (10, 30): _tune,
-        (10, 41): _open_ok,
-        (10, 50): _close,
-        (10, 51): _close_ok,
-        (10, 60): _blocked,
-        (10, 61): _unblocked,
-    }
-
-    _IMMEDIATE_METHODS = []
-    connection_errors = (
-        ConnectionError,
-        socket.error,
-        IOError,
-        OSError,
-    )
-    channel_errors = (ChannelError, )
-    recoverable_connection_errors = (
-        RecoverableConnectionError,
-        socket.error,
-        IOError,
-        OSError,
-    )
-    recoverable_channel_errors = (
-        RecoverableChannelError,
-    )

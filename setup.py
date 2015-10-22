@@ -15,8 +15,8 @@ import os
 import sys
 import codecs
 
-if sys.version_info < (2, 6):
-    raise Exception('amqp requires Python 2.6 or higher.')
+if sys.version_info < (2, 7):
+    raise Exception('amqp requires Python 2.7 or higher.')
 
 NAME = 'amqp'
 entrypoints = {}
@@ -28,13 +28,10 @@ classes = """
     Development Status :: 5 - Production/Stable
     Programming Language :: Python
     Programming Language :: Python :: 2
-    Programming Language :: Python :: 2.6
     Programming Language :: Python :: 2.7
     Programming Language :: Python :: 3
-    Programming Language :: Python :: 3.0
-    Programming Language :: Python :: 3.1
-    Programming Language :: Python :: 3.2
     Programming Language :: Python :: 3.3
+    Programming Language :: Python :: 3.4
     License :: OSI Approved :: GNU Library or \
 Lesser General Public License (LGPL)
     Intended Audience :: Developers
@@ -54,16 +51,16 @@ rq = lambda s: s.strip("\"'")
 
 def add_default(m):
     attr_name, attr_value = m.groups()
-    return ((attr_name, rq(attr_value)), )
+    return ((attr_name, rq(attr_value)),)
 
 
 def add_version(m):
     v = list(map(rq, m.groups()[0].split(', ')))
-    return (('VERSION', '.'.join(v[0:3]) + ''.join(v[3:])), )
+    return (('VERSION', '.'.join(v[0:3]) + ''.join(v[3:])),)
 
 
 def add_doc(m):
-    return (('doc', m.groups()[0]), )
+    return (('doc', m.groups()[0]),)
 
 pats = {re_meta: add_default,
         re_vers: add_version,

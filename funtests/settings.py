@@ -36,6 +36,11 @@ def parse_args():
         default='localhost',
     )
     parser.add_option(
+        '-V', '--vhost', dest='vhost',
+        help='virtual host to use (default: %default)',
+        default='/',
+    )
+    parser.add_option(
         '-u', '--userid', dest='userid',
         help='userid to authenticate as (default: %default)',
         default='guest',
@@ -84,6 +89,7 @@ def parse_args():
     connect_args['userid'] = options.userid
     connect_args['password'] = options.password
     connect_args['ssl'] = options.ssl
+    connect_args['virtual_host'] = options.vhost
 
     if options.verbose:
         test_args['verbosity'] = 2

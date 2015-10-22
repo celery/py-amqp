@@ -17,6 +17,7 @@ from __future__ import absolute_import
 
 import errno
 import re
+import struct
 import socket
 import ssl
 
@@ -32,9 +33,10 @@ except ImportError:
     class SSLError(Exception):  # noqa
         pass
 
-from struct import pack, unpack
+from struct import unpack
 
 from .exceptions import UnexpectedFrame
+from .five import items
 from .utils import get_errno, set_cloexec
 
 _UNAVAIL = errno.EAGAIN, errno.EINTR, errno.ENOENT
@@ -49,12 +51,24 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
+# available socket options for TCP level
+KNOWN_TCP_OPTS = (
+    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
+    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
+    'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
+    'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
+)
+TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
+            if hasattr(socket, opt)]
+
 
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host, connect_timeout):
+    def __init__(self, host, connect_timeout,
+                 read_timeout=None, write_timeout=None,
+                 ssl=None, socket_settings=None):
         self.connected = True
         msg = None
         port = AMQP_PORT
@@ -95,10 +109,18 @@ class _AbstractTransport(object):
             raise socket.error(last_err)
 
         try:
-            self.sock.settimeout(None)
-            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            self.sock.settimeout(None)  # set socket back to blocking mode
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self._set_socket_options(socket_settings)
 
+            # set socket timeouts
+            for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
+                                      (socket.SO_RCVTIMEO, read_timeout)):
+                if interval is not None:
+                    self.sock.setsockopt(
+                        socket.SOL_SOCKET, timeout,
+                        struct.pack('ll', interval, 0),
+                    )
             self._setup_transport()
 
             self._write(AMQP_PROTOCOL_HEADER)
@@ -118,6 +140,23 @@ class _AbstractTransport(object):
                     pass
         finally:
             self.sock = None
+
+    def _get_tcp_socket_defaults(self, sock):
+        return {
+            opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
+        }
+
+    def _set_socket_options(self, socket_settings):
+        if not socket_settings:
+            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            return
+
+        tcp_opts = self._get_tcp_socket_defaults(self.sock)
+        tcp_opts.setdefault(socket.TCP_NODELAY, 1)
+        tcp_opts.update(socket_settings)
+
+        for opt, val in items(tcp_opts):
+            self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer"""
@@ -149,11 +188,16 @@ class _AbstractTransport(object):
 
     def read_frame(self, unpack=unpack):
         read = self._read
+        read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_type, channel, size = unpack('>BHI', read(7, True))
+            frame_header = read(7, True)
+            read_frame_buffer += frame_header
+            frame_type, channel, size = unpack('>BHI', frame_header)
             payload = read(size)
+            read_frame_buffer += payload
             ch = ord(read(1))
         except socket.timeout:
+            self._read_buffer = read_frame_buffer + self._read_buffer
             raise
         except (OSError, IOError, socket.error) as exc:
             # Don't disconnect for ssl read time outs
@@ -167,15 +211,11 @@ class _AbstractTransport(object):
             return frame_type, channel, payload
         else:
             raise UnexpectedFrame(
-                'Received 0x{0:02x} while expecting 0xce'.format(ch))
+                'Received {0:#04x} while expecting 0xce'.format(ch))
 
-    def write_frame(self, frame_type, channel, payload):
-        size = len(payload)
+    def write(self, s):
         try:
-            self._write(pack(
-                '>BHI%dsB' % size,
-                frame_type, channel, size, payload, 0xce,
-            ))
+            self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:
@@ -187,20 +227,32 @@ class _AbstractTransport(object):
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
 
-    def __init__(self, host, connect_timeout, ssl):
+    def __init__(self, host, connect_timeout,
+                 read_timeout=None, write_timeout=None,
+                 ssl=None, socket_settings=None):
         if isinstance(ssl, dict):
             self.sslopts = ssl
         self._read_buffer = EMPTY_BUFFER
-        super(SSLTransport, self).__init__(host, connect_timeout)
+        super(SSLTransport, self).__init__(
+            host, connect_timeout, read_timeout=read_timeout,
+            write_timeout=write_timeout, socket_settings=socket_settings,
+        )
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
-        if hasattr(self, 'sslopts'):
-            self.sock = ssl.wrap_socket(self.sock, **self.sslopts)
-        else:
-            self.sock = ssl.wrap_socket(self.sock)
+        self.sock = self._wrap_socket(self.sock, **self.sslopts or {})
         self.sock.do_handshake()
         self._quick_recv = self.sock.read
+
+    def _wrap_socket(self, sock, context=None, **sslopts):
+        if context:
+            return self._wrap_context(sock, sslopts, **context)
+        return ssl.wrap_socket(self.sock, **sslopts)
+
+    def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
+        ctx = ssl.create_default_context(**ctx_options)
+        ctx.check_hostname = check_hostname
+        return ctx.wrap_socket(sock, **sslopts)
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
@@ -239,17 +291,22 @@ class SSLTransport(_AbstractTransport):
 
     def _write(self, s):
         """Write a string out to the SSL socket fully."""
-        try:
-            write = self.sock.write
-        except AttributeError:
-            # Works around a bug in python socket library
-            raise IOError('Socket closed')
-        else:
-            while s:
+        write = self.sock.write
+        while s:
+            try:
                 n = write(s)
-                if not n:
-                    raise IOError('Socket closed')
-                s = s[n:]
+            except (ValueError, AttributeError):
+                # AG: sock._sslobj might become null in the meantime if the
+                # remote connection has hung up.
+                # In python 3.2, an AttributeError is raised because the SSL
+                # module tries to access self._sslobj.write (w/ self._sslobj ==
+                # None)
+                # In python 3.4, a ValueError is raised is self._sslobj is
+                # None. So much for portability... :/
+                n = 0
+            if not n:
+                raise IOError('Socket closed')
+            s = s[n:]
 
 
 class TCPTransport(_AbstractTransport):
@@ -285,10 +342,13 @@ class TCPTransport(_AbstractTransport):
         return result
 
 
-def create_transport(host, connect_timeout, ssl=False):
+def create_transport(host, connect_timeout,
+                     read_timeout=None, write_timeout=None,
+                     ssl=False, socket_settings=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
-    if ssl:
-        return SSLTransport(host, connect_timeout, ssl)
-    else:
-        return TCPTransport(host, connect_timeout)
+    transport = SSLTransport if ssl else TCPTransport
+    return transport(host, connect_timeout, ssl=ssl,
+                     read_timeout=read_timeout,
+                     write_timeout=write_timeout,
+                     socket_settings=socket_settings)

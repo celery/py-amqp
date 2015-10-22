@@ -159,8 +159,6 @@ def generate_docstr(element, indent='', wrap=None):
             extra_indent = '    '
             if d.attrib['name'] == 'grammar':
                 reformat = False  # Don't want re-indenting to mess this up
-        #else:
-        #    extra_indent = ''
         result.append(_reindent(docval, indent + extra_indent, reformat))
         result.append(indent)
 
@@ -244,7 +242,7 @@ def generate_methods(class_element, out):
 
         if 'client' in chassis:
             out.write('    def _%s(self, args):\n' % (
-                _fixup_method_name(class_element, amqp_method), ))
+                _fixup_method_name(class_element, amqp_method),))
             s = generate_docstr(amqp_method, '        ', '        """')
             if s:
                 out.write(s)
@@ -263,7 +261,7 @@ def generate_methods(class_element, out):
 
 def generate_class(spec, class_element, out):
     out.write('class %s(object):\n' % (
-        class_element.attrib['name'].capitalize(), ))
+        class_element.attrib['name'].capitalize(),))
     s = generate_docstr(class_element, '    ', '    """')
     if s:
         out.write(s)
@@ -320,7 +318,7 @@ def generate_module(spec, out):
                         _fixup_method_name(amqp_class, amqp_method)),
                 )
 
-    #### Actually generate output
+    #  ### Actually generate output
 
     for amqp_class in spec.findall('class'):
         if amqp_class.attrib['handler'] == amqp_class.attrib['name']:
@@ -329,12 +327,7 @@ def generate_module(spec, out):
     out.write('_METHOD_MAP = {\n')
     for amqp_class in spec.findall('class'):
         print amqp_class.attrib
-#        for chassis in amqp_class.findall('chassis'):
-#            print '  ', chassis.attrib
         for amqp_method in amqp_class.findall('method'):
-#            print '  ', amqp_method.attrib
-#            for chassis in amqp_method.findall('chassis'):
-#                print '      ', chassis.attrib
             chassis = [x.attrib['name']
                        for x in amqp_method.findall('chassis')]
             if 'client' in chassis:

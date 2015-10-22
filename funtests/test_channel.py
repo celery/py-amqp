@@ -25,6 +25,8 @@ import unittest
 import settings
 
 from amqp import ChannelError, Connection, Message, FrameSyntaxError
+from amqp.five import string
+from amqp.utils import str_to_bytes
 
 
 class TestChannel(unittest.TestCase):
@@ -61,6 +63,30 @@ class TestChannel(unittest.TestCase):
         n = self.ch.queue_delete()
         self.assertEqual(n, 0)
 
+    def test_defaults_confirmed(self):
+        """Same as test_defaults but with two confirmed messages"""
+        msg = Message(
+            'funtest message',
+            content_type='text/plain',
+            application_headers={'foo': 7, 'bar': 'baz'},
+        )
+
+        qname, _, _ = self.ch.queue_declare()
+        self.ch.basic_publish_confirm(msg, routing_key=qname)
+        self.ch.basic_publish_confirm(msg, routing_key=qname)
+
+        msg2 = self.ch.basic_get(no_ack=True)
+        self.assertEqual(msg, msg2)
+
+        msg3 = self.ch.basic_get(no_ack=True)
+        self.assertEqual(msg, msg3)
+
+        n = self.ch.queue_purge()
+        self.assertEqual(n, 0)
+
+        n = self.ch.queue_delete()
+        self.assertEqual(n, 0)
+
     def test_encoding(self):
         my_routing_key = 'funtest.test_queue'
 
@@ -70,13 +96,12 @@ class TestChannel(unittest.TestCase):
         #
         # No encoding, body passed through unchanged
         #
-        msg = Message('hello world')
+        msg = Message(b'hello world')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        if sys.version_info[0] < 3:
-            self.assertFalse(hasattr(msg2, 'content_encoding'))
-        self.assertTrue(isinstance(msg2.body, str))
-        self.assertEqual(msg2.body, 'hello world')
+        self.assertFalse(hasattr(msg2, 'content_encoding'))
+        self.assertTrue(isinstance(msg2.body, bytes))
+        self.assertEqual(msg2.body, str_to_bytes('hello world'))
 
         #
         # Default UTF-8 encoding of unicode body, returned as unicode
@@ -84,8 +109,8 @@ class TestChannel(unittest.TestCase):
         msg = Message(u'hello world')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        self.assertEqual(msg2.content_encoding, 'UTF-8')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertEqual(msg2.content_encoding.upper(), 'UTF-8')
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello world')
 
         #
@@ -95,7 +120,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello world')
 
         #
@@ -105,7 +130,7 @@ class TestChannel(unittest.TestCase):
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
         self.assertEqual(msg2.content_encoding, 'latin_1')
-        self.assertTrue(isinstance(msg2.body, unicode))
+        self.assertTrue(isinstance(msg2.body, string))
         self.assertEqual(msg2.body, u'hello w\u00f6rld')
 
         #
@@ -132,7 +157,7 @@ class TestChannel(unittest.TestCase):
         msg = Message(u'hello w\u00f6rld')
         self.ch.basic_publish(msg, 'amq.direct', routing_key=my_routing_key)
         msg2 = self.ch.basic_get(qname, no_ack=True)
-        self.assertEqual(msg2.content_encoding, 'UTF-8')
+        self.assertEqual(msg2.content_encoding.upper(), 'UTF-8')
         self.assertTrue(isinstance(msg2.body, bytes))
         self.assertEqual(msg2.body, u'hello w\xc3\xb6rld'.encode('latin_1'))
 
@@ -246,6 +271,11 @@ class TestChannel(unittest.TestCase):
             content_type='text/plain',
             application_headers={'foo': 7, 'bar': 'baz'})
 
+        self.num_fault = 0
+        def add_fault(exc, exchange, routing_key, message):
+            self.num_fault += 1
+
+        self.ch.events['basic_return'].add(add_fault)
         self.ch.basic_publish(msg, 'funtest.fanout')
         self.ch.basic_publish(msg, 'funtest.fanout', mandatory=True)
         self.ch.basic_publish(msg, 'funtest.fanout', mandatory=True)
@@ -255,7 +285,7 @@ class TestChannel(unittest.TestCase):
         #
         # 3 of the 4 messages we sent should have been returned
         #
-        self.assertEqual(self.ch.returned_messages.qsize(), 3)
+        self.assertEqual(self.num_fault, 3)
 
     def test_exchange_bind(self):
         """Test exchange binding.

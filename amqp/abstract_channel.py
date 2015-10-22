@@ -16,12 +16,53 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+from collections import deque, defaultdict
+from functools import wraps
+
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .serialization import AMQPWriter
+from .method_framing import frame_writer
+from .promise import ensure_promise, promise
+from .serialization import dumps, loads
+from .five import with_metaclass
 
 __all__ = ['AbstractChannel']
 
 
+class AsyncHelper(type):
+    """This metaclass renames all methods marked with "add_async" to
+    NAME_async, and creates a helper that makes the original NAME
+    synchronous."""
+    def __new__(meta, name, bases, dct):
+        for k,v in tuple(dct.items()):
+            if getattr(v,'add_async',False):
+                def make_sync(fn):
+                    @wraps(fn)
+                    def sync_call(self,*a,**k):
+                        p = fn(self,*a,**k)
+                        if not isinstance(p, promise):
+                            return p
+                        while not p.ready and not p.failed:
+                            self.connection.drain_events()
+                        if p.failed:
+                            raise p.reason
+                        assert p.ready, (p,p.fun)
+                        if p.value[0]:
+                            return p.value[0][0]
+                        return None
+                    return sync_call
+                dct[k] = make_sync(v)
+                k += '_async'
+                if k not in dct:
+                    dct[k] = v
+        return super(AsyncHelper, meta).__new__(meta, name, bases, dct)
+
+def with_async(fn):
+    """Mark a method with an "add_async" attribute
+    so that it'll get wrapped by the async_helper metaclass."""
+    fn.add_async = True
+    return fn
+
+@with_metaclass(AsyncHelper)
 class AbstractChannel(object):
     """Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.
@@ -36,6 +77,11 @@ class AbstractChannel(object):
         connection.channels[channel_id] = self
         self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
+        self._pending = defaultdict(deque)
+        self._callbacks = {}
+
+        self._setup_listeners()
+        self._lock = connection.make_lock()
 
     def __enter__(self):
         return self
@@ -43,32 +89,60 @@ class AbstractChannel(object):
     def __exit__(self, *exc_info):
         self.close()
 
-    def _send_method(self, method_sig, args=bytes(), content=None):
-        """Send a method for our channel."""
+    def send_method(self, sig,
+                    format=None, args=None, content=None,
+                    wait=None, callback=None, returns_tuple=False):
+
+        def cleanup(err):
+            if wait:
+                try:
+                    self._pending[wait].remove(p)
+                except ValueError:
+                    pass
+            raise err
+        p = promise(on_error=cleanup)
+
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
+        args = dumps(format, args) if format else ''
+        try:
+            # If two threads try to write to the same channel,
+            # make sure data won't get interleaved and the results
+            # will be processed in the correct order.
+            with self._lock:
+                if wait:
+                    self._pending[wait].append(p)
+                conn._frame_writer.send((1, self.channel_id, sig, args, content))
+        except StopIteration:
+            err = RecoverableConnectionError('connection already closed')
+            cleanup(err)
+        except Exception as err:
+            # the frame writer coroutine has terminated due to throwing the
+            # exception (e.g. a codec error). Restart it.
+            conn._frame_writer = frame_writer(conn)
+            cleanup(err)
 
-        if isinstance(args, AMQPWriter):
-            args = args.getvalue()
-
-        conn.method_writer.write_method(
-            self.channel_id, method_sig, args, content,
-        )
+        if callback:
+            p.then(callback)
+        if wait:
+            self.wait(p)
+        else:
+            p()
+        return p
 
     def close(self):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, allowed_methods=None):
-        """Wait for a method that matches our allowed_methods parameter (the
-        default value of None means match any method), and dispatch to it."""
-        method_sig, args, content = self.connection._wait_method(
-            self.channel_id, allowed_methods)
+    def wait(self, callback):
+        """Wait for a method to be called.
+        This just drains events until the callback fires;
+        all the real work has been done in send_method()."""
+        while not callback.ready:
+            self.connection.drain_events()
 
-        return self.dispatch_method(method_sig, args, content)
-
-    def dispatch_method(self, method_sig, args, content):
+    def dispatch_method(self, method_sig, payload, content):
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
@@ -78,16 +152,35 @@ class AbstractChannel(object):
                 pass
 
         try:
-            amqp_method = self._METHOD_MAP[method_sig]
+            amqp_method = self._METHODS[method_sig]
         except KeyError:
             raise AMQPNotImplementedError(
                 'Unknown AMQP method {0!r}'.format(method_sig))
 
-        if content is None:
-            return amqp_method(self, args)
+        try:
+            listeners = [self._callbacks[method_sig]]
+        except KeyError:
+            listeners = None
+        try:
+            one_shot = self._pending[method_sig].popleft()
+        except (KeyError,IndexError):
+            if not listeners:
+                return
         else:
-            return amqp_method(self, args, content)
+            if listeners is None:
+                listeners = [one_shot]
+            else:
+                listeners.append(one_shot)
+
+        args = []
+        if amqp_method.args:
+            args, _ = loads(amqp_method.args, payload, 4)
+        if amqp_method.content:
+            args.append(content)
+
+        for listener in listeners:
+            listener(*args)
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP
-    _METHOD_MAP = {}
+    _METHODS = {}
