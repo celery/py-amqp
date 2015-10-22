@@ -21,13 +21,13 @@ Convert between bytestreams and higher-level AMQP types.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-import calendar
 import sys
 
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
+from struct import error as FrameDataError
 from time import mktime
 
 from . import spec
@@ -122,7 +122,7 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
         while offset < limit:
             keylen, = unpack_from('>B', buf, offset)
             offset += 1
-            key = buf[offset:offset + keylen]
+            key = pstr_t(buf[offset:offset + keylen])
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
@@ -143,7 +143,7 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
     elif ftype == 'T':
         val, = unpack_from('>Q', buf, offset)
         offset += 8
-        val = datetime.utcfromtimestamp(val)
+        val = datetime.fromtimestamp(val)
     # 'V': void
     elif ftype == 'V':
         val = None
@@ -177,12 +177,12 @@ def loads(format, buf, offset=0,
     for p in format:
         if p == 'b':
             if not bitcount:
-                bits = ord(buf[offset:offset + 1])
-            bitcount = 8
+                bits = ord(buf[offset:offset+1])
+                bitcount = 8
+                offset += 1
             val = (bits & 1) == 1
             bits >>= 1
             bitcount -= 1
-            offset += 1
         elif p == 'o':
             bitcount = bits = 0
             val, = unpack_from('>B', buf, offset)
@@ -240,7 +240,7 @@ def loads(format, buf, offset=0,
             bitcount = bits = 0
             val, = unpack_from('>Q', buf, offset)
             offset += 8
-            val = datetime.utcfromtimestamp(val)
+            val = datetime.fromtimestamp(val)
         append(val)
     return values, offset
 
@@ -373,9 +373,13 @@ def _write_item(v, write, bits, pack=pack,
             v = (v * 10) + d
         if sign:
             v = -v
-        write('>cBi', b'D', -exponent, v)
+        write(pack('>cBi', b'D', -exponent, v))
     elif isinstance(v, datetime):
-        write(pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
+        if IS_PY3:
+            timestamp = int(v.timestamp())
+        else:
+            timestamp = int(v.strftime("%s"))
+        write(pack('>cQ', b'T', timestamp))
     elif isinstance(v, dict):
         write(b'F')
         _write_table(v, write, bits)
@@ -448,7 +452,8 @@ def decode_properties_basic(buf, offset=0,
         properties['message_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0040:
-        properties['timestamp'], = unpack_from('>Q', buf, offset)
+        val, = unpack_from('>Q', buf, offset)
+        properties['timestamp'] = datetime.fromtimestamp(val)
         offset += 8
     if flags & 0x0020:
         slen, = unpack_from('>B', buf, offset)
@@ -522,7 +527,7 @@ class GenericContent(object):
         self.properties = props
         return offset
 
-    def _serialize_properties(self):
+    def _serialize_properties(self, set_utf8=True):
         """serialize the 'properties' attribute (a dictionary) into
         the raw bytes making up a set of property flags and a
         property list, suitable for putting into a content frame header."""
@@ -531,7 +536,8 @@ class GenericContent(object):
         flags = []
         sformat, svalues = [], []
         props = self.properties
-        props.setdefault('content_encoding', 'utf-8')
+        if set_utf8:
+            props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
             val = props.get(key, None)
             if val is not None:
@@ -553,6 +559,13 @@ class GenericContent(object):
             write(pack('>H', flag_bits))
         write(dumps(''.join(sformat), svalues))
         return result.getvalue()
+
+    def __eq__(self, other):
+        if self.properties != getattr(other, 'properties', {}):
+            return False
+        if getattr(self, 'body', '') != getattr(other, 'body', ''):
+            return False
+        return True
 
     def inbound_header(self, buf, offset=0):
         class_id, self.body_size = unpack_from('>HxxQ', buf, offset)

@@ -42,6 +42,7 @@ from .method_framing import frame_handler, frame_writer
 from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import create_transport
+from .utils import FakeLock
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -145,7 +146,7 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 socket_settings=None, **kwargs):
+                 socket_settings=None, lock_factory=None, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -160,6 +161,10 @@ class Connection(AbstractChannel):
 
         The 'socket_settings" parameter is a dictionary defining tcp
         settings which will be applied as socket options.
+        
+        'lock_factory' is a class that will be used to prevent conflicting
+        accesses to a connection or its channels. If None, no locking will
+        be performed.
 
         """
         self._connection_id = uuid.uuid4().hex
@@ -182,6 +187,7 @@ class Connection(AbstractChannel):
         self.locale = locale
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
+        self.make_lock = lock_factory or FakeLock
 
         self._handshake_complete = False
 
@@ -220,7 +226,7 @@ class Connection(AbstractChannel):
             socket_settings=socket_settings,
         )
         self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self, self.transport)
+        self._frame_writer = frame_writer(self)
 
         self.connect_timeout = connect_timeout
         self.connect()
@@ -404,7 +410,7 @@ class Connection(AbstractChannel):
             return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              argsig='BssBB'):
+              nowait=False, argsig='BsBB'):
 
         """Request a connection close
 
@@ -458,6 +464,14 @@ class Connection(AbstractChannel):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
 
+            nowait: boolean
+
+                do not wait for the reply method
+
+                If set, the client will not wait for a reply method.
+                The server's reply should be processed by calling
+                drain_events().
+
         """
         if self.transport is None:
             # already closed
@@ -466,7 +480,7 @@ class Connection(AbstractChannel):
         return self.send_method(
             spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=spec.Connection.CloseOk,
+            wait=(None if nowait else spec.Connection.CloseOk),
         )
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
