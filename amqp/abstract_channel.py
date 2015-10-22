@@ -92,7 +92,16 @@ class AbstractChannel(object):
     def send_method(self, sig,
                     format=None, args=None, content=None,
                     wait=None, callback=None, returns_tuple=False):
-        p = promise()
+
+        def cleanup(err):
+            if wait:
+                try:
+                    self._pending[wait].remove(p)
+                except ValueError:
+                    pass
+            raise err
+        p = promise(on_error=cleanup)
+
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
@@ -106,16 +115,13 @@ class AbstractChannel(object):
                     self._pending[wait].append(p)
                 conn._frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
-            if wait:
-                self._pending[wait].remove(p)
-            raise RecoverableConnectionError('connection already closed')
-        except Exception:
+            err = RecoverableConnectionError('connection already closed')
+            cleanup(err)
+        except Exception as err:
             # the frame writer coroutine has terminated due to throwing the
             # exception (e.g. a codec error). Restart it.
-            if wait:
-                self._pending[wait].remove(p)
             conn._frame_writer = frame_writer(conn)
-            raise
+            cleanup(err)
 
         if callback:
             p.then(callback)

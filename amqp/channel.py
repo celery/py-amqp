@@ -277,9 +277,18 @@ class Channel(AbstractChannel):
 
         self.send_method(spec.Channel.CloseOk)
         self._do_revive()
-        raise error_for_code(
-            reply_code, reply_text, (class_id, method_id), ChannelError,
-        )
+        err = error_for_code(reply_code, reply_text, (class_id, method_id), ChannelError)
+        try:
+            if method_id%10 == 0:
+                method_id += 1
+                if (class_id,method_id) == (40,41)
+                    method_id = 51
+                    ## UnbindOk seems to violate the pattern
+            m = self._pending[(class_id, method_id)].popleft()
+        except IndexError:
+            raise err
+        else:
+            m.throw(err)
 
     def _on_close_ok(self):
         """Confirm a channel close
@@ -1164,6 +1173,7 @@ class Channel(AbstractChannel):
             consumer count
 
         """
+        if not arguments: arguments = {'Foo':'bar'}
         res = self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,

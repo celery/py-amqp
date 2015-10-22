@@ -186,7 +186,7 @@ class TestChannel(unittest.TestCase):
             self.ch.queue_delete('bogus_queue_that_does_not_exist')
         )
 
-    def xtest_survives_channel_error(self):
+    def test_survives_channel_error(self):
         with self.assertRaises(ChannelError):
             self.ch.queue_declare('krjqheewq_bogus', passive=True)
         self.ch.queue_declare('funtest_survive')
