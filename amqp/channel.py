@@ -281,7 +281,7 @@ class Channel(AbstractChannel):
         try:
             if method_id%10 == 0:
                 method_id += 1
-                if (class_id,method_id) == (40,41)
+                if (class_id,method_id) == (40,41):
                     method_id = 51
                     ## UnbindOk seems to violate the pattern
             m = self._pending[(class_id, method_id)].popleft()
