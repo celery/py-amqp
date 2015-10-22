@@ -27,6 +27,7 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
+from struct import error as FrameDataError
 from time import mktime
 
 from . import spec
@@ -176,12 +177,12 @@ def loads(format, buf, offset=0,
     for p in format:
         if p == 'b':
             if not bitcount:
-                bits = ord(buf[offset:offset + 1])
-            bitcount = 8
+                bits = ord(buf[offset:offset+1])
+                bitcount = 8
+                offset += 1
             val = (bits & 1) == 1
             bits >>= 1
             bitcount -= 1
-            offset += 1
         elif p == 'o':
             bitcount = bits = 0
             val, = unpack_from('>B', buf, offset)
@@ -562,7 +563,7 @@ class GenericContent(object):
     def __eq__(self, other):
         if self.properties != getattr(other, 'properties', {}):
             return False
-        if self.body != getattr(other, 'body', ''):
+        if getattr(self, 'body', '') != getattr(other, 'body', ''):
             return False
         return True
 

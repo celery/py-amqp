@@ -22,7 +22,7 @@ import settings
 
 TEST_NAMES = [
     'test_exceptions',
-#    'test_serialization',
+    'test_serialization',
     'test_basic_message',
     'test_connection',
     'test_channel',
