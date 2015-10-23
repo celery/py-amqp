@@ -18,6 +18,10 @@ from __future__ import absolute_import
 
 from collections import deque, defaultdict
 from functools import wraps
+try:
+    import asyncio
+except ImportError:
+    import trollius as asyncio
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .method_framing import frame_writer
@@ -39,16 +43,12 @@ class AsyncHelper(type):
                     @wraps(fn)
                     def sync_call(self,*a,**k):
                         p = fn(self,*a,**k)
-                        if not isinstance(p, promise):
+                        if not isinstance(p, asyncio.Future):
                             return p
-                        while not p.ready and not p.failed:
-                            self.connection.drain_events()
-                        if p.failed:
-                            raise p.reason
-                        assert p.ready, (p,p.fun)
-                        if p.value[0]:
-                            return p.value[0][0]
-                        return None
+                        self.connection.drain_events(p)
+                        import pdb;pdb.set_trace()
+                        val = p.result()
+                        return val
                     return sync_call
                 dct[k] = make_sync(v)
                 k += '_async'

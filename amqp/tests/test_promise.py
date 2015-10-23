@@ -170,15 +170,15 @@ class test_promise(Case):
 
         p.cancel()
         p(42)
-        self.assertTrue(p.cancelled)
-        self.assertTrue(a.cancelled)
-        self.assertTrue(a2.cancelled)
-        self.assertTrue(b.cancelled)
-        self.assertTrue(c.cancelled)
-        self.assertTrue(on_error.cancelled)
+        self.assertTrue(p.cancelled())
+        self.assertTrue(a.cancelled())
+        self.assertTrue(a2.cancelled())
+        self.assertTrue(b.cancelled())
+        self.assertTrue(c.cancelled())
+        self.assertTrue(on_error.cancelled())
         d = promise(Mock(name='d'))
         p.then(d)
-        self.assertTrue(d.cancelled)
+        self.assertTrue(d.cancelled())
 
     def test_svpending_raises(self):
         p = promise()
@@ -234,8 +234,8 @@ class test_promise(Case):
         a = promise(Mock(name='a'))
         p.then(a)
         p.cancel()
-        self.assertTrue(p.cancelled)
-        self.assertTrue(a.cancelled)
+        self.assertTrue(p.cancelled())
+        self.assertTrue(a.cancelled())
 
         p.throw(KeyError())
 

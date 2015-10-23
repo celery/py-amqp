@@ -1,12 +1,18 @@
 from __future__ import absolute_import
 
 import abc
-import sys
 import logging
+import sys
 
 from collections import Callable, deque
 
 from .five import with_metaclass
+try:
+    import asyncio
+    from asyncio.futures import Future
+except ImportError:
+    import trollius as asyncio
+    from trollius.futures import Future
 
 __all__ = ['Thenable', 'promise', 'barrier', 'wrap',
            'maybe_promise', 'ensure_promise']
@@ -103,7 +109,7 @@ class barrier(object):
 Thenable.register(barrier)
 
 
-class promise(object):
+class promise(Future, Thenable):
     """Future evaluation.
 
     This is a special implementation of promises in that it can
@@ -167,23 +173,15 @@ class promise(object):
 
     """
     if not hasattr(sys, 'pypy_version_info'):  # pragma: no cover
-        __slots__ = ('fun', 'args', 'kwargs', 'ready', 'failed',
-                     'value', 'reason', '_svpending', '_lvpending',
-                     'on_error', 'cancelled')
+        __slots__ = ('fun', 'args', 'kwargs', 'on_error')
 
     def __init__(self, fun=None, args=None, kwargs=None,
                  callback=None, on_error=None):
+        super(promise,self).__init__()
         self.fun = fun
         self.args = args or ()
         self.kwargs = kwargs or {}
-        self.ready = False
-        self.failed = False
-        self.value = None
-        self.reason = None
-        self._svpending = None
-        self._lvpending = None
         self.on_error = on_error
-        self.cancelled = False
 
         if callback is not None:
             self.then(callback)
@@ -193,21 +191,19 @@ class promise(object):
             return '<promise@0x{0:x}: {1!r}>'.format(id(self), self.fun)
         return '<promise@0x{0:x}>'.format(id(self))
 
+    def wait(self):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self)
+
     def cancel(self):
-        self.cancelled = True
+        super(promise,self).cancel()
         try:
-            if self._svpending is not None:
-                self._svpending.cancel()
-            if self._lvpending is not None:
-                for pending in self._lvpending:
-                    pending.cancel()
             if isinstance(self.on_error, Thenable):
                 self.on_error.cancel()
         finally:
-            self._svpending = self._lvpending = self.on_error = None
+            self.on_error = None
 
     def __call__(self, *args, **kwargs):
-        retval = None
         if self.cancelled:
             return
         if self.fun:
@@ -216,31 +212,20 @@ class promise(object):
                     *(self.args + args if args else self.args),
                     **(dict(self.kwargs, **kwargs) if kwargs else self.kwargs)
                 )
-                if isinstance(retval, promise):
+                if isinstance(retval, Future):
                     self.fun = None
-                    retval.then(self)
+                    retval.add_done_callback(self.set_result)
                     return retval
-                self.value = (ca, ck) = (retval,), {}
             except Exception:
                 return self.set_error_state()
         else:
-            self.value = (ca, ck) = (args, kwargs)
-        self.ready = True
-        svpending = self._svpending
-        if svpending is not None:
-            try:
-                svpending(*ca, **ck)
-            finally:
-                self._svpending = None
-        else:
-            lvpending = self._lvpending
-            try:
-                while lvpending:
-                    p = lvpending.popleft()
-                    p(*ca, **ck)
-            finally:
-                self._lvpending = None
-        return retval
+            assert not kwargs
+            assert len(args) <= 1
+            if args:
+                retval = args[0]
+            else:
+                retval = None
+        self.set_result(retval)
 
     def then(self, callback, on_error=None):
         if not isinstance(callback, Thenable):
@@ -248,19 +233,16 @@ class promise(object):
         if self.cancelled:
             callback.cancel()
             return callback
-        if self.failed:
-            callback.throw(self.reason)
-        elif self.ready:
-            args, kwargs = self.value
-            callback(*args, **kwargs)
-        if self._lvpending is None:
-            svpending = self._svpending
-            if svpending is not None:
-                self._svpending, self._lvpending = None, deque([svpending])
-            else:
-                self._svpending = callback
-                return callback
-        self._lvpending.append(callback)
+
+        def take_future(f):
+            try:
+                callback(f.result())
+            except Exception as exc:
+                if on_error:
+                    on_error(exc)
+                else:
+                    raise
+        self.add_done_callback(take_future)
         return callback
 
     def throw1(self, exc):
@@ -273,35 +255,10 @@ class promise(object):
     def set_error_state(self, exc=None):
         if self.cancelled:
             return
-        _exc = sys.exc_info()[1] if exc is None else exc
-        try:
-            self.throw1(_exc)
-            svpending = self._svpending
-            if svpending is not None:
-                try:
-                    svpending.throw1(_exc)
-                finally:
-                    self._svpending = None
-            else:
-                lvpending = self._lvpending
-                try:
-                    while lvpending:
-                        lvpending.popleft().throw1(_exc)
-                finally:
-                    self._lvpending = None
-        finally:
-            if self.on_error is None:
-                if exc is None:
-                    raise
-                raise exc
+        self.set_exception(exc)
 
     def throw(self, exc=None):
-        if exc is None:
-            return self.set_error_state()
-        try:
-            raise exc
-        except exc.__class__ as with_cause:
-            self.set_error_state(with_cause)
+        self.set_error_state(exc)
 Thenable.register(promise)
 
 

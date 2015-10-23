@@ -21,6 +21,11 @@ import struct
 import socket
 import ssl
 
+try:
+    import asyncio
+except ImportError:
+    import trollius as asyncio
+
 # Jython does not have this attribute
 try:
     from socket import SOL_TCP
@@ -109,7 +114,8 @@ class _AbstractTransport(object):
             raise socket.error(last_err)
 
         try:
-            self.sock.settimeout(None)  # set socket back to blocking mode
+            self.sock.settimeout(None)
+            self.sock.setblocking(False)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self._set_socket_options(socket_settings)
 
@@ -141,6 +147,9 @@ class _AbstractTransport(object):
         finally:
             self.sock = None
 
+    def fileno(self):
+        return self.sock.fileno()
+
     def _get_tcp_socket_defaults(self, sock):
         return {
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
@@ -157,10 +166,6 @@ class _AbstractTransport(object):
 
         for opt, val in items(tcp_opts):
             self.sock.setsockopt(SOL_TCP, opt, val)
-
-    def _read(self, n, initial=False):
-        """Read exactly n bytes from the peer"""
-        raise NotImplementedError('Must be overriden in subclass')
 
     def _setup_transport(self):
         """Do any additional initialization of the class (used
@@ -186,16 +191,17 @@ class _AbstractTransport(object):
             self.sock = None
         self.connected = False
 
+    @asyncio.coroutine
     def read_frame(self, unpack=unpack):
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_header = read(7, True)
+            frame_header = yield from read(7, True)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack('>BHI', frame_header)
-            payload = read(size)
+            payload = yield from read(size)
             read_frame_buffer += payload
-            ch = ord(read(1))
+            ch = ord(yield from read(1))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
@@ -223,6 +229,22 @@ class _AbstractTransport(object):
                 self.connected = False
             raise
 
+    @asyncio.coroutine
+    def _read(self, n, initial=False, _errnos=(errno.EAGAIN, errno.EINTR)):
+        """Read exactly n bytes from the socket"""
+        loop = asyncio.get_event_loop()
+        rbuf = self._read_buffer
+        try:
+            while len(rbuf) < n:
+                s = yield from loop.sock_recv(self.sock, max(32768,n - len(rbuf)))
+                rbuf += s
+        except:
+            self._read_buffer = rbuf
+            raise
+
+        result, self._read_buffer = rbuf[:n], rbuf[n:]
+        return result
+
 
 class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
@@ -242,7 +264,6 @@ class SSLTransport(_AbstractTransport):
         """Wrap the socket in an SSL object."""
         self.sock = self._wrap_socket(self.sock, **self.sslopts or {})
         self.sock.do_handshake()
-        self._quick_recv = self.sock.read
 
     def _wrap_socket(self, sock, context=None, **sslopts):
         if context:
@@ -262,32 +283,6 @@ class SSLTransport(_AbstractTransport):
             except AttributeError:
                 return
             self.sock = unwrap()
-
-    def _read(self, n, initial=False,
-              _errnos=(errno.ENOENT, errno.EAGAIN, errno.EINTR)):
-        # According to SSL_read(3), it can at most return 16kb of data.
-        # Thus, we use an internal read buffer like TCPTransport._read
-        # to get the exact number of bytes wanted.
-        recv = self._quick_recv
-        rbuf = self._read_buffer
-        try:
-            while len(rbuf) < n:
-                try:
-                    s = recv(max(32768,n - len(rbuf)))
-                except socket.error as exc:
-                    # ssl.sock.read may cause ENOENT if the
-                    # operation couldn't be performed (Issue celery#1414).
-                    if not initial and exc.errno in _errnos:
-                        continue
-                    raise
-                if not s:
-                    raise IOError('Socket closed')
-                rbuf += s
-        except:
-            self._read_buffer = rbuf
-            raise
-        result, self._read_buffer = rbuf[:n], rbuf[n:]
-        return result
 
     def _write(self, s):
         """Write a string out to the SSL socket fully."""
@@ -317,29 +312,6 @@ class TCPTransport(_AbstractTransport):
         do our own buffered reads."""
         self._write = self.sock.sendall
         self._read_buffer = EMPTY_BUFFER
-        self._quick_recv = self.sock.recv
-
-    def _read(self, n, initial=False, _errnos=(errno.EAGAIN, errno.EINTR)):
-        """Read exactly n bytes from the socket"""
-        recv = self._quick_recv
-        rbuf = self._read_buffer
-        try:
-            while len(rbuf) < n:
-                try:
-                    s = recv(max(32768,n - len(rbuf)))
-                except socket.error as exc:
-                    if not initial and exc.errno in _errnos:
-                        continue
-                    raise
-                if not s:
-                    raise IOError('Socket closed')
-                rbuf += s
-        except:
-            self._read_buffer = rbuf
-            raise
-
-        result, self._read_buffer = rbuf[:n], rbuf[n:]
-        return result
 
 
 def create_transport(host, connect_timeout,

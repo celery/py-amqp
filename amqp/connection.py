@@ -189,7 +189,7 @@ class Connection(AbstractChannel):
         self.on_tune_ok = ensure_promise(on_tune_ok)
         self.make_lock = lock_factory or FakeLock
 
-        self._handshake_complete = False
+        self._handshake_complete = future()
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -229,6 +229,8 @@ class Connection(AbstractChannel):
         self._frame_writer = frame_writer(self)
 
         self.connect_timeout = connect_timeout
+        loop = asyncio.get_event_loop()
+        loop.add_reader(self.transport.fileno(), self.blocking_read)
         self.connect()
 
     def then(self, on_success, on_error=None):
@@ -246,9 +248,8 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self, callback=None):
-        while not self._handshake_complete:
-            self.drain_events(timeout=self.connect_timeout)
+    def connect(self):
+        self.drain_events(self._handshake_complete, timeout=self.connect_timeout)
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
@@ -311,7 +312,7 @@ class Connection(AbstractChannel):
         )
 
     def _on_open_ok(self):
-        self._handshake_complete = True
+        self._handshake_complete.set_result(True)
         self.on_open(self)
 
     def FIXME(self, *args, **kwargs):
@@ -370,35 +371,25 @@ class Connection(AbstractChannel):
     def inbound_method(self, channel_id, method_sig, payload, content):
         self.channels[channel_id].dispatch_method(method_sig, payload, content)
 
-    def drain_events(self, timeout=None):
-        return self.blocking_read(timeout)
+    def drain_events(self, task, timeout=None):
+        task = asyncio.ensure_future(task)
+        loop = asyncio.get_event_loop()
+        if timeout:
+            s = asyncio.sleep(timeout)
+            t = asyncio.gather(s,task)
+        else:
+            t = task
+        loop.run_until_complete(t)
+        if task.done:
+            return task.result()
+        else:
+            assert(timeout)
+            raise socket.timeout(timeout)
 
-    def blocking_read(self, timeout=None):
+    @asyncio.coroutine
+    def blocking_read(self):
         read_frame = self.transport.read_frame
-        if timeout is None:
-            return self.on_inbound_frame(read_frame())
-
-        # XXX use select
-        sock = self.sock
-        prev = sock.gettimeout()
-        if prev != timeout:
-            sock.settimeout(timeout)
-        try:
-            try:
-                frame = read_frame()
-            except SSLError as exc:
-                # http://bugs.python.org/issue10272
-                if 'timed out' in str(exc):
-                    raise socket.timeout()
-                # Non-blocking SSL sockets can throw SSLError
-                if 'The operation did not complete' in str(exc):
-                    raise socket.timeout()
-                raise
-            else:
-                self.on_inbound_frame(frame)
-        finally:
-            if prev != timeout:
-                sock.settimeout(prev)
+        return self.on_inbound_frame(yield from read_frame())
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         return self.channels[channel_id].dispatch_method(
