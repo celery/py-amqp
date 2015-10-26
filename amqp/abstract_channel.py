@@ -73,7 +73,7 @@ class AbstractChannel(object):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, method, callback=None, returns_tuple=False):
+    def wait(self, method, callback=None, timeout=None, returns_tuple=False):
         p = ensure_promise(callback)
         pending = self._pending
         prev_p, pending[method] = pending.get(method), p
@@ -81,7 +81,7 @@ class AbstractChannel(object):
 
         try:
             while not p.ready:
-                self.connection.drain_events()
+                self.connection.drain_events(timeout=timeout)
 
             if p.value:
                 args, kwargs = p.value
