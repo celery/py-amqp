@@ -226,7 +226,7 @@ class SSLTransport(_AbstractTransport):
         try:
             while len(rbuf) < n:
                 try:
-                    s = recv(n - len(rbuf))  # see note above
+                    s = recv(max(32768,n - len(rbuf)))
                 except socket.error as exc:
                     # ssl.sock.read may cause ENOENT if the
                     # operation couldn't be performed (Issue celery#1414).
@@ -274,7 +274,7 @@ class TCPTransport(_AbstractTransport):
         try:
             while len(rbuf) < n:
                 try:
-                    s = recv(n - len(rbuf))
+                    s = recv(max(32768,n - len(rbuf)))
                 except socket.error as exc:
                     if not initial and exc.errno in _errnos:
                         continue

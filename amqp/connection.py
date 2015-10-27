@@ -396,7 +396,7 @@ class Connection(AbstractChannel):
         for callback in handlers:
             callback(exc, exchange, routing_key, msg)
 
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
+    def close(self, reply_code=0, reply_text='', method_sig=(0, 0), nowait=False):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -449,6 +449,14 @@ class Connection(AbstractChannel):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
 
+            nowait: boolean
+
+                do not wait for the reply method
+
+                If set, the client will not wait for a reply method.
+                The server's reply should be processed by calling
+                drain_events().
+
         """
         if self.transport is None:
             # already closed
@@ -460,10 +468,11 @@ class Connection(AbstractChannel):
         args.write_short(method_sig[0])  # class_id
         args.write_short(method_sig[1])  # method_id
         self._send_method((10, 50), args)
-        return self.wait(allowed_methods=[
-            (10, 50),  # Connection.close
-            (10, 51),  # Connection.close_ok
-        ])
+        if not nowait:
+            return self.wait(allowed_methods=[
+                (10, 50),  # Connection.close
+                (10, 51),  # Connection.close_ok
+            ])
 
     def _close(self, args):
         """Request a connection close
