@@ -360,3 +360,7 @@ def ensure_promise(p):
     if p is None:
         return promise()
     return maybe_promise(p)
+
+
+def starpromise(fun, *args, **kwargs):
+    return promise(fun, args, kwargs)

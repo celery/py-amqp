@@ -61,10 +61,17 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
-from .promise import promise, barrier, maybe_promise  # noqa
+from .promise import (
+    promise, barrier, ensure_promise, maybe_promise, starpromise,
+)
 
 __all__ = [
     'Connection',
     'Channel',
     'Message',
+    'promise',
+    'barrier',
+    'ensure_promise',
+    'maybe_promise',
+    'starpromise',
 ] + _all_exceptions
