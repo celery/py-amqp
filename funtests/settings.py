@@ -22,9 +22,11 @@ to a broker.
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 
 import logging
+import os
+
 from optparse import OptionParser
 
-connect_args = {}
+connect_args = {'connect_timeout':10}
 test_args = {'verbosity': 1}
 
 
@@ -94,4 +96,19 @@ def parse_args():
     if options.verbose:
         test_args['verbosity'] = 2
 
-parse_args()
+#parse_args()
+for k in 'host virtual_host userid password'.split():
+    if k not in connect_args:
+        kk = 'AMQP_'+k.upper()
+        if kk in os.environ:
+            connect_args[k] = os.environ[kk]
+test_args['verbosity'] = 2
+console = logging.StreamHandler()
+console.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    '%(name)-12s: %(levelname)-8s %(message)s',
+)
+console.setFormatter(formatter)
+amqp_logger = logging.getLogger('amqp')
+amqp_logger.addHandler(console)
+amqp_logger.setLevel(logging.DEBUG)

@@ -150,11 +150,11 @@ class Channel(AbstractChannel):
     def collect(self):
         """Tear down this object, after we've agreed to close
         with the server."""
-        AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
+        AMQP_LOGGER.debug('Closed channel #%s', self.channel_id)
         self.is_open = False
         channel_id, self.channel_id = self.channel_id, None
         connection, self.connection = self.connection, None
-        if connection:
+        if connection is not None and channel_id is not None:
             connection.channels.pop(channel_id, None)
             connection._avail_channel_ids.append(channel_id)
         self.callbacks.clear()
@@ -1778,7 +1778,7 @@ class Channel(AbstractChannel):
     @with_async
     def basic_publish_confirm(self, *args, **kwargs):
         pr = promise()
-        def pub():
+        def pub(_=None):
             with self._lock:
                 self._pending[spec.Basic.Ack].append(pr)
                 return self._basic_publish(*args, **kwargs)
@@ -1788,7 +1788,7 @@ class Channel(AbstractChannel):
                 self._confirm_selected = True
                 self.confirm_select_async().then(pub)
         else:
-            pr(pub())
+            pub()
         return pr
 
     @with_async

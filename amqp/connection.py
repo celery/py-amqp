@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import asyncio
 import logging
 import socket
 import uuid
@@ -43,6 +44,11 @@ from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import create_transport
 from .utils import FakeLock
+
+try:
+    asyncio.ensure_future
+except AttributeError:
+    asyncio.ensure_future = asyncio.async
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -146,7 +152,7 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 socket_settings=None, lock_factory=None, **kwargs):
+                 socket_settings=None, lock_factory=None, async=False, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -189,7 +195,7 @@ class Connection(AbstractChannel):
         self.on_tune_ok = ensure_promise(on_tune_ok)
         self.make_lock = lock_factory or FakeLock
 
-        self._handshake_complete = future()
+        self._handshake_complete = asyncio.Future()
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -230,8 +236,9 @@ class Connection(AbstractChannel):
 
         self.connect_timeout = connect_timeout
         loop = asyncio.get_event_loop()
-        loop.add_reader(self.transport.fileno(), self.blocking_read)
-        self.connect()
+        self._reader = loop.create_task(self.read_task())
+        if not async:
+            self.drain_events(self._handshake_complete, timeout=self.connect_timeout)
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -248,11 +255,8 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self):
-        self.drain_events(self._handshake_complete, timeout=self.connect_timeout)
-
     def _on_start(self, version_major, version_minor, server_properties,
-                  mechanisms, locales, argsig='FsSs'):
+                  mechanisms, locales):
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
@@ -274,8 +278,9 @@ class Connection(AbstractChannel):
             cap = client_properties.setdefault('capabilities', {})
             cap['connection.blocked'] = True
 
+        AMQP_LOGGER.debug("send login data")
         self.send_method(
-            spec.Connection.StartOk, argsig,
+            spec.Connection.StartOk, 'FsSs',
             (client_properties, self.login_method,
              self.login_response, self.locale),
         )
@@ -283,7 +288,7 @@ class Connection(AbstractChannel):
     def _on_secure(self, challenge):
         pass
 
-    def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
+    def _on_tune(self, channel_max, frame_max, server_heartbeat):
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -301,14 +306,14 @@ class Connection(AbstractChannel):
             self.heartbeat = 0
 
         self.send_method(
-            spec.Connection.TuneOk, argsig,
+            spec.Connection.TuneOk, 'BlB',
             (self.channel_max, self.frame_max, self.heartbeat),
             callback=self._on_tune_sent,
         )
 
-    def _on_tune_sent(self, argsig='ssb'):
+    def _on_tune_sent(self, _=None):
         self.send_method(
-            spec.Connection.Open, argsig, (self.virtual_host, '', False),
+            spec.Connection.Open, 'ssb', (self.virtual_host, '', False),
         )
 
     def _on_open_ok(self):
@@ -330,17 +335,26 @@ class Connection(AbstractChannel):
     def connected(self):
         return self.transport and self.transport.connected
 
-    def collect(self):
+    def _collect(self):
         try:
-            self.transport.close()
+            t,self.transport = self.transport,None
+            if t is not None:
+                t.close()
 
-            temp_list = [x for x in values(self.channels) if x is not self]
-            for ch in temp_list:
-                ch.collect()
+            if self.channels:
+                temp_list = [x for x in values(self.channels) if x is not self]
+                for ch in temp_list:
+                    ch.collect()
         except socket.error:
             pass  # connection already closed on the other end
         finally:
             self.transport = self.connection = self.channels = None
+
+    def collect(self, _=None):
+        r,self._reader = self.reader,None
+        if r is not None:
+            r.cancel()
+        self._collect()
 
     def _get_free_channel_id(self):
         try:
@@ -368,30 +382,33 @@ class Connection(AbstractChannel):
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
 
-    def inbound_method(self, channel_id, method_sig, payload, content):
-        self.channels[channel_id].dispatch_method(method_sig, payload, content)
-
     def drain_events(self, task, timeout=None):
         task = asyncio.ensure_future(task)
         loop = asyncio.get_event_loop()
         if timeout:
-            s = asyncio.sleep(timeout)
-            t = asyncio.gather(s,task)
+            t = asyncio.wait_for(task,timeout)
         else:
             t = task
         loop.run_until_complete(t)
-        if task.done:
+        if task.done():
             return task.result()
         else:
             assert(timeout)
             raise socket.timeout(timeout)
 
     @asyncio.coroutine
-    def blocking_read(self):
+    def read_task(self):
         read_frame = self.transport.read_frame
-        return self.on_inbound_frame(yield from read_frame())
+        try:
+           while True:
+                f = (yield from read_frame())
+                self.on_inbound_frame(f)
+        except BaseException as exc:
+            if not self._handshake_complete.done():
+                self._handshake_complete.set_exception(exc)
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
+        AMQP_LOGGER.debug('RECV %d: %s %s %s',channel_id,method_sig,payload,content)
         return self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
@@ -401,7 +418,7 @@ class Connection(AbstractChannel):
             return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              nowait=False, argsig='BsBB'):
+              nowait=False):
 
         """Request a connection close
 
@@ -469,7 +486,7 @@ class Connection(AbstractChannel):
             return
 
         return self.send_method(
-            spec.Connection.Close, argsig,
+            spec.Connection.Close, 'BsBB',
             (reply_code, reply_text, method_sig[0], method_sig[1]),
             wait=(None if nowait else spec.Connection.CloseOk),
         )

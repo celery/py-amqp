@@ -24,6 +24,7 @@ import unittest
 import settings
 
 from amqp import Connection, Message
+from asyncio import Future
 
 
 class TestChannel(unittest.TestCase):

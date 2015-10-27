@@ -21,10 +21,7 @@ import struct
 import socket
 import ssl
 
-try:
-    import asyncio
-except ImportError:
-    import trollius as asyncio
+import asyncio
 
 # Jython does not have this attribute
 try:
@@ -201,7 +198,7 @@ class _AbstractTransport(object):
             frame_type, channel, size = unpack('>BHI', frame_header)
             payload = yield from read(size)
             read_frame_buffer += payload
-            ch = ord(yield from read(1))
+            ch = ord((yield from read(1)))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise

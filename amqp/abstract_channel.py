@@ -16,12 +16,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import asyncio
+import logging
+
 from collections import deque, defaultdict
 from functools import wraps
-try:
-    import asyncio
-except ImportError:
-    import trollius as asyncio
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .method_framing import frame_writer
@@ -31,6 +30,7 @@ from .five import with_metaclass
 
 __all__ = ['AbstractChannel']
 
+logger = logging.getLogger(__name__)
 
 class AsyncHelper(type):
     """This metaclass renames all methods marked with "add_async" to
@@ -46,7 +46,6 @@ class AsyncHelper(type):
                         if not isinstance(p, asyncio.Future):
                             return p
                         self.connection.drain_events(p)
-                        import pdb;pdb.set_trace()
                         val = p.result()
                         return val
                     return sync_call
@@ -113,6 +112,7 @@ class AbstractChannel(object):
             with self._lock:
                 if wait:
                     self._pending[wait].append(p)
+                logger.debug("SEND %d: %s %s %s", self.channel_id, sig, args, content)
                 conn._frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
             err = RecoverableConnectionError('connection already closed')
@@ -123,10 +123,27 @@ class AbstractChannel(object):
             conn._frame_writer = frame_writer(conn)
             cleanup(err)
 
-        if callback:
-            p.then(callback)
+        def go_out(f):
+            if f.cancelled():
+                return
+            exc = f.exception()
+            if exc is None:
+                if callback is None:
+                    return
+                try:
+                    callback(f.result())
+                except Exception as ex:
+                    exc = ex
+                else:
+                    return
+            import pdb;pdb.set_trace()
+            logger.error("Closing because of %s", exc)
+            self.close()
+        p.add_done_callback(go_out)
+
         if wait:
-            self.wait(p)
+            #self.wait(p)
+            pass
         else:
             p()
         return p
@@ -139,8 +156,8 @@ class AbstractChannel(object):
         """Wait for a method to be called.
         This just drains events until the callback fires;
         all the real work has been done in send_method()."""
-        while not callback.ready:
-            self.connection.drain_events()
+        while not callback.done():
+            self.connection.drain_events(callback)
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \

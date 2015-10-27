@@ -7,12 +7,8 @@ import sys
 from collections import Callable, deque
 
 from .five import with_metaclass
-try:
-    import asyncio
-    from asyncio.futures import Future
-except ImportError:
-    import trollius as asyncio
-    from trollius.futures import Future
+import asyncio
+from asyncio.futures import Future
 
 __all__ = ['Thenable', 'promise', 'barrier', 'wrap',
            'maybe_promise', 'ensure_promise']
@@ -204,8 +200,11 @@ class promise(Future, Thenable):
             self.on_error = None
 
     def __call__(self, *args, **kwargs):
-        if self.cancelled:
-            return
+        if self.done():
+            try:
+                return self.result()
+            except Exception:
+                return
         if self.fun:
             try:
                 retval = self.fun(
@@ -214,29 +213,60 @@ class promise(Future, Thenable):
                 )
                 if isinstance(retval, Future):
                     self.fun = None
-                    retval.add_done_callback(self.set_result)
+                    retval.add_done_callback(self.set_result_f)
                     return retval
-            except Exception:
-                return self.set_error_state()
+                if isinstance(retval, Exception):
+                    raise retval
+            except Exception as exc:
+                self.set_error_state(exc)
+                if self.on_error:
+                    self.on_error(self.exception())
+                return
+
         else:
             assert not kwargs
-            assert len(args) <= 1
-            if args:
+            if not args:
+                retval = None
+            elif len(args) == 1:
                 retval = args[0]
             else:
-                retval = None
+                retval = args
         self.set_result(retval)
+        return retval
+
+    def set_result_f(self, future):
+        """set_result, called with a future"""
+        try:
+            self.set_result(future.result())
+        except Exception as exc:
+            self.set_error_state(exc)
+            if self.on_error:
+                self.on_error(self.exception())
 
     def then(self, callback, on_error=None):
-        if not isinstance(callback, Thenable):
+        if isinstance(callback, Thenable):
+            assert on_error is None
+            on_error = callback.on_error
+            on_cancel = callback.cancel
+        else:
             callback = promise(callback, on_error=on_error)
-        if self.cancelled:
+            on_cancel = None
+        if self.cancelled():
             callback.cancel()
             return callback
 
         def take_future(f):
             try:
-                callback(f.result())
+                r = f.result()
+                if isinstance(r, tuple):
+                    callback(*r)
+                else:
+                    callback(r)
+            except asyncio.CancelledError:
+                if on_cancel:
+                    on_cancel()
+                else:
+                    raise
             except Exception as exc:
                 if on_error:
                     on_error(exc)
@@ -245,15 +275,30 @@ class promise(Future, Thenable):
         self.add_done_callback(take_future)
         return callback
 
+    def wait(self, timeout=None):
+        if timeout is None:
+            s = self
+        else:
+            import pdb;pdb.set_trace()
+            t = asyncio.sleep(timeout)
+            s = asyncio.wait(self,t)
+        try:
+            self._loop.run_until_complete(s)
+        except Exception: # asyncio.CancelledError:
+            pass
+        else:
+            if not self.done():
+                self.throw(RuntimeError("Timeout"))
+
     def throw1(self, exc):
-        if self.cancelled:
+        if self.cancelled():
             return
         self.failed, self.reason = True, exc
         if self.on_error:
             self.on_error(exc)
 
     def set_error_state(self, exc=None):
-        if self.cancelled:
+        if self.cancelled():
             return
         self.set_exception(exc)
 
