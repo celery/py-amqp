@@ -67,6 +67,7 @@ TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
+    _read_buffer = EMPTY_BUFFER
 
     def __init__(self, host, connect_timeout,
                  read_timeout=None, write_timeout=None,
@@ -308,7 +309,6 @@ class TCPTransport(_AbstractTransport):
         """Setup to _write() directly to the socket, and
         do our own buffered reads."""
         self._write = self.sock.sendall
-        self._read_buffer = EMPTY_BUFFER
 
 
 def create_transport(host, connect_timeout,
