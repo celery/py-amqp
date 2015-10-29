@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import abc
 import logging
+import socket
 import sys
 
 from collections import Callable, deque
@@ -187,9 +188,17 @@ class promise(Future, Thenable):
             return '<promise@0x{0:x}: {1!r}>'.format(id(self), self.fun)
         return '<promise@0x{0:x}>'.format(id(self))
 
-    def wait(self):
+    def wait(self, timeout=None):
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self)
+        if timeout:
+            t = asyncio.wait_for(self,timeout)
+        else:
+            #t = self
+            t = asyncio.wait_for(self,5)
+        loop.run_until_complete(t)
+        if not self.done():
+            assert(timeout)
+            raise socket.timeout(timeout)
 
     def cancel(self):
         super(promise,self).cancel()
@@ -274,21 +283,6 @@ class promise(Future, Thenable):
                     raise
         self.add_done_callback(take_future)
         return callback
-
-    def wait(self, timeout=None):
-        if timeout is None:
-            s = self
-        else:
-            import pdb;pdb.set_trace()
-            t = asyncio.sleep(timeout)
-            s = asyncio.wait(self,t)
-        try:
-            self._loop.run_until_complete(s)
-        except Exception: # asyncio.CancelledError:
-            pass
-        else:
-            if not self.done():
-                self.throw(RuntimeError("Timeout"))
 
     def throw1(self, exc):
         if self.cancelled():

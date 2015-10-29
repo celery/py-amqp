@@ -94,7 +94,7 @@ def frame_handler(connection, callback,
 def frame_writer(connection,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
-    write = connection.transport.write
+    write = connection.transport._write
 
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to

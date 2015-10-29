@@ -21,7 +21,7 @@ This library should be API compatible with `librabbitmq`_.
 Differences from `amqplib`_
 ===========================
 
-- Supports draining events from multiple channels (``Connection.drain_events``)
+- Supports asyncio
 - Support for timeouts
 - Channels are restored after channel error, instead of having to close the
   connection.

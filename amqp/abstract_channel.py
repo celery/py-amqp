@@ -45,7 +45,7 @@ class AsyncHelper(type):
                         p = fn(self,*a,**k)
                         if not isinstance(p, asyncio.Future):
                             return p
-                        self.connection.drain_events(p)
+                        p.wait()
                         val = p.result()
                         return val
                     return sync_call
@@ -156,8 +156,7 @@ class AbstractChannel(object):
         """Wait for a method to be called.
         This just drains events until the callback fires;
         all the real work has been done in send_method()."""
-        while not callback.done():
-            self.connection.drain_events(callback)
+        callback.wait()
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \

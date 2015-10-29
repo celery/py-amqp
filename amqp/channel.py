@@ -447,6 +447,7 @@ class Channel(AbstractChannel):
         """
         if self.is_open:
             return
+        self.on_open2 = promise()
 
         return self.send_method(
             spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
@@ -461,6 +462,7 @@ class Channel(AbstractChannel):
         """
         self.is_open = True
         self.on_open(self)
+        self.on_open2(self)
         AMQP_LOGGER.debug('Channel open')
 
     #############
@@ -1182,10 +1184,17 @@ class Channel(AbstractChannel):
              returns_tuple=True,
         )
 
-        def wrap(*a):
-            return queue_declare_ok_t(*a)
-        q = promise(fun=wrap)
-        res.then(q)
+        #def wrap(*a):
+        #    return queue_declare_ok_t(*a)
+        #q = promise(fun=wrap)
+        #res.then(q)
+        q = promise()
+        def wrap(f):
+            try:
+                q.set_result(queue_declare_ok_t(*f.result()))
+            except Exception as exc:
+                q.set_exception(exc)
+        res.add_done_callback(wrap)
         return q
 
     @with_async

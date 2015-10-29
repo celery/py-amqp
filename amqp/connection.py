@@ -31,7 +31,7 @@ except ImportError:
 
 from . import __version__
 from . import spec
-from .abstract_channel import AbstractChannel
+from .abstract_channel import AbstractChannel, with_async
 from .channel import Channel
 from .exceptions import (
     ChannelError, ResourceError,
@@ -40,7 +40,7 @@ from .exceptions import (
 )
 from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer
-from .promise import ensure_promise
+from .promise import ensure_promise, promise
 from .serialization import _write_table
 from .transport import create_transport
 from .utils import FakeLock
@@ -151,7 +151,7 @@ class Connection(AbstractChannel):
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
-                 on_tune_ok=None, read_timeout=None, write_timeout=None,
+                 on_tune_ok=None,
                  socket_settings=None, lock_factory=None, async=False, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -195,7 +195,7 @@ class Connection(AbstractChannel):
         self.on_tune_ok = ensure_promise(on_tune_ok)
         self.make_lock = lock_factory or FakeLock
 
-        self._handshake_complete = asyncio.Future()
+        self._handshake_complete = promise()
 
         self.channels = {}
         # The connection object itself is treated as channel 0
@@ -227,18 +227,32 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        self.transport = self.Transport(
-            host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_settings=socket_settings,
-        )
-        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self)
-
-        self.connect_timeout = connect_timeout
         loop = asyncio.get_event_loop()
-        self._reader = loop.create_task(self.read_task())
+        self._conn = loop.create_task(self.connect(host,ssl,socket_settings))
         if not async:
-            self.drain_events(self._handshake_complete, timeout=self.connect_timeout)
+            try:
+                self._handshake_complete.wait(timeout=connect_timeout)
+            finally:
+                if self._conn is not None:
+                    self._conn.cancel()
+                    self._conn = None
+
+    @asyncio.coroutine
+    def connect(self,host,ssl,socket_settings):
+        try:
+            self.transport = yield from create_transport(
+                host=host, ssl=ssl, socket_settings=socket_settings,
+            )
+    
+            self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
+            self._frame_writer = frame_writer(self)
+    
+            loop = asyncio.get_event_loop()
+            self._reader = loop.create_task(self.read_task())
+        except Exception as exc:
+            self._handshake_complete.set_exception(exc)
+        finally:
+            self._conn = None
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -323,14 +337,6 @@ class Connection(AbstractChannel):
     def FIXME(self, *args, **kwargs):
         pass
 
-    def Transport(self, host, connect_timeout,
-                  ssl=False, read_timeout=None, write_timeout=None,
-                  socket_settings=None):
-        return create_transport(
-            host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_settings=socket_settings,
-        )
-
     @property
     def connected(self):
         return self.transport and self.transport.connected
@@ -351,7 +357,7 @@ class Connection(AbstractChannel):
             self.transport = self.connection = self.channels = None
 
     def collect(self, _=None):
-        r,self._reader = self.reader,None
+        r,self._reader = self._reader,None
         if r is not None:
             r.cancel()
         self._collect()
@@ -382,20 +388,6 @@ class Connection(AbstractChannel):
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
 
-    def drain_events(self, task, timeout=None):
-        task = asyncio.ensure_future(task)
-        loop = asyncio.get_event_loop()
-        if timeout:
-            t = asyncio.wait_for(task,timeout)
-        else:
-            t = task
-        loop.run_until_complete(t)
-        if task.done():
-            return task.result()
-        else:
-            assert(timeout)
-            raise socket.timeout(timeout)
-
     @asyncio.coroutine
     def read_task(self):
         read_frame = self.transport.read_frame
@@ -404,8 +396,9 @@ class Connection(AbstractChannel):
                 f = (yield from read_frame())
                 self.on_inbound_frame(f)
         except BaseException as exc:
-            if not self._handshake_complete.done():
-                self._handshake_complete.set_exception(exc)
+            if self._handshake_complete.done():
+                raise
+            self._handshake_complete.set_exception(exc)
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         AMQP_LOGGER.debug('RECV %d: %s %s %s',channel_id,method_sig,payload,content)
@@ -413,12 +406,8 @@ class Connection(AbstractChannel):
             method_sig, payload, content,
         )
 
-    def read_timeout(self, timeout=None):
-        if timeout is None:
-            return self.method_reader.read_method()
-
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              nowait=False):
+    @with_async
+    def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
 
         """Request a connection close
 
@@ -478,7 +467,7 @@ class Connection(AbstractChannel):
 
                 If set, the client will not wait for a reply method.
                 The server's reply should be processed by calling
-                drain_events().
+                .wait() on the result.
 
         """
         if self.transport is None:
@@ -488,7 +477,7 @@ class Connection(AbstractChannel):
         return self.send_method(
             spec.Connection.Close, 'BsBB',
             (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=(None if nowait else spec.Connection.CloseOk),
+            wait=spec.Connection.CloseOk,
         )
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
