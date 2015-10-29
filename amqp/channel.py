@@ -164,7 +164,7 @@ class Channel(AbstractChannel):
 
     def _do_revive(self):
         self.is_open = False
-        self._x_open()
+        return self._x_open_async()
 
     @with_async
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
@@ -276,7 +276,7 @@ class Channel(AbstractChannel):
         """
 
         self.send_method(spec.Channel.CloseOk)
-        self._do_revive()
+        r = self._do_revive()
         err = error_for_code(reply_code, reply_text, (class_id, method_id), ChannelError)
         try:
             if method_id%10 == 0:
@@ -288,7 +288,9 @@ class Channel(AbstractChannel):
         except IndexError:
             raise err
         else:
-            m.throw(err)
+            def wrap(f):
+                m.throw(f.exception() or err)
+            r.add_done_callback(wrap)
 
     def _on_close_ok(self):
         """Confirm a channel close

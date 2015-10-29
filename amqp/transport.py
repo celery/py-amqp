@@ -110,7 +110,6 @@ class AMQPTransport(object):
         }
 
     def _set_socket_options(self, socket_settings):
-        import pdb;pdb.set_trace()
         sock = self.wstream.transport.socket
         if not socket_settings:
             sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)

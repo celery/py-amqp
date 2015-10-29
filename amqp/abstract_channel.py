@@ -136,7 +136,6 @@ class AbstractChannel(object):
                     exc = ex
                 else:
                     return
-            import pdb;pdb.set_trace()
             logger.error("Closing because of %s", exc)
             self.close()
         p.add_done_callback(go_out)
