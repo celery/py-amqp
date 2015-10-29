@@ -32,7 +32,6 @@ class SocketOptions(Case):
     def setUp(self):
         super(SocketOptions, self).setUp()
         self.host = '127.0.0.1'
-        self.connect_timeout = 3
         self.socket = MockSocket()
         fcntl_ctx = patch('fcntl.fcntl')
         fcntl_ctx.start()
@@ -60,14 +59,18 @@ class SocketOptions(Case):
         )
 
         # We don't need an actual connection so we mock a bunch of stuff
-        transport.TCPTransport._write = Mock()
-        transport.TCPTransport._setup_transport = Mock()
-        transport.SSLTransport._write = Mock()
-        transport.SSLTransport._setup_transport = Mock()
+        def get_mock_coro(return_value):
+            @asyncio.coroutine
+            def mock_coro(*args, **kwargs):
+                return return_value
+
+            return Mock(wraps=mock_coro)
+        transport.AMQPTransport._write = Mock()
+        transport.AMQPTransport.connect = get_mock_coro("CONNECT")
 
     def test_backward_compatibility_tcp_transport(self):
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout, ssl=False,
+            self.host, ssl=False,
         ))
         expected = 1
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
@@ -75,13 +78,13 @@ class SocketOptions(Case):
 
     def test_backward_compatibility_SSL_transport(self):
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout, ssl=True,
+            self.host, ssl=True,
         ))
         self.assertIsNotNone(self.transp.sock)
 
     def test_use_default_sock_tcp_opts(self):
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout, socket_settings={},
+            self.host, socket_settings={},
         ))
         self.assertIn(
             socket.TCP_NODELAY,
@@ -92,7 +95,7 @@ class SocketOptions(Case):
         tcp_keepidle = self.tcp_keepidle + 5
         socket_settings = {TCP_KEEPIDLE: tcp_keepidle}
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout,
+            self.host,
             ssl=False, socket_settings=socket_settings,
         ))
         expected = tcp_keepidle
@@ -103,7 +106,7 @@ class SocketOptions(Case):
         self.tcp_keepidle += 5
         socket_settings = {TCP_KEEPIDLE: self.tcp_keepidle}
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout,
+            self.host,
             ssl=True, socket_settings=socket_settings,
         ))
         expected = self.tcp_keepidle
@@ -111,6 +114,7 @@ class SocketOptions(Case):
         self.assertEqual(result, expected)
 
     def test_values_are_set(self):
+        import pdb;pdb.set_trace()
         socket_settings = {
             TCP_KEEPIDLE: 10,
             TCP_KEEPINTVL: 4,
@@ -118,7 +122,7 @@ class SocketOptions(Case):
         }
 
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout,
+            self.host,
             socket_settings=socket_settings,
         ))
         expected = socket_settings
@@ -136,7 +140,7 @@ class SocketOptions(Case):
         socket_settings = object()
         with self.assertRaises(TypeError):
             self.transp = run(transport.create_transport(
-                self.host, self.connect_timeout,
+                self.host,
                 socket_settings=socket_settings,
             ))
 
@@ -144,7 +148,7 @@ class SocketOptions(Case):
         socket_settings = {TCP_KEEPINTVL: 'a'.encode()}
         with self.assertRaises(socket.error):
             self.transp = run(transport.create_transport(
-                self.host, self.connect_timeout,
+                self.host,
                 socket_settings=socket_settings,
             ))
 
@@ -152,16 +156,18 @@ class SocketOptions(Case):
         socket_settings = {TCP_KEEPIDLE: '5'.encode()}
         with self.assertRaises(socket.error):
             self.transp = run(transport.create_transport(
-                self.host, self.connect_timeout,
+                self.host,
                 socket_settings=socket_settings,
             ))
 
     def test_passing_tcp_nodelay(self):
+        import pdb;pdb.set_trace()
         socket_settings = {socket.TCP_NODELAY: 0}
         self.transp = run(transport.create_transport(
-            self.host, self.connect_timeout,
+            self.host,
             socket_settings=socket_settings,
         ))
         expected = 0
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
         self.assertEqual(result, expected)
+

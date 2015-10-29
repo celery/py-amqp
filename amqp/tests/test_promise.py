@@ -195,17 +195,23 @@ class test_promise(Case):
 
         p.cancel()
         p(42)
-        p.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            p.wait()
         self.assertTrue(p.cancelled())
-        a.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            a.wait()
         self.assertTrue(a.cancelled())
-        a2.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            a2.wait()
         self.assertTrue(a2.cancelled())
-        b.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            b.wait()
         self.assertTrue(b.cancelled())
-        c.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            c.wait()
         self.assertTrue(c.cancelled())
-        on_error.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            on_error.wait()
         self.assertTrue(on_error.cancelled())
         d = promise(Mock(name='d'))
         p.then(d)
@@ -269,9 +275,11 @@ class test_promise(Case):
         a = promise(Mock(name='a'))
         p.then(a)
         p.cancel()
-        p.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            p.wait()
         self.assertTrue(p.cancelled())
-        a.wait()
+        with self.assertRaises(asyncio.CancelledError):
+            a.wait()
         self.assertTrue(a.cancelled())
 
         p.throw(KeyError())
@@ -288,19 +296,22 @@ class test_promise(Case):
         p1 = promise(a, on_error=ae)
         p1.then(b)
         p1(42)
-        p1.wait()
+        with self.assertRaises(KeyError):
+            p1.wait()
         p1.on_error.fun.assert_called_with(exc)
 
         p2 = promise(a)
         p2.then(b).then(c)
+        p2(42)
         with self.assertRaises(KeyError):
-            p2(42)
             p2.wait()
+        with self.assertRaises(KeyError):
             p2.result()
 
         de = promise(Mock(name='de'))
         d = promise(Mock(name='d'), on_error=de)
         p2.then(d)
-        p2.wait()
+        with self.assertRaises(KeyError):
+            p2.wait()
         de.fun.assert_called_with(exc)
 
