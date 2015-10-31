@@ -50,7 +50,7 @@ class AbstractChannel(object):
 
     def send_method(self, sig,
                     format=None, args=None, content=None,
-                    wait=None, callback=None):
+                    wait=None, callback=None, returns_tuple=False):
         p = promise()
         conn = self.connection
         if conn is None:
@@ -66,7 +66,7 @@ class AbstractChannel(object):
             p.then(callback)
         p()
         if wait:
-            return self.wait(wait)
+            return self.wait(wait, returns_tuple=returns_tuple)
         return p
 
     def close(self):
@@ -76,8 +76,13 @@ class AbstractChannel(object):
     def wait(self, method, callback=None, timeout=None, returns_tuple=False):
         p = ensure_promise(callback)
         pending = self._pending
-        prev_p, pending[method] = pending.get(method), p
-        self._pending[method] = p
+        prev_p = []
+        if not isinstance(method, list):
+            method = [method]
+
+        for m in method:
+            prev_p.append(pending.get(m))
+            pending[m] = p
 
         try:
             while not p.ready:
@@ -87,10 +92,11 @@ class AbstractChannel(object):
                 args, kwargs = p.value
                 return args if returns_tuple else (args and args[0])
         finally:
-            if prev_p is not None:
-                pending[method] = prev_p
-            else:
-                pending.pop(method, None)
+            for i, m in enumerate(method):
+                if prev_p[i] is not None:
+                    pending[m] = prev_p[i]
+                else:
+                    pending.pop(m, None)
 
     def dispatch_method(self, method_sig, payload, content):
         if content and \

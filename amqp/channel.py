@@ -1652,13 +1652,19 @@ class Channel(AbstractChannel):
         Non-blocking, returns a message object, or None.
 
         """
-        return self.send_method(
+        ret = self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
-            wait=spec.Basic.GetOk,
+            wait=[spec.Basic.GetOk, spec.Basic.GetEmpty], returns_tuple=True,
         )
+        if not ret or len(ret) < 2:
+            return self._on_get_empty(*ret)
+        return self._on_get_ok(*ret)
 
-    def _get_to_message(self, delivery_tag, redelivered, exchange, routing_key,
-                        message_count, msg):
+    def _on_get_empty(self, cluster_id=None):
+        pass
+
+    def _on_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
+                   message_count, msg):
         msg.channel = self
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
