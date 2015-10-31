@@ -80,7 +80,7 @@ class AbstractChannel(object):
         self._callbacks = {}
 
         self._setup_listeners()
-        self._lock = connection.make_lock()
+        self._lock = asyncio.Lock()
 
     def __enter__(self):
         return self
@@ -109,7 +109,7 @@ class AbstractChannel(object):
             # If two threads try to write to the same channel,
             # make sure data won't get interleaved and the results
             # will be processed in the correct order.
-            with self._lock:
+            with (yield from self._lock):
                 if wait:
                     self._pending[wait].append(p)
                 logger.debug("SEND %d: %s %s %s", self.channel_id, sig, args, content)

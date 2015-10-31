@@ -1783,19 +1783,11 @@ class Channel(AbstractChannel):
 
     @with_async
     def basic_publish_confirm(self, *args, **kwargs):
-        pr = promise()
-        def pub(_=None):
-            with self._lock:
-                self._pending[spec.Basic.Ack].append(pr)
-                return self._basic_publish(*args, **kwargs)
-
         if not self._confirm_selected:
-            with self._lock:
+            with (yield from self._lock):
                 self._confirm_selected = True
-                self.confirm_select_async().then(pub)
-        else:
-            pub()
-        return pr
+                yield from self.confirm_select_async()
+        yield from self.basic_publish_async(*args, **kwargs)
 
     @with_async
     def basic_qos(self, prefetch_size, prefetch_count, a_global):
