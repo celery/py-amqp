@@ -19,7 +19,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
               'sphinx.ext.pngmath',
               'sphinx.ext.intersphinx',
-              'sphinxcontrib.issuetracker']
+             ]
 
 html_show_sphinx = False
 
