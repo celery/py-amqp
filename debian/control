@@ -1,0 +1,104 @@
+Source: python-amqp
+Section: python
+Priority: extra
+Maintainer: Debian Python Modules Team <python-modules-team@lists.alioth.debian.org>
+Uploaders: Michael Fladischer <fladi@debian.org>, Thomas Goirand <zigo@debian.org>
+Build-Depends: debhelper (>= 9),
+               dh-python,
+               python-all,
+               python-setuptools,
+               python3-all,
+               python3-setuptools
+Build-Depends-Indep: libjs-jquery,
+                     python-sphinx (>= 1.0.7+dfsg-1~)
+Standards-Version: 3.9.6
+X-Python-Version: >= 2.5
+X-Python3-Version: >= 3.0
+Homepage: https://github.com/celery/py-amqp
+Vcs-Git: git://anonscm.debian.org/python-modules/packages/python-amqp.git
+Vcs-Browser: https://anonscm.debian.org/cgit/python-modules/packages/python-amqp.git
+
+Package: python-amqp
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}
+Suggests: python-amqp-doc
+Description: Low-level AMQP client
+ This is a fork of amqplib which was originally written by Barry Pederson. It
+ is maintained by the Celery project, and used by kombu as a pure Python
+ alternative when librabbitmq is not available.
+ .
+ This library should be API compatible with librabbitmq. Differences from
+ amqplib are:
+  * Supports draining events from multiple channels (Connection.drain_events).
+  * Support for timeouts.
+  * Channels are restored after channel error, instead of having to close the
+    connection.
+  * Support for heartbeats.
+  * Supports RabbitMQ extensions:
+    - Consumer Cancel Notifications.
+    - Publisher confirms.
+    - Exchange-to-exchange bindings: exchange_bind / exchange_unbind.
+  * Support for basic_return.
+  * Uses AMQP 0-9-1 instead of 0-8.
+  * Exposes the underlying socket as Connection.sock.
+  * Adds Channel.no_ack_consumers to keep track of consumer tags that set the
+    no_ack flag.
+  * Slightly better at error recovery.
+
+Package: python3-amqp
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}
+Suggests: python-amqp-doc
+Description: Low-level AMQP client (Python3 version)
+ This is a fork of amqplib which was originally written by Barry Pederson. It
+ is maintained by the Celery project, and used by kombu as a pure Python
+ alternative when librabbitmq is not available.
+ .
+ This library should be API compatible with librabbitmq. Differences from
+ amqplib are:
+  * Supports draining events from multiple channels (Connection.drain_events).
+  * Support for timeouts.
+  * Channels are restored after channel error, instead of having to close the
+    connection.
+  * Support for heartbeats.
+  * Supports RabbitMQ extensions:
+    - Consumer Cancel Notifications.
+    - Publisher confirms.
+    - Exchange-to-exchange bindings: exchange_bind / exchange_unbind.
+  * Support for basic_return.
+  * Uses AMQP 0-9-1 instead of 0-8.
+  * Exposes the underlying socket as Connection.sock.
+  * Adds Channel.no_ack_consumers to keep track of consumer tags that set the
+    no_ack flag.
+  * Slightly better at error recovery.
+ .
+ This package contains the Python 3 version of the library.
+
+Package: python-amqp-doc
+Section: doc
+Architecture: all
+Depends: ${misc:Depends}, ${sphinxdoc:Depends}
+Description: Low-level AMQP client (Documentation)
+ This is a fork of amqplib which was originally written by Barry Pederson. It
+ is maintained by the Celery project, and used by kombu as a pure Python
+ alternative when librabbitmq is not available.
+ .
+ This library should be API compatible with librabbitmq. Differences from
+ amqplib are:
+  * Supports draining events from multiple channels (Connection.drain_events).
+  * Support for timeouts.
+  * Channels are restored after channel error, instead of having to close the
+    connection.
+  * Support for heartbeats.
+  * Supports RabbitMQ extensions:
+    - Consumer Cancel Notifications.
+    - Publisher confirms.
+    - Exchange-to-exchange bindings: exchange_bind / exchange_unbind.
+  * Support for basic_return.
+  * Uses AMQP 0-9-1 instead of 0-8.
+  * Exposes the underlying socket as Connection.sock.
+  * Adds Channel.no_ack_consumers to keep track of consumer tags that set the
+    no_ack flag.
+  * Slightly better at error recovery.
+ .
+ This package contains the documentation.

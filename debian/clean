@@ -1,0 +1,4 @@
+amqp/*.pyc
+amqp.egg-info/SOURCES.txt
+amqp.egg-info/top_level.txt
+funtests/settings.pyc

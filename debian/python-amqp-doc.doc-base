@@ -1,0 +1,10 @@
+Document: python-amqp
+Title: Python AMQP Documentation
+Author: Ask Solem
+Abstract: This documentation gives an introduction to Python AMQP.
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/python-amqp-doc/html/index.html
+Files: /usr/share/doc/python-amqp-doc/html/*.html
+       /usr/share/doc/python-amqp-doc/html/reference/*.html
