@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+import asyncio
 import logging
 
 from collections import defaultdict
@@ -92,7 +93,7 @@ class Channel(AbstractChannel):
     _METHODS = dict((m.method_sig, m) for m in _METHODS)
 
     def __init__(self, connection,
-                 channel_id=None, auto_decode=True, on_open=None):
+                 channel_id=None, auto_decode=True):
         """Create a channel bound to a connection and using the specified
         numeric channel_id, and open on the server.
 
@@ -121,18 +122,11 @@ class Channel(AbstractChannel):
         self.events = defaultdict(set)
         self.no_ack_consumers = set()
 
-        self.on_open = ensure_promise(on_open)
-
         # set first time basic_publish_confirm is called
         # and publisher confirms are enabled for this channel.
         self._confirm_selected = False
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
-
-        self._x_open()
-
-    def then(self, on_success, on_error=None):
-        return self.on_open.then(on_success, on_error)
 
     def _setup_listeners(self):
         self._callbacks.update({
@@ -164,9 +158,10 @@ class Channel(AbstractChannel):
 
     def _do_revive(self):
         self.is_open = False
-        return self._x_open_async()
+        return self.open_async()
 
     @with_async
+    @asyncio.coroutine
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
         """Request a channel close
 
@@ -218,7 +213,7 @@ class Channel(AbstractChannel):
             if not self.is_open or self.connection is None:
                 return
 
-            return self.send_method(
+            yield from self.send_method(
                 spec.Channel.Close, 'BsBB',
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Channel.CloseOk,
@@ -274,8 +269,6 @@ class Channel(AbstractChannel):
 
         """
 
-        self.send_method(spec.Channel.CloseOk)
-        r = self._do_revive()
         err = error_for_code(reply_code, reply_text, (class_id, method_id), ChannelError)
         try:
             if method_id%10 == 0:
@@ -285,11 +278,18 @@ class Channel(AbstractChannel):
                     ## UnbindOk seems to violate the pattern
             m = self._pending[(class_id, method_id)].popleft()
         except IndexError:
-            raise err
+            m = None
+        asyncio.ensure_future(self._do_on_close(err, m))
+
+    @asyncio.coroutine
+    def _do_on_close(self, err, m):
+        try:
+            yield from self.send_method(spec.Channel.CloseOk)
+            yield from self._do_revive()
+        except Exception as ex:
+            m.throw(ex)
         else:
-            def wrap(f):
-                m.throw(f.exception() or err)
-            r.add_done_callback(wrap)
+            m.throw(err)
 
     def _on_close_ok(self):
         """Confirm a channel close
@@ -405,7 +405,7 @@ class Channel(AbstractChannel):
 
         """
         self.active = active
-        self._x_flow_ok(self.active)
+        asyncio.ensure_future(self._x_flow_ok(self.active))
 
     def _x_flow_ok(self, active):
         """Confirm a flow method
@@ -426,7 +426,7 @@ class Channel(AbstractChannel):
         return self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
     @with_async
-    def _x_open(self):
+    def open(self):
         """Open a channel for use
 
         This method opens a virtual connection (a channel).
@@ -446,9 +446,7 @@ class Channel(AbstractChannel):
                 defined at a later date.
 
         """
-        if self.is_open:
-            return
-        self.on_open2 = promise()
+        assert not self.is_open
 
         return self.send_method(
             spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
@@ -462,9 +460,6 @@ class Channel(AbstractChannel):
 
         """
         self.is_open = True
-        self.on_open(self)
-        self.on_open2(self)
-        AMQP_LOGGER.debug('Channel open')
 
     #############
     #
@@ -632,7 +627,7 @@ class Channel(AbstractChannel):
         if auto_delete:
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
 
-        self.send_method(
+        return self.send_method(
             spec.Exchange.Declare, 'BssbbbbbF',
             (0, exchange, type, passive, durable, auto_delete,
              False, nowait, arguments),
@@ -1019,6 +1014,7 @@ class Channel(AbstractChannel):
         )
 
     @with_async
+    @asyncio.coroutine
     def queue_declare(self, queue='', passive=False, durable=False,
                       exclusive=False, auto_delete=True, nowait=False,
                       arguments=None):
@@ -1175,26 +1171,17 @@ class Channel(AbstractChannel):
 
         """
         if not arguments: arguments = {'Foo':'bar'}
-        res = self.send_method(
+        res = (yield from self.send_method(
             spec.Queue.Declare, 'BsbbbbbF',
             (0, queue, passive, durable, exclusive, auto_delete,
              nowait, arguments),
              wait=spec.Queue.DeclareOk if not nowait else None,
              returns_tuple=True,
-        )
+        ))
 
-        #def wrap(*a):
-        #    return queue_declare_ok_t(*a)
-        #q = promise(fun=wrap)
-        #res.then(q)
-        q = promise()
-        def wrap(f):
-            try:
-                q.set_result(queue_declare_ok_t(*f.result()))
-            except Exception as exc:
-                q.set_exception(exc)
-        res.add_done_callback(wrap)
-        return q
+        if nowait:
+            return
+        return queue_declare_ok_t(*res)
 
     @with_async
     def queue_delete(self, queue='',
@@ -1445,6 +1432,7 @@ class Channel(AbstractChannel):
         )
 
     @with_async
+    @asyncio.coroutine
     def basic_cancel(self, consumer_tag, nowait=False):
         """End a queue consumer
 
@@ -1487,7 +1475,7 @@ class Channel(AbstractChannel):
         """
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
-            return self.send_method(
+            yield from self.send_method(
                 spec.Basic.Cancel, 'sb', (consumer_tag, nowait),
                 wait=None if nowait else spec.Basic.CancelOk,
             )
@@ -1512,6 +1500,7 @@ class Channel(AbstractChannel):
         return self.cancel_callbacks.pop(consumer_tag, None)
 
     @with_async
+    @asyncio.coroutine
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
                       no_ack=False, exclusive=False, nowait=False,
                       callback=None, arguments=None, on_cancel=None):
@@ -1611,12 +1600,12 @@ class Channel(AbstractChannel):
 
         """
 
-        p = self.send_method(
+        p = (yield from self.send_method(
             spec.Basic.Consume, 'BssbbbbF',
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
              nowait, arguments),
             wait=None if nowait else spec.Basic.ConsumeOk,
-        )
+        ))
 
         # XXX Fix this hack
         if not nowait and not consumer_tag:
@@ -1628,7 +1617,6 @@ class Channel(AbstractChannel):
             self.cancel_callbacks[consumer_tag] = on_cancel
         if no_ack:
             self.no_ack_consumers.add(consumer_tag)
-        return p
 
     def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
                           exchange, routing_key, msg):
@@ -1649,6 +1637,7 @@ class Channel(AbstractChannel):
             fun(msg)
 
     @with_async
+    @asyncio.coroutine
     def basic_get(self, queue='', no_ack=False):
         """Direct access to a queue
 
@@ -1686,15 +1675,11 @@ class Channel(AbstractChannel):
         Non-blocking, returns a message object, or None.
 
         """
-        p = self.send_method(
+        p = (yield from self.send_method(
             spec.Basic.Get, 'Bsb', (0, queue, no_ack),
             wait=spec.Basic.GetOk, returns_tuple=True
-        )
-        def take5(*a):
-            return a[5]
-        q = promise(fun=take5)
-        p.then(q)
-        return q
+        ))
+        return p[5]
 
     def _get_to_message(self, delivery_tag, redelivered, exchange, routing_key,
                         message_count, msg):
@@ -1708,6 +1693,7 @@ class Channel(AbstractChannel):
         }
         return msg
 
+    @with_async
     def basic_publish(self, msg, exchange='', routing_key='',
                       mandatory=False, immediate=False):
         """Publish a message
@@ -1779,9 +1765,9 @@ class Channel(AbstractChannel):
             spec.Basic.Publish, 'Bssbb',
             (0, exchange, routing_key, mandatory, immediate), msg
         )
-    basic_publish = _basic_publish
 
     @with_async
+    @asyncio.coroutine
     def basic_publish_confirm(self, *args, **kwargs):
         if not self._confirm_selected:
             with (yield from self._lock):

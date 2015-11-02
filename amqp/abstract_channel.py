@@ -27,6 +27,7 @@ from .method_framing import frame_writer
 from .promise import ensure_promise, promise
 from .serialization import dumps, loads
 from .five import with_metaclass
+from .utils import RLock
 
 __all__ = ['AbstractChannel']
 
@@ -43,9 +44,12 @@ class AsyncHelper(type):
                     @wraps(fn)
                     def sync_call(self,*a,**k):
                         p = fn(self,*a,**k)
-                        if not isinstance(p, asyncio.Future):
+                        if asyncio.iscoroutine(p):
+                            p = asyncio.ensure_future(p)
+                        elif not isinstance(p, asyncio.Future):
                             return p
-                        p.wait()
+                        loop = asyncio.get_event_loop()
+                        loop.run_until_complete(p)
                         val = p.result()
                         return val
                     return sync_call
@@ -80,7 +84,7 @@ class AbstractChannel(object):
         self._callbacks = {}
 
         self._setup_listeners()
-        self._lock = asyncio.Lock()
+        self._lock = RLock()
 
     def __enter__(self):
         return self
@@ -88,23 +92,19 @@ class AbstractChannel(object):
     def __exit__(self, *exc_info):
         self.close()
 
+    @asyncio.coroutine
     def send_method(self, sig,
                     format=None, args=None, content=None,
-                    wait=None, callback=None, returns_tuple=False):
-
-        def cleanup(err):
-            if wait:
-                try:
-                    self._pending[wait].remove(p)
-                except ValueError:
-                    pass
-            raise err
-        p = promise(on_error=cleanup)
-
+                    wait=None, returns_tuple=False):
+        """Send a message.
+        Optionally waits for a reply and returns its output.
+        """
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
+        if wait:
+            p = promise()
         try:
             # If two threads try to write to the same channel,
             # make sure data won't get interleaved and the results
@@ -113,39 +113,30 @@ class AbstractChannel(object):
                 if wait:
                     self._pending[wait].append(p)
                 logger.debug("SEND %d: %s %s %s", self.channel_id, sig, args, content)
-                conn._frame_writer.send((1, self.channel_id, sig, args, content))
+                try:
+                    conn._frame_writer.send((1, self.channel_id, sig, args, content))
+                except Exception:
+                    # the frame writer coroutine has terminated due to throwing the
+                    # exception (e.g. a codec error). Restart it.
+                    conn._frame_writer = frame_writer(conn)
+                    raise
+            if not wait:
+                return None
+            res = (yield from p)
+            if res and not returns_tuple:
+                res = res[0]
+            return res
         except StopIteration:
             err = RecoverableConnectionError('connection already closed')
             cleanup(err)
-        except Exception as err:
-            # the frame writer coroutine has terminated due to throwing the
-            # exception (e.g. a codec error). Restart it.
-            conn._frame_writer = frame_writer(conn)
-            cleanup(err)
+            raise
 
-        def go_out(f):
-            if f.cancelled():
-                return
-            exc = f.exception()
-            if exc is None:
-                if callback is None:
-                    return
+        finally:
+            if wait:
                 try:
-                    callback(f.result())
-                except Exception as ex:
-                    exc = ex
-                else:
-                    return
-            logger.error("Closing because of %s", exc)
-            self.close()
-        p.add_done_callback(go_out)
-
-        if wait:
-            #self.wait(p)
-            pass
-        else:
-            p()
-        return p
+                    self._pending[wait].remove(p)
+                except ValueError:
+                    pass
 
     def close(self):
         """Close this Channel or Connection"""

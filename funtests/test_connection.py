@@ -102,7 +102,11 @@ class TestConnection(unittest.TestCase):
 
     def test_gc_forget(self):
         """Make sure the connection gets gc'ed when there is no more
-        references to it."""
+        references to it.
+        NOTE: This will trigger an error:
+        task: <Task pending coro=<read_task() running at /home/smurf/src/amqp/amqp/connection.py:384> wait_for=<Future pending cb=[Task._wakeup()]>>
+        This is intentional.
+        """
         unreachable_before = len(gc.garbage)
 
         ch = self.conn.channel()

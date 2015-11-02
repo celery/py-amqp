@@ -78,7 +78,6 @@ class AMQPTransport(object):
 
     @asyncio.coroutine
     def connect(self, host, ssl=None, socket_settings=None):
-        import pdb;pdb.set_trace()
         assert not self.connected
         msg = None
         last_err = None
@@ -100,7 +99,7 @@ class AMQPTransport(object):
             ))
         self._write = self.wstream.write
         self._read = self.rstream.readexactly
-        self.sock = self.wstream.transport.sock
+        self.sock = self.wstream.transport._sock
 
         self._write(AMQP_PROTOCOL_HEADER)
         self.connected = True
@@ -167,7 +166,6 @@ class AMQPTransport(object):
 def create_transport(host, ssl=False, socket_settings=None):
     """Given a few parameters from the Connection constructor,
     select and create a subclass of _AbstractTransport."""
-    import pdb;pdb.set_trace()
     t = AMQPTransport()
     yield from t.connect(host, ssl=ssl, socket_settings=socket_settings)
     return t

@@ -146,9 +146,9 @@ class Connection(AbstractChannel):
 
     def __init__(self, host='localhost', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
-                 virtual_host='/', locale='en_US', client_properties=None,
+	             virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
-                 frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
+                 frame_max=None, heartbeat=0, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, socket_settings=None, async=False):
         """Create a connection to the specified host, which should be
@@ -206,7 +206,6 @@ class Connection(AbstractChannel):
         # Callbacks
         self.on_blocked = on_blocked
         self.on_unblocked = on_unblocked
-        self.on_open = ensure_promise(on_open)
 
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
 
@@ -220,11 +219,11 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
-        loop = asyncio.get_event_loop()
+        self._loop = loop = asyncio.get_event_loop()
         self._conn = loop.create_task(self.connect(host,ssl,socket_settings))
         if not async:
             try:
-                self._handshake_complete.wait(timeout=connect_timeout)
+                self._loop.run_until_complete(asyncio.wait_for(self._handshake_complete, timeout=connect_timeout))
             finally:
                 if self._conn is not None:
                     self._conn.cancel()
@@ -247,13 +246,9 @@ class Connection(AbstractChannel):
         finally:
             self._conn = None
 
-    def then(self, on_success, on_error=None):
-        return self.on_open.then(on_success, on_error)
-
     def _setup_listeners(self):
         self._callbacks.update({
             spec.Connection.Start: self._on_start,
-            spec.Connection.OpenOk: self._on_open_ok,
             spec.Connection.Secure: self._on_secure,
             spec.Connection.Tune: self._on_tune,
             spec.Connection.Close: self._on_close,
@@ -286,11 +281,11 @@ class Connection(AbstractChannel):
             cap['connection.blocked'] = True
 
         AMQP_LOGGER.debug("send login data")
-        self.send_method(
+        asyncio.ensure_future(self.send_method(
             spec.Connection.StartOk, 'FsSs',
             (client_properties, self.login_method,
              self.login_response, self.locale),
-        )
+        ))
 
     def _on_secure(self, challenge):
         pass
@@ -312,23 +307,19 @@ class Connection(AbstractChannel):
         if not self.client_heartbeat:
             self.heartbeat = 0
 
-        self.send_method(
+        asyncio.ensure_future(self._do_on_tune())
+
+    @asyncio.coroutine
+    def _do_on_tune(self):
+        yield from self.send_method(
             spec.Connection.TuneOk, 'BlB',
             (self.channel_max, self.frame_max, self.heartbeat),
-            callback=self._on_tune_sent,
         )
-
-    def _on_tune_sent(self, _=None):
-        self.send_method(
+        yield from self.send_method(
             spec.Connection.Open, 'ssb', (self.virtual_host, '', False),
+            wait=spec.Connection.OpenOk
         )
-
-    def _on_open_ok(self):
         self._handshake_complete.set_result(True)
-        self.on_open(self)
-
-    def FIXME(self, *args, **kwargs):
-        pass
 
     @property
     def connected(self):
@@ -370,13 +361,17 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id,))
 
-    def channel(self, channel_id=None, callback=None):
+    @with_async
+    @asyncio.coroutine
+    def channel(self, channel_id=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
         try:
             return self.channels[channel_id]
         except KeyError:
-            return self.Channel(self, channel_id, on_open=callback)
+            c = self.Channel(self, channel_id)
+            yield from c.open_async()
+            return c
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
@@ -400,6 +395,7 @@ class Connection(AbstractChannel):
         )
 
     @with_async
+    @asyncio.coroutine
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0)):
 
         """Request a connection close
@@ -467,11 +463,15 @@ class Connection(AbstractChannel):
             # already closed
             return
 
-        return self.send_method(
-            spec.Connection.Close, 'BsBB',
-            (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=spec.Connection.CloseOk,
-        )
+        try:
+            yield from self.send_method(
+                spec.Connection.Close, 'BsBB',
+                (reply_code, reply_text, method_sig[0], method_sig[1]),
+                wait=spec.Connection.CloseOk,
+            )
+        except amqp.exceptions.RecoverableConnectionError:
+            import pdb;pdb.set_trace()
+            pass
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
@@ -527,7 +527,7 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
-        self._x_close_ok()
+        asyncio.ensure_future(self._x_close_ok())
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
@@ -554,7 +554,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, callback=self.collect)
+        return self.send_method(spec.Connection.CloseOk, callback=self.collect)
 
     def _on_close_ok(self):
         """Confirm a connection close
@@ -571,12 +571,15 @@ class Connection(AbstractChannel):
         """
         self.collect()
 
+    @with_async
     def send_heartbeat(self):
         try:
-            self._frame_writer.send((8, 0, None, None, None))
+            return self._frame_writer.send((8, 0, None, None, None))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
+    @with_async
+    @asyncio.coroutine
     def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
         received recently.  This should be called frequently, on the order of
@@ -614,7 +617,7 @@ class Connection(AbstractChannel):
         if mntnc > self.last_heartbeat_sent + self.heartbeat:
             AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
                               'connection %s' % self._connection_id)
-            self.send_heartbeat()
+            yield from self.send_heartbeat_async()
             self.last_heartbeat_sent = monotonic()
 
         # if we've missed two intervals' heartbeats, fail; this gives the

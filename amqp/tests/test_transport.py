@@ -7,16 +7,24 @@ from amqp import transport
 from amqp.tests.case import Case, Mock, patch
 
 
-class MockSocket(object):
-    options = {}
+class MockSocket(Mock):
+    options = {} # intentionally shared
 
+    def __init__(self, socket_settings=None, **kw):
+        if socket_settings is not None:
+            if not isinstance(socket_settings,dict):
+                raise TypeError("duh")
+            for k,v in socket_settings.items():
+                if not isinstance(v,int):
+                    raise socket.error("duh")
+                self.options[(socket.SOL_TCP,k)] = v
     def setsockopt(self, family, key, value):
         if not isinstance(value, int):
             raise socket.error()
-        self.options[key] = value
+        self.options[(family,key)] = value
 
     def getsockopt(self, family, key):
-        return self.options.get(key, 0)
+        return self.options.get((family,key), 0)
 
 def run(coro):
     loop = asyncio.get_event_loop()
@@ -32,19 +40,20 @@ class SocketOptions(Case):
     def setUp(self):
         super(SocketOptions, self).setUp()
         self.host = '127.0.0.1'
-        self.socket = MockSocket()
+        self.socket = MockSocket(spec=socket.socket)
         fcntl_ctx = patch('fcntl.fcntl')
         fcntl_ctx.start()
         self.addCleanup(fcntl_ctx.stop)
-        socket_ctx = patch('socket.socket')
-        socket = socket_ctx.start()
-        self.addCleanup(socket_ctx.stop)
-        socket().getsockopt = self.socket.getsockopt
-        socket().setsockopt = self.socket.setsockopt
+        self.old_s = socket.socket
+        socket.socket = MockSocket
 
         self.tcp_keepidle = 20
         self.tcp_keepintvl = 30
         self.tcp_keepcnt = 40
+
+        self.socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_TYPE, socket.SOCK_STREAM,
+        )
         self.socket.setsockopt(
             socket.SOL_TCP, socket.TCP_NODELAY, 1,
         )
@@ -61,12 +70,18 @@ class SocketOptions(Case):
         # We don't need an actual connection so we mock a bunch of stuff
         def get_mock_coro(return_value):
             @asyncio.coroutine
-            def mock_coro(*args, **kwargs):
-                return return_value
+            def mock_coro(self, *args, **kwargs):
+                self.sock = MockSocket(**kwargs)
 
-            return Mock(wraps=mock_coro)
+            def ccall(self,*a,**k):
+                return Mock(wraps=mock_coro)(self,*a,**k)
+            return ccall
+        
         transport.AMQPTransport._write = Mock()
         transport.AMQPTransport.connect = get_mock_coro("CONNECT")
+
+    def tearDown(self):
+        socket.socket = self.old_s
 
     def test_backward_compatibility_tcp_transport(self):
         self.transp = run(transport.create_transport(
@@ -114,7 +129,6 @@ class SocketOptions(Case):
         self.assertEqual(result, expected)
 
     def test_values_are_set(self):
-        import pdb;pdb.set_trace()
         socket_settings = {
             TCP_KEEPIDLE: 10,
             TCP_KEEPINTVL: 4,
@@ -161,7 +175,6 @@ class SocketOptions(Case):
             ))
 
     def test_passing_tcp_nodelay(self):
-        import pdb;pdb.set_trace()
         socket_settings = {socket.TCP_NODELAY: 0}
         self.transp = run(transport.create_transport(
             self.host,

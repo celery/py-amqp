@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import asyncio
 import sys
 
 from functools import wraps
@@ -77,4 +78,31 @@ else:
 
     def bytes_to_str(s):                # noqa
         return s
+
+class RLock(asyncio.Lock):
+    _rcount = 0
+    _self = None
+
+    @asyncio.coroutine
+    def acquire(self):
+        me = asyncio.Task.current_task(self._loop)
+        if self._self is me:
+            self._rcount += 1
+            return
+        yield from super(RLock,self).acquire()
+        assert self._rcount == 0, self._rcount
+        self._self = me
+        self._rcount += 1
+
+    def release(self):
+        assert self._rcount
+        self._rcount -= 1
+        if not self._rcount:
+            self._self = None
+            super(RLock,self).release()
+
+    def locked(self):
+        if self._self is asyncio.Task.current_task(self._loop):
+            return False
+        return super(RLock,self).locked()
 
