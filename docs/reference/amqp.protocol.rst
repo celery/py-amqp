@@ -1,11 +1,11 @@
 =====================================================
- amqp.protocol
+ aioamqp.protocol
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.protocol
+.. currentmodule:: aioamqp.protocol
 
-.. automodule:: amqp.protocol
+.. automodule:: aioamqp.protocol
     :members:
     :undoc-members:

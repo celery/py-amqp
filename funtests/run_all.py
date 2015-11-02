@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run all the unittest modules for amqp"""
+"""Run all the unittest modules for aioamqp"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or

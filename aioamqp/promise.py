@@ -141,7 +141,7 @@ class promise(Future, Thenable):
 
     .. code-block:: python
 
-        from amqp import promise, wrap
+        from aioamqp import promise, wrap
 
         class Protocol(object):
 

@@ -3,8 +3,8 @@ from __future__ import absolute_import
 import asyncio
 import socket
 
-from amqp import transport
-from amqp.tests.case import Case, Mock, patch
+from aioamqp import transport
+from aioamqp.tests.case import Case, Mock, patch
 
 
 class MockSocket(Mock):

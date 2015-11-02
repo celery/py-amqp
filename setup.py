@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 try:
@@ -15,10 +15,10 @@ import os
 import sys
 import codecs
 
-if sys.version_info < (2, 7):
-    raise Exception('amqp requires Python 2.7 or higher.')
+if sys.version_info < (3, 4):
+    raise Exception('aioamqp requires Python 3.4 or higher.')
 
-NAME = 'amqp'
+NAME = 'aioamqp'
 entrypoints = {}
 extra = {}
 
@@ -27,11 +27,9 @@ extra = {}
 classes = """
     Development Status :: 5 - Production/Stable
     Programming Language :: Python
-    Programming Language :: Python :: 2
-    Programming Language :: Python :: 2.7
     Programming Language :: Python :: 3
-    Programming Language :: Python :: 3.3
     Programming Language :: Python :: 3.4
+    Programming Language :: Python :: 3.5
     License :: OSI Approved :: GNU Library or \
 Lesser General Public License (LGPL)
     Intended Audience :: Developers
@@ -66,7 +64,7 @@ pats = {re_meta: add_default,
         re_vers: add_version,
         re_doc: add_doc}
 here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'amqp/__init__.py')) as meta_fh:
+with open(os.path.join(here, 'aioamqp/__init__.py')) as meta_fh:
     meta = {}
     for line in meta_fh:
         if line.strip() == '# -eof meta-':
@@ -102,7 +100,7 @@ tests_require = reqs('test.txt')
 if os.path.exists('README.rst'):
     long_description = codecs.open('README.rst', 'r', 'utf-8').read()
 else:
-    long_description = 'See http://pypi.python.org/pypi/amqp'
+    long_description = 'See http://pypi.python.org/pypi/aioamqp'
 
 # -*- Entry Points -*- #
 

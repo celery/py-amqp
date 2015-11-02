@@ -1,11 +1,11 @@
 =====================================================
- amqp.utils
+ aioamqp.utils
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.utils
+.. currentmodule:: aioamqp.utils
 
-.. automodule:: amqp.utils
+.. automodule:: aioamqp.utils
     :members:
     :undoc-members:

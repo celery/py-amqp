@@ -1,11 +1,11 @@
 =====================================================
- amqp.abstract_channel
+ aioamqp.abstract_channel
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.abstract_channel
+.. currentmodule:: aioamqp.abstract_channel
 
-.. automodule:: amqp.abstract_channel
+.. automodule:: aioamqp.abstract_channel
     :members:
     :undoc-members:

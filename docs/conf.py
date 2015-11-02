@@ -10,7 +10,7 @@ this = os.path.dirname(os.path.abspath(__file__))
 # absolute, like shown here.
 sys.path.append(os.path.join(os.pardir, "tests"))
 sys.path.append(os.path.join(this, "_ext"))
-import amqp
+import aioamqp
 
 # General configuration
 # ---------------------
@@ -33,17 +33,17 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'py-amqp'
-copyright = u'2009-2012, Ask Solem & Contributors'
+project = u'aio-py-amqp'
+copyright = u'2009-2015, Matthias Urlichs & Ask Solem & Contributors'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = ".".join(map(str, amqp.VERSION[0:2]))
+version = ".".join(map(str, aioamqp.VERSION[0:2]))
 # The full version, including alpha/beta/rc tags.
-release = amqp.__version__
+release = aioamqp.__version__
 
 exclude_trees = ['.build']
 
@@ -70,8 +70,8 @@ html_use_modindex = True
 html_use_index = True
 
 latex_documents = [
-    ('index', 'py-amqp.tex', ur'py-amqp Documentation',
-     ur'Ask Solem & Contributors', 'manual'),
+    ('index', 'aio-py-amqp.tex', ur'aio-py-amqp Documentation',
+     ur'Matthias Urlichs & Ask Solem & Contributors', 'manual'),
 ]
 
 html_theme = "celery"
@@ -86,13 +86,13 @@ html_sidebars = {
 
 if False:
     issuetracker = "github"
-    issuetracker_project = "celery/py-amqp"
+    issuetracker_project = "smurfix/aio-py-amqp"
     issuetracker_issue_pattern = r'[Ii]ssue #(\d+)'
 
 # -- Options for Epub output ------------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = 'py-amqp Manual, Version 1.0'
+epub_title = 'aio-py-amqp Manual, Version 1.0'
 epub_author = 'Ask Solem'
 epub_publisher = 'Celery Project'
 epub_copyright = '2009-2012'
@@ -109,7 +109,7 @@ epub_scheme = 'ISBN'
 epub_identifier = 'celeryproject.org'
 
 # A unique identification for the text.
-epub_uid = 'py-amqp Manual, Version 1.0'
+epub_uid = 'aio-py-amqp Manual, Version 1.0'
 
 # ## HTML files that should be inserted before the pages created by sphinx.
 # ## The format is a list of tuples containing the path and title.

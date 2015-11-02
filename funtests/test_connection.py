@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test amqp.connection module"""
+"""Test aioamqp.connection module"""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@ import unittest
 import settings
 
 
-from amqp import Connection
+from aioamqp import Connection
 
 
 class TestConnection(unittest.TestCase):
@@ -104,7 +104,7 @@ class TestConnection(unittest.TestCase):
         """Make sure the connection gets gc'ed when there is no more
         references to it.
         NOTE: This will trigger an error:
-        task: <Task pending coro=<read_task() running at /home/smurf/src/amqp/amqp/connection.py:384> wait_for=<Future pending cb=[Task._wakeup()]>>
+        task: <Task pending coro=<read_task() running at .../aioamqp/connection.py:384> wait_for=<Future pending cb=[Task._wakeup()]>>
         This is intentional.
         """
         unreachable_before = len(gc.garbage)

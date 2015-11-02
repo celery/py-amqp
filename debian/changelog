@@ -1,3 +1,9 @@
+python-aioamqp (1.4.7-1) unstable; urgency=medium
+
+  * Package asyncio version
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Mon, 02 Nov 2015 04:28:02 +0100
+
 python-amqp (1.4.7-1) unstable; urgency=low
 
   [ Michael Fladischer ]

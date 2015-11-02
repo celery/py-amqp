@@ -83,7 +83,7 @@ def parse_args():
             '%(name)-12s: %(levelname)-8s %(message)s',
         )
         console.setFormatter(formatter)
-        amqp_logger = logging.getLogger('amqp')
+        amqp_logger = logging.getLogger('aioamqp')
         amqp_logger.addHandler(console)
         amqp_logger.setLevel(logging.DEBUG)
 
@@ -109,6 +109,6 @@ formatter = logging.Formatter(
     '%(name)-12s: %(levelname)-8s %(message)s',
 )
 console.setFormatter(formatter)
-amqp_logger = logging.getLogger('amqp')
+amqp_logger = logging.getLogger('aioamqp')
 amqp_logger.addHandler(console)
 amqp_logger.setLevel(logging.DEBUG)

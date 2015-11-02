@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqp.serialization, checking conversions
+Test aioamqp.serialization, checking conversions
 between byte streams and higher level objects.
 
 """
@@ -28,7 +28,7 @@ import unittest
 
 import settings
 
-from amqp.serialization import (
+from aioamqp.serialization import (
     dumps, loads, GenericContent, FrameDataError, FrameSyntaxError,
 )
 

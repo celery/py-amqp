@@ -1,11 +1,11 @@
 =====================================================
- amqp.exceptions
+ aioamqp.exceptions
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.exceptions
+.. currentmodule:: aioamqp.exceptions
 
-.. automodule:: amqp.exceptions
+.. automodule:: aioamqp.exceptions
     :members:
     :undoc-members:

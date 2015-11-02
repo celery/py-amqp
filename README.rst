@@ -1,32 +1,41 @@
 =====================================================================
- Python AMQP 0.9.1 client library
+ asyncio-compatible Python AMQP 0.9.1 client library
 =====================================================================
 
 :Version: 2.0.0a1
 :Web: http://amqp.readthedocs.org/
-:Download: http://pypi.python.org/pypi/amqp/
-:Source: http://github.com/celery/py-amqp/
+:Download: http://pypi.python.org/pypi/aio-amqp/
+:Source: http://github.com/smurfix/aio-py-amqp/
 :Keywords: amqp, rabbitmq
 
 About
 =====
 
-This is a fork of amqplib_ which was originally written by Barry Pederson.
-It is maintained by the Celery_ project, and used by `kombu`_ as a pure python
-alternative when `librabbitmq`_ is not available.
+This is a Python3-only fork of py-amqp_ which is
+a fork of amqplib_ which was originally written by Barry Pederson.
+aio-py-amqp is maintained by Matthias Urlichs <matthias@urlichs.de>
 
-This library should be API compatible with `librabbitmq`_.
-
+.. _py-amqp: http://pypi.python.org/pypi/amqp
 .. _amqplib: http://pypi.python.org/pypi/amqplib
 .. _Celery: http://celeryproject.org/
 .. _kombu: http://kombu.readthedocs.org/
 .. _librabbitmq: http://pypi.python.org/pypi/librabbitmq
 
+Differences from `py-amqp`_
+===========================
+
+- Python 3.4+ only
+- All methods have an ``*_async`` counterpart which is a coroutine.
+  Calling the non-async version while its asyncio loop is running
+  triggers an error.
+- A separate coroutine reads data from the connection and dispatches
+  incoming packets, ``Connection.drain_events`` is gone
+- Support for timeouts, via asyncio's standard mechanisms
+  (i.e. asyncio.wait_for and cancelling)
+
 Differences from `amqplib`_
 ===========================
 
-- Supports draining events from multiple channels (``Connection.drain_events``)
-- Support for timeouts
 - Channels are restored after channel error, instead of having to close the
   connection.
 - Support for heartbeats

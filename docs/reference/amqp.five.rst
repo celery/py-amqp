@@ -1,11 +1,11 @@
 =====================================================
- amqp.five
+ aioamqp.five
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.five
+.. currentmodule:: aioamqp.five
 
-.. automodule:: amqp.five
+.. automodule:: aioamqp.five
     :members:
     :undoc-members:

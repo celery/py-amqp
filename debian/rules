@@ -6,10 +6,10 @@
 LAST_CHANGE=$(shell dpkg-parsechangelog -S Date)
 BUILD_DATE=$(shell LC_ALL=C date -u "+%B %d, %Y" -d "$(LAST_CHANGE)")
 
-export PYBUILD_NAME=amqp
+export PYBUILD_NAME=aioamqp
 
 %:
-	dh $@ --with python2,python3,sphinxdoc --buildsystem=pybuild
+	dh $@ --with python3,sphinxdoc --buildsystem=pybuild
 
 override_dh_auto_build:
 	dh_auto_build

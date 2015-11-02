@@ -1,6 +1,6 @@
-=============================================
- amqp - Python AMQP low-level client library
-=============================================
+================================================
+ aioamqp - Python AMQP low-level client library
+================================================
 
 .. include:: includes/intro.txt
 

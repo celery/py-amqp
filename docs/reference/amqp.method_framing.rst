@@ -1,11 +1,11 @@
 =====================================================
- amqp.method_framing
+ aioamqp.method_framing
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.method_framing
+.. currentmodule:: aioamqp.method_framing
 
-.. automodule:: amqp.method_framing
+.. automodule:: aioamqp.method_framing
     :members:
     :undoc-members:

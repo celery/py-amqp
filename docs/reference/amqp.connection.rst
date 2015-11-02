@@ -1,11 +1,11 @@
 =====================================================
- amqp.connection
+ aioamqp.connection
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.connection
+.. currentmodule:: aioamqp.connection
 
-.. automodule:: amqp.connection
+.. automodule:: aioamqp.connection
     :members:
     :undoc-members:

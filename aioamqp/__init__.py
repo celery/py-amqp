@@ -16,12 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-VERSION = (2, 0, 0, 'a1')
+VERSION = (1, 4, 7, 'p0')
 __version__ = '.'.join(map(str, VERSION[0:3])) + ''.join(VERSION[3:])
 __author__ = 'Barry Pederson'
-__maintainer__ = 'Ask Solem'
-__contact__ = 'pyamqp@celeryproject.org'
-__homepage__ = 'http://github.com/celery/py-amqp'
+__maintainer__ = 'Matthias Urlichs'
+__contact__ = '<matthias@urlichs.de>'
+__homepage__ = 'http://github.com/smurfix/aio-py-amqp'
 __docformat__ = 'restructuredtext'
 
 # -eof meta-

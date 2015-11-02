@@ -59,12 +59,12 @@ __all__ = ['Connection']
 # Client property info that gets sent to the server on connection startup
 #
 LIBRARY_PROPERTIES = {
-    'product': 'py-amqp',
+    'product': 'aio-py-amqp',
     'product_version': __version__,
     'capabilities': {},
 }
 
-AMQP_LOGGER = logging.getLogger('amqp')
+AMQP_LOGGER = logging.getLogger('aioamqp.conn')
 
 
 class Connection(AbstractChannel):
@@ -469,8 +469,7 @@ class Connection(AbstractChannel):
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Connection.CloseOk,
             )
-        except amqp.exceptions.RecoverableConnectionError:
-            import pdb;pdb.set_trace()
+        except recoverable_connection_errors:
             pass
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):

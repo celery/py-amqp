@@ -4,9 +4,9 @@ from collections import deque
 from struct import pack, unpack
 import asyncio
 
-from amqp.tests.case import Case, Mock
+from aioamqp.tests.case import Case, Mock
 
-from amqp.promise import Thenable, promise, wrap
+from aioamqp.promise import Thenable, promise, wrap
 
 
 class CanThen(object):

@@ -1,11 +1,11 @@
 =====================================================
- amqp.basic_message
+ aioamqp.basic_message
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.basic_message
+.. currentmodule:: aioamqp.basic_message
 
-.. automodule:: amqp.basic_message
+.. automodule:: aioamqp.basic_message
     :members:
     :undoc-members:

@@ -42,11 +42,11 @@ pstr_t = bytes_to_str if IS_PY3 else lambda s: s
 
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
-Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
+Table type {0!r} for key {1!r} not handled by aioamqp. [value: {2!r}]
 """
 
 ILLEGAL_TABLE_TYPE = """\
-    Table type {0!r} not handled by amqp. [value: {1!r}]
+    Table type {0!r} not handled by aioamqp. [value: {1!r}]
 """
 
 

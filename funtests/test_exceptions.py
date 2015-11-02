@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqp.exceptions module
+Test aioamqp.exceptions module
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -23,8 +23,8 @@ import unittest
 
 import settings
 
-from amqp import spec
-from amqp.exceptions import AMQPError
+from aioamqp import spec
+from aioamqp.exceptions import AMQPError
 
 
 class TestException(unittest.TestCase):

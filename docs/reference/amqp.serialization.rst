@@ -1,11 +1,11 @@
 =====================================================
- amqp.serialization
+ aioamqp.serialization
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.serialization
+.. currentmodule:: aioamqp.serialization
 
-.. automodule:: amqp.serialization
+.. automodule:: aioamqp.serialization
     :members:
     :undoc-members:

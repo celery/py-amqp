@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test amqp.channel module
+Test aioamqp.channel module
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -25,9 +25,9 @@ import unittest
 
 import settings
 
-from amqp import ChannelError, Connection, Message, FrameSyntaxError
-from amqp.five import string
-from amqp.utils import str_to_bytes
+from aioamqp import ChannelError, Connection, Message, FrameSyntaxError
+from aioamqp.five import string
+from aioamqp.utils import str_to_bytes
 
 
 class TestChannel(unittest.TestCase):

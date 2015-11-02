@@ -31,7 +31,7 @@ from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
 
-AMQP_LOGGER = logging.getLogger('amqp')
+AMQP_LOGGER = logging.getLogger('aioamqp')
 
 EXCHANGE_AUTODELETE_DEPRECATED = """\
 The auto_delete flag for exchanges has been deprecated and will be removed

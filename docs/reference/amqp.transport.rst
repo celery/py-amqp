@@ -1,11 +1,11 @@
 =====================================================
- amqp.transport
+ aioamqp.transport
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.transport
+.. currentmodule:: aioamqp.transport
 
-.. automodule:: amqp.transport
+.. automodule:: aioamqp.transport
     :members:
     :undoc-members:

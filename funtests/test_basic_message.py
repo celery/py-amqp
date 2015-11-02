@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test the amqp.basic_message module.
+Test the aioamqp.basic_message module.
 
 """
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
@@ -32,8 +32,8 @@ except ImportError:
 
 import settings
 
-from amqp.basic_message import Message
-from amqp import spec
+from aioamqp.basic_message import Message
+from aioamqp import spec
 
 
 class TestBasicMessage(unittest.TestCase):
