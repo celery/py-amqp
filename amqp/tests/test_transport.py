@@ -45,7 +45,11 @@ class SocketOptions(Case):
         fcntl_ctx.start()
         self.addCleanup(fcntl_ctx.stop)
         self.old_s = socket.socket
+
         socket.socket = MockSocket
+        def cleanup():
+            socket.socket = self.old_s
+        self.addCleanup(cleanup)
 
         self.tcp_keepidle = 20
         self.tcp_keepintvl = 30
@@ -78,10 +82,11 @@ class SocketOptions(Case):
             return ccall
         
         transport.AMQPTransport._write = Mock()
+        self.old_c = transport.AMQPTransport.connect
         transport.AMQPTransport.connect = get_mock_coro("CONNECT")
-
-    def tearDown(self):
-        socket.socket = self.old_s
+        def cleanup2():
+            transport.AMQPTransport.connect = self.old_c
+        self.addCleanup(cleanup2)
 
     def test_backward_compatibility_tcp_transport(self):
         self.transp = run(transport.create_transport(
