@@ -13,7 +13,7 @@ export PYBUILD_NAME=aioamqp
 
 override_dh_auto_build:
 	dh_auto_build
-	PYTHONPATH=. sphinx-build -D today="$(BUILD_DATE)" -b html -N docs/ docs/.build/html
+	PYTHONPATH=. python3 /usr/bin/sphinx-build -D today="$(BUILD_DATE)" -b html -N docs/ docs/.build/html
 
 override_dh_clean:
 	rm -rf docs/.build
@@ -25,7 +25,7 @@ override_dh_installchangelogs:
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	set -e; \
-	for python in $(shell pyversions -r) $(shell py3versions -r); do \
+	for python in $(shell py3versions -r); do \
 	  PYTHONPATH=. $$python funtests/test_basic_message.py; \
 	done
 endif
