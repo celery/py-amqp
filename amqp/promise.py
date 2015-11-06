@@ -2,16 +2,16 @@ from __future__ import absolute_import
 
 import abc
 import sys
-import logging
 
 from collections import Callable, deque
 
 from .five import with_metaclass
+from .utils import get_logger
 
 __all__ = ['Thenable', 'promise', 'barrier', 'wrap',
            'maybe_promise', 'ensure_promise']
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @with_metaclass(abc.ABCMeta)
@@ -188,6 +188,9 @@ class promise(object):
         if callback is not None:
             self.then(callback)
 
+        if self.fun:
+            assert callable(fun)
+
     def __repr__(self):
         if self.fun:
             return '<promise@0x{0:x}: {1!r}>'.format(id(self), self.fun)
@@ -291,6 +294,12 @@ class promise(object):
                     raise
                 raise exc
 
+    @property
+    def listeners(self):
+        if self._lvpending:
+            return self._lvpending
+        return self._svpending
+
     def throw(self, exc=None):
         if exc is None:
             return self.set_error_state()
@@ -364,3 +373,25 @@ def ensure_promise(p):
 
 def starpromise(fun, *args, **kwargs):
     return promise(fun, args, kwargs)
+
+
+def ready_promise(callback=None, *args):
+    p = ensure_promise(callback)
+    p(*args)
+    return p
+
+
+def ppartial(p, *args, **kwargs):
+    p = ensure_promise(p)
+    if args:
+        p.args = args + p.args
+    if kwargs:
+        p.kwargs.update(kwargs)
+    return p
+
+
+def preplace(p, *args, **kwargs):
+
+    def _replacer(*_, **__):
+        return p(*args, **kwargs)
+    return promise(_replacer)

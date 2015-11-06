@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 
+import logging
 import sys
 
 from functools import wraps
-
-from .promise import promise   # noqa
 
 is_py3k = sys.version_info[0] == 3
 
@@ -12,6 +11,8 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None   # noqa
+
+from .five import string_t
 
 try:
     from os import set_cloexec  # Python 3.4?
@@ -77,3 +78,17 @@ else:
 
     def bytes_to_str(s):                # noqa
         return s
+
+
+class NullHandler(logging.Handler):
+
+    def emit(self, record):
+        pass
+
+
+def get_logger(logger):
+    if isinstance(logger, string_t):
+        logger = logging.getLogger(logger)
+    if not logger.handlers:
+        logger.addHandler(NullHandler())
+    return logger
