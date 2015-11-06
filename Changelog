@@ -5,6 +5,39 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.0.0:
+
+2.0.0
+=====
+
+- No longer supports Python 2.6
+
+- Library rewritten to anticipate async changes.
+
+- Connection now exposes underlying socket options.
+
+    This change allows to set arbitrary TCP socket options during the creation of
+    the transport.
+
+    Those values can be set passing a dictionray where the key is the name of
+    the parameter we want to set.
+    The names of the keys are the ones reported above.
+
+    Contributed by Andrea Rosa, Dallas Marlow and Rongze Zhu.
+
+- Additional logging for heartbeats.
+
+    Contributed by Davanum Srinivas, and Dmitry Mescheryakov.
+
+- SSL: Fixes issue with remote connection hanging
+
+    Fix contributed by Adrien Guinet.
+
+- SSL: ``ssl`` dict argument now supports the ``check_hostname`` key
+    (Issue #63).
+
+    Contributed by Vic Kumar.
+
 .. _version-1.4.7:
 
 1.4.7
