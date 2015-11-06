@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-VERSION = (2, 0, 0, 'a2')
+VERSION = (2, 0, 0, 'rc1')
 __version__ = '.'.join(map(str, VERSION[0:3])) + ''.join(VERSION[3:])
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Ask Solem'
