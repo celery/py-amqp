@@ -9,7 +9,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 1.4.8
 =====
-:release-date: 2015-11-XX XX
+:release-date: 2015-12-07 12:25 AM
 :release-by: Ask Solem
 
 - ``abstract_channel.wait`` now accepts a float `timeout` parameter expressed
