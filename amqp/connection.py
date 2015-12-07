@@ -24,7 +24,7 @@ from array import array
 from io import BytesIO
 try:
     from ssl import SSLError
-except ImportError:
+except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
         pass
 
@@ -204,6 +204,7 @@ class Connection(AbstractChannel):
         self.on_open = ensure_promise(on_open)
 
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
+        self.transport = None
 
         # Properties set in the Start method
         self.version_major = 0
@@ -212,18 +213,11 @@ class Connection(AbstractChannel):
         self.mechanisms = []
         self.locales = []
 
-        # Let the transport.py module setup the actual
-        # socket connection to the broker.
-        #
-        self.transport = self.Transport(
-            host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_settings=socket_settings,
-        )
-        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self, self.transport)
-
         self.connect_timeout = connect_timeout
+
+    def __enter__(self):
         self.connect()
+        return self
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -241,6 +235,18 @@ class Connection(AbstractChannel):
         })
 
     def connect(self, callback=None):
+        # Let the transport.py module setup the actual
+        # socket connection to the broker.
+        #
+        if self.connected:
+            return callback() if callback else None
+        self.transport = self.Transport(
+            host, connect_timeout, ssl, read_timeout, write_timeout,
+            socket_settings=socket_settings,
+        )
+        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
+        self._frame_writer = frame_writer(self, self.transport)
+
         while not self._handshake_complete:
             self.drain_events(timeout=self.connect_timeout)
 
