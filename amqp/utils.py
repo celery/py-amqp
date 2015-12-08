@@ -18,6 +18,8 @@ try:
     from os import set_cloexec  # Python 3.4?
 except ImportError:  # pragma: no cover
     def set_cloexec(fd, cloexec):  # noqa
+        if fcntl is None:
+            return
         try:
             FD_CLOEXEC = fcntl.FD_CLOEXEC
         except AttributeError:

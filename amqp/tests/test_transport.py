@@ -35,12 +35,13 @@ class SocketOptions(Case):
         self.host = '127.0.0.1'
         self.connect_timeout = 3
         self.socket = MockSocket()
-        fcntl_ctx = patch('fcntl.fcntl')
-        fcntl_ctx.start()
-        self.addCleanup(fcntl_ctx.stop)
-        socket_ctx = patch('socket.socket')
-        socket = socket_ctx.start()
-        self.addCleanup(socket_ctx.stop)
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None
+        if fcntl is not None:
+            self.patch('fcntl.fcntl')
+        socket = self.patch('socket.socket')
         socket().getsockopt = self.socket.getsockopt
         socket().setsockopt = self.socket.setsockopt
 
