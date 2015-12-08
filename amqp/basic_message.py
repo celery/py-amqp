@@ -39,7 +39,7 @@ class Message(GenericContent):
         ('reply_to', 's'),
         ('expiration', 's'),
         ('message_id', 's'),
-        ('timestamp', 'T'),
+        ('timestamp', 'L'),
         ('type', 's'),
         ('user_id', 's'),
         ('app_id', 's'),

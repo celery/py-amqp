@@ -184,10 +184,6 @@ def error_for_code(code, text, method, default):
         return default(text, method, reply_code=code)
 
 
-def raise_for_code(code, text, method, default):
-    raise error_for_code(code, text, method, default)
-
-
 METHOD_NAME_MAP = {
     (10, 10): 'Connection.start',
     (10, 11): 'Connection.start_ok',

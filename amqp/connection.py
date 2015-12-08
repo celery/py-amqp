@@ -145,7 +145,8 @@ class Connection(AbstractChannel):
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 socket_settings=None, **kwargs):
+                 socket_settings=None, frame_handler=frame_handler,
+                 frame_writer=frame_writer, **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -180,8 +181,12 @@ class Connection(AbstractChannel):
         self.login_method = login_method
         self.login_response = login_response
         self.locale = locale
+        self.host = host
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
+
+        self.frame_handler = frame_handler
+        self.frame_writer = frame_writer
 
         self._handshake_complete = False
 
@@ -197,6 +202,10 @@ class Connection(AbstractChannel):
         self.client_heartbeat = heartbeat
 
         self.confirm_publish = confirm_publish
+        self.ssl = ssl
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.socket_settings = socket_settings
 
         # Callbacks
         self.on_blocked = on_blocked
@@ -218,6 +227,9 @@ class Connection(AbstractChannel):
     def __enter__(self):
         self.connect()
         return self
+
+    def __exit__(self, *eargs):
+        self.close()
 
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
@@ -241,11 +253,13 @@ class Connection(AbstractChannel):
         if self.connected:
             return callback() if callback else None
         self.transport = self.Transport(
-            host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_settings=socket_settings,
+            self.host, self.connect_timeout, self.ssl,
+            self.read_timeout, self.write_timeout,
+            socket_settings=self.socket_settings,
         )
-        self.on_inbound_frame = frame_handler(self, self.on_inbound_method)
-        self._frame_writer = frame_writer(self, self.transport)
+        self.on_inbound_frame = self.frame_handler(
+            self, self.on_inbound_method)
+        self._frame_writer = self.frame_writer(self, self.transport)
 
         while not self._handshake_complete:
             self.drain_events(timeout=self.connect_timeout)
@@ -347,7 +361,7 @@ class Connection(AbstractChannel):
         except IndexError:
             raise ResourceError(
                 'No free channel ids, current={0}, channel_max={1}'.format(
-                    len(self.channels), self.channel_max), spec.Channel.open)
+                    len(self.channels), self.channel_max), spec.Channel.Open)
 
     def _claim_channel_id(self, channel_id):
         try:
@@ -362,13 +376,12 @@ class Connection(AbstractChannel):
         try:
             return self.channels[channel_id]
         except KeyError:
-            return self.Channel(self, channel_id, on_open=callback)
+            channel = self.Channel(self, channel_id, on_open=callback)
+            channel.open()
+            return channel
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
-
-    def inbound_method(self, channel_id, method_sig, payload, content):
-        self.channels[channel_id].dispatch_method(method_sig, payload, content)
 
     def drain_events(self, timeout=None):
         return self.blocking_read(timeout)
@@ -404,10 +417,6 @@ class Connection(AbstractChannel):
         return self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
-
-    def read_timeout(self, timeout=None):
-        if timeout is None:
-            return self.method_reader.read_method()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BssBB'):
@@ -533,16 +542,6 @@ class Connection(AbstractChannel):
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    def _on_blocked(self):
-        """RabbitMQ Extension."""
-        reason = 'connection blocked, see broker logs'
-        if self.on_blocked:
-            return self.on_blocked(reason)
-
-    def _on_unblocked(self):
-        if self.on_unblocked:
-            return self.on_unblocked()
-
     def _x_close_ok(self):
         """Confirm a connection close
 
@@ -556,7 +555,7 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, callback=self.collect)
+        self.send_method(spec.Connection.CloseOk, callback=self._on_close_ok)
 
     def _on_close_ok(self):
         """Confirm a connection close
@@ -572,6 +571,16 @@ class Connection(AbstractChannel):
 
         """
         self.collect()
+
+    def _on_blocked(self):
+        """RabbitMQ Extension."""
+        reason = 'connection blocked, see broker logs'
+        if self.on_blocked:
+            return self.on_blocked(reason)
+
+    def _on_unblocked(self):
+        if self.on_unblocked:
+            return self.on_unblocked()
 
     def send_heartbeat(self):
         try:

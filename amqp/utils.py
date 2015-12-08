@@ -16,7 +16,7 @@ from .five import string_t
 
 try:
     from os import set_cloexec  # Python 3.4?
-except ImportError:
+except ImportError:  # pragma: no cover
     def set_cloexec(fd, cloexec):  # noqa
         try:
             FD_CLOEXEC = fcntl.FD_CLOEXEC

@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 try:
     from ssl import SSLError
-except ImportError:
+except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
         pass
 
@@ -62,6 +62,20 @@ TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
             if hasattr(socket, opt)]
 
 
+def to_host_port(host, default=AMQP_PORT):
+    port = None
+    m = IPV6_LITERAL.match(host)
+    if m:
+        host = m.group(1)
+        if m.group(2):
+            port = int(m.group(2))
+    else:
+        if ':' in host:
+            host, port = host.rsplit(':', 1)
+            port = int(port)
+    return host, port
+
+
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports"""
     connected = False
@@ -70,20 +84,26 @@ class _AbstractTransport(object):
                  read_timeout=None, write_timeout=None,
                  ssl=None, socket_settings=None):
         self.connected = True
-        msg = None
-        port = AMQP_PORT
-
-        m = IPV6_LITERAL.match(host)
-        if m:
-            host = m.group(1)
-            if m.group(2):
-                port = int(m.group(2))
-        else:
-            if ':' in host:
-                host, port = host.rsplit(':', 1)
-                port = int(port)
-
         self.sock = None
+        self._read_buffer = EMPTY_BUFFER
+        host, port = to_host_port(host)
+        self._connect(host, port, connect_timeout)
+        self._init_socket(socket_settings, read_timeout, write_timeout)
+
+    def __del__(self):
+        try:
+            # socket module may have been collected by gc
+            # if this is called by a thread at shutdown.
+            if socket is not None:
+                try:
+                    self.close()
+                except socket.error:
+                    pass
+        finally:
+            self.sock = None
+
+    def _connect(self, host, port, timeout):
+        msg = None
         last_err = None
         for res in socket.getaddrinfo(host, port, 0,
                                       socket.SOCK_STREAM, SOL_TCP):
@@ -94,7 +114,7 @@ class _AbstractTransport(object):
                     set_cloexec(self.sock, True)
                 except NotImplementedError:
                     pass
-                self.sock.settimeout(connect_timeout)
+                self.sock.settimeout(timeout)
                 self.sock.connect(sa)
             except socket.error as exc:
                 msg = exc
@@ -103,11 +123,11 @@ class _AbstractTransport(object):
                 last_err = msg
                 continue
             break
-
         if not self.sock:
             # Didn't connect, return the most recent error message
             raise socket.error(last_err)
 
+    def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:
             self.sock.settimeout(None)  # set socket back to blocking mode
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -128,18 +148,6 @@ class _AbstractTransport(object):
             if get_errno(exc) not in _UNAVAIL:
                 self.connected = False
             raise
-
-    def __del__(self):
-        try:
-            # socket module may have been collected by gc
-            # if this is called by a thread at shutdown.
-            if socket is not None:
-                try:
-                    self.close()
-                except socket.error:
-                    pass
-        finally:
-            self.sock = None
 
     def _get_tcp_socket_defaults(self, sock):
         return {
@@ -199,7 +207,7 @@ class _AbstractTransport(object):
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
-        except (OSError, IOError, socket.error) as exc:
+        except (OSError, IOError, SSLError, socket.error) as exc:
             # Don't disconnect for ssl read time outs
             # http://bugs.python.org/issue10272
             if isinstance(exc, SSLError) and 'timed out' in str(exc):
@@ -247,7 +255,7 @@ class SSLTransport(_AbstractTransport):
     def _wrap_socket(self, sock, context=None, **sslopts):
         if context:
             return self._wrap_context(sock, sslopts, **context)
-        return ssl.wrap_socket(self.sock, **sslopts)
+        return ssl.wrap_socket(sock, **sslopts)
 
     def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
         ctx = ssl.create_default_context(**ctx_options)

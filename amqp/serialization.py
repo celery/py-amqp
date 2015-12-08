@@ -33,19 +33,19 @@ from time import mktime
 from . import spec
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
-from .utils import bytes_to_str
+from .utils import bytes_to_str as pstr_t, str_to_bytes
 
-IS_PY3 = sys.version_info[0] >= 3
+ftype_t = chr if sys.version_info[0] == 3 else None
 
-ftype_t = chr if IS_PY3 else None
-pstr_t = bytes_to_str if IS_PY3 else lambda s: s
-
+ILLEGAL_TABLE_TYPE = """\
+    Table type {0!r} not handled by amqp.
+"""
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
 Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
 """
 
-ILLEGAL_TABLE_TYPE = """\
+ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
     Table type {0!r} not handled by amqp. [value: {1!r}]
 """
 
@@ -122,7 +122,7 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
         while offset < limit:
             keylen, = unpack_from('>B', buf, offset)
             offset += 1
-            key = buf[offset:offset + keylen]
+            key = pstr_t(buf[offset:offset + keylen])
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
@@ -157,7 +157,8 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
 def loads(format, buf, offset=0,
           ord=ord, unpack_from=unpack_from,
           _read_item=_read_item, pstr_t=pstr_t):
-    """
+    """Deserialize amqp format.
+
     bit = b
     octet = o
     short = B
@@ -168,11 +169,13 @@ def loads(format, buf, offset=0,
     longstr = S
     table = F
     array = A
+    timestamp = T
     """
     bitcount = bits = 0
 
     values = []
     append = values.append
+    format = pstr_t(format)
 
     for p in format:
         if p == 'b':
@@ -201,8 +204,8 @@ def loads(format, buf, offset=0,
             offset += 8
         elif p == 'f':
             bitcount = bits = 0
-            val, = unpack_from('>d', buf, offset)
-            offset += 8
+            val, = unpack_from('>f', buf, offset)
+            offset += 4
         elif p == 's':
             bitcount = bits = 0
             slen, = unpack_from('B', buf, offset)
@@ -241,6 +244,8 @@ def loads(format, buf, offset=0,
             val, = unpack_from('>Q', buf, offset)
             offset += 8
             val = datetime.utcfromtimestamp(val)
+        else:
+            raise FrameSyntaxError(ILLEGAL_TABLE_TYPE.format(p))
         append(val)
     return values, offset
 
@@ -270,6 +275,8 @@ def dumps(format, values):
     out = BytesIO()
     write = out.write
 
+    format = pstr_t(format)
+
     for i, val in enumerate(values):
         p = format[i]
         if p == 'b':
@@ -291,6 +298,9 @@ def dumps(format, values):
         elif p == 'L':
             bitcount = _flushbits(bits, write)
             write(pack('>Q', val))
+        elif p == 'f':
+            bitcount = _flushbits(bits, write)
+            write(pack('>f', val))
         elif p == 's':
             val = val or ''
             bitcount = _flushbits(bits, write)
@@ -312,7 +322,7 @@ def dumps(format, values):
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
         elif p == 'T':
-            write(pack('>q', long_t(mktime(val.timetuple()))))
+            write(pack('>Q', long_t(mktime(val.timetuple()))))
     _flushbits(bits, write)
 
     return out.getvalue()
@@ -344,7 +354,7 @@ def _write_array(l, write, bits, pack=pack):
             _write_item(v, awrite, bits)
         except ValueError:
             raise FrameSyntaxError(
-                ILLEGAL_TABLE_TYPE.format(type(v), v))
+                ILLEGAL_TABLE_TYPE_WITH_VALUE.format(type(v), v))
     array_data = out.getvalue()
     write(pack('>I', len(array_data)))
     write(array_data)
@@ -373,7 +383,7 @@ def _write_item(v, write, bits, pack=pack,
             v = (v * 10) + d
         if sign:
             v = -v
-        write('>cBi', b'D', -exponent, v)
+        write(pack('>cBi', b'D', -exponent, v))
     elif isinstance(v, datetime):
         write(pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
     elif isinstance(v, dict):
@@ -386,20 +396,6 @@ def _write_item(v, write, bits, pack=pack,
         write(b'V')
     else:
         raise ValueError()
-
-
-def encode_properties_basic(p, pack=pack):
-    # TODO
-    parts, flags = [], 0
-    extend = parts.extend
-    content_type = p['content_type'] if 'content_type' in p else None
-    if content_type:
-        flags |= 0x8000
-        extend((pack('>B', len(content_type)), content_type))
-    content_enc = p['content_encoding'] if 'content_encoding' in p else None
-    if content_enc:
-        flags |= 0x4000
-        extend((pack('>B', len(content_enc)), content_enc))
 
 
 def decode_properties_basic(buf, offset=0,
@@ -442,6 +438,7 @@ def decode_properties_basic(buf, offset=0,
         slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['expiration'] = pstr_t(buf[offset:offset + slen])
+        offset += slen
     if flags & 0x0080:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
@@ -542,7 +539,7 @@ class GenericContent(object):
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    sformat.append(proptype)
+                    sformat.append(str_to_bytes(proptype))
                     svalues.append(val)
 
             shift -= 1
@@ -551,7 +548,8 @@ class GenericContent(object):
         write = result.write
         for flag_bits in flags:
             write(pack('>H', flag_bits))
-        write(dumps(''.join(sformat), svalues))
+        write(dumps(b''.join(sformat), svalues))
+
         return result.getvalue()
 
     def inbound_header(self, buf, offset=0):

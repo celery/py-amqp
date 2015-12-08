@@ -298,7 +298,7 @@ class promise(object):
     def listeners(self):
         if self._lvpending:
             return self._lvpending
-        return self._svpending
+        return [self._svpending]
 
     def throw(self, exc=None):
         if exc is None:

@@ -5,7 +5,10 @@ from struct import pack, unpack
 
 from amqp.tests.case import Case, Mock
 
-from amqp.promise import Thenable, promise, wrap
+from amqp.promise import (
+    Thenable, barrier, maybe_promise, ppartial, preplace,
+    promise, ready_promise, starpromise, transform, wrap,
+)
 
 
 class CanThen(object):
@@ -26,6 +29,52 @@ class test_Thenable(Case):
 
     def test_promise(self):
         self.assertIsInstance(promise(lambda x: x), Thenable)
+
+
+class test_barrier(Case):
+
+    def setup(self):
+        self.m1, self.m2, self.m3 = Mock(), Mock(), Mock()
+        self.ps = [promise(self.m1), promise(self.m2), promise(self.m3)]
+
+    def test_evaluate(self):
+        x = barrier(self.ps)
+        x()
+        self.assertFalse(x.ready)
+        x()
+        self.assertFalse(x.ready)
+        x.add(promise())
+        x()
+        self.assertFalse(x.ready)
+        x()
+        self.assertTrue(x.ready)
+        x()
+        x()
+
+        with self.assertRaises(ValueError):
+            x.add(promise())
+
+    def test_reverse(self):
+        callback = Mock()
+        x = barrier(self.ps, callback=promise(callback))
+        for p in self.ps:
+            p()
+        self.assertTrue(x.ready)
+        callback.assert_called_with()
+
+    def test_cancel(self):
+        x = barrier(self.ps)
+        x.cancel()
+        for p in self.ps:
+            p()
+        x.add(promise())
+        x.throw(KeyError())
+        self.assertFalse(x.ready)
+
+    def test_throw(self):
+        x = barrier(self.ps)
+        with self.assertRaises(KeyError):
+            x.throw(KeyError(10))
 
 
 class test_promise(Case):
@@ -155,6 +204,7 @@ class test_promise(Case):
 
     def test_repr(self):
         self.assertTrue(repr(promise()))
+        self.assertTrue(repr(promise(Mock())))
 
     def test_cancel(self):
         on_error = promise(Mock(name='on_error'))
@@ -238,6 +288,21 @@ class test_promise(Case):
         self.assertTrue(a.cancelled)
 
         p.throw(KeyError())
+        p.throw1(KeyError())
+
+    def test_throw_None(self):
+        try:
+            raise KeyError()
+        except Exception:
+            with self.assertRaises(KeyError):
+                promise().throw()
+
+    def test_listeners(self):
+        p = promise()
+        p.then(Mock())
+        self.assertEqual(len(p.listeners), 1)
+        p.then(Mock())
+        self.assertEqual(len(p.listeners), 2)
 
     def test_throw_from_cb(self):
         ae = promise(Mock(name='ae'))
@@ -263,3 +328,88 @@ class test_promise(Case):
         d = promise(Mock(name='d'), on_error=de)
         p2.then(d)
         de.fun.assert_called_with(exc)
+
+
+class test_wrap(Case):
+
+    def test_wrap(self):
+        cb1 = Mock()
+        cb2 = Mock()
+        x = wrap(promise(cb1))
+        x(1, y=2)
+        cb1.assert_called_with(1, y=2)
+        p2 = promise(cb2)
+        x(p2)
+        p2()
+        cb1.assert_called_with(cb2())
+
+
+class test_transform(Case):
+
+    def test_transform(self):
+        callback = Mock()
+
+        def filter_key_value(key, filter_, mapping):
+            return filter_(mapping[key])
+
+        x = transform(filter_key_value, promise(callback), 'Value', int)
+        x({'Value': 303})
+        callback.assert_called_with(303)
+
+        with self.assertRaises(KeyError):
+            x({})
+
+
+class test_maybe_promise(Case):
+
+    def test_when_none(self):
+        self.assertIsNone(maybe_promise(None))
+
+    def test_when_promise(self):
+        p = promise()
+        self.assertIs(maybe_promise(p), p)
+
+    def test_when_other(self):
+        m = Mock()
+        p = maybe_promise(m)
+        self.assertIsInstance(p, Thenable)
+
+
+class test_starpromise(Case):
+
+    def test_apply(self):
+        m = Mock()
+        p = starpromise(m, 1, 2, z=3)
+        p()
+        m.assert_called_with(1, 2, z=3)
+
+
+class test_ready_promise(Case):
+
+    def test_apply(self):
+        m = Mock()
+        p = ready_promise(m, 1, 2, 3)
+        m.assert_called_with(1, 2, 3)
+        self.assertTrue(p.ready)
+
+
+class test_ppartial(Case):
+
+    def test_apply(self):
+        m = Mock()
+        p = ppartial(m, 1)
+        p()
+        m.assert_called_with(1)
+        p = ppartial(m, z=2)
+        p()
+        m.assert_called_with(z=2)
+
+
+class test_preplace(Case):
+
+    def test_preplace(self):
+        m = Mock()
+        p = promise(m)
+        p2 = preplace(p, 1, 2, z=3)
+        p2(4, 5, x=3)
+        m.assert_called_with(1, 2, z=3)

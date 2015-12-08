@@ -110,7 +110,7 @@ class Channel(AbstractChannel):
         else:
             channel_id = connection._get_free_channel_id()
 
-        AMQP_LOGGER.debug('using channel_id: %d', channel_id)
+        AMQP_LOGGER.debug('using channel_id: %s', channel_id)
 
         super(Channel, self).__init__(connection, channel_id)
 
@@ -131,8 +131,6 @@ class Channel(AbstractChannel):
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
 
-        self._x_open()
-
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
 
@@ -152,7 +150,7 @@ class Channel(AbstractChannel):
     def collect(self):
         """Tear down this object, after we've agreed to close
         with the server."""
-        AMQP_LOGGER.debug('Closed channel #%d', self.channel_id)
+        AMQP_LOGGER.debug('Closed channel #%s', self.channel_id)
         self.is_open = False
         channel_id, self.channel_id = self.channel_id, None
         connection, self.connection = self.connection, None
@@ -166,7 +164,7 @@ class Channel(AbstractChannel):
 
     def _do_revive(self):
         self.is_open = False
-        self._x_open()
+        self.open()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BsBB'):
@@ -415,7 +413,7 @@ class Channel(AbstractChannel):
         """
         return self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
-    def _x_open(self):
+    def open(self):
         """Open a channel for use
 
         This method opens a virtual connection (a channel).

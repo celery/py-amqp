@@ -16,8 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
-import sys
-
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
 
@@ -99,12 +97,8 @@ def frame_writer(connection, transport,
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
     # check for a bugfix release.
-    if sys.version_info < (2, 7):
-        no_pybuf = 0
-        buf = bytearray(connection.frame_max - 8)
-        view = memoryview(buf)
-    else:
-        no_pybuf, buf, view = 1, None, None
+    buf = bytearray(connection.frame_max - 8)
+    view = memoryview(buf)
 
     while 1:
         chunk_size = connection.frame_max - 8
@@ -117,7 +111,7 @@ def frame_writer(connection, transport,
         else:
             body, bodylen, bigbody = None, 0, 0
 
-        if no_pybuf or bigbody:
+        if bigbody:
             # ## SLOW: string copy and write for every frame
             frame = (b''.join([pack('>HH', *method_sig),
                                str_to_bytes(args)])
@@ -144,8 +138,8 @@ def frame_writer(connection, transport,
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (''.join([pack('>HH', *method_sig), args])
-                     if type_ == 1 else '')
+            frame = (b''.join([pack('>HH', *method_sig), args])
+                     if type_ == 1 else b'')
             framelen = len(frame)
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)

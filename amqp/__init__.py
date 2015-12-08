@@ -74,4 +74,5 @@ __all__ = [
     'ensure_promise',
     'maybe_promise',
     'starpromise',
-] + _all_exceptions
+]
+__all__ += _all_exceptions
