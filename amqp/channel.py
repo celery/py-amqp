@@ -37,6 +37,11 @@ The auto_delete flag for exchanges has been deprecated and will be removed
 from py-amqp v1.5.0.\
 """
 
+REJECTED_MESSAGE_WITHOUT_CALLBACK = """\
+Rejecting message with delivery tag %r for reason of having no callbacks.
+consumer_tag=%r exchange=%r routing_key=%r.\
+"""
+
 
 class VDeprecationWarning(DeprecationWarning):
     pass
@@ -1609,7 +1614,11 @@ class Channel(AbstractChannel):
         try:
             fun = self.callbacks[consumer_tag]
         except KeyError:
-            pass
+            AMQP_LOGGER.warn(
+                REJECTED_MESSAGE_WITHOUT_CALLBACK,
+                delivery_tag, consumer_tag, exchange, routing_key,
+            )
+            self.basic_reject(delivery_tag, requeue=True)
         else:
             fun(msg)
 
