@@ -95,7 +95,7 @@ install_requires = []
 
 # -*- Tests Requires -*-
 
-tests_require = reqs('test.txt')
+tests_require = reqs('test3.txt') if py_version[0] == 3 else reqs('test.txt')
 
 # -*- Long Description -*-
 
