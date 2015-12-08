@@ -26,6 +26,7 @@ except AttributeError:
 
 PY3 = sys.version_info[0] == 3
 
+ANY = mock.ANY
 MagicMock = mock.MagicMock
 patch = mock.patch
 call = mock.call
