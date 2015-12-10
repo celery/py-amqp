@@ -220,7 +220,12 @@ class Channel(AbstractChannel):
 
         """
         try:
-            if not self.is_open or self.connection is None:
+            is_closed = (
+                not self.is_open or
+                self.connection is None or
+                self.connection.channels is None
+            )
+            if is_closed:
                 return
 
             return self.send_method(
