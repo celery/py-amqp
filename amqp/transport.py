@@ -82,9 +82,11 @@ class _AbstractTransport(object):
 
     def __init__(self, host, connect_timeout,
                  read_timeout=None, write_timeout=None,
-                 ssl=None, socket_settings=None):
+                 ssl=None, socket_settings=None,
+                 raise_on_initial_eintr=False):
         self.connected = True
         self.sock = None
+        self.raise_on_initial_eintr = raise_on_initial_eintr
         self._read_buffer = EMPTY_BUFFER
         host, port = to_host_port(host)
         self._connect(host, port, connect_timeout)
@@ -283,9 +285,12 @@ class SSLTransport(_AbstractTransport):
                 try:
                     s = recv(n - len(rbuf))  # see note above
                 except socket.error as exc:
+
                     # ssl.sock.read may cause ENOENT if the
                     # operation couldn't be performed (Issue celery#1414).
-                    if not initial and exc.errno in _errnos:
+                    if exc.errno in _errnos:
+                        if initial and self.raise_on_initial_eintr:
+                            raise
                         continue
                     raise
                 if not s:
@@ -336,7 +341,9 @@ class TCPTransport(_AbstractTransport):
                 try:
                     s = recv(n - len(rbuf))
                 except socket.error as exc:
-                    if not initial and exc.errno in _errnos:
+                    if exc.errno in _errnos:
+                        if initial and self.raise_on_initial_eintr:
+                            raise
                         continue
                     raise
                 if not s:
