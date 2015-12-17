@@ -64,9 +64,11 @@ class barrier(object):
     the barrier is fulfilled.
 
     """
-    def __init__(self, promises=None, callback=None):
+    def __init__(self, promises=None, args=None, kwargs=None, callback=None):
         self.p = promise()
         self.promises = []
+        self.args = args or ()
+        self.kwargs = kwargs or {}
         self._value = 0
         self.ready = self.failed = False
         self.value = self.reason = None
@@ -80,7 +82,7 @@ class barrier(object):
             self._value += 1
             if self._value >= len(self.promises):
                 self.ready = True
-                self.p()
+                self.p(*self.args, **self.kwargs)
 
     def cancel(self):
         self.cancelled = True
