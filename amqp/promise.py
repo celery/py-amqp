@@ -39,8 +39,8 @@ class Thenable(Callable):  # pragma: no cover
 
 
 class barrier(object):
-    """Synchronization primitive to call a callback after all promises
-    fulfilled.
+    """Synchronization primitive to call a callback after a list
+    of promises have been fulfilled.
 
     Example:
 
@@ -64,15 +64,18 @@ class barrier(object):
     the barrier is fulfilled.
 
     """
-    def __init__(self, promises=None, args=None, kwargs=None, callback=None):
+    def __init__(self, promises=None, args=None, kwargs=None,
+                 callback=None, size=None):
         self.p = promise()
         self.promises = []
         self.args = args or ()
         self.kwargs = kwargs or {}
         self._value = 0
+        self.size = size or len(self.promises)
         self.ready = self.failed = False
         self.value = self.reason = None
         self.cancelled = False
+        self.finalized = bool(self.size)
         [self.add(p) for p in promises or []]
         if callback:
             self.then(callback)
@@ -80,20 +83,30 @@ class barrier(object):
     def __call__(self, *args, **kwargs):
         if not self.ready and not self.cancelled:
             self._value += 1
-            if self._value >= len(self.promises):
+            if self.finalized and self._value >= self.size:
                 self.ready = True
                 self.p(*self.args, **self.kwargs)
+
+    def finalize(self):
+        if not self.finalized and self._value >= self.size:
+            self.p(*self.args, **self.kwargs)
+        self.finalized = True
 
     def cancel(self):
         self.cancelled = True
         self.p.cancel()
 
-    def add(self, p):
+    def add_noincr(self, p):
         if not self.cancelled:
             if self.ready:
                 raise ValueError('Cannot add promise to full barrier')
             p.then(self)
             self.promises.append(p)
+
+    def add(self, p):
+        if not self.cancelled:
+            self.add_noincr(p)
+            self.size += 1
 
     def then(self, callback, errback=None):
         self.p.then(callback, errback)
@@ -111,7 +124,7 @@ class promise(object):
     This is a special implementation of promises in that it can
     be used both for "promise of a value" and lazy evaluation.
     The biggest upside for this is that everything in a promise can also be
-    a promise, e.g. filters callbacks and errbacks can all be promises.
+    a promise, e.g. filters, callbacks and errbacks can all be promises.
 
     Usage examples:
 
