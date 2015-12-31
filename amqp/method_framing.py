@@ -157,6 +157,10 @@ def frame_writer(connection, transport,
                 offset += 8 + framelen
 
                 framelen = len(body)
+
+                if isinstance(body, str):
+                    body = body.encode()
+
                 pack_into('>BHI%dsB' % framelen, buf, offset,
                           3, channel, framelen, body, 0xce)
                 offset += 8 + framelen
