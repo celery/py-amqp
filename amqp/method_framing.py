@@ -158,7 +158,7 @@ def frame_writer(connection, transport,
 
                 framelen = len(body)
                 pack_into('>BHI%dsB' % framelen, buf, offset,
-                          3, channel, framelen, body, 0xce)
+                          3, channel, framelen, str_to_bytes(body), 0xce)
                 offset += 8 + framelen
 
             write(view[:offset])
