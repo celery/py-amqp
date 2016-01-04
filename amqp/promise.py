@@ -75,7 +75,7 @@ class barrier(object):
         self.ready = self.failed = False
         self.value = self.reason = None
         self.cancelled = False
-        self.finalized = bool(self.size)
+        self.finalized = bool(promises or self.size)
         [self.add(p) for p in promises or []]
         if callback:
             self.then(callback)
