@@ -41,7 +41,7 @@ from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .promise import ensure_promise
 from .serialization import _write_table
-from .transport import create_transport
+from .transport import Transport
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -333,11 +333,11 @@ class Connection(AbstractChannel):
 
     def Transport(self, host, connect_timeout,
                   ssl=False, read_timeout=None, write_timeout=None,
-                  socket_settings=None):
-        return create_transport(
-            host, connect_timeout, ssl, read_timeout, write_timeout,
-            socket_settings=socket_settings,
-        )
+                  socket_settings=None, **kwargs):
+        return Transport(
+            host, connect_timeout=connect_timeout, ssl=ssl,
+            read_timeout=read_timeout, write_timeout=write_timeout,
+            socket_settings=socket_settings, **kwargs)
 
     @property
     def connected(self):

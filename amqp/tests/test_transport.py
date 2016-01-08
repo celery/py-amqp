@@ -67,7 +67,7 @@ class SocketOptions(Case):
         self.patch('amqp.transport.SSLTransport._setup_transport')
 
     def test_backward_compatibility_tcp_transport(self):
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=False,
         )
         expected = 1
@@ -75,13 +75,13 @@ class SocketOptions(Case):
         self.assertEqual(result, expected)
 
     def test_backward_compatibility_SSL_transport(self):
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=True,
         )
         self.assertIsNotNone(self.transp.sock)
 
     def test_use_default_sock_tcp_opts(self):
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout, socket_settings={},
         )
         self.assertIn(
@@ -92,7 +92,7 @@ class SocketOptions(Case):
     def test_set_single_sock_tcp_opt_tcp_transport(self):
         tcp_keepidle = self.tcp_keepidle + 5
         socket_settings = {TCP_KEEPIDLE: tcp_keepidle}
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout,
             ssl=False, socket_settings=socket_settings,
         )
@@ -103,7 +103,7 @@ class SocketOptions(Case):
     def test_set_single_sock_tcp_opt_SSL_transport(self):
         self.tcp_keepidle += 5
         socket_settings = {TCP_KEEPIDLE: self.tcp_keepidle}
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout,
             ssl=True, socket_settings=socket_settings,
         )
@@ -118,7 +118,7 @@ class SocketOptions(Case):
             TCP_KEEPCNT: 2
         }
 
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
@@ -136,7 +136,7 @@ class SocketOptions(Case):
     def test_passing_wrong_options(self):
         socket_settings = object()
         with self.assertRaises(TypeError):
-            self.transp = transport.create_transport(
+            self.transp = transport.Transport(
                 self.host, self.connect_timeout,
                 socket_settings=socket_settings,
             )
@@ -144,7 +144,7 @@ class SocketOptions(Case):
     def test_passing_wrong_value_options(self):
         socket_settings = {TCP_KEEPINTVL: 'a'.encode()}
         with self.assertRaises(socket.error):
-            self.transp = transport.create_transport(
+            self.transp = transport.Transport(
                 self.host, self.connect_timeout,
                 socket_settings=socket_settings,
             )
@@ -152,14 +152,14 @@ class SocketOptions(Case):
     def test_passing_value_as_string(self):
         socket_settings = {TCP_KEEPIDLE: '5'.encode()}
         with self.assertRaises(socket.error):
-            self.transp = transport.create_transport(
+            self.transp = transport.Transport(
                 self.host, self.connect_timeout,
                 socket_settings=socket_settings,
             )
 
     def test_passing_tcp_nodelay(self):
         socket_settings = {socket.TCP_NODELAY: 0}
-        self.transp = transport.create_transport(
+        self.transp = transport.Transport(
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
