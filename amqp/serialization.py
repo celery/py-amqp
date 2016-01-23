@@ -22,6 +22,7 @@ Convert between bytestreams and higher-level AMQP types.
 from __future__ import absolute_import
 
 import calendar
+import logging
 import sys
 
 from datetime import datetime
@@ -40,6 +41,7 @@ if IS_PY3K:
 else:
     byte = chr
 
+AMQP_LOGGER = logging.getLogger('amqp')
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
 Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
@@ -49,6 +51,11 @@ ILLEGAL_TABLE_TYPE = """\
     Table type {0!r} not handled by amqp. [value: {1!r}]
 """
 
+class DecodeError(Exception):
+    def __init__(self, raw_str, original_error):
+        super(DecodeError, self).__init__()
+        self.raw_str = raw_str
+        self.original_error = original_error
 
 class AMQPReader(object):
     """Read higher-level AMQP types from a bytestream."""
@@ -117,7 +124,11 @@ class AMQPReader(object):
         """
         self.bitcount = self.bits = 0
         slen = unpack('B', self.input.read(1))[0]
-        return self.input.read(slen).decode('utf-8')
+        raw = self.input.read(slen)
+        try:
+            return raw.decode('utf-8')
+        except UnicodeDecodeError as err:
+            raise DecodeError(raw, err)
 
     def read_longstr(self):
         """Read a string that's up to 2**32 bytes.
@@ -128,7 +139,11 @@ class AMQPReader(object):
         """
         self.bitcount = self.bits = 0
         slen = unpack('>I', self.input.read(4))[0]
-        return self.input.read(slen).decode('utf-8')
+        raw = self.input.read(slen)
+        try:
+            return raw.decode('utf-8')
+        except UnicodeDecodeError as err:
+            raise DecodeError(raw, err)
 
     def read_table(self):
         """Read an AMQP table, and return as a Python dictionary."""
@@ -137,8 +152,16 @@ class AMQPReader(object):
         table_data = AMQPReader(self.input.read(tlen))
         result = {}
         while table_data.input.tell() < tlen:
-            name = table_data.read_shortstr()
-            val = table_data.read_item()
+            try:
+                name = table_data.read_shortstr()
+            except DecodeError as err:
+                AMQP_LOGGER.warn('Failed to UTF-8 decode header name. Raw value: "{}". Error: {}'.format(repr(err.raw_str), err.original_error))
+                continue
+            try:
+                val = table_data.read_item()
+            except DecodeError as err:
+                AMQP_LOGGER.warn('Failed to UTF-8 decode header value for "{}". Raw value: "{}". Error: {}'.format(name, repr(err.raw_str), err.original_error))
+                continue
             result[name] = val
         return result
 
