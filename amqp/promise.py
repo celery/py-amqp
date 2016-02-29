@@ -182,9 +182,11 @@ class promise(object):
 
     """
     if not hasattr(sys, 'pypy_version_info'):  # pragma: no cover
-        __slots__ = ('fun', 'args', 'kwargs', 'ready', 'failed',
-                     'value', 'reason', '_svpending', '_lvpending',
-                     'on_error', 'cancelled')
+        __slots__ = (
+            'fun', 'args', 'kwargs', 'ready', 'failed',
+            'value', 'reason', '_svpending', '_lvpending',
+            'on_error', 'cancelled',
+        )
 
     def __init__(self, fun=None, args=None, kwargs=None,
                  callback=None, on_error=None):
@@ -228,17 +230,16 @@ class promise(object):
         retval = None
         if self.cancelled:
             return
+        final_args = self.args + args if args else self.args
+        final_kwargs = dict(self.kwargs, **kwargs) if kwargs else self.kwargs
         if self.fun:
             try:
-                retval = self.fun(
-                    *(self.args + args if args else self.args),
-                    **(dict(self.kwargs, **kwargs) if kwargs else self.kwargs)
-                )
+                retval = self.fun(*final_args, **final_kwargs)
                 self.value = (ca, ck) = (retval,), {}
             except Exception:
                 return self.set_error_state()
         else:
-            self.value = (ca, ck) = (args, kwargs)
+            self.value = (ca, ck) = final_args, final_kwargs
         self.ready = True
         svpending = self._svpending
         if svpending is not None:
