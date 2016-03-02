@@ -16,8 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import
 
+from vine import ensure_promise, promise
+
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .promise import ensure_promise, promise
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']

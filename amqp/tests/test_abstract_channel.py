@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
-from amqp import promise
+from vine import promise
+
 from amqp.abstract_channel import AbstractChannel
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps

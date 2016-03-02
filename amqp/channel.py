@@ -21,11 +21,12 @@ import logging
 from collections import defaultdict
 from warnings import warn
 
+from vine import ensure_promise
+
 from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import ChannelError, ConsumerCancelled, error_for_code
 from .five import Queue
-from .promise import ensure_promise
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']

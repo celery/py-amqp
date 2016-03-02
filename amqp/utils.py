@@ -5,14 +5,14 @@ import sys
 
 from functools import wraps
 
+from .five import string_t
+
 is_py3k = sys.version_info[0] == 3
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None   # noqa
-
-from .five import string_t
 
 try:
     from os import set_cloexec  # Python 3.4?

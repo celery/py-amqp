@@ -91,7 +91,7 @@ def reqs(f):
     return filter(None, [strip_comments(l) for l in open(
         os.path.join(os.getcwd(), 'requirements', f)).readlines()])
 
-install_requires = []
+install_requires = reqs('default.txt')
 
 # -*- Tests Requires -*-
 

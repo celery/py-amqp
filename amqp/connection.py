@@ -22,11 +22,8 @@ import uuid
 
 from array import array
 from io import BytesIO
-try:
-    from ssl import SSLError
-except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        pass
+
+from vine import ensure_promise
 
 from . import __version__
 from . import spec
@@ -39,9 +36,14 @@ from .exceptions import (
 )
 from .five import range, values, monotonic
 from .method_framing import frame_handler, frame_writer
-from .promise import ensure_promise
 from .serialization import _write_table
 from .transport import Transport
+
+try:
+    from ssl import SSLError
+except ImportError:  # pragma: no cover
+    class SSLError(Exception):  # noqa
+        pass
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
