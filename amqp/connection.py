@@ -352,7 +352,8 @@ class Connection(AbstractChannel):
         except socket.error:
             pass  # connection already closed on the other end
         finally:
-            self.transport = self.connection = self.channels = None
+            self.transport = self.connection = None
+            self.channels = {}
 
     def _get_free_channel_id(self):
         try:
