@@ -131,9 +131,6 @@ class test_Connection(Case):
         self.assertTrue(self.conn._handshake_complete)
         self.conn.on_open.assert_called_with(self.conn)
 
-    def test_FIXME(self):
-        self.conn.FIXME(1, 2, arg=1)
-
     def test_connected(self):
         self.conn.transport.connected = False
         self.assertFalse(self.conn.connected)

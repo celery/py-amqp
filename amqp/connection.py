@@ -330,9 +330,6 @@ class Connection(AbstractChannel):
         self._handshake_complete = True
         self.on_open(self)
 
-    def FIXME(self, *args, **kwargs):
-        pass
-
     def Transport(self, host, connect_timeout,
                   ssl=False, read_timeout=None, write_timeout=None,
                   socket_settings=None, **kwargs):
