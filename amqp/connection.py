@@ -372,12 +372,14 @@ class Connection(AbstractChannel):
     def channel(self, channel_id=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
-        try:
-            return self.channels[channel_id]
-        except KeyError:
-            channel = self.Channel(self, channel_id, on_open=callback)
-            channel.open()
-            return channel
+        if self.channels is not None:
+            try:
+                return self.channels[channel_id]
+            except KeyError:
+                channel = self.Channel(self, channel_id, on_open=callback)
+                channel.open()
+                return channel
+        raise RecoverableConnectionError('Connection already closed.')
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
