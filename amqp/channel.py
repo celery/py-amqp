@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 
 import logging
+import socket
 
 from collections import defaultdict
 from warnings import warn
@@ -1689,7 +1690,8 @@ class Channel(AbstractChannel):
         return msg
 
     def _basic_publish(self, msg, exchange='', routing_key='',
-                       mandatory=False, immediate=False, argsig='Bssbb'):
+                       mandatory=False, immediate=False, timeout=None,
+                       argsig='Bssbb'):
         """Publish a message
 
         This method publishes a message to a specific exchange. The
@@ -1755,10 +1757,14 @@ class Channel(AbstractChannel):
                     The server SHOULD implement the immediate flag.
 
         """
-        return self.send_method(
-            spec.Basic.Publish, argsig,
-            (0, exchange, routing_key, mandatory, immediate), msg
-        )
+        try:
+            with self.connection.transport.having_timeout(timeout):
+                return self.send_method(
+                    spec.Basic.Publish, argsig,
+                    (0, exchange, routing_key, mandatory, immediate), msg
+                )
+        except socket.timeout:
+            raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
 
     def basic_publish_confirm(self, *args, **kwargs):
