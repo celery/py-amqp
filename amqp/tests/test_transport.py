@@ -70,6 +70,7 @@ class SocketOptions(Case):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=False,
         )
+        self.transp.connect()
         expected = 1
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
         self.assertEqual(result, expected)
@@ -78,12 +79,14 @@ class SocketOptions(Case):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=True,
         )
+        self.transp.connect()
         self.assertIsNotNone(self.transp.sock)
 
     def test_use_default_sock_tcp_opts(self):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, socket_settings={},
         )
+        self.transp.connect()
         self.assertIn(
             socket.TCP_NODELAY,
             self.transp._get_tcp_socket_defaults(self.transp.sock),
@@ -96,6 +99,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             ssl=False, socket_settings=socket_settings,
         )
+        self.transp.connect()
         expected = tcp_keepidle
         result = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPIDLE)
         self.assertEqual(result, expected)
@@ -107,6 +111,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             ssl=True, socket_settings=socket_settings,
         )
+        self.transp.connect()
         expected = self.tcp_keepidle
         result = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPIDLE)
         self.assertEqual(result, expected)
@@ -122,6 +127,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
+        self.transp.connect()
         expected = socket_settings
         tcp_keepidle = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPIDLE)
         tcp_keepintvl = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPINTVL)
@@ -135,27 +141,30 @@ class SocketOptions(Case):
 
     def test_passing_wrong_options(self):
         socket_settings = object()
+        self.transp = transport.Transport(
+            self.host, self.connect_timeout,
+            socket_settings=socket_settings,
+        )
         with self.assertRaises(TypeError):
-            self.transp = transport.Transport(
-                self.host, self.connect_timeout,
-                socket_settings=socket_settings,
-            )
+            self.transp.connect()
 
     def test_passing_wrong_value_options(self):
         socket_settings = {TCP_KEEPINTVL: 'a'.encode()}
+        self.transp = transport.Transport(
+            self.host, self.connect_timeout,
+            socket_settings=socket_settings,
+        )
         with self.assertRaises(socket.error):
-            self.transp = transport.Transport(
-                self.host, self.connect_timeout,
-                socket_settings=socket_settings,
-            )
+            self.transp.connect()
 
     def test_passing_value_as_string(self):
         socket_settings = {TCP_KEEPIDLE: '5'.encode()}
+        self.transp = transport.Transport(
+            self.host, self.connect_timeout,
+            socket_settings=socket_settings,
+        )
         with self.assertRaises(socket.error):
-            self.transp = transport.Transport(
-                self.host, self.connect_timeout,
-                socket_settings=socket_settings,
-            )
+            self.transp.connect()
 
     def test_passing_tcp_nodelay(self):
         socket_settings = {socket.TCP_NODELAY: 0}
@@ -163,6 +172,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
+        self.transp.connect()
         expected = 0
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
         self.assertEqual(result, expected)
@@ -180,6 +190,7 @@ class test_AbstractTransport(Case):
 
     def setup(self):
         self.t = self.Transport('localhost:5672', 10)
+        self.t.connect()
 
     def test_read(self):
         with self.assertRaises(NotImplementedError):

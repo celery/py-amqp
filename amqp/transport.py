@@ -136,10 +136,10 @@ class _AbstractTransport(object):
             self.sock = None
 
     def _connect(self, host, port, timeout):
-        msg = None
-        last_err = None
-        for res in socket.getaddrinfo(host, port, 0,
-                                      socket.SOCK_STREAM, SOL_TCP):
+        entries = socket.getaddrinfo(
+            host, port, 0, socket.SOCK_STREAM, SOL_TCP,
+        )
+        for i, res in enumerate(entries):
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
@@ -150,15 +150,12 @@ class _AbstractTransport(object):
                 self.sock.settimeout(timeout)
                 self.sock.connect(sa)
             except socket.error as exc:
-                msg = exc
                 self.sock.close()
                 self.sock = None
-                last_err = msg
-                continue
-            break
-        if not self.sock:
-            # Didn't connect, return the most recent error message
-            raise socket.error(last_err)
+                if i + 1 > len(entries):
+                    raise
+            else:
+                break
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:

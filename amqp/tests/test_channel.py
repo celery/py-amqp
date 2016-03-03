@@ -4,7 +4,7 @@ from amqp import spec
 from amqp.channel import Channel
 from amqp.exceptions import ConsumerCancelled, NotFound
 
-from .case import Case, Mock, patch
+from .case import Case, ContextMock, Mock, patch
 
 
 class test_Channel(Case):
@@ -315,6 +315,7 @@ class test_Channel(Case):
         self.assertIs(m, msg)
 
     def test_basic_publish(self):
+        self.c.connection.transport.having_timeout = ContextMock()
         self.c._basic_publish('msg', 'ex', 'rkey')
         self.c.send_method.assert_called_with(
             spec.Basic.Publish, 'Bssbb',
