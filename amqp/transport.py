@@ -158,7 +158,7 @@ class _AbstractTransport(object):
             break
         if not self.sock:
             # Didn't connect, return the most recent error message
-            raise socket.error(last_err)
+            raise socket.error(last_err, 'Address: ' + host + ', Port: ' + str(port))
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:
