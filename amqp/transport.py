@@ -21,6 +21,13 @@ import struct
 import socket
 import ssl
 
+from contextlib import contextmanager
+from struct import unpack
+
+from .exceptions import UnexpectedFrame
+from .five import items
+from .utils import get_errno, set_cloexec
+
 # Jython does not have this attribute
 try:
     from socket import SOL_TCP
@@ -33,13 +40,7 @@ except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
         pass
 
-from struct import unpack
-
-from .exceptions import UnexpectedFrame
-from .five import items
-from .utils import get_errno, set_cloexec
-
-_UNAVAIL = errno.EAGAIN, errno.EINTR, errno.ENOENT
+_UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
 AMQP_PORT = 5672
 
@@ -87,9 +88,40 @@ class _AbstractTransport(object):
         self.sock = None
         self.raise_on_initial_eintr = raise_on_initial_eintr
         self._read_buffer = EMPTY_BUFFER
-        host, port = to_host_port(host)
-        self._connect(host, port, connect_timeout)
-        self._init_socket(socket_settings, read_timeout, write_timeout)
+        self.host, self.port = to_host_port(host)
+        self.connect_timeout = connect_timeout
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.socket_settings = socket_settings
+
+    def connect(self):
+        self._connect(self.host, self.port, self.connect_timeout)
+        self._init_socket(
+            self.socket_settings, self.read_timeout, self.write_timeout,
+        )
+
+    @contextmanager
+    def having_timeout(self, timeout):
+        if timeout is None:
+            yield self.sock
+        else:
+            sock = self.sock
+            prev = sock.gettimeout()
+            if prev != timeout:
+                sock.settimeout(timeout)
+            try:
+                yield self.sock
+            except SSLError as exc:
+                if 'timed out' in str(exc):
+                    # http://bugs.python.org/issue10272
+                    raise socket.timeout()
+                elif 'The operation did not complete' in str(exc):
+                    # Non-blocking SSL sockets can throw SSLError
+                    raise socket.timeout()
+                raise
+            finally:
+                if timeout != prev:
+                    sock.settimeout(prev)
 
     def __del__(self):
         try:
