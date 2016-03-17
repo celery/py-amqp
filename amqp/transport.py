@@ -152,7 +152,7 @@ class _AbstractTransport(object):
             except socket.error as exc:
                 self.sock.close()
                 self.sock = None
-                if i + 1 > len(entries):
+                if i + 1 >= len(entries):
                     raise
             else:
                 break
