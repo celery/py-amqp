@@ -51,7 +51,7 @@ class Case(unittest.TestCase):
         pass
 
     def patch(self, *path, **options):
-        manager = patch(".".join(path), **options)
+        manager = patch('.'.join(path), **options)
         patched = manager.start()
         self.addCleanup(manager.stop)
         return patched

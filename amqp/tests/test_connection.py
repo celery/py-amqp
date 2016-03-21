@@ -193,10 +193,10 @@ class test_Connection(Case):
         self.assertIs(ret, self.conn.on_inbound_frame())
 
     def test_blocking_read__timeout(self):
-        self.conn.transport = TCPTransport("localhost:5672")
+        self.conn.transport = TCPTransport('localhost:5672')
         sock = self.conn.transport.sock = Mock(name='sock')
         sock.gettimeout.return_value = 1
-        self.conn.transport.read_frame = Mock(name="read_frame")
+        self.conn.transport.read_frame = Mock(name='read_frame')
         self.conn.on_inbound_frame = Mock(name='on_inbound_frame')
         self.conn.blocking_read(3)
         sock.gettimeout.assert_called_with()
@@ -210,10 +210,10 @@ class test_Connection(Case):
 
     def test_blocking_read__SSLError(self):
         self.conn.on_inbound_frame = Mock(name='on_inbound_frame')
-        self.conn.transport = TCPTransport("localhost:5672")
+        self.conn.transport = TCPTransport('localhost:5672')
         sock = self.conn.transport.sock = Mock(name='sock')
         sock.gettimeout.return_value = 1
-        self.conn.transport.read_frame = Mock(name="read_frame")
+        self.conn.transport.read_frame = Mock(name='read_frame')
         self.conn.transport.read_frame.side_effect = SSLError(
             'operation timed out')
         with self.assertRaises(socket.timeout):

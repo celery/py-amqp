@@ -161,7 +161,7 @@ class Connection(AbstractChannel):
         a dictionary of options to pass to ssl.wrap_socket() such as
         requiring certain certificates.
 
-        The 'socket_settings" parameter is a dictionary defining tcp
+        The "socket_settings" parameter is a dictionary defining tcp
         settings which will be applied as socket options.
 
         """
