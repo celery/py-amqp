@@ -1368,7 +1368,7 @@ class Channel(AbstractChannel):
     # RULE:
     #
     #     The server MUST support both automatic and explicit
-    #     acknowledgements on Basic content.
+    #     acknowledgments on Basic content.
     #
 
     def basic_ack(self, delivery_tag, multiple=False, argsig='Lb'):
@@ -1543,7 +1543,7 @@ class Channel(AbstractChannel):
 
             no_ack: boolean
 
-                no acknowledgement needed
+                no acknowledgment needed
 
                 If this field is set the server does not expect
                 acknowledgments for messages.  That is, when a message
@@ -1653,7 +1653,7 @@ class Channel(AbstractChannel):
 
             no_ack: boolean
 
-                no acknowledgement needed
+                no acknowledgment needed
 
                 If this field is set the server does not expect
                 acknowledgments for messages.  That is, when a message
