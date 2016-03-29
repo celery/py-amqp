@@ -97,7 +97,14 @@ if sys.version_info < (3, 3):
                 ('tv_nsec', ctypes.c_long),
             ]
 
-        librt = ctypes.CDLL('librt.so.1', use_errno=True)
+        try:
+            librt = ctypes.CDLL('librt.so.1', use_errno=True)
+        except:
+            try:
+                librt = ctypes.CDLL('librt.so.0', use_errno=True)
+            except:
+                raise OSError, "could not find librt in current system"
+
         clock_gettime = librt.clock_gettime
         clock_gettime.argtypes = [
             ctypes.c_int, ctypes.POINTER(timespec),
