@@ -12,6 +12,7 @@ from __future__ import absolute_import
 
 # ############# py3k #########################################################
 import sys
+import errno
 PY3 = sys.version_info[0] == 3
 
 try:
@@ -171,7 +172,17 @@ if sys.version_info < (3, 3):
                 ('tv_nsec', ctypes.c_long),
             ]
 
-        librt = ctypes.CDLL('librt.so.1', use_errno=True)
+        try:
+            librt = ctypes.CDLL('librt.so.1', use_errno=True)
+        except Exception:
+            try:
+                librt = ctypes.CDLL('librt.so.0', use_errno=True)
+            except Exception as exc:
+                error = OSError(
+                    'Could not detect working librt library: {0}'.format(
+                        exc))
+                error.errno = errno.ENOENT
+                raise error
         clock_gettime = librt.clock_gettime
         clock_gettime.argtypes = [
             ctypes.c_int, ctypes.POINTER(timespec),
