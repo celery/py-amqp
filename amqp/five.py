@@ -36,7 +36,7 @@ __all__ = ['Counter', 'reload', 'UserList', 'UserDict',
            'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
            'long_t', 'text_t', 'int_types', 'module_name_t',
            'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
-           'WhateverIO', 'with_metaclass', 'open_fqdn', 'StringIO',
+           'WhateverIO', 'with_metaclass', 'StringIO',
            'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
 
 
@@ -134,8 +134,6 @@ if PY3:  # pragma: no cover
     int_types = (int,)
     module_name_t = str
 
-    open_fqdn = 'builtins.open'
-
     def items(d):
         return d.items()
 
@@ -171,8 +169,6 @@ else:
     range = xrange
     module_name_t = str
     int_types = (int, long)
-
-    open_fqdn = '__builtin__.open'
 
     def items(d):                   # noqa
         return d.iteritems()

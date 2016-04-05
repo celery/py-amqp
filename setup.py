@@ -91,12 +91,6 @@ def reqs(f):
     return filter(None, [strip_comments(l) for l in open(
         os.path.join(os.getcwd(), 'requirements', f)).readlines()])
 
-install_requires = reqs('default.txt')
-
-# -*- Tests Requires -*-
-
-tests_require = reqs('test3.txt') if py_version[0] == 3 else reqs('test.txt')
-
 # -*- Long Description -*-
 
 if os.path.exists('README.rst'):
@@ -120,8 +114,8 @@ setup(
     license='LGPL',
     packages=find_packages(exclude=['ez_setup', 'tests', 'tests.*']),
     zip_safe=False,
-    install_requires=install_requires,
-    tests_require=tests_require,
+    install_requires=reqs('default.txt'),
+    tests_require=reqs('test.txt'),
     test_suite='nose.collector',
     classifiers=classifiers,
     entry_points=entrypoints,
