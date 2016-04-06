@@ -34,7 +34,7 @@ flakediag:
 	-$(MAKE) flakecheck
 
 flakepluscheck:
-	flakeplus amqp --2.6
+	flakeplus --2.7 amqp
 
 flakeplusdiag:
 	-$(MAKE) flakepluscheck
