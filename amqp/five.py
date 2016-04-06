@@ -8,7 +8,7 @@
 
 
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import io
 import sys
@@ -32,7 +32,7 @@ except NameError:  # pragma: no cover
 bytes_t = bytes
 
 __all__ = ['Counter', 'reload', 'UserList', 'UserDict',
-           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins',
+           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins', 'array',
            'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
            'long_t', 'text_t', 'int_types', 'module_name_t',
            'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
@@ -121,6 +121,7 @@ except ImportError:
 if PY3:  # pragma: no cover
     import builtins
 
+    from array import array
     from queue import Queue, Empty, Full, LifoQueue
     from itertools import zip_longest
 
@@ -155,6 +156,7 @@ if PY3:  # pragma: no cover
 
 else:
     import __builtin__ as builtins  # noqa
+    from array import array as _array
     from Queue import Queue, Empty, Full, LifoQueue  # noqa
     from itertools import (               # noqa
         imap as map,
@@ -169,6 +171,11 @@ else:
     range = xrange
     module_name_t = str
     int_types = (int, long)
+
+    def array(typecode, *args, **kwargs):
+        if isinstance(typecode, unicode):
+            typecode = typecode.encode()
+        return _array(typecode, *args, **kwargs)
 
     def items(d):                   # noqa
         return d.iteritems()

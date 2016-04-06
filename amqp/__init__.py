@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 VERSION = (2, 0, 0, 'rc2')
 __version__ = '.'.join(map(str, VERSION[0:3])) + ''.join(VERSION[3:])

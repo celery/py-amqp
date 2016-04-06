@@ -14,13 +14,12 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
 import uuid
 
-from array import array
 from io import BytesIO
 
 from vine import ensure_promise
@@ -34,7 +33,7 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import range, values, monotonic
+from .five import array, range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import Transport
