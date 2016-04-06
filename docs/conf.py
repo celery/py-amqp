@@ -20,10 +20,27 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.coverage',
     'sphinx.ext.pngmath',
+    'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinxcontrib.issuetracker',
     'githubsphinx',
 ]
+
+LINKCODE_URL = 'https://github.com/{proj}/tree/{branch}/{filename}.py'
+GITHUB_PROJECT = 'celery/py-amqp'
+GITHUB_BRANCH = 'master'
+
+
+def linkcode_resolve(domain, info):
+    if domain != 'py' or not info['module']:
+        return
+    filename = info['module'].replace('.', '/')
+    return LINKCODE_URL.format(
+        proj=GITHUB_PROJECT,
+        branch=GITHUB_BRANCH,
+        filename=filename,
+    )
+
 
 html_show_sphinx = False
 
@@ -88,7 +105,7 @@ html_sidebars = {
 
 # ## Issuetracker
 
-github_project = 'celery/py-amqp'
+github_project = GITHUB_PROJECT
 
 # -- Options for Epub output ------------------------------------------------
 
