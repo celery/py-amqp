@@ -16,11 +16,13 @@ import amqp
 # General configuration
 # ---------------------
 
-extensions = ['sphinx.ext.autodoc',
-              'sphinx.ext.coverage',
-              'sphinx.ext.pngmath',
-              'sphinx.ext.intersphinx',
-              'sphinxcontrib.issuetracker']
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.coverage',
+    'sphinx.ext.pngmath',
+    'sphinx.ext.intersphinx',
+    'sphinxcontrib.issuetracker',
+]
 
 html_show_sphinx = False
 
@@ -82,13 +84,6 @@ html_sidebars = {
     '**': ['sidebarlogo.html', 'relations.html',
            'sourcelink.html', 'searchbox.html'],
 }
-
-# ## Issuetracker
-
-if False:
-    issuetracker = 'github'
-    issuetracker_project = 'celery/py-amqp'
-    issuetracker_issue_pattern = r'[Ii]ssue #(\d+)'
 
 # -- Options for Epub output ------------------------------------------------
 

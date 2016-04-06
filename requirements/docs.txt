@@ -1,2 +1,1 @@
 Sphinx
-sphinxcontrib-issuetracker>=0.9
