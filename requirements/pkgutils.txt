@@ -1,4 +1,5 @@
-flake8
+setuptools>=20.6.7
+wheel>=0.29.0
+flake8>=2.5.4
 flakeplus>=1.1
-tox
-Sphinx-PyPI-upload
+tox>=2.3.1
