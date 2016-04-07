@@ -34,7 +34,7 @@ bytes_t = bytes
 __all__ = ['Counter', 'reload', 'UserList', 'UserDict',
            'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins', 'array',
            'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
-           'long_t', 'text_t', 'int_types', 'module_name_t',
+           'bytes_if_py2', 'long_t', 'text_t', 'int_types', 'module_name_t',
            'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
            'WhateverIO', 'with_metaclass', 'StringIO',
            'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
@@ -135,6 +135,9 @@ if PY3:  # pragma: no cover
     int_types = (int,)
     module_name_t = str
 
+    def bytes_if_py2(s):
+        return s
+
     def items(d):
         return d.items()
 
@@ -176,6 +179,11 @@ else:
         if isinstance(typecode, unicode):
             typecode = typecode.encode()
         return _array(typecode, *args, **kwargs)
+
+    def bytes_if_py2(s):
+        if isinstance(s, unicode):
+            return s.encode()
+        return s
 
     def items(d):                   # noqa
         return d.iteritems()
