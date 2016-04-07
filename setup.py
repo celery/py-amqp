@@ -13,6 +13,7 @@ except ImportError:
     from setuptools.command.test import test              # noqa
 
 import os
+import re
 import sys
 import codecs
 
@@ -43,11 +44,13 @@ classifiers = [s.strip() for s in classes.split('\n') if s]
 
 # -*- Distribution Meta -*-
 
-import re
 re_meta = re.compile(r'__(\w+?)__\s*=\s*(.*)')
-re_vers = re.compile(r'VERSION\s*=\s*\((.*?)\)')
+re_vers = re.compile(r'VERSION\s*=.*?\((.*?)\)')
 re_doc = re.compile(r'^"""(.+?)"""')
-rq = lambda s: s.strip("\"'")
+
+
+def rq(s):
+    return s.strip("\"'")
 
 
 def add_default(m):
@@ -76,6 +79,7 @@ with open(os.path.join(here, 'amqp/__init__.py')) as meta_fh:
             m = pattern.match(line.strip())
             if m:
                 meta.update(handler(m))
+
 
 # -*- Installation Requires -*-
 
