@@ -1,1 +1,2 @@
-Sphinx
+Sphinx>=1.4
+sphinxcontrib-cheeseshop
