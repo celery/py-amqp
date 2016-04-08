@@ -3,8 +3,7 @@ SPHINX_DIR="docs/"
 SPHINX_BUILDDIR="${SPHINX_DIR}/_build"
 README="README.rst"
 README_SRC="docs/templates/readme.txt"
-CONTRIBUTING_SRC="docs/contributing.rst"
-SPHINX2RST="extra/release/sphinx-to-rst.py"
+SPHINX2RST="sphinx2rst"
 
 SPHINX_HTMLDIR = "${SPHINX_BUILDDIR}/html"
 
@@ -48,7 +47,7 @@ readmecheck:
 	iconv -f ascii -t ascii $(README) >/dev/null
 
 $(README):
-	$(PYTHON) $(SPHINX2RST) $(README_SRC) --ascii > $@
+	$(SPHINX2RST) $(README_SRC) --ascii > $@
 
 readme: readmeclean $(README) readmecheck
 
