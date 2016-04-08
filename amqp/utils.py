@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import sys
 
-from functools import wraps
+from vine.utils import wraps
 
 from .five import string_t
 
