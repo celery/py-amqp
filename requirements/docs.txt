@@ -1,1 +1,1 @@
-sphinx_celery
+sphinx_celery>=1.1

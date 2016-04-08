@@ -19,5 +19,6 @@
     amqp.method_framing
     amqp.protocol
     amqp.serialization
+    amqp.spec
     amqp.utils
     amqp.five
