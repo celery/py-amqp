@@ -26,7 +26,7 @@ class test_frame_handler(Case):
 
     def test_header_message_empty_body(self):
         self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
-        self.assertFalse(self.callback.called)
+        self.callback.assert_not_called()
 
         with self.assertRaises(UnexpectedFrame):
             self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
@@ -37,7 +37,7 @@ class test_frame_handler(Case):
         buf += m._serialize_properties()
         self.g((2, 1, buf))
 
-        self.assertTrue(self.callback.called)
+        self.callback.assert_called()
         msg = self.callback.call_args[0][3]
         self.callback.assert_called_with(
             1, msg.frame_method, msg.frame_args, msg,
@@ -45,20 +45,20 @@ class test_frame_handler(Case):
 
     def test_header_message_content(self):
         self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
-        self.assertFalse(self.callback.called)
+        self.callback.assert_not_called()
 
         m = Message()
         m.properties = {}
         buf = pack('>HxxQ', m.CLASS_ID, 16)
         buf += m._serialize_properties()
         self.g((2, 1, buf))
-        self.assertFalse(self.callback.called)
+        self.callback.assert_not_called()
 
         self.g((3, 1, b'thequick'))
-        self.assertFalse(self.callback.called)
+        self.callback.assert_not_called()
 
         self.g((3, 1, b'brownfox'))
-        self.assertTrue(self.callback.called)
+        self.callback.assert_called()
         msg = self.callback.call_args[0][3]
         self.callback.assert_called_with(
             1, msg.frame_method, msg.frame_args, msg,
@@ -83,16 +83,16 @@ class test_frame_writer(Case):
     def test_write_fast_header(self):
         frame = 1, 1, spec.Queue.Declare, b'x' * 30, None
         self.g.send(frame)
-        self.assertTrue(self.write.called)
+        self.write.assert_called()
 
     def test_write_fast_content(self):
         msg = Message(body=b'y' * 10, content_type='utf-8')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
         self.g.send(frame)
-        self.assertTrue(self.write.called)
+        self.write.assert_called()
 
     def test_write_slow_content(self):
         msg = Message(body=b'y' * 2048, content_type='utf-8')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
         self.g.send(frame)
-        self.assertTrue(self.write.called)
+        self.write.assert_called()

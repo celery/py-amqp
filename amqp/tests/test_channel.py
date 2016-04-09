@@ -142,7 +142,7 @@ class test_Channel(Case):
             'foo', 'direct', False, True,
             auto_delete=True, nowait=False, arguments={'x': 1},
         )
-        self.assertTrue(warn.called)
+        warn.assert_called()
 
     def test_exchange_delete(self):
         self.c.exchange_delete('foo')
