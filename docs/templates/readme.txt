@@ -2,7 +2,7 @@
  Python AMQP 0.9.1 client library
 =====================================================================
 
-[build-status] [coverage] [bitdeli]
+|build-status| |coverage| |bitdeli|
 
 .. include:: ../includes/introduction.txt
 
