@@ -263,7 +263,6 @@ class WhateverIO(StringIO):
         _SIO_write(self, data.decode() if isinstance(data, bytes) else data)
 
 
-
 def python_2_unicode_compatible(cls):
     """A decorator that defines __unicode__ and __str__ methods under Python 2.
     Under Python 3 it does nothing.
