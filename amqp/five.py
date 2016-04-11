@@ -31,13 +31,16 @@ except NameError:  # pragma: no cover
 
 bytes_t = bytes
 
-__all__ = ['Counter', 'reload', 'UserList', 'UserDict',
-           'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins', 'array',
-           'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
-           'bytes_if_py2', 'long_t', 'text_t', 'int_types', 'module_name_t',
-           'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
-           'WhateverIO', 'with_metaclass', 'StringIO',
-           'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t']
+__all__ = [
+    'Counter', 'reload', 'UserList', 'UserDict',
+    'Queue', 'Empty', 'Full', 'LifoQueue', 'builtins', 'array',
+    'zip_longest', 'map', 'zip', 'string', 'string_t', 'bytes_t',
+    'bytes_if_py2', 'long_t', 'text_t', 'int_types', 'module_name_t',
+    'range', 'items', 'keys', 'values', 'nextfun', 'reraise',
+    'WhateverIO', 'with_metaclass', 'StringIO', 'getfullargspec',
+    'THREAD_TIMEOUT_MAX', 'format_d', 'monotonic', 'buffer_t',
+    'python_2_unicode_compatible',
+]
 
 
 #  ############# py3k ########################################################
@@ -264,19 +267,56 @@ class WhateverIO(StringIO):
 
 
 def python_2_unicode_compatible(cls):
-    """A decorator that defines __unicode__ and __str__ methods under Python 2.
-    Under Python 3 it does nothing.
+    return python_2_non_unicode_str(python_2_non_unicode_repr(cls))
 
-    To support Python 2 and 3 with a single code base, define a __str__ method
-    returning text and apply this decorator to the class.
+
+def python_2_non_unicode_repr(cls):
+    """A class decorator that ensures ``__repr__`` returns non-unicode
+    when running under Python 2."""
+    if PY2:
+        try:
+            cls.__dict__['__repr__']
+        except KeyError:
+            pass
+        else:
+            def __repr__(self):
+                return self.__unicode_repr__().encode('utf-8')
+            cls.__unicode_repr__, cls.__repr__ = cls.__repr__, __repr__
+    return cls
+
+
+def python_2_non_unicode_str(cls):
+    """A class decorator that defines ``__unicode__`` and ``__str__`` methods
+    under Python 2.  Under Python 3 it does nothing.
+
+    To support Python 2 and 3 with a single code base, define a ``__str__``
+    method returning text and apply this decorator to the class.
 
     """
     if PY2:
-        if '__str__' not in cls.__dict__:
-            raise ValueError(
-                "@python_2_unicode_compatible cannot be applied "
-                "to {0} because it doesn't define __str__().".format(
-                    cls.__name__))
-        cls.__unicode__ = cls.__str__
-        cls.__str__ = lambda self: self.__unicode__().encode('utf-8')
+        try:
+            cls.__dict__['__str__']
+        except KeyError:
+            pass
+        else:
+            def __str__(self):
+                return self.__unicode__().encode('utf-8')
+            cls.__unicode__, cls.__str__ = cls.__str__, __str__
     return cls
+
+
+try:  # pragma: no cover
+    from inspect import formatargspec, getfullargspec
+except ImportError:  # Py2
+    from collections import namedtuple
+    from inspect import formatargspec, getargspec as _getargspec  # noqa
+
+    FullArgSpec = namedtuple('FullArgSpec', (
+        'args', 'varargs', 'varkw', 'defaults',
+        'kwonlyargs', 'kwonlydefaults', 'annotations',
+    ))
+
+    def getfullargspec(fun, _fill=(None, ) * 3):  # noqa
+        s = _getargspec(fun)
+        return FullArgSpec(*s + _fill)
+
