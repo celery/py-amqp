@@ -18,6 +18,8 @@ from __future__ import absolute_import, unicode_literals
 
 from struct import pack, unpack
 
+from .five import python_2_unicode_compatible
+
 __all__ = [
     'AMQPError',
     'ConnectionError', 'ChannelError',
@@ -31,6 +33,7 @@ __all__ = [
 ]
 
 
+@python_2_unicode_compatible
 class AMQPError(Exception):
     code = 0
 

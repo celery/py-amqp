@@ -279,8 +279,8 @@ def python_2_non_unicode_repr(cls):
         except KeyError:
             pass
         else:
-            def __repr__(self):
-                return self.__unicode_repr__().encode('utf-8')
+            def __repr__(self, *args, **kwargs):
+                return self.__unicode_repr__(*args, **kwargs).encode('utf-8')
             cls.__unicode_repr__, cls.__repr__ = cls.__repr__, __repr__
     return cls
 
@@ -299,8 +299,8 @@ def python_2_non_unicode_str(cls):
         except KeyError:
             pass
         else:
-            def __str__(self):
-                return self.__unicode__().encode('utf-8')
+            def __str__(self, *args, **kwargs):
+                return self.__unicode__(*args, **kwargs).encode('utf-8')
             cls.__unicode__, cls.__str__ = cls.__str__, __str__
     return cls
 
