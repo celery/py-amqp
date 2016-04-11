@@ -2,7 +2,7 @@
  amqp - Python AMQP low-level client library
 =============================================
 
-.. include:: includes/intro.txt
+.. include:: includes/introduction.txt
 
 Contents
 ========

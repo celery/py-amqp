@@ -41,7 +41,8 @@ __all__ = ['Counter', 'reload', 'UserList', 'UserDict',
 
 
 #  ############# py3k ########################################################
-PY3 = sys.version_info[0] == 3
+PY3 = sys.version_info[0] >= 3
+PY2 = sys.version_info[0] < 3
 
 try:
     reload = reload                         # noqa
@@ -260,3 +261,23 @@ class WhateverIO(StringIO):
 
     def write(self, data):
         _SIO_write(self, data.decode() if isinstance(data, bytes) else data)
+
+
+
+def python_2_unicode_compatible(cls):
+    """A decorator that defines __unicode__ and __str__ methods under Python 2.
+    Under Python 3 it does nothing.
+
+    To support Python 2 and 3 with a single code base, define a __str__ method
+    returning text and apply this decorator to the class.
+
+    """
+    if PY2:
+        if '__str__' not in cls.__dict__:
+            raise ValueError(
+                "@python_2_unicode_compatible cannot be applied "
+                "to {0} because it doesn't define __str__().".format(
+                    cls.__name__))
+        cls.__unicode__ = cls.__str__
+        cls.__str__ = lambda self: self.__unicode__().encode('utf-8')
+    return cls
