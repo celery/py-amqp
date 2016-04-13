@@ -19,6 +19,7 @@ from __future__ import absolute_import, unicode_literals
 from vine import ensure_promise, promise
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
+from .five import bytes_if_py2
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
@@ -56,7 +57,7 @@ class AbstractChannel(object):
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
-        args = dumps(format, args) if format else ''
+        args = dumps(format, args) if format else bytes_if_py2('')
         try:
             conn._frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
