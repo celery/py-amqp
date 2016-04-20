@@ -42,6 +42,7 @@ _UNAVAIL = errno.EAGAIN, errno.EINTR, errno.ENOENT
 AMQP_PORT = 5672
 
 EMPTY_BUFFER = bytes()
+SIGNED_INT_MAX = 0x7FFFFFFF
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
@@ -154,7 +155,14 @@ class _AbstractTransport(object):
             frame_header = read(7, True)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack('>BHI', frame_header)
-            payload = read(size)
+            # >I is an unsigned int, but the argument to sock.recv is signed,
+            # so we know the size can be at most 2 * SIGNED_INT_MAX.
+            if size > SIGNED_INT_MAX:
+                part1 = read(SIGNED_INT_MAX)
+                part2 = read(size - SIGNED_INT_MAX)
+                payload = ''.join([part1, part2])
+            else:
+                payload = read(size)
             read_frame_buffer += payload
             ch = ord(read(1))
         except socket.timeout:
