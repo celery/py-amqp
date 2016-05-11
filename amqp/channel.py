@@ -27,7 +27,8 @@ from vine import ensure_promise
 from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import (
-    ChannelError, ConsumerCancelled, RecoverableChannelError, error_for_code,
+    ChannelError, ConsumerCancelled,
+    RecoverableChannelError, RecoverableConnectionError, error_for_code,
 )
 from .five import Queue
 from .protocol import queue_declare_ok_t
@@ -1759,6 +1760,9 @@ class Channel(AbstractChannel):
                     The server SHOULD implement the immediate flag.
 
         """
+        if not self.connection:
+            raise RecoverableConnectionError(
+                'basic_publish: connection closed')
         try:
             with self.connection.transport.having_timeout(timeout):
                 return self.send_method(
