@@ -36,7 +36,6 @@ classes = """
     License :: OSI Approved :: GNU Library or \
 Lesser General Public License (LGPL)
     Intended Audience :: Developers
-    License :: OSI Approved :: BSD License
     Operating System :: OS Independent
 """
 classifiers = [s.strip() for s in classes.split('\n') if s]

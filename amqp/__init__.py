@@ -22,7 +22,7 @@ version_info_t = namedtuple(
     'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
 )
 
-VERSION = version_info = version_info_t(2, 0, 0, 'rc2', '')
+VERSION = version_info = version_info_t(2, 0, 0, '', '')
 
 __version__ = '{0.major}.{0.minor}.{0.micro}{0.releaselevel}'.format(VERSION)
 __author__ = 'Barry Pederson'

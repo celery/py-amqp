@@ -9,6 +9,8 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 2.0.0
 =====
+:release-date: 2016-05-26 1:44 PM PDT
+:release-by: Ask Solem
 
 - No longer supports Python 2.6
 
@@ -38,11 +40,30 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
     Contributed by Vic Kumar.
 
+- Contributions by:
+
+    Adrien Guinet
+    Andrea Rosa
+    Artyom Koval
+    Corey Farwell
+    Craig Jellick
+    Dallas Marlow
+    Davanum Srinivas
+    Federico Ficarelli
+    Jared Lewis
+    Rémy Greinhofer
+    Rongze Zhu
+    Yury Selivanov
+    Vic Kumar
+    Vladimir Bolshakov
+    :github_user:`lezeroq`
+
 .. _version-1.4.9:
 
 1.4.9
 =====
 :release-date: 2016-01-08 5:50 PM PST
+:release-by: Ask Solem
 
 - Fixes compatibility with Linux/OS X instances where the ``ctypes`` module
   does not exist.
