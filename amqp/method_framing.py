@@ -138,7 +138,8 @@ def frame_writer(connection, transport,
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (b''.join([pack('>HH', *method_sig), args])
+            frame = (b''.join([pack('>HH', *method_sig), 
+                                    str_to_bytes(args)])
                      if type_ == 1 else b'')
             framelen = len(frame)
             pack_into('>BHI%dsB' % framelen, buf, offset,
