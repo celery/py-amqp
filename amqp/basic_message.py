@@ -26,8 +26,6 @@ from __future__ import absolute_import, unicode_literals
 # Source:
 #   http://stackoverflow.com/a/14216937/4982251
 from .spec import Basic
-
-from . import spec
 from .serialization import GenericContent
 
 __all__ = ['Message']
