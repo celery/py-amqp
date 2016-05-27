@@ -16,6 +16,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
+# Intended to fix #85: ImportError: cannot import name spec
+# Encountered on python 2.7.3
+# "The submodules often need to refer to each other. For example, the
+#  surround [sic] module might use the echo module. In fact, such
+#  references are so common that the import statement first looks in
+#  the containing package before looking in the standard module search
+#  path."
+# Source:
+#   http://stackoverflow.com/a/14216937/4982251
+from .spec import Basic
+
 from . import spec
 from .serialization import GenericContent
 
@@ -24,7 +35,7 @@ __all__ = ['Message']
 
 class Message(GenericContent):
     """A Message for use with the Channnel.basic_* methods."""
-    CLASS_ID = spec.Basic.CLASS_ID
+    CLASS_ID = Basic.CLASS_ID
 
     #: Instances of this class have these attributes, which
     #: are passed back and forth as message properties between

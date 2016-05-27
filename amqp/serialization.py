@@ -30,7 +30,7 @@ from io import BytesIO
 from struct import pack, unpack_from
 from time import mktime
 
-from . import spec
+from .spec import Basic
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
 from .utils import bytes_to_str as pstr_t, str_to_bytes
@@ -470,7 +470,7 @@ def decode_properties_basic(buf, offset=0,
     return properties, offset
 
 PROPERTY_CLASSES = {
-    spec.Basic.CLASS_ID: decode_properties_basic,
+    Basic.CLASS_ID: decode_properties_basic,
 }
 
 
