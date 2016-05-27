@@ -17,13 +17,6 @@
 from __future__ import absolute_import, unicode_literals
 
 from collections import namedtuple
-from vine import promise
-
-# Enable celery 3.1.23 to import the package instead of breaking on an
-# unknown symbol
-__all_externals__ = [
-    'promise',
-]
 
 version_info_t = namedtuple(
     'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
@@ -75,6 +68,13 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
+from .utils import promise              # noqa
+
+# Enable celery 3.1.23 to import the package instead of breaking on an
+# unknown symbol
+__all_externals__ = [
+    'promise',
+]
 
 __all__ = [
     'Connection',
