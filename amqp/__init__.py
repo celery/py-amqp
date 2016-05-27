@@ -68,6 +68,13 @@ from .exceptions import (               # noqa
     error_for_code,
     __all__ as _all_exceptions,
 )
+from .utils import promise              # noqa
+
+# Enable celery 3.1.23 to import the package instead of breaking on an
+# unknown symbol
+__all_externals__ = [
+    'promise',
+]
 
 __all__ = [
     'Connection',
@@ -75,3 +82,5 @@ __all__ = [
     'Message',
 ]
 __all__ += _all_exceptions
+
+__all__ += __all_externals__
