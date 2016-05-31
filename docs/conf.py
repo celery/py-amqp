@@ -9,7 +9,7 @@ globals().update(conf.build_config(
     description='Python Promises',
     version_dev='2.0',
     version_stable='1.4',
-    canonical_url='http://amqp.readthedocs.org',
+    canonical_url='https://amqp.readthedocs.io',
     webdomain='celeryproject.org',
     github_project='celery/py-amqp',
     author='Ask Solem & contributors',
