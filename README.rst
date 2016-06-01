@@ -5,7 +5,7 @@
 |build-status| |coverage| |bitdeli|
 
 :Version: 2.0.0rc2
-:Web: http://amqp.readthedocs.org/
+:Web: https://amqp.readthedocs.io/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
 :Keywords: amqp, rabbitmq
@@ -21,7 +21,7 @@ This library should be API compatible with `librabbitmq`_.
 
 .. _amqplib: http://pypi.python.org/pypi/amqplib
 .. _Celery: http://celeryproject.org/
-.. _kombu: http://kombu.readthedocs.org/
+.. _kombu: https://kombu.readthedocs.io/
 .. _librabbitmq: http://pypi.python.org/pypi/librabbitmq
 
 Differences from `amqplib`_
