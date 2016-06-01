@@ -5,6 +5,37 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.0.1:
+
+2.0.1
+=====
+:release-date: 2016-05-31 6:20 PM PDT
+:release-by: Ask Solem
+
+- Adds backward compatibility layer for the 1.4 API.
+
+    Using the connection without calling ``.connect()`` first will now work,
+    but a warning is emitted and the behavior is deprecated and will be
+    removed in version 2.2.
+
+- Fixes kombu 3.0/celery 3.1 compatibility (Issue #88).
+
+    Fix contributed by Bas ten Berge.
+
+- Fixed compatibility with Python 2.7.3 (Issue #85)
+
+    Fix contributed by Bas ten Berge.
+
+- Fixed bug where calling drain_events() with a timeout of 0 would actually
+  block until a frame is received.
+
+- Documentation moved to http://amqp.readthedocs.io (Issue #89).
+
+    See https://blog.readthedocs.com/securing-subdomains/ for the reasoning
+    behind this change.
+
+    Fix contributed by Adam Chainz.
+
 .. _version-2.0.0:
 
 2.0.0
@@ -13,6 +44,11 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-by: Ask Solem
 
 - No longer supports Python 2.6
+
+- You must now call Connection.connect() to establish the connection.
+
+    The Connection constructor no longer has side effects, so you have
+    to explicitly call connect first.
 
 - Library rewritten to anticipate async changes.
 
