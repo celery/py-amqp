@@ -278,7 +278,8 @@ class Connection(AbstractChannel):
             self.drain_events(timeout=self.connect_timeout)
 
     def _warn_force_connect(self, attr):
-        warnings.warn(AMQPDeprecationWarning(W_FORCE_CONNECT.format(attr=attr)))
+        warnings.warn(AMQPDeprecationWarning(
+            W_FORCE_CONNECT.format(attr=attr)))
 
     @property
     def transport(self):
