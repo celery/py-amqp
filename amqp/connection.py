@@ -19,6 +19,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import socket
 import uuid
+import warnings
 
 from io import BytesIO
 
@@ -29,7 +30,7 @@ from . import spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (
-    ChannelError, ResourceError,
+    AMQPDeprecationWarning, ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
@@ -43,6 +44,15 @@ try:
 except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
         pass
+
+W_FORCE_CONNECT = """\
+The .{attr} attribute on the connection was accessed before
+the connection was established.  This is supported for now, but will
+be deprecated in amqp 2.2.0.
+
+Since amqp 2.0 you have to explicitly call Connection.connect()
+before using the connection.
+"""
 
 START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
@@ -139,7 +149,7 @@ class Connection(AbstractChannel):
         RecoverableChannelError,
     )
 
-    def __init__(self, host='localhost', userid='guest', password='guest',
+    def __init__(self, host='localhost:5672', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
@@ -186,8 +196,8 @@ class Connection(AbstractChannel):
         self.virtual_host = virtual_host
         self.on_tune_ok = ensure_promise(on_tune_ok)
 
-        self.frame_handler = frame_handler
-        self.frame_writer = frame_writer
+        self.frame_handler_cls = frame_handler
+        self.frame_writer_cls = frame_writer
 
         self._handshake_complete = False
 
@@ -195,7 +205,9 @@ class Connection(AbstractChannel):
         # The connection object itself is treated as channel 0
         super(Connection, self).__init__(self, 0)
 
-        self.transport = None
+        self._frame_writer = None
+        self._on_inbound_frame = None
+        self._transport = None
 
         # Properties set in the Tune method
         self.channel_max = channel_max
@@ -214,7 +226,6 @@ class Connection(AbstractChannel):
         self.on_open = ensure_promise(on_open)
 
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
-        self.transport = None
 
         # Properties set in the Start method
         self.version_major = 0
@@ -259,12 +270,48 @@ class Connection(AbstractChannel):
             socket_settings=self.socket_settings,
         )
         self.transport.connect()
-        self.on_inbound_frame = self.frame_handler(
+        self.on_inbound_frame = self.frame_handler_cls(
             self, self.on_inbound_method)
-        self._frame_writer = self.frame_writer(self, self.transport)
+        self.frame_writer = self.frame_writer_cls(self, self.transport)
 
         while not self._handshake_complete:
             self.drain_events(timeout=self.connect_timeout)
+
+    def _warn_force_connect(self, attr):
+        warnings.warn(AMQPDeprecationWarning(W_FORCE_CONNECT.format(attr=attr)))
+
+    @property
+    def transport(self):
+        if self._transport is None:
+            self._warn_force_connect('transport')
+            self.connect()
+        return self._transport
+
+    @transport.setter
+    def transport(self, transport):
+        self._transport = transport
+
+    @property
+    def on_inbound_frame(self):
+        if self._on_inbound_frame is None:
+            self._warn_force_connect('on_inbound_frame')
+            self.connect()
+        return self._on_inbound_frame
+
+    @on_inbound_frame.setter
+    def on_inbound_frame(self, on_inbound_frame):
+        self._on_inbound_frame = on_inbound_frame
+
+    @property
+    def frame_writer(self):
+        if self._frame_writer is None:
+            self._warn_force_connect('frame_writer')
+            self.connect()
+        return self._frame_writer
+
+    @frame_writer.setter
+    def frame_writer(self, frame_writer):
+        self._frame_writer = frame_writer
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
@@ -340,7 +387,7 @@ class Connection(AbstractChannel):
 
     @property
     def connected(self):
-        return self.transport and self.transport.connected
+        return self._transport and self._transport.connected
 
     def collect(self):
         try:
@@ -352,7 +399,7 @@ class Connection(AbstractChannel):
         except socket.error:
             pass  # connection already closed on the other end
         finally:
-            self.transport = self.connection = self.channels = None
+            self._transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
         try:
@@ -453,7 +500,7 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
-        if self.transport is None:
+        if self._transport is None:
             # already closed
             return
 
@@ -563,7 +610,7 @@ class Connection(AbstractChannel):
 
     def send_heartbeat(self):
         try:
-            self._frame_writer.send((8, 0, None, None, None))
+            self.frame_writer.send((8, 0, None, None, None))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 

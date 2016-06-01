@@ -59,7 +59,7 @@ class AbstractChannel(object):
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else bytes_if_py2('')
         try:
-            conn._frame_writer.send((1, self.channel_id, sig, args, content))
+            conn.frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 

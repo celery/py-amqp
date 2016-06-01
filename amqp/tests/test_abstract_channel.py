@@ -34,7 +34,7 @@ class test_AbstractChannel(Case):
 
     def test_send_method(self):
         self.c.send_method((50, 60), 'iB', (30, 0))
-        self.conn._frame_writer.send.assert_called_with((
+        self.conn.frame_writer.send.assert_called_with((
             1, self.channel_id, (50, 60), dumps('iB', (30, 0)), None,
         ))
 
@@ -50,7 +50,7 @@ class test_AbstractChannel(Case):
         self.c.wait.assert_called_with((50, 61), returns_tuple=False)
 
     def test_send_method__StopIteration(self):
-        self.conn._frame_writer.send.side_effect = StopIteration()
+        self.conn.frame_writer.send.side_effect = StopIteration()
         with self.assertRaises(RecoverableConnectionError):
             self.c.send_method((50, 60), 'iB', (30, 0))
 

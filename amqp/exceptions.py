@@ -30,7 +30,13 @@ __all__ = [
     'ResourceLocked', 'PreconditionFailed', 'FrameError', 'FrameSyntaxError',
     'InvalidCommand', 'ChannelNotOpen', 'UnexpectedFrame', 'ResourceError',
     'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
+
+    'AMQPDeprecationWarning',
 ]
+
+
+class AMQPDeprecationWarning(UserWarning):
+    pass
 
 
 @python_2_unicode_compatible

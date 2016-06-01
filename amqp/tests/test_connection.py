@@ -18,7 +18,7 @@ class test_Connection(Case):
 
     def setup(self):
         self.frame_handler = Mock(name='frame_handler')
-        self.frame_writer = Mock(name='frame_writer')
+        self.frame_writer = Mock(name='frame_writer_cls')
         self.conn = Connection(
             frame_handler=self.frame_handler,
             frame_writer=self.frame_writer,
@@ -27,7 +27,7 @@ class test_Connection(Case):
         self.conn.Transport = Mock(name='Transport')
         self.conn.transport = self.conn.Transport.return_value
         self.conn.send_method = Mock(name='send_method')
-        self.conn._frame_writer = Mock(name='_frame_writer')
+        self.conn.frame_writer = Mock(name='frame_writer')
 
     def test_login_response(self):
         self.conn = Connection(login_response='foo')
@@ -277,10 +277,10 @@ class test_Connection(Case):
 
     def test_send_heartbeat(self):
         self.conn.send_heartbeat()
-        self.conn._frame_writer.send.assert_called_with(
+        self.conn.frame_writer.send.assert_called_with(
             (8, 0, None, None, None),
         )
-        self.conn._frame_writer.send.side_effect = StopIteration()
+        self.conn.frame_writer.send.side_effect = StopIteration()
         with self.assertRaises(RecoverableConnectionError):
             self.conn.send_heartbeat()
 
