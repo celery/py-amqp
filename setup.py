@@ -91,8 +91,12 @@ def strip_comments(l):
 
 
 def reqs(f):
-    return filter(None, [strip_comments(l) for l in open(
+    req = filter(None, [strip_comments(l) for l in open(
         os.path.join(os.getcwd(), 'requirements', f)).readlines()])
+    # filter returns filter object(iterator) in Python 3,
+    # but a list in Python 2.7, so make sure it returns a list.
+    return list(req)
+
 
 # -*- Long Description -*-
 
