@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from datetime import datetime
 from decimal import Decimal
@@ -27,28 +27,28 @@ class test_serialization(Case):
         self.assertEqual(_read_item(b's8thequick')[0], 'thequick')
 
     def test_read_item_b(self):
-        self.assertEqual(_read_item(b'b' + pack('>B', True))[0], True)
+        self.assertEqual(_read_item(b'b' + pack(b'>B', True))[0], True)
 
     def test_read_item_B(self):
-        self.assertEqual(_read_item(b'B' + pack('>b', 123))[0], 123)
+        self.assertEqual(_read_item(b'B' + pack(b'>b', 123))[0], 123)
 
     def test_read_item_U(self):
-        self.assertEqual(_read_item(b'U' + pack('>h', -321))[0], -321)
+        self.assertEqual(_read_item(b'U' + pack(b'>h', -321))[0], -321)
 
     def test_read_item_u(self):
-        self.assertEqual(_read_item(b'u' + pack('>H', 321))[0], 321)
+        self.assertEqual(_read_item(b'u' + pack(b'>H', 321))[0], 321)
 
     def test_read_item_i(self):
-        self.assertEqual(_read_item(b'i' + pack('>I', 1234))[0], 1234)
+        self.assertEqual(_read_item(b'i' + pack(b'>I', 1234))[0], 1234)
 
     def test_read_item_L(self):
-        self.assertEqual(_read_item(b'L' + pack('>q', -32451))[0], -32451)
+        self.assertEqual(_read_item(b'L' + pack(b'>q', -32451))[0], -32451)
 
     def test_read_item_l(self):
-        self.assertEqual(_read_item(b'l' + pack('>Q', 32451))[0], 32451)
+        self.assertEqual(_read_item(b'l' + pack(b'>Q', 32451))[0], 32451)
 
     def test_read_item_f(self):
-        self.assertEqual(ceil(_read_item(b'f' + pack('>f', 33.3))[0]), 34.0)
+        self.assertEqual(ceil(_read_item(b'f' + pack(b'>f', 33.3))[0]), 34.0)
 
     def test_read_item_V(self):
         self.assertIsNone(_read_item(b'V')[0])
@@ -170,7 +170,7 @@ class test_GenericContent(Case):
             'content_encoding': 'utf-8',
         }
         body = 'the quick brown fox'
-        buf = b'\0' * 30 + pack('>HxxQ', m.CLASS_ID, len(body))
+        buf = b'\0' * 30 + pack(b'>HxxQ', m.CLASS_ID, len(body))
         buf += m._serialize_properties()
         self.assertEqual(m.inbound_header(buf, offset=30), 42)
         self.assertEqual(m.body_size, len(body))
@@ -180,7 +180,7 @@ class test_GenericContent(Case):
     def test_inbound_header__empty_body(self):
         m = Message()
         m.properties = {}
-        buf = pack('>HxxQ', m.CLASS_ID, 0)
+        buf = pack(b'>HxxQ', m.CLASS_ID, 0)
         buf += m._serialize_properties()
         self.assertEqual(m.inbound_header(buf, offset=0), 12)
         self.assertTrue(m.ready)

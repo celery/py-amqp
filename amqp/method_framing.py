@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
@@ -113,52 +113,52 @@ def frame_writer(connection, transport,
 
         if bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (b''.join([pack('>HH', *method_sig),
+            frame = (b''.join([pack(b'>HH', *method_sig),
                                str_to_bytes(args)])
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
-            write(pack('>BHI%dsB' % framelen,
+            write(pack(b'>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
             if body:
                 properties = content._serialize_properties()
                 frame = b''.join([
-                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    pack(b'>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
-                write(pack('>BHI%dsB' % framelen,
+                write(pack(b'>BHI%dsB' % framelen,
                            2, channel, framelen, frame, 0xce))
 
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
-                    write(pack('>BHI%dsB' % framelen,
+                    write(pack(b'>BHI%dsB' % framelen,
                                3, channel, framelen,
                                str_to_bytes(frame), 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (b''.join([pack('>HH', *method_sig),
+            frame = (b''.join([pack(b'>HH', *method_sig),
                                str_to_bytes(args)])
                      if type_ == 1 else b'')
             framelen = len(frame)
-            pack_into('>BHI%dsB' % framelen, buf, offset,
+            pack_into(b'>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
                 properties = content._serialize_properties()
                 frame = b''.join([
-                    pack('>HHQ', method_sig[0], 0, len(body)),
+                    pack(b'>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
 
-                pack_into('>BHI%dsB' % framelen, buf, offset,
+                pack_into(b'>BHI%dsB' % framelen, buf, offset,
                           2, channel, framelen, frame, 0xce)
                 offset += 8 + framelen
 
                 framelen = len(body)
-                pack_into('>BHI%dsB' % framelen, buf, offset,
+                pack_into(b'>BHI%dsB' % framelen, buf, offset,
                           3, channel, framelen, str_to_bytes(body), 0xce)
                 offset += 8 + framelen
 
