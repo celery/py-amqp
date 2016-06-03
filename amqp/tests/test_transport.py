@@ -192,6 +192,11 @@ class test_AbstractTransport(Case):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
+    def test_port(self):
+        assert self.Transport('localhost').port == 5672
+        assert self.Transport('localhost:5672').port == 5672
+        assert self.Transport('[fe80::1]:5432').port == 5432
+
     def test_read(self):
         with self.assertRaises(NotImplementedError):
             self.t._read(1024)

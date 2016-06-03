@@ -66,7 +66,7 @@ TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
 
 
 def to_host_port(host, default=AMQP_PORT):
-    port = None
+    port = default
     m = IPV6_LITERAL.match(host)
     if m:
         host = m.group(1)
