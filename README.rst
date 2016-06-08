@@ -4,7 +4,7 @@
 
 |build-status| |coverage| |bitdeli|
 
-:Version: 2.0.0rc2
+:Version: 2.0.2
 :Web: https://amqp.readthedocs.io/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/

@@ -19,7 +19,15 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Python <= 2.7.7: struct.pack arguments cannot be unicode
 
-    Fix contributed by Alan Justino,
+    Fix contributed by Alan Justino and Xin Li.
+
+- Python 3.4: Fixed use of `bytes % int`.
+
+    Fix contributed by Alan Justino.
+
+- Connection/Transport: Fixed handling of default port.
+
+    Fix contributed by Quentin Pradet.
 
 .. _version-2.0.1:
 
