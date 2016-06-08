@@ -5,6 +5,22 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.0.2:
+
+2.0.2
+=====
+:release-date: 2016-06-07 5:37 PM PDT
+:release-by: Ask Solem
+
+- Python 3: Installation requirements ended up being a generator
+  and crashed setup.py.
+
+    Fix contributed by ChangBo Guo(gcb).
+
+- Python <= 2.7.7: struct.pack arguments cannot be unicode
+
+    Fix contributed by Alan Justino,
+
 .. _version-2.0.1:
 
 2.0.1
