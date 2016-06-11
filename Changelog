@@ -9,7 +9,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 2.0.2
 =====
-:release-date: 2016-06-07 5:37 PM PDT
+:release-date: 2016-06-10 5:40 PM PDT
 :release-by: Ask Solem
 
 - Python 3: Installation requirements ended up being a generator
