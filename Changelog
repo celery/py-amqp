@@ -125,7 +125,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-date: 2016-01-08 5:50 PM PST
 :release-by: Ask Solem
 
-- Fixes compatibility with Linux/OS X instances where the ``ctypes`` module
+- Fixes compatibility with Linux/macOS instances where the ``ctypes`` module
   does not exist.
 
     Fix contributed by Jared Lewis.
@@ -149,7 +149,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-date: 2015-10-02 05:30 P.M PDT
 :release-by: Ask Solem
 
-- Fixed libSystem error on OS X 10.11 (El Capitan)
+- Fixed libSystem error on macOS 10.11 (El Capitan)
 
     Fix contributed by Eric Wang.
 
