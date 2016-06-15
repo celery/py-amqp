@@ -178,9 +178,9 @@ class SocketOptions(Case):
         self.assertEqual(result, expected)
 
 
-class test_AbstractTransport(Case):
+class test_BaseTransport(Case):
 
-    class Transport(transport._AbstractTransport):
+    class Transport(transport.BaseTransport):
 
         def _connect(self, *args):
             pass

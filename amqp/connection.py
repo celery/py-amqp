@@ -18,6 +18,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
+import typing
 import uuid
 import warnings
 
@@ -38,6 +39,9 @@ from .five import array, range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import Transport
+from .types import SSLArg, Timeout, MaybeDict
+
+from typing import Mapping, Generator, Callable, List, Any
 
 try:
     from ssl import SSLError
@@ -71,6 +75,20 @@ LIBRARY_PROPERTIES = {
 
 AMQP_LOGGER = logging.getLogger('amqp')
 
+ConnectionBlockedCallback = typing.Callable[[str], None]
+ConnectionUnblockedCallback = typing.Callable[[], None]
+ConnectionInboundMethodHandler = typing.Callable[
+    [int, spec.method_sig_t, typing.ByteString, typing.ByteString], typing.Any,
+]
+ConnectionFrameHandler = typing.Callable[
+    ['Connection', ConnectionInboundMethodHandler],
+    typing.Generator[typing.Any],
+]
+ConnectionFrameWriter = typing.Callable[
+    ['Connection', BaseTransport], typing.Generator[typing.Any],
+]
+MethodSigMethodMapping = Mapping[spec.method_sig_t, spec.method]
+
 
 class Connection(AbstractChannel):
     """The connection class provides methods for a client to establish a
@@ -94,33 +112,33 @@ class Connection(AbstractChannel):
     Channel = Channel
 
     #: Final heartbeat interval value (in float seconds) after negotiation
-    heartbeat = None
+    heartbeat = None  # type: Timeout
 
     #: Original heartbeat interval value proposed by client.
-    client_heartbeat = None
+    client_heartbeat = None  # type: Timeout
 
     #: Original heartbeat interval proposed by server.
-    server_heartbeat = None
+    server_heartbeat = None  # type: Timeout
 
     #: Time of last heartbeat sent (in monotonic time, if available).
-    last_heartbeat_sent = 0
+    last_heartbeat_sent = 0  # type: float
 
     #: Time of last heartbeat received (in monotonic time, if available).
-    last_heartbeat_received = 0
+    last_heartbeat_received = 0  # type: float
 
     #: Number of successful writes to socket.
-    bytes_sent = 0
+    bytes_sent = 0  # type: int
 
     #: Number of successful reads from socket.
-    bytes_recv = 0
+    bytes_recv = 0  # type: int
 
     #: Number of bytes sent to socket at the last heartbeat check.
-    prev_sent = None
+    prev_sent = None  # type: Optional[int]
 
     #: Number of bytes received from socket at the last heartbeat check.
-    prev_recv = None
+    prev_recv = None  # type: Optional[int]
 
-    _METHODS = set([
+    _METHODSET = [  # type: List[spec.method_sig_t]
         spec.method(spec.Connection.Start, 'ooFSS'),
         spec.method(spec.Connection.OpenOk),
         spec.method(spec.Connection.Secure, 's'),
@@ -129,23 +147,24 @@ class Connection(AbstractChannel):
         spec.method(spec.Connection.Blocked),
         spec.method(spec.Connection.Unblocked),
         spec.method(spec.Connection.CloseOk),
-    ])
-    _METHODS = {m.method_sig: m for m in _METHODS}
+    ]
 
-    connection_errors = (
+    _METHODS = {m.method_sig: m for m in _METHODSET}  # type: MethodSigMethodMapping
+
+    connection_errors = (  # type: Tuple[Exception]
         ConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    channel_errors = (ChannelError,)
-    recoverable_connection_errors = (
+    channel_errors = (ChannelError,)   # type: Tuple[Exception]
+    recoverable_connection_errors = (  # type: Tuple[Exception]
         RecoverableConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    recoverable_channel_errors = (
+    recoverable_channel_errors = (    # type: Tuple[Exception]
         RecoverableChannelError,
     )
 
@@ -158,6 +177,7 @@ class Connection(AbstractChannel):
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
                  socket_settings=None, frame_handler=frame_handler,
                  frame_writer=frame_writer, **kwargs):
+        # type: (str, str, str, str, Any, str, str, Mapping, SSLArg, Timeout, int, int, Timeout, Thenable, ConnectionBlockedCallback, ConnectionUnblockedCallback, bool, ConnectionTuneOkCallback, Timeout, Timeout, MaybeDict, ConnectionFrameHandler, ConnectionFrameWriter, **Any) -> None
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -174,79 +194,84 @@ class Connection(AbstractChannel):
         settings which will be applied as socket options.
 
         """
-        self._connection_id = uuid.uuid4().hex
-        channel_max = channel_max or 65535
-        frame_max = frame_max or 131072
+        self._connection_id = uuid.uuid4().hex  # type: str
+        channel_max = channel_max or 65535      # type: int
+        frame_max = frame_max or 131072         # type: int
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
-            login_response = BytesIO()
+            login_response = BytesIO()          # type: ByteString
             _write_table({'LOGIN': userid, 'PASSWORD': password},
                          login_response.write, [])
             # Skip the length at the beginning
             login_response = login_response.getvalue()[4:]
 
-        self.client_properties = dict(
+        self.client_properties = dict(  # type: Mapping[Any, Any]
             LIBRARY_PROPERTIES, **client_properties or {}
         )
-        self.login_method = login_method
-        self.login_response = login_response
-        self.locale = locale
-        self.host = host
-        self.virtual_host = virtual_host
-        self.on_tune_ok = ensure_promise(on_tune_ok)
+        self.login_method = login_method      # type: str
+        self.login_response = login_response  # type: str
+        self.locale = locale                  # type: str
+        self.host = host                      # type: str
+        self.virtual_host = virtual_host      # type: str
+        self.on_tune_ok = ensure_promise(on_tune_ok)  # type: promise
 
-        self.frame_handler_cls = frame_handler
-        self.frame_writer_cls = frame_writer
+        self.frame_handler_cls = frame_handler  # type: ConnectionFrameHandler
+        self.frame_writer_cls = frame_writer    # type: ConnectionFrameWriter
 
-        self._handshake_complete = False
+        self._handshake_complete = False  # type: bool
 
-        self.channels = {}
+        self.channels = {}  # type: Mapping[int, Channel]
         # The connection object itself is treated as channel 0
         super(Connection, self).__init__(self, 0)
 
-        self._frame_writer = None
-        self._on_inbound_frame = None
-        self._transport = None
+        self._frame_writer = None      # type: Generator
+        self._on_inbound_frame = None  # type: ConnectionInboundFrameHandler
+        self._transport = None         # type: BaseTransport
 
         # Properties set in the Tune method
-        self.channel_max = channel_max
-        self.frame_max = frame_max
-        self.client_heartbeat = heartbeat
+        self.channel_max = channel_max     # type: int
+        self.frame_max = frame_max         # type: int
+        self.client_heartbeat = heartbeat  # type: timeout
 
-        self.confirm_publish = confirm_publish
-        self.ssl = ssl
-        self.read_timeout = read_timeout
-        self.write_timeout = write_timeout
-        self.socket_settings = socket_settings
+        self.confirm_publish = confirm_publish  # type: bool
+        self.ssl = ssl                          # type: SSLArg
+        self.read_timeout = read_timeout        # type: Timeout
+        self.write_timeout = write_timeout      # type: Timeout
+        self.socket_settings = socket_settings  # type: MaybeDict
 
         # Callbacks
-        self.on_blocked = on_blocked
-        self.on_unblocked = on_unblocked
-        self.on_open = ensure_promise(on_open)
+        self.on_blocked = on_blocked  # type: ConnectionBlockedCallback
+        self.on_unblocked = on_unblocked  # type: ConnectionUnblockedCallback
+        self.on_open = ensure_promise(on_open)  # type: Thenable
 
+        # type: Sequence[int]
         self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
 
         # Properties set in the Start method
-        self.version_major = 0
-        self.version_minor = 0
-        self.server_properties = {}
-        self.mechanisms = []
-        self.locales = []
+        self.version_major = 0        # type: int
+        self.version_minor = 0        # type: int
+        self.server_properties = {}   # type: Mapping[Any, Any]
+        self.mechanisms = []          # type: List[Any]
+        self.locales = []             # type: List[Str]
 
-        self.connect_timeout = connect_timeout
+        self.connect_timeout = connect_timeout  # type: Timeout
 
     def __enter__(self):
+        # type: () -> Connection
         self.connect()
         return self
 
     def __exit__(self, *eargs):
+        # type: (*Any) -> None
         self.close()
 
     def then(self, on_success, on_error=None):
+        # type: (Thenable, Thenable) -> Thenable
         return self.on_open.then(on_success, on_error)
 
     def _setup_listeners(self):
+        # type: () -> None
         self._callbacks.update({
             spec.Connection.Start: self._on_start,
             spec.Connection.OpenOk: self._on_open_ok,
@@ -259,6 +284,7 @@ class Connection(AbstractChannel):
         })
 
     def connect(self, callback=None):
+        # type: (Callable[[], None]) -> None
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
@@ -278,11 +304,13 @@ class Connection(AbstractChannel):
             self.drain_events(timeout=self.connect_timeout)
 
     def _warn_force_connect(self, attr):
+        # type: (str) -> None
         warnings.warn(AMQPDeprecationWarning(
             W_FORCE_CONNECT.format(attr=attr)))
 
     @property
     def transport(self):
+        # type: () -> BaseTransport
         if self._transport is None:
             self._warn_force_connect('transport')
             self.connect()
@@ -294,6 +322,7 @@ class Connection(AbstractChannel):
 
     @property
     def on_inbound_frame(self):
+        # type: () -> ConnectionInboundFrameHandler
         if self._on_inbound_frame is None:
             self._warn_force_connect('on_inbound_frame')
             self.connect()
@@ -305,6 +334,7 @@ class Connection(AbstractChannel):
 
     @property
     def frame_writer(self):
+        # type: () -> Generator[Any]
         if self._frame_writer is None:
             self._warn_force_connect('frame_writer')
             self.connect()
@@ -316,6 +346,7 @@ class Connection(AbstractChannel):
 
     def _on_start(self, version_major, version_minor, server_properties,
                   mechanisms, locales, argsig='FsSs'):
+        # type: (int, int, Mapping[Any, Any], str, str, str) -> None
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
@@ -344,9 +375,11 @@ class Connection(AbstractChannel):
         )
 
     def _on_secure(self, challenge):
+        # type: (str) -> None
         pass
 
     def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
+        # type: (int, int, Timeout, str) -> None
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max

@@ -2,105 +2,107 @@ from __future__ import absolute_import, unicode_literals
 
 from collections import namedtuple
 
+method_sig_t = namedtuple('method_sig_t', ('major', 'minor'))
 method_t = namedtuple('method_t', ('method_sig', 'args', 'content'))
 
 
 def method(method_sig, args=None, content=False):
+    # type: (method_sig_t, str, ByteStr) -> method_t
     return method_t(method_sig, args, content)
 
 
 class Connection:
     CLASS_ID = 10
 
-    Start = (10, 10)
-    StartOk = (10, 11)
-    Secure = (10, 20)
-    SecureOk = (10, 21)
-    Tune = (10, 30)
-    TuneOk = (10, 31)
-    Open = (10, 40)
-    OpenOk = (10, 41)
-    Close = (10, 50)
-    CloseOk = (10, 51)
-    Blocked = (10, 60)
-    Unblocked = (10, 61)
+    Start = method_sig_t(CLASS_ID, 10)
+    StartOk = method_sig_t(CLASS_ID, 11)
+    Secure = method_sig_t(CLASS_ID, 20)
+    SecureOk = method_sig_t(CLASS_ID, 21)
+    Tune = method_sig_t(CLASS_ID, 30)
+    TuneOk = method_sig_t(CLASS_ID, 31)
+    Open = method_sig_t(CLASS_ID, 40)
+    OpenOk = method_sig_t(CLASS_ID, 41)
+    Close = method_sig_t(CLASS_ID, 50)
+    CloseOk = method_sig_t(CLASS_ID, 51)
+    Blocked = method_sig_t(CLASS_ID, 60)
+    Unblocked = method_sig_t(CLASS_ID, 61)
 
 
 class Channel:
     CLASS_ID = 20
 
-    Open = (20, 10)
-    OpenOk = (20, 11)
-    Flow = (20, 20)
-    FlowOk = (20, 21)
-    Close = (20, 40)
-    CloseOk = (20, 41)
+    Open = method_sig_t(CLASS_ID, 10)
+    OpenOk = method_sig_t(CLASS_ID, 11)
+    Flow = method_sig_t(CLASS_ID, 20)
+    FlowOk = method_sig_t(CLASS_ID, 21)
+    Close = method_sig_t(CLASS_ID, 40)
+    CloseOk = method_sig_t(CLASS_ID, 41)
 
 
 class Exchange:
     CLASS_ID = 40
 
-    Declare = (40, 10)
-    DeclareOk = (40, 11)
-    Delete = (40, 20)
-    DeleteOk = (40, 21)
-    Bind = (40, 30)
-    BindOk = (40, 31)
-    Unbind = (40, 40)
-    UnbindOk = (40, 51)
+    Declare = method_sig_t(CLASS_ID, 10)
+    DeclareOk = method_sig_t(CLASS_ID, 11)
+    Delete = method_sig_t(CLASS_ID, 20)
+    DeleteOk = method_sig_t(CLASS_ID, 21)
+    Bind = method_sig_t(CLASS_ID, 30)
+    BindOk = method_sig_t(CLASS_ID, 31)
+    Unbind = method_sig_t(CLASS_ID, 40)
+    UnbindOk = method_sig_t(CLASS_ID, 51)
 
 
 class Queue:
     CLASS_ID = 50
 
-    Declare = (50, 10)
-    DeclareOk = (50, 11)
-    Bind = (50, 20)
-    BindOk = (50, 21)
-    Purge = (50, 30)
-    PurgeOk = (50, 31)
-    Delete = (50, 40)
-    DeleteOk = (50, 41)
-    Unbind = (50, 50)
-    UnbindOk = (50, 51)
+    Declare = method_sig_t(CLASS_ID, 10)
+    DeclareOk = method_sig_t(CLASS_ID, 11)
+    Bind = method_sig_t(CLASS_ID, 20)
+    BindOk = method_sig_t(CLASS_ID, 21)
+    Purge = method_sig_t(CLASS_ID, 30)
+    PurgeOk = method_sig_t(CLASS_ID, 31)
+    Delete = method_sig_t(CLASS_ID, 40)
+    DeleteOk = method_sig_t(CLASS_ID, 41)
+    Unbind = method_sig_t(CLASS_ID, 50)
+    UnbindOk = method_sig_t(CLASS_ID, 51)
 
 
 class Basic:
     CLASS_ID = 60
 
-    Qos = (60, 10)
-    QosOk = (60, 11)
-    Consume = (60, 20)
-    ConsumeOk = (60, 21)
-    Cancel = (60, 30)
-    CancelOk = (60, 31)
-    Publish = (60, 40)
-    Return = (60, 50)
-    Deliver = (60, 60)
-    Get = (60, 70)
-    GetOk = (60, 71)
-    GetEmpty = (60, 72)
-    Ack = (60, 80)
-    Nack = (60, 120)
-    Reject = (60, 90)
-    RecoverAsync = (60, 100)
-    Recover = (60, 110)
-    RecoverOk = (60, 111)
+    Qos = method_sig_t(CLASS_ID, 10)
+    QosOk = method_sig_t(CLASS_ID, 11)
+    Consume = method_sig_t(CLASS_ID, 20)
+    ConsumeOk = method_sig_t(CLASS_ID, 21)
+    Cancel = method_sig_t(CLASS_ID, 30)
+    CancelOk = method_sig_t(CLASS_ID, 31)
+    Publish = method_sig_t(CLASS_ID, 40)
+    Return = method_sig_t(CLASS_ID, 50)
+    Deliver = method_sig_t(CLASS_ID, 60)
+    Get = method_sig_t(CLASS_ID, 70)
+    GetOk = method_sig_t(CLASS_ID, 71)
+    GetEmpty = method_sig_t(CLASS_ID, 72)
+    Ack = method_sig_t(CLASS_ID, 80)
+    Nack = method_sig_t(CLASS_ID, 120)
+    Reject = method_sig_t(CLASS_ID, 90)
+    RecoverAsync = method_sig_t(CLASS_ID, 100)
+    Recover = method_sig_t(CLASS_ID, 110)
+    RecoverOk = method_sig_t(CLASS_ID, 111)
 
 
 class Confirm:
     CLASS_ID = 85
 
-    Select = (85, 10)
-    SelectOk = (85, 11)
+    Select = method_sig_t(CLASS_ID, 10)
+    SelectOk = method_sig_t(CLASS_ID, 11)
 
 
 class Tx:
     CLASS_ID = 90
 
-    Select = (90, 10)
-    SelectOk = (90, 11)
-    Commit = (90, 20)
-    CommitOk = (90, 21)
-    Rollback = (90, 30)
-    RollbackOk = (90, 31)
+    Select = method_sig_t(CLASS_ID, 10)
+    SelectOk = method_sig_t(CLASS_ID, 11)
+    Commit = method_sig_t(CLASS_ID, 20)
+    CommitOk = method_sig_t(CLASS_ID, 21)
+    Rollback = method_sig_t(CLASS_ID, 30)
+    RollbackOk = method_sig_t(CLASS_ID, 31)
