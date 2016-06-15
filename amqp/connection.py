@@ -120,7 +120,7 @@ class Connection(AbstractChannel):
     #: Number of bytes received from socket at the last heartbeat check.
     prev_recv = None
 
-    _METHODS = set([
+    _METHODS = {
         spec.method(spec.Connection.Start, 'ooFSS'),
         spec.method(spec.Connection.OpenOk),
         spec.method(spec.Connection.Secure, 's'),
@@ -129,7 +129,7 @@ class Connection(AbstractChannel):
         spec.method(spec.Connection.Blocked),
         spec.method(spec.Connection.Unblocked),
         spec.method(spec.Connection.CloseOk),
-    ])
+    }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
     connection_errors = (
