@@ -11,7 +11,7 @@ from amqp.exceptions import UnexpectedFrame
 from .case import Case, Mock, patch
 
 
-class MockSocket(object):
+class MockSocket:
     options = {}
 
     def setsockopt(self, family, key, value):

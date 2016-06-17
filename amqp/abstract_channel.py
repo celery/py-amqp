@@ -25,7 +25,7 @@ from .serialization import dumps, loads
 __all__ = ['AbstractChannel']
 
 
-class AbstractChannel(object):
+class AbstractChannel:
     """Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.
 

@@ -474,7 +474,7 @@ PROPERTY_CLASSES = {
 }
 
 
-class GenericContent(object):
+class GenericContent:
     """Abstract base class for AMQP content.
 
     Subclasses should override the PROPERTIES attribute.

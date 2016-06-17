@@ -12,7 +12,7 @@ from amqp.serialization import GenericContent, _read_item, dumps, loads
 from .case import Case
 
 
-class ANY(object):
+class ANY:
 
     def __eq__(self, other):
         return other is not None

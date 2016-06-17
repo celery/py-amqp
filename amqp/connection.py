@@ -38,7 +38,7 @@ from .exceptions import (
 from .five import array, range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
-from .transport import Transport
+from .transport import BaseTransport, Transport
 from .types import SSLArg, Timeout, MaybeDict
 
 from typing import Mapping, Generator, Callable, List, Any
@@ -78,16 +78,17 @@ AMQP_LOGGER = logging.getLogger('amqp')
 ConnectionBlockedCallback = typing.Callable[[str], None]
 ConnectionUnblockedCallback = typing.Callable[[], None]
 ConnectionInboundMethodHandler = typing.Callable[
-    [int, spec.method_sig_t, typing.ByteString, typing.ByteString], typing.Any,
+    [int, typing.Tuple[Any], typing.ByteString, typing.ByteString], typing.Any,
 ]
 ConnectionFrameHandler = typing.Callable[
     ['Connection', ConnectionInboundMethodHandler],
-    typing.Generator[typing.Any],
+    typing.Generator[typing.Any, typing.Any, typing.Any],
 ]
 ConnectionFrameWriter = typing.Callable[
-    ['Connection', BaseTransport], typing.Generator[typing.Any],
+    ['Connection', BaseTransport], typing.Generator[typing.Any, typing.Any,
+        typing.Any],
 ]
-MethodSigMethodMapping = Mapping[spec.method_sig_t, spec.method]
+MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
 
 
 class Connection(AbstractChannel):
@@ -168,16 +169,26 @@ class Connection(AbstractChannel):
         RecoverableChannelError,
     )
 
-    def __init__(self, host='localhost:5672', userid='guest', password='guest',
-                 login_method='AMQPLAIN', login_response=None,
-                 virtual_host='/', locale='en_US', client_properties=None,
-                 ssl=False, connect_timeout=None, channel_max=None,
-                 frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
-                 on_unblocked=None, confirm_publish=False,
-                 on_tune_ok=None, read_timeout=None, write_timeout=None,
-                 socket_settings=None, frame_handler=frame_handler,
-                 frame_writer=frame_writer, **kwargs):
-        # type: (str, str, str, str, Any, str, str, Mapping, SSLArg, Timeout, int, int, Timeout, Thenable, ConnectionBlockedCallback, ConnectionUnblockedCallback, bool, ConnectionTuneOkCallback, Timeout, Timeout, MaybeDict, ConnectionFrameHandler, ConnectionFrameWriter, **Any) -> None
+    def __init__(self, host: str='localhost:5672',
+                 userid: str='guest', password: str='guest',
+                 login_method: str='AMQPLAIN', login_response: Any=None,
+                 virtual_host: str='/', locale: str='en_US',
+                 client_properties: MaybeDict=None,
+                 ssl: Optional[SSLArg]=False, connect_timeout: Timeout=None,
+                 channel_max: Optional[int]=None,
+                 frame_max: Optional[int]=None,
+                 heartbeat: Timeout=0,
+                 on_open: Thenable=None,
+                 on_blocked: Optional[ConnectionBlockedCallback]=None,
+                 on_unblocked: Optional[ConnectionUnblockedCallback]=None,
+                 bool: confirm_publish=False,
+                 on_tune_ok: Optional[ConnectionTuneOkCallback]=None,
+                 read_timeout: Timeout=None,
+                 write_timeout: Timeout=None,
+                 socket_settings: MaybeDict=None,
+                 frame_handler: ConnectionFrameHandler=frame_handler,
+                 frame_writer: ConnectionFrameWriter=frame_writer,
+                 **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
         (defaults to 'localhost', if a port is not specified then
@@ -257,21 +268,17 @@ class Connection(AbstractChannel):
 
         self.connect_timeout = connect_timeout  # type: Timeout
 
-    def __enter__(self):
-        # type: () -> Connection
+    def __enter__(self) -> Any:
         self.connect()
         return self
 
-    def __exit__(self, *eargs):
-        # type: (*Any) -> None
+    def __exit__(self, *eargs) -> None:
         self.close()
 
-    def then(self, on_success, on_error=None):
-        # type: (Thenable, Thenable) -> Thenable
+    def then(self, on_success: Thenable, on_error: Thenable=None) -> Thenable:
         return self.on_open.then(on_success, on_error)
 
-    def _setup_listeners(self):
-        # type: () -> None
+    def _setup_listeners(self) -> None:
         self._callbacks.update({
             spec.Connection.Start: self._on_start,
             spec.Connection.OpenOk: self._on_open_ok,
@@ -283,8 +290,7 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self, callback=None):
-        # type: (Callable[[], None]) -> None
+    def connect(self, callback: Optional[Callable[[], None]=None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
@@ -303,14 +309,12 @@ class Connection(AbstractChannel):
         while not self._handshake_complete:
             self.drain_events(timeout=self.connect_timeout)
 
-    def _warn_force_connect(self, attr):
-        # type: (str) -> None
+    def _warn_force_connect(self, attr: str) -> None:
         warnings.warn(AMQPDeprecationWarning(
             W_FORCE_CONNECT.format(attr=attr)))
 
     @property
-    def transport(self):
-        # type: () -> BaseTransport
+    def transport(self) -> BaseTransport:
         if self._transport is None:
             self._warn_force_connect('transport')
             self.connect()
@@ -321,8 +325,7 @@ class Connection(AbstractChannel):
         self._transport = transport
 
     @property
-    def on_inbound_frame(self):
-        # type: () -> ConnectionInboundFrameHandler
+    def on_inbound_frame(self) -> ConnectionInboundFrameHandler:
         if self._on_inbound_frame is None:
             self._warn_force_connect('on_inbound_frame')
             self.connect()
@@ -333,8 +336,7 @@ class Connection(AbstractChannel):
         self._on_inbound_frame = on_inbound_frame
 
     @property
-    def frame_writer(self):
-        # type: () -> Generator[Any]
+    def frame_writer(self) -> Generator[Any, Any, Any]:
         if self._frame_writer is None:
             self._warn_force_connect('frame_writer')
             self.connect()
@@ -344,8 +346,9 @@ class Connection(AbstractChannel):
     def frame_writer(self, frame_writer):
         self._frame_writer = frame_writer
 
-    def _on_start(self, version_major, version_minor, server_properties,
-                  mechanisms, locales, argsig='FsSs'):
+    def _on_start(self, version_major: int, version_minor: int,
+                  server_properties: Mapping[Any, Any],
+                  mechanisms: str, locales: str, argsig: str='FsSs') -> None:
         # type: (int, int, Mapping[Any, Any], str, str, str) -> None
         client_properties = self.client_properties
         self.version_major = version_major
@@ -374,12 +377,11 @@ class Connection(AbstractChannel):
              self.login_response, self.locale),
         )
 
-    def _on_secure(self, challenge):
-        # type: (str) -> None
+    def _on_secure(self, challenge: str) -> None:
         pass
 
-    def _on_tune(self, channel_max, frame_max, server_heartbeat, argsig='BlB'):
-        # type: (int, int, Timeout, str) -> None
+    def _on_tune(self, channel_max: int, frame_max: int,
+                 server_heartbeat: Timeout, argsig: str='BlB'):
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -402,28 +404,31 @@ class Connection(AbstractChannel):
             callback=self._on_tune_sent,
         )
 
-    def _on_tune_sent(self, argsig='ssb'):
+    def _on_tune_sent(self, argsig: str='ssb'):
         self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
-    def _on_open_ok(self):
+    def _on_open_ok(self) -> None:
         self._handshake_complete = True
         self.on_open(self)
 
-    def Transport(self, host, connect_timeout,
-                  ssl=False, read_timeout=None, write_timeout=None,
-                  socket_settings=None, **kwargs):
+    def Transport(self, host: str, connect_timeout: Timeout,
+                  ssl: Optional[SSLArg]=False,
+                  read_timeout: Timeout=None,
+                  write_timeout: Timeout=None,
+                  socket_settings: MaybeDict=None,
+                  **kwargs) -> BaseTransport:
         return Transport(
             host, connect_timeout=connect_timeout, ssl=ssl,
             read_timeout=read_timeout, write_timeout=write_timeout,
             socket_settings=socket_settings, **kwargs)
 
     @property
-    def connected(self):
+    def connected(self) -> bool:
         return self._transport and self._transport.connected
 
-    def collect(self):
+    def collect(self) -> None:
         try:
             self.transport.close()
 
@@ -435,7 +440,7 @@ class Connection(AbstractChannel):
         finally:
             self._transport = self.connection = self.channels = None
 
-    def _get_free_channel_id(self):
+    def _get_free_channel_id(self) -> int:
         try:
             return self._avail_channel_ids.pop()
         except IndexError:
@@ -443,14 +448,14 @@ class Connection(AbstractChannel):
                 'No free channel ids, current={0}, channel_max={1}'.format(
                     len(self.channels), self.channel_max), spec.Channel.Open)
 
-    def _claim_channel_id(self, channel_id):
+    def _claim_channel_id(self, channel_id) -> None:
         try:
-            return self._avail_channel_ids.remove(channel_id)
+            self._avail_channel_ids.remove(channel_id)
         except ValueError:
             raise ConnectionError(
                 'Channel %r already open' % (channel_id,))
 
-    def channel(self, channel_id=None, callback=None):
+    def channel(self, channel_id: int=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
         if self.channels is not None:
@@ -462,13 +467,13 @@ class Connection(AbstractChannel):
                 return channel
         raise RecoverableConnectionError('Connection already closed.')
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
-    def drain_events(self, timeout=None):
+    def drain_events(self, timeout: Timeout=None) -> None:
         return self.blocking_read(timeout)
 
-    def blocking_read(self, timeout=None):
+    def blocking_read(self, timeout: Timeout=None) -> Frame:
         with self.transport.having_timeout(timeout):
             frame = self.transport.read_frame()
         return self.on_inbound_frame(frame)
