@@ -2,7 +2,7 @@
  Python AMQP 0.9.1 client library
 =====================================================================
 
-|build-status| |coverage| |bitdeli|
+|build-status| |coverage|
 
 :Version: 2.0.2
 :Web: https://amqp.readthedocs.io/
@@ -107,8 +107,4 @@ Further
 
 .. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=master
     :target: https://codecov.io/github/celery/py-amqp?branch=master
-
-.. |bitdeli| image:: https://d2weczhvl823v0.cloudfront.net/celery/py-amqp/trend.png
-    :alt: Bitdeli badge
-    :target: https://bitdeli.com/free
 
