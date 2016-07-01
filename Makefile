@@ -77,7 +77,7 @@ apicheck:
 	(cd "$(SPHINX_DIR)"; $(MAKE) apicheck)
 
 flakecheck:
-	$(FLAKE8) "$(PROJ)"
+	$(FLAKE8) --ignore=X999 "$(PROJ)"
 
 flakediag:
 	-$(MAKE) flakecheck
