@@ -16,15 +16,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
+import re
+
 from collections import namedtuple
 
-version_info_t = namedtuple(
-    'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
-)
-
-VERSION = version_info = version_info_t(2, 0, 2, '', '')
-
-__version__ = '{0.major}.{0.minor}.{0.micro}{0.releaselevel}'.format(VERSION)
+__version__ = '2.0.2'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Ask Solem'
 __contact__ = 'pyamqp@celeryproject.org'
@@ -32,6 +28,19 @@ __homepage__ = 'http://github.com/celery/py-amqp'
 __docformat__ = 'restructuredtext'
 
 # -eof meta-
+
+version_info_t = namedtuple(
+    'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
+)
+
+# bumpversion can only search for {current_version}
+# so we have to parse the version here.
+_temp = re.match(
+    r'(\d+)\.(\d+).(\d+)(.+)?', __version__).groups()
+VERSION = version_info = version_info_t(
+    int(_temp[0]), int(_temp[1]), int(_temp[2]), _temp[3] or '', '')
+del(_temp)
+del(re)
 
 #
 # Pull in the public items from the various sub-modules
