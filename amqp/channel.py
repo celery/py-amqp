@@ -25,6 +25,7 @@ from warnings import warn
 from vine import ensure_promise
 
 from . import spec
+from . import abstract
 from .abstract_channel import AbstractChannel
 from .exceptions import (
     ChannelError, ConsumerCancelled,
@@ -2082,3 +2083,4 @@ class Channel(AbstractChannel):
     def _on_basic_ack(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
+abstract.Channel.register(Channel)

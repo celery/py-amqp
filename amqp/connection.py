@@ -28,6 +28,7 @@ from vine import ensure_promise
 
 from . import __version__
 from . import spec
+from . import abstract
 from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (
@@ -707,3 +708,4 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
+abstract.Connection.register(Connection)
