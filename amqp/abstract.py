@@ -1,4 +1,4 @@
-import ABCMeta
+from abc import ABCMeta
 
 class Channel(ABCMeta):
     pass
