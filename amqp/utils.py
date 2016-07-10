@@ -1,42 +1,31 @@
 from __future__ import absolute_import, unicode_literals
 
 import logging
-import sys
+import os
+
+from typing import (
+    Any, AnyStr, Callable, Generator, Optional, Union, cast,
+)
 
 # enables celery 3.1.23 to start again
 from vine import promise                # noqa
 from vine.utils import wraps
 
-from .five import string_t
-
-is_py3k = sys.version_info[0] == 3
+from .types import Fd
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None   # noqa
 
-try:
-    from os import set_cloexec  # Python 3.4?
-except ImportError:  # pragma: no cover
-    def set_cloexec(fd, cloexec):  # noqa
-        if fcntl is None:
-            return
-        try:
-            FD_CLOEXEC = fcntl.FD_CLOEXEC
-        except AttributeError:
-            raise NotImplementedError(
-                'close-on-exec flag not supported on this platform',
-            )
-        flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-        if cloexec:
-            flags |= FD_CLOEXEC
-        else:
-            flags &= ~FD_CLOEXEC
-        return fcntl.fcntl(fd, fcntl.F_SETFD, flags)
+
+def set_cloexec(fd: Fd, cloexec: bool) -> None:
+    if not isinstance(fd, int):
+        fd = fd.fileno()
+    os.set_inheritable(fd, cloexec)
 
 
-def get_errno(exc):
+def get_errno(exc: Any) -> int:
     """:exc:`socket.error` and :exc:`IOError` first got
     the ``.errno`` attribute in Py2.7"""
     try:
@@ -51,10 +40,10 @@ def get_errno(exc):
     return 0
 
 
-def coro(gen):
+def coro(gen: Callable) -> Callable:
 
     @wraps(gen)
-    def _boot(*args, **kwargs):
+    def _boot(*args, **kwargs) -> Generator:
         co = gen(*args, **kwargs)
         next(co)
         return co
@@ -62,37 +51,21 @@ def coro(gen):
     return _boot
 
 
-if is_py3k:  # pragma: no cover
-
-    def str_to_bytes(s):
-        if isinstance(s, str):
-            return s.encode()
-        return s
-
-    def bytes_to_str(s):
-        if isinstance(s, bytes):
-            return s.decode()
-        return s
-else:
-
-    def str_to_bytes(s):                # noqa
-        if isinstance(s, unicode):
-            return s.encode()
-        return s
-
-    def bytes_to_str(s):                # noqa
-        return s
+def str_to_bytes(s: AnyStr) -> bytes:
+    if isinstance(s, str):
+        return cast(str, s).encode()
+    return s
 
 
-class NullHandler(logging.Handler):
+def bytes_to_str(s: AnyStr) -> str:
+    if isinstance(s, bytes):
+        return cast(bytes, s).decode()
+    return s
 
-    def emit(self, record):
-        pass
 
-
-def get_logger(logger):
-    if isinstance(logger, string_t):
+def get_logger(logger: Optional[Union[logging.Logger, str]]) -> logging.Logger:
+    if isinstance(logger, str):
         logger = logging.getLogger(logger)
-    if not logger.handlers:
-        logger.addHandler(NullHandler())
+    if not logger.hasHandlers():
+        logger.addHandler(logging.NullHandler())
     return logger

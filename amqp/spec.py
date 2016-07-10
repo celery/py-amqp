@@ -1,13 +1,19 @@
-from __future__ import absolute_import, unicode_literals
+from typing import NamedTuple, Optional
 
-from collections import namedtuple
+method_sig_t = NamedTuple('method_sig_t', [
+    ('major', int), ('minor', int),
+])
 
-method_sig_t = namedtuple('method_sig_t', ('major', 'minor'))
-method_t = namedtuple('method_t', ('method_sig', 'args', 'content'))
+method_t = NamedTuple('method_t', [
+    ('method_sig', method_sig_t),
+    ('args', str),
+    ('content', bool),
+])
 
 
-def method(method_sig, args=None, content=False):
-    # type: (method_sig_t, str, ByteStr) -> method_t
+def method(method_sig: method_sig_t,
+           args: Optional[str] = None,
+           content: bool = False) -> method_t:
     return method_t(method_sig, args, content)
 
 

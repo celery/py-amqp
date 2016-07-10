@@ -13,25 +13,21 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
-import errno
 import re
 import struct
 import socket
 import ssl
 
-from collections import namedtuple
 from contextlib import contextmanager
 from struct import unpack
 from typing import (
-    Any, AnyStr, ByteString, Callable, IO, Mapping, Optional, Set, Tuple,
+    Any, AnyStr, ByteString, Callable, Dict,
+    NamedTuple, Optional, Tuple, cast,
 )
 
 from .exceptions import UnexpectedFrame
-from .five import items
 from .types import SSLArg, MaybeDict, Timeout
-from .utils import get_errno, set_cloexec
+from .utils import set_cloexec
 
 # Jython does not have this attribute
 try:
@@ -44,8 +40,6 @@ try:
 except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
         pass
-
-_UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
 AMQP_PORT = 5672
 
@@ -69,15 +63,18 @@ KNOWN_TCP_OPTS = (
 TCP_OPTS = [getattr(socket, opt)
             for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)]
 
-Frame = namedtuple('Frame', ('tuple', 'channel', 'data'))
+Frame = NamedTuple('Frame', [
+    ('type', int),
+    ('channel', int),
+    ('data', ByteString),
+])
 
 StructUnpackT = Callable[
     [AnyStr, ByteString], Tuple[Any]
 ]
 
 
-def to_host_port(host, default=AMQP_PORT):
-    # type: (str, int) -> (str, int)
+def to_host_port(host: str, default: int=AMQP_PORT) -> Tuple[str, int]:
     port = default
     m = IPV6_LITERAL.match(host)
     if m:
@@ -95,12 +92,15 @@ class BaseTransport:
     """Common superclass for TCP and SSL transports"""
     connected = False
 
-    def __init__(self, host: str, connect_timeout: Timeout=None,
-                 read_timeout: Timeout=None, write_timeout: Timeout=None,
+    def __init__(self, host: str,
+                 connect_timeout: Timeout = None,
+                 read_timeout: Timeout = None,
+                 write_timeout: Timeout = None,
                  socket_settings: MaybeDict=None,
-                 raise_on_initial_eintr: bool=True, **kwargs) -> None:
+                 raise_on_initial_eintr: bool=True,
+                 **kwargs) -> None:
         self.connected = True                      # type: bool
-        self.sock = None                           # type: Socket
+        self.sock = None                           # type: socket.socket
         self._read_buffer = EMPTY_BUFFER           # type: ByteString
         self.host, self.port = to_host_port(host)  # type: str, int
         self.connect_timeout = connect_timeout     # type: Timeout
@@ -190,13 +190,14 @@ class BaseTransport:
             self._setup_transport()
 
             self._write(AMQP_PROTOCOL_HEADER)
-        except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+        except (BlockingIOError, FileNotFoundError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
 
     def _get_tcp_socket_defaults(
-            self, sock: socket.socket) -> Mapping[AnyStr, Any]:
+            self, sock: socket.socket) -> Dict[str, int]:
         return {
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
         }
@@ -210,7 +211,7 @@ class BaseTransport:
         tcp_opts.setdefault(socket.TCP_NODELAY, 1)
         tcp_opts.update(socket_settings)
 
-        for opt, val in items(tcp_opts):
+        for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n: int, initial: bool=False) -> ByteString:
@@ -224,7 +225,7 @@ class BaseTransport:
 
     def _shutdown_transport(self) -> None:
         """Do any preliminary work in shutting down the connection."""
-        pass
+        ...
 
     def _write(self, s: ByteString) -> int:
         """Completely write a string to the peer."""
@@ -241,7 +242,7 @@ class BaseTransport:
             self.sock = None
         self.connected = False
 
-    def read_frame(self, unpack: StructUnpackT=unpack) -> Frame:
+    def read_frame(self, unpack: Callable=unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
@@ -261,13 +262,13 @@ class BaseTransport:
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
-        except (OSError, IOError, SSLError, socket.error) as exc:
-            # Don't disconnect for ssl read time outs
-            # http://bugs.python.org/issue10272
-            if isinstance(exc, SSLError) and 'timed out' in str(exc):
+        except SSLError as exc:
+            if 'timed out' in str(exc):
                 raise socket.timeout()
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+        except (BlockingIOError, FileNotFoundError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
         if ch == 206:  # '\xce'
             return Frame(frame_type, channel, payload)
@@ -280,20 +281,23 @@ class BaseTransport:
             self._write(s)
         except socket.timeout:
             raise
-        except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+        except (BlockingIOError, FileNotFoundError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
 
 
 class SSLTransport(BaseTransport):
     """Transport that works over SSL"""
 
-    def __init__(self, host: str, connect_timeout: Timeout=None,
-                 ssl: Optional[SSLArg]=None, **kwargs) -> None:
+    def __init__(self, host: str,
+                 connect_timeout: Timeout = None,
+                 ssl: Optional[SSLArg] = None,
+                 **kwargs) -> None:
         if isinstance(ssl, dict):
-            self.sslopts = ssl            # type: Dict[AnyStr, Any]
-        self._read_buffer = EMPTY_BUFFER  # type: ByteString
+            self.sslopts = cast(Dict, ssl)  # type: Dict[str, Any]
+        self._read_buffer = EMPTY_BUFFER    # type: ByteString
         super(SSLTransport, self).__init__(
             host, connect_timeout=connect_timeout, **kwargs)
 
@@ -304,13 +308,13 @@ class SSLTransport(BaseTransport):
         self._quick_recv = self.sock.read
 
     def _wrap_socket(self, sock: socket.socket,
-                     context: MaybeDict=None, **sslopts) -> socket.socket:
+                     context: MaybeDict = None, **sslopts) -> socket.socket:
         if context:
             return self._wrap_context(sock, sslopts, **context)
         return ssl.wrap_socket(sock, **sslopts)
 
-    def _wrap_context(self, sock: socket.socket, sslopts: Mapping[AnyStr, Any],
-                      check_hostname: bool=None,
+    def _wrap_context(self, sock: socket.socket, sslopts: Dict[str, Any],
+                      check_hostname: bool = None,
                       **ctx_options) -> socket.socket:
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
@@ -320,15 +324,12 @@ class SSLTransport(BaseTransport):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
         if self.sock is not None:
             try:
-                unwrap = self.sock.unwrap  # type: Callable[[], Socket]
+                unwrap = self.sock.unwrap  # type: Callable[[], socket.socket]
             except AttributeError:
                 return
             self.sock = unwrap()
 
-    def _read(self, n: int,
-              initial: bool=False,
-              _errnos: Set[int]=(errno.ENOENT, errno.EAGAIN, errno.EINTR)
-              ) -> ByteString:
+    def _read(self, n: int, initial: bool = False) -> ByteString:
 
         # According to SSL_read(3), it can at most return 16kb of data.
         # Thus, we use an internal read buffer like TCPTransport._read
@@ -339,14 +340,12 @@ class SSLTransport(BaseTransport):
             while len(rbuf) < n:
                 try:
                     s = recv(n - len(rbuf))  # type: ByteString
-                except socket.error as exc:
+                except (BlockingIOError, InterruptedError):
                     # ssl.sock.read may cause ENOENT if the
                     # operation couldn't be performed (Issue celery#1414).
-                    if exc.errno in _errnos:
-                        if initial and self.raise_on_initial_eintr:
-                            raise socket.timeout()
-                        continue
-                    raise
+                    if initial and self.raise_on_initial_eintr:
+                        raise socket.timeout()
+                    continue
                 if not s:
                     raise IOError('Socket closed')
                 rbuf += s
@@ -356,7 +355,7 @@ class SSLTransport(BaseTransport):
         result, self._read_buffer = rbuf[:n], rbuf[n:]
         return result
 
-    def _write(self, s: str) -> None:
+    def _write(self, s: ByteString) -> None:
         """Write a string out to the SSL socket fully."""
         write = self.sock.write  # type: Callable[[ByteString], int]
         while s:
@@ -386,9 +385,7 @@ class TCPTransport(BaseTransport):
         self._read_buffer = EMPTY_BUFFER   # type: ByteString
         self._quick_recv = self.sock.recv  # type: Callable[[int], ByteString]
 
-    def _read(self, n: int,
-              initial: bool=False,
-              _errnos: Set[int]={errno.EAGAIN, errno.EINTR}) -> ByteString:
+    def _read(self, n: int, initial: bool=False) -> ByteString:
         """Read exactly n bytes from the socket"""
         recv = self._quick_recv
         rbuf = self._read_buffer
@@ -396,12 +393,10 @@ class TCPTransport(BaseTransport):
             while len(rbuf) < n:
                 try:
                     s = recv(n - len(rbuf))
-                except socket.error as exc:
-                    if exc.errno in _errnos:
-                        if initial and self.raise_on_initial_eintr:
-                            raise socket.timeout()
-                        continue
-                    raise
+                except (BlockingIOError, InterruptedError):
+                    if initial and self.raise_on_initial_eintr:
+                        raise socket.timeout()
+                    continue
                 if not s:
                     raise IOError('Socket closed')
                 rbuf += s
@@ -414,8 +409,8 @@ class TCPTransport(BaseTransport):
 
 
 def Transport(host: str,
-              connect_timeout: Timeout=None,
-              ssl: Optional[SSLArg]=False, **kwargs) -> BaseTransport:
+              connect_timeout: Timeout = None,
+              ssl: Optional[SSLArg] = False, **kwargs) -> BaseTransport:
     """Given a few parameters from the Connection constructor,
     select and create a subclass of BaseTransport."""
     transport = SSLTransport if ssl else TCPTransport

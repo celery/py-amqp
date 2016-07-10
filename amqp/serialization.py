@@ -19,23 +19,20 @@ Convert between bytestreams and higher-level AMQP types.
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import calendar
-import sys
 
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-from time import mktime
+from typing import (
+    Any, ByteString, Callable, Dict, List,
+    Mapping, Sequence, Optional, Tuple,
+)
 
-from .spec import Basic
+from .spec import Basic, method_sig_t
 from .exceptions import FrameSyntaxError
-from .five import int_types, long_t, string, string_t, items
 from .utils import bytes_to_str as pstr_t, str_to_bytes
-
-ftype_t = chr if sys.version_info[0] == 3 else None
 
 ILLEGAL_TABLE_TYPE = """\
     Table type {0!r} not handled by amqp.
@@ -50,8 +47,9 @@ ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
 """
 
 
-def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
-    ftype = ftype_t(buf[offset]) if ftype_t else buf[offset]
+def _read_item(buf: ByteString, offset: int = 0,
+               unpack_from: Callable=unpack_from) -> Tuple[Any, int]:
+    ftype = chr(buf[offset])  # type: int
     offset += 1
 
     # 'S': long string
@@ -154,9 +152,10 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
     return val, offset
 
 
-def loads(format, buf, offset=0,
-          ord=ord, unpack_from=unpack_from,
-          _read_item=_read_item, pstr_t=pstr_t):
+def loads(format: str, buf: ByteString, offset: int = 0,
+          ord: Callable=ord, unpack_from: Callable=unpack_from,
+          _read_item: Callable=_read_item,
+          pstr_t: Callable=pstr_t) -> Tuple[Sequence, int]:
     """Deserialize amqp format.
 
     bit = b
@@ -250,14 +249,14 @@ def loads(format, buf, offset=0,
     return values, offset
 
 
-def _flushbits(bits, write, pack=pack):
+def _flushbits(bits: int, write: Callable, pack: Callable=pack) -> int:
     if bits:
         write(pack(b'B' * len(bits), *bits))
         bits[:] = []
     return 0
 
 
-def dumps(format, values):
+def dumps(format: str, values: Sequence[Any]) -> bytes:
     """"
     bit = b
     octet = o
@@ -270,12 +269,11 @@ def dumps(format, values):
     array = A
 
     """
-    bitcount = 0
-    bits = []
-    out = BytesIO()
-    write = out.write
-
-    format = pstr_t(format)
+    bitcount = 0             # type: int
+    bits = []                # type: List[int]
+    out = BytesIO()          # type: BytesIO
+    write = out.write        # type: Callable[[ByteString], None]
+    format = pstr_t(format)  # type: bytes
 
     for i, val in enumerate(values):
         p = format[i]
@@ -304,14 +302,14 @@ def dumps(format, values):
         elif p == 's':
             val = val or ''
             bitcount = _flushbits(bits, write)
-            if isinstance(val, string):
+            if isinstance(val, str):
                 val = val.encode('utf-8')
             write(pack(b'B', len(val)))
             write(val)
         elif p == 'S':
             val = val or ''
             bitcount = _flushbits(bits, write)
-            if isinstance(val, string):
+            if isinstance(val, str):
                 val = val.encode('utf-8')
             write(pack(b'>I', len(val)))
             write(val)
@@ -322,17 +320,18 @@ def dumps(format, values):
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
         elif p == 'T':
-            write(pack(b'>Q', long_t(mktime(val.timetuple()))))
+            write(pack(b'>Q', int(val.timestamp())))
     _flushbits(bits, write)
 
     return out.getvalue()
 
 
-def _write_table(d, write, bits, pack=pack):
+def _write_table(d: Mapping[str, Any], write: Callable, bits: List[int],
+                 pack: Callable=pack) -> None:
     out = BytesIO()
     twrite = out.write
-    for k, v in items(d):
-        if isinstance(k, string):
+    for k, v in d.items():
+        if isinstance(k, str):
             k = k.encode('utf-8')
         twrite(pack(b'B', len(k)))
         twrite(k)
@@ -346,7 +345,8 @@ def _write_table(d, write, bits, pack=pack):
     write(table_data)
 
 
-def _write_array(l, write, bits, pack=pack):
+def _write_array(l: Sequence, write: Callable, bits: List[int],
+                 pack: Callable=pack) -> None:
     out = BytesIO()
     awrite = out.write
     for v in l:
@@ -360,13 +360,21 @@ def _write_array(l, write, bits, pack=pack):
     write(array_data)
 
 
-def _write_item(v, write, bits, pack=pack,
-                string_t=string_t, bytes=bytes, string=string, bool=bool,
-                float=float, int_types=int_types, Decimal=Decimal,
-                datetime=datetime, dict=dict, list=list, tuple=tuple,
-                None_t=None):
-    if isinstance(v, (string_t, bytes)):
-        if isinstance(v, string):
+def _write_item(v: Any, write: Callable, bits: List[int],
+                pack: Callable=pack,
+                bytes: Callable=bytes,
+                str: Callable=str,
+                bool: Callable=bool,
+                float: Callable=float,
+                int: Callable=int,
+                Decimal: Callable=Decimal,
+                datetime: Any=datetime,
+                dict: Callable=dict,
+                list: Callable=list,
+                tuple: Callable=tuple,
+                None_t: Any=None) -> None:
+    if isinstance(v, (str, bytes)):
+        if isinstance(v, str):
             v = v.encode('utf-8')
         write(pack(b'>cI', b'S', len(v)))
         write(v)
@@ -374,7 +382,7 @@ def _write_item(v, write, bits, pack=pack,
         write(pack(b'>cB', b't', int(v)))
     elif isinstance(v, float):
         write(pack(b'>cd', b'd', v))
-    elif isinstance(v, int_types):
+    elif isinstance(v, int):
         write(pack(b'>ci', b'I', v))
     elif isinstance(v, Decimal):
         sign, digits, exponent = v.as_tuple()
@@ -385,7 +393,7 @@ def _write_item(v, write, bits, pack=pack,
             v = -v
         write(pack(b'>cBi', b'D', -exponent, v))
     elif isinstance(v, datetime):
-        write(pack(b'>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
+        write(pack(b'>cQ', b'T', int(calendar.timegm(v.utctimetuple()))))
     elif isinstance(v, dict):
         write(b'F')
         _write_table(v, write, bits)
@@ -398,8 +406,10 @@ def _write_item(v, write, bits, pack=pack,
         raise ValueError()
 
 
-def decode_properties_basic(buf, offset=0,
-                            unpack_from=unpack_from, pstr_t=pstr_t):
+def decode_properties_basic(
+        buf: ByteString, offset: int = 0,
+        unpack_from: Callable=unpack_from,
+        pstr_t: Callable=pstr_t) -> Tuple[Dict[str, Any], int]:
     properties = {}
 
     flags, = unpack_from(b'>H', buf, offset)
@@ -483,7 +493,8 @@ class GenericContent:
     CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
-    def __init__(self, frame_method=None, frame_args=None, **props):
+    def __init__(self, frame_method: Optional[method_sig_t] = None,
+                 frame_args: Optional[str] = None, **props) -> None:
         """Save the properties appropriate to this AMQP content type
         in a 'properties' dictionary."""
         self.frame_method = frame_method
@@ -495,7 +506,7 @@ class GenericContent:
         self.body_size = 0
         self.ready = False
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """Look for additional properties in the 'properties'
         dictionary, and if present - the 'delivery_info'
         dictionary."""
@@ -507,8 +518,10 @@ class GenericContent:
             return self.properties[name]
         raise AttributeError(name)
 
-    def _load_properties(self, class_id, buf, offset=0,
-                         classes=PROPERTY_CLASSES, unpack_from=unpack_from):
+    def _load_properties(self, class_id: int, buf: ByteString,
+                         offset: int = 0,
+                         classes: Mapping = PROPERTY_CLASSES,
+                         unpack_from: Callable=unpack_from) -> int:
         """Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert into a dictionary
         stored in this object as an attribute named 'properties'."""
@@ -519,7 +532,7 @@ class GenericContent:
         self.properties = props
         return offset
 
-    def _serialize_properties(self):
+    def _serialize_properties(self) -> bytes:
         """serialize the 'properties' attribute (a dictionary) into
         the raw bytes making up a set of property flags and a
         property list, suitable for putting into a content frame header."""
@@ -552,7 +565,7 @@ class GenericContent:
 
         return result.getvalue()
 
-    def inbound_header(self, buf, offset=0):
+    def inbound_header(self, buf: ByteString, offset: int=0) -> int:
         class_id, self.body_size = unpack_from(b'>HxxQ', buf, offset)
         offset += 12
         self._load_properties(class_id, buf, offset)
@@ -560,7 +573,7 @@ class GenericContent:
             self.ready = True
         return offset
 
-    def inbound_body(self, buf):
+    def inbound_body(self, buf: ByteString):
         chunks = self._pending_chunks
         self.body_received += len(buf)
         if self.body_received >= self.body_size:
