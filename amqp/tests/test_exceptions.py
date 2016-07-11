@@ -1,5 +1,3 @@
-from __future__ import absolute_import, unicode_literals
-
 from amqp.exceptions import AMQPError, error_for_code
 
 from .case import Case, Mock

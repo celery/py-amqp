@@ -14,31 +14,36 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .five import range
 from .utils import coro, str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
-#
-# set of methods that require both a content frame and a body frame.
-#
-_CONTENT_METHODS = frozenset([
+#: set of methods that require both a content frame and a body frame.
+_CONTENT_METHODS = frozenset([  # type: frozenset[method_sig_t]
     spec.Basic.Return,
     spec.Basic.Deliver,
     spec.Basic.GetOk,
 ])
 
 
-def frame_handler(connection, callback,
-                  unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
+FrameHandlerCallback = Callable[[AbstractChannel, int, str, bytes], None]
+FrameWriterSend = Tuple[
+    int, int, method_sig_t, bytes, Optional[AbstractMessage]]
+FrameWriterGen = Generator[None, FrameWriterSend, None]
+
+
+def frame_handler(
+        connection: AbstractConnection,
+        callback: FrameHandlerCallback,
+        unpack_from: Callable=unpack_from,
+        content_methods: Set[method_sig_t]=_CONTENT_METHODS
+        ) -> Callable[[Frame], None]:
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
@@ -89,9 +94,14 @@ def frame_handler(connection, callback,
 
 
 @coro
-def frame_writer(connection, transport,
-                 pack=pack, pack_into=pack_into, range=range, len=len,
-                 bytes=bytes, str_to_bytes=str_to_bytes):
+def frame_writer(connection: AbstractConnection,
+                 transport: AbstractTransport,
+                 pack: Callable=pack,
+                 pack_into: Callable=pack_into,
+                 range: Callable=range,
+                 len: Callable=len,
+                 bytes: Callable=bytes,
+                 str_to_bytes: Callable=str_to_bytes) -> FrameWriterGen:
     write = transport.write
 
     # memoryview first supported in Python 2.7

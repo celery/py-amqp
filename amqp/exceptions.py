@@ -14,11 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 from struct import pack, unpack
-
-from .five import python_2_unicode_compatible
 
 __all__ = [
     'AMQPError',
@@ -39,7 +35,6 @@ class AMQPDeprecationWarning(UserWarning):
     pass
 
 
-@python_2_unicode_compatible
 class AMQPError(Exception):
     code = 0
 

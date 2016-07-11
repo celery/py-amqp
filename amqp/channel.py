@@ -14,24 +14,22 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import socket
 
 from collections import defaultdict
 from warnings import warn
+from queue import Queue
 
 from vine import ensure_promise
 
 from . import spec
 from . import abstract
-from .abstract_channel import AbstractChannel
+from .abstract_channel import ChannelBase
 from .exceptions import (
     ChannelError, ConsumerCancelled,
     RecoverableChannelError, RecoverableConnectionError, error_for_code,
 )
-from .five import Queue
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
@@ -50,10 +48,10 @@ consumer_tag=%r exchange=%r routing_key=%r.\
 
 
 class VDeprecationWarning(DeprecationWarning):
-    pass
+    ...
 
 
-class Channel(AbstractChannel):
+class Channel(ChannelBase):
     """Work with channels
 
     The channel class provides methods for a client to establish a
@@ -1679,7 +1677,7 @@ class Channel(AbstractChannel):
         return self._on_get_ok(*ret)
 
     def _on_get_empty(self, cluster_id=None):
-        pass
+        ...
 
     def _on_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
                    message_count, msg):

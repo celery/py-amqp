@@ -18,7 +18,7 @@ import struct
 import socket
 import ssl
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from struct import unpack
 from typing import (
     Any, AnyStr, ByteString, Callable, Dict,
@@ -38,8 +38,7 @@ except ImportError:  # pragma: no cover
 try:
     from ssl import SSLError
 except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        pass
+    class SSLError(Exception):  ...  # noqa
 
 AMQP_PORT = 5672
 
@@ -143,10 +142,8 @@ class BaseTransport:
             # socket module may have been collected by gc
             # if this is called by a thread at shutdown.
             if socket is not None:
-                try:
+                with suppress(socket.error):
                     self.close()
-                except socket.error:
-                    pass
         finally:
             self.sock = None
 
@@ -158,10 +155,8 @@ class BaseTransport:
             af, socktype, proto, canonname, sa = res
             try:
                 self.sock = socket.socket(af, socktype, proto)
-                try:
+                with suppress(NotImplementedError):
                     set_cloexec(self.sock, True)
-                except NotImplementedError:
-                    pass
                 self.sock.settimeout(timeout)
                 self.sock.connect(sa)
             except socket.error:
@@ -221,7 +216,7 @@ class BaseTransport:
     def _setup_transport(self) -> None:
         """Do any additional initialization of the class (used
         by the subclasses)."""
-        pass
+        ...
 
     def _shutdown_transport(self) -> None:
         """Do any preliminary work in shutting down the connection."""

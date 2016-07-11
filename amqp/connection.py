@@ -14,29 +14,28 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import socket
 import typing
 import uuid
 import warnings
 
+from array import array
 from io import BytesIO
+from time import monotonic
 
 from vine import ensure_promise
 
 from . import __version__
 from . import spec
 from . import abstract
-from .abstract_channel import AbstractChannel
+from .abstract_channel import ChannelBase
 from .channel import Channel
 from .exceptions import (
     AMQPDeprecationWarning, ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import array, range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import BaseTransport, Transport
@@ -47,8 +46,7 @@ from typing import Mapping, Generator, Callable, List, Any
 try:
     from ssl import SSLError
 except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        pass
+    class SSLError(Exception):  ...  # noqa
 
 W_FORCE_CONNECT = """\
 The .{attr} attribute on the connection was accessed before
@@ -92,7 +90,7 @@ ConnectionFrameWriter = typing.Callable[
 MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
 
 
-class Connection(AbstractChannel):
+class Connection(ChannelBase):
     """The connection class provides methods for a client to establish a
     network connection to a server, and for both peers to operate the
     connection thereafter.
@@ -379,7 +377,7 @@ class Connection(AbstractChannel):
         )
 
     def _on_secure(self, challenge: str) -> None:
-        pass
+        ...
 
     def _on_tune(self, channel_max: int, frame_max: int,
                  server_heartbeat: Timeout, argsig: str='BlB'):
@@ -433,7 +431,7 @@ class Connection(AbstractChannel):
         try:
             self.transport.close()
 
-            temp_list = [x for x in values(self.channels) if x is not self]
+            temp_list = [x for x in self.channels.values() if x is not self]
             for ch in temp_list:
                 ch.collect()
         except socket.error:

@@ -16,9 +16,17 @@ MaybeDict = TypeVar('MaybeDict', Optional[Dict[str, Any]])
 Timeout = TypeVar('Timeout', Optional[float])
 
 
-class Channel(abc.ABCMeta):
+class AbstractChannel(abc.ABCMeta):
     ...
 
 
-class Connection(Channel):
+class AbstractConnection(Channel):
+    ...
+
+
+class AbstractTransport(abc.ABCMeta):
+    ...
+
+
+class AbstractMessage(abc.ABCMeta):
     ...

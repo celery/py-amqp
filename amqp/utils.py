@@ -1,5 +1,3 @@
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import os
 
@@ -23,21 +21,6 @@ def set_cloexec(fd: Fd, cloexec: bool) -> None:
     if not isinstance(fd, int):
         fd = fd.fileno()
     os.set_inheritable(fd, cloexec)
-
-
-def get_errno(exc: Any) -> int:
-    """:exc:`socket.error` and :exc:`IOError` first got
-    the ``.errno`` attribute in Py2.7"""
-    try:
-        return exc.errno
-    except AttributeError:
-        try:
-            # e.args = (errno, reason)
-            if isinstance(exc.args, tuple) and len(exc.args) == 2:
-                return exc.args[0]
-        except AttributeError:
-            pass
-    return 0
 
 
 def coro(gen: Callable) -> Callable:

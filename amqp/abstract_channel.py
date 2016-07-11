@@ -14,18 +14,15 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 from vine import ensure_promise, promise
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .five import bytes_if_py2
 from .serialization import dumps, loads
 
-__all__ = ['AbstractChannel']
+__all__ = ['ChannelBase']
 
 
-class AbstractChannel:
+class ChannelBase:
     """Superclass for both the Connection, which is treated
     as channel 0, and other user-created Channel objects.
 
@@ -57,7 +54,7 @@ class AbstractChannel:
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
-        args = dumps(format, args) if format else bytes_if_py2('')
+        args = dumps(format, args) if format else ''
         try:
             conn.frame_writer.send((1, self.channel_id, sig, args, content))
         except StopIteration:

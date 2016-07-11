@@ -14,13 +14,15 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
+from typing import NamedTuple
 
-from collections import namedtuple
-
-version_info_t = namedtuple(
-    'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
-)
+version_info_t = NamedTuple('version_info_t', [
+    ('major', int),
+    ('minor', int),
+    ('micro', int),
+    ('releaselevel', str),
+    ('serial', str),
+])
 
 VERSION = version_info = version_info_t(2, 0, 2, '', '')
 

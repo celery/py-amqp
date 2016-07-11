@@ -1,20 +1,18 @@
-from __future__ import absolute_import, unicode_literals
-
 from vine import promise
 
-from amqp.abstract_channel import AbstractChannel
+from amqp.abstract_channel import ChannelBase
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
 
 from .case import Case, Mock, patch
 
 
-class test_AbstractChannel(Case):
+class test_ChannelBase(Case):
 
-    class Channel(AbstractChannel):
+    class Channel(ChannelBase):
 
         def _setup_listeners(self):
-            pass
+            ...
 
     def setup(self):
         self.conn = Mock(name='connection')
@@ -29,7 +27,7 @@ class test_AbstractChannel(Case):
     def test_enter_exit(self):
         self.c.close = Mock(name='close')
         with self.c:
-            pass
+            ...
         self.c.close.assert_called_with()
 
     def test_send_method(self):

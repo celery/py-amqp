@@ -1,5 +1,3 @@
-from __future__ import absolute_import, unicode_literals
-
 import errno
 import socket
 
@@ -183,10 +181,10 @@ class test_BaseTransport(Case):
     class Transport(transport.BaseTransport):
 
         def _connect(self, *args):
-            pass
+            ...
 
         def _init_socket(self, *args):
-            pass
+            ...
 
     def setup(self):
         self.t = self.Transport('localhost:5672', 10)
@@ -304,10 +302,10 @@ class test_SSLTransport(Case):
     class Transport(transport.SSLTransport):
 
         def _connect(self, *args):
-            pass
+            ...
 
         def _init_socket(self, *args):
-            pass
+            ...
 
     def setup(self):
         self.t = self.Transport(
@@ -356,10 +354,10 @@ class test_TCPTransport(Case):
     class Transport(transport.TCPTransport):
 
         def _connect(self, *args):
-            pass
+            ...
 
         def _init_socket(self, *args):
-            pass
+            ...
 
     def setup(self):
         self.t = self.Transport('host', 3)
