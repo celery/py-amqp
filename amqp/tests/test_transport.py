@@ -79,6 +79,7 @@ class SocketOptions(Case):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=True,
         )
+        self.assertIsNotNone(self.transp.sslopts)
         self.transp.connect()
         self.assertIsNotNone(self.transp.sock)
 

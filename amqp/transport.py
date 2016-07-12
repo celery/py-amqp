@@ -263,8 +263,7 @@ class SSLTransport(_AbstractTransport):
     """Transport that works over SSL"""
 
     def __init__(self, host, connect_timeout=None, ssl=None, **kwargs):
-        if isinstance(ssl, dict):
-            self.sslopts = ssl
+        self.sslopts = ssl if isinstance(ssl, dict) else {}
         self._read_buffer = EMPTY_BUFFER
         super(SSLTransport, self).__init__(
             host, connect_timeout=connect_timeout, **kwargs)
