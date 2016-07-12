@@ -5,11 +5,31 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.0.3:
+
+2.0.3
+=====
+:release-date: 2016-07-11 08:00 P.M PDT
+:release-by: Ask Solem
+
+- SSLTransport: Fixed crash "no attribute sslopts" when ``ssl=True``
+  (Issue #100).
+
+- Fixed incompatible argument spec for ``Connection.Close`` (Issue #45).
+
+    This caused the RabbitMQ server to raise an exception (INTERNAL ERROR).
+
+- Transport: No longer implements `__del__` to make sure gc can collect
+  connections.
+
+    It's the responsibility of the caller to close connections, this was
+    simply a relic from the amqplib library.
+
 .. _version-2.0.2:
 
 2.0.2
 =====
-:release-date: 2016-06-10 5:40 PM PDT
+:release-date: 2016-06-10 5:40 P.M PDT
 :release-by: Ask Solem
 
 - Python 3: Installation requirements ended up being a generator
@@ -33,7 +53,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 2.0.1
 =====
-:release-date: 2016-05-31 6:20 PM PDT
+:release-date: 2016-05-31 6:20 P.M PDT
 :release-by: Ask Solem
 
 - Adds backward compatibility layer for the 1.4 API.
@@ -64,7 +84,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 2.0.0
 =====
-:release-date: 2016-05-26 1:44 PM PDT
+:release-date: 2016-05-26 1:44 P.M PDT
 :release-by: Ask Solem
 
 - No longer supports Python 2.6
@@ -122,7 +142,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 1.4.9
 =====
-:release-date: 2016-01-08 5:50 PM PST
+:release-date: 2016-01-08 5:50 P.M PST
 :release-by: Ask Solem
 
 - Fixes compatibility with Linux/macOS instances where the ``ctypes`` module
@@ -134,7 +154,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 1.4.8
 =====
-:release-date: 2015-12-07 12:25 AM
+:release-date: 2015-12-07 12:25 A.M
 :release-by: Ask Solem
 
 - ``abstract_channel.wait`` now accepts a float `timeout` parameter expressed
