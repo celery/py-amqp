@@ -446,7 +446,7 @@ class Connection(AbstractChannel):
         )
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              argsig='BssBB'):
+              argsig='BsBB'):
 
         """Request a connection close
 
