@@ -125,18 +125,6 @@ class _AbstractTransport(object):
                 if timeout != prev:
                     sock.settimeout(prev)
 
-    def __del__(self):
-        try:
-            # socket module may have been collected by gc
-            # if this is called by a thread at shutdown.
-            if socket is not None:
-                try:
-                    self.close()
-                except socket.error:
-                    pass
-        finally:
-            self.sock = None
-
     def _connect(self, host, port, timeout):
         entries = socket.getaddrinfo(
             host, port, 0, socket.SOCK_STREAM, SOL_TCP,
