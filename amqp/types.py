@@ -11,9 +11,8 @@ class SupportsFileno(_Protocol):
         ...
 
 Fd = TypeVar('Fd', SupportsFileno, int)
+Int = TypeVar('Int', SupportsInt, str)
 SSLArg = TypeVar('SSLArg', Dict[str, Any], bool)
-MaybeDict = TypeVar('MaybeDict', Optional[Dict[str, Any]])
-Timeout = TypeVar('Timeout', Optional[float])
 
 
 class AbstractChannel(abc.ABCMeta):
@@ -24,7 +23,7 @@ class AbstractConnection(Channel):
     ...
 
 
-class AbstractTransport(abc.ABCMeta):
+class TransportT(abc.ABCMeta):
     ...
 
 

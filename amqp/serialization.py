@@ -26,8 +26,8 @@ from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
 from typing import (
-    Any, ByteString, Callable, Dict, List,
-    Mapping, Sequence, Optional, Tuple,
+    Any, Callable, Dict, List,
+    Mapping, Sequence, Tuple,
 )
 
 from .spec import Basic, method_sig_t
@@ -47,7 +47,7 @@ ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
 """
 
 
-def _read_item(buf: ByteString, offset: int = 0,
+def _read_item(buf: bytes, offset: int = 0,
                unpack_from: Callable=unpack_from) -> Tuple[Any, int]:
     ftype = chr(buf[offset])  # type: int
     offset += 1
@@ -152,7 +152,7 @@ def _read_item(buf: ByteString, offset: int = 0,
     return val, offset
 
 
-def loads(format: str, buf: ByteString, offset: int = 0,
+def loads(format: str, buf: bytes, offset: int = 0,
           ord: Callable=ord, unpack_from: Callable=unpack_from,
           _read_item: Callable=_read_item,
           pstr_t: Callable=pstr_t) -> Tuple[Sequence, int]:
@@ -272,7 +272,7 @@ def dumps(format: str, values: Sequence[Any]) -> bytes:
     bitcount = 0             # type: int
     bits = []                # type: List[int]
     out = BytesIO()          # type: BytesIO
-    write = out.write        # type: Callable[[ByteString], None]
+    write = out.write        # type: Callable[[bytes], None]
     format = pstr_t(format)  # type: bytes
 
     for i, val in enumerate(values):
@@ -407,7 +407,7 @@ def _write_item(v: Any, write: Callable, bits: List[int],
 
 
 def decode_properties_basic(
-        buf: ByteString, offset: int = 0,
+        buf: bytes, offset: int = 0,
         unpack_from: Callable=unpack_from,
         pstr_t: Callable=pstr_t) -> Tuple[Dict[str, Any], int]:
     properties = {}
@@ -493,8 +493,8 @@ class GenericContent:
     CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
-    def __init__(self, frame_method: Optional[method_sig_t] = None,
-                 frame_args: Optional[str] = None, **props) -> None:
+    def __init__(self, frame_method: method_sig_t = None,
+                 frame_args: str = None, **props) -> None:
         """Save the properties appropriate to this AMQP content type
         in a 'properties' dictionary."""
         self.frame_method = frame_method
@@ -518,7 +518,7 @@ class GenericContent:
             return self.properties[name]
         raise AttributeError(name)
 
-    def _load_properties(self, class_id: int, buf: ByteString,
+    def _load_properties(self, class_id: int, buf: bytes,
                          offset: int = 0,
                          classes: Mapping = PROPERTY_CLASSES,
                          unpack_from: Callable=unpack_from) -> int:
@@ -565,7 +565,7 @@ class GenericContent:
 
         return result.getvalue()
 
-    def inbound_header(self, buf: ByteString, offset: int=0) -> int:
+    def inbound_header(self, buf: bytes, offset: int=0) -> int:
         class_id, self.body_size = unpack_from(b'>HxxQ', buf, offset)
         offset += 12
         self._load_properties(class_id, buf, offset)
@@ -573,7 +573,7 @@ class GenericContent:
             self.ready = True
         return offset
 
-    def inbound_body(self, buf: ByteString):
+    def inbound_body(self, buf: bytes):
         chunks = self._pending_chunks
         self.body_received += len(buf)
         if self.body_received >= self.body_size:

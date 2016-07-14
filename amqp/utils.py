@@ -2,7 +2,7 @@ import logging
 import os
 
 from typing import (
-    Any, AnyStr, Callable, Generator, Optional, Union, cast,
+    AnyStr, Callable, Generator, Optional, Union, cast,
 )
 
 # enables celery 3.1.23 to start again

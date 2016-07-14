@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 method_sig_t = NamedTuple('method_sig_t', [
     ('major', int), ('minor', int),
@@ -12,7 +12,7 @@ method_t = NamedTuple('method_t', [
 
 
 def method(method_sig: method_sig_t,
-           args: Optional[str] = None,
+           args: str = None,
            content: bool = False) -> method_t:
     return method_t(method_sig, args, content)
 
