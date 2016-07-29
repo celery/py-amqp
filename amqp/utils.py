@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import sys
+from struct import pack, unpack, pack_into, unpack_from
 
 # enables celery 3.1.23 to start again
 from vine import promise                # noqa
@@ -82,6 +83,18 @@ else:
 
     def bytes_to_str(s):                # noqa
         return s
+
+    if sys.version_info < (2, 7, 7):
+        import functools
+
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(pattern, *args, **kwds):
+                return func(str(pattern), *args, **kwds)
+            return wrapper
+
+        _funcs = (pack, unpack, pack_into, unpack_from)
+        pack, unpack, pack_into, unpack_from = map(decorator, _funcs)
 
 
 class NullHandler(logging.Handler):

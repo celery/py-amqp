@@ -3,10 +3,9 @@ from __future__ import absolute_import, unicode_literals
 import errno
 import socket
 
-from struct import pack
-
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
+from amqp.utils import pack
 
 from .case import Case, Mock, patch
 

@@ -17,16 +17,14 @@ from __future__ import absolute_import, unicode_literals
 
 import errno
 import re
-import struct
 import socket
 import ssl
 
 from contextlib import contextmanager
-from struct import unpack
 
 from .exceptions import UnexpectedFrame
 from .five import items
-from .utils import get_errno, set_cloexec
+from .utils import get_errno, set_cloexec, pack, unpack
 
 # Jython does not have this attribute
 try:
@@ -159,7 +157,7 @@ class _AbstractTransport(object):
                 if interval is not None:
                     self.sock.setsockopt(
                         socket.SOL_SOCKET, timeout,
-                        struct.pack('ll', interval, 0),
+                        pack('ll', interval, 0),
                     )
             self._setup_transport()
 
