@@ -237,7 +237,7 @@ class test_Connection(Case):
     def test_close(self):
         self.conn.close(reply_text='foo', method_sig=spec.Channel.Open)
         self.conn.send_method.assert_called_with(
-            spec.Connection.Close, 'BssBB',
+            spec.Connection.Close, 'BsBB',
             (0, 'foo', spec.Channel.Open[0], spec.Channel.Open[1]),
             wait=spec.Connection.CloseOk,
         )

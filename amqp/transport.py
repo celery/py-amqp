@@ -25,7 +25,7 @@ from collections import namedtuple
 from contextlib import contextmanager
 from struct import unpack
 from typing import (
-    Any, AnyStr, ByteString, Callable, IO, Mapping, Optional, Set, Tuple,
+    Any, AnyStr, ByteString, Callable, Mapping, Optional, Set, Tuple,
 )
 
 from .exceptions import UnexpectedFrame
@@ -138,18 +138,6 @@ class BaseTransport:
                 if timeout != prev:
                     sock.settimeout(prev)
 
-    def __del__(self) -> None:
-        try:
-            # socket module may have been collected by gc
-            # if this is called by a thread at shutdown.
-            if socket is not None:
-                try:
-                    self.close()
-                except socket.error:
-                    pass
-        finally:
-            self.sock = None
-
     def _connect(self, host: str, port: int, timeout: Timeout) -> None:
         entries = socket.getaddrinfo(
             host, port, 0, socket.SOCK_STREAM, SOL_TCP,
@@ -247,7 +235,7 @@ class BaseTransport:
         try:
             frame_header = read(7, True)
             read_frame_buffer += frame_header
-            frame_type, channel, size = unpack('>BHI', frame_header)
+            frame_type, channel, size = unpack(u'>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
@@ -291,10 +279,10 @@ class SSLTransport(BaseTransport):
 
     def __init__(self, host: str, connect_timeout: Timeout=None,
                  ssl: Optional[SSLArg]=None, **kwargs) -> None:
-        if isinstance(ssl, dict):
-            self.sslopts = ssl            # type: Dict[AnyStr, Any]
+        # type: Dict[AnyStr, Any]
+        self.sslopts = ssl if isinstance(ssl, dict) else {}
         self._read_buffer = EMPTY_BUFFER  # type: ByteString
-        super(SSLTransport, self).__init__(
+        super().__init__(
             host, connect_timeout=connect_timeout, **kwargs)
 
     def _setup_transport(self) -> None:

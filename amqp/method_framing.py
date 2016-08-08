@@ -51,7 +51,7 @@ def frame_handler(connection, callback,
                     frame_type, expected_types[channel]),
             )
         elif frame_type == 1:
-            method_sig = unpack_from('>HH', buf, 0)
+            method_sig = unpack_from(u'>HH', buf, 0)
 
             if method_sig in content_methods:
                 # Save what we've got so far and wait for the content-header

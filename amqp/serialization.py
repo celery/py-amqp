@@ -375,7 +375,10 @@ def _write_item(v, write, bits, pack=pack,
     elif isinstance(v, float):
         write(pack(b'>cd', b'd', v))
     elif isinstance(v, int_types):
-        write(pack(b'>ci', b'I', v))
+        if v > 2147483647 or v < -2147483647:
+            write(pack(b'>cq', b'L', v))
+        else:
+            write(pack(b'>ci', b'I', v))
     elif isinstance(v, Decimal):
         sign, digits, exponent = v.as_tuple()
         v = 0

@@ -71,7 +71,7 @@ class Channel(AbstractChannel):
                             / S:CLOSE C:CLOSE-OK
 
     """
-    _METHODS = set([
+    _METHODS = {
         spec.method(spec.Channel.Close, 'BsBB'),
         spec.method(spec.Channel.CloseOk),
         spec.method(spec.Channel.Flow, 'b'),
@@ -100,7 +100,7 @@ class Channel(AbstractChannel):
         spec.method(spec.Tx.SelectOk),
         spec.method(spec.Confirm.SelectOk),
         spec.method(spec.Basic.Ack, 'Lb'),
-    ])
+    }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
     def __init__(self, connection,

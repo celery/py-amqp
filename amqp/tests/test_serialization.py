@@ -67,6 +67,16 @@ class test_serialization(Case):
             ANY(),
         ], y[0])
 
+    def test_int_boundaries(self):
+        format = b'F'
+        x = dumps(format, [
+            {'a': -2147483649, 'b': 2147483648},  # celery/celery#3121
+        ])
+        y = loads(format, x)
+        self.assertListEqual([
+            {'a': -2147483649, 'b': 2147483648},  # celery/celery#3121
+        ], y[0])
+
     def test_loads_unknown_type(self):
         with self.assertRaises(FrameSyntaxError):
             loads('x', 'asdsad')

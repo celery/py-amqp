@@ -260,5 +260,5 @@ METHOD_NAME_MAP = {
 
 
 for _method_id, _method_name in list(METHOD_NAME_MAP.items()):
-    METHOD_NAME_MAP[unpack(str('>I'), pack(str('>HH'), *_method_id))[0]] = \
+    METHOD_NAME_MAP[unpack(u'>I', pack(u'>HH', *_method_id))[0]] = \
         _method_name
