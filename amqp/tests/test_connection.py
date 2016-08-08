@@ -8,7 +8,6 @@ from amqp.connection import SSLError
 from amqp.exceptions import (
     ConnectionError, NotFound, RecoverableConnectionError, ResourceError,
 )
-from amqp.five import items
 from amqp.transport import TCPTransport
 
 from .case import Case, ContextMock, Mock, call
@@ -147,7 +146,7 @@ class test_Connection(Case):
         transport = self.conn.transport
         self.conn.collect()
         transport.close.assert_called_with()
-        for i, channel in items(channels):
+        for i, channel in channels.items():
             if i:
                 channel.collect.assert_called_with()
 

@@ -20,6 +20,7 @@ import logging
 import socket
 
 from collections import defaultdict
+from queue import Queue
 from warnings import warn
 
 from vine import ensure_promise
@@ -31,7 +32,6 @@ from .exceptions import (
     ChannelError, ConsumerCancelled,
     RecoverableChannelError, RecoverableConnectionError, error_for_code,
 )
-from .five import Queue
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
@@ -2083,4 +2083,3 @@ class Channel(AbstractChannel):
     def _on_basic_ack(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
-abstract.Channel.register(Channel)

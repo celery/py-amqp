@@ -7,10 +7,6 @@ import sys
 from vine import promise                # noqa
 from vine.utils import wraps
 
-from .five import string_t
-
-is_py3k = sys.version_info[0] == 3
-
 try:
     import fcntl
 except ImportError:  # pragma: no cover
@@ -62,26 +58,15 @@ def coro(gen):
     return _boot
 
 
-if is_py3k:  # pragma: no cover
+def str_to_bytes(s):
+    if isinstance(s, str):
+        return s.encode()
+    return s
 
-    def str_to_bytes(s):
-        if isinstance(s, str):
-            return s.encode()
-        return s
-
-    def bytes_to_str(s):
-        if isinstance(s, bytes):
-            return s.decode()
-        return s
-else:
-
-    def str_to_bytes(s):                # noqa
-        if isinstance(s, unicode):
-            return s.encode()
-        return s
-
-    def bytes_to_str(s):                # noqa
-        return s
+def bytes_to_str(s):
+    if isinstance(s, bytes):
+        return s.decode()
+    return s
 
 
 class NullHandler(logging.Handler):
@@ -91,7 +76,7 @@ class NullHandler(logging.Handler):
 
 
 def get_logger(logger):
-    if isinstance(logger, string_t):
+    if isinstance(logger, str):
         logger = logging.getLogger(logger)
     if not logger.handlers:
         logger.addHandler(NullHandler())

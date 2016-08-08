@@ -29,7 +29,6 @@ from typing import (
 )
 
 from .exceptions import UnexpectedFrame
-from .five import items
 from .types import SSLArg, MaybeDict, Timeout
 from .utils import get_errno, set_cloexec
 
@@ -198,7 +197,7 @@ class BaseTransport:
         tcp_opts.setdefault(socket.TCP_NODELAY, 1)
         tcp_opts.update(socket_settings)
 
-        for opt, val in items(tcp_opts):
+        for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n: int, initial: bool=False) -> ByteString:

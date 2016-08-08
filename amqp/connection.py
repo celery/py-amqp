@@ -22,9 +22,11 @@ import typing
 import uuid
 import warnings
 
+from array import array
 from io import BytesIO
+from time import monotonic
 
-from vine import ensure_promise
+from vine import Thenable, ensure_promise
 
 from . import __version__
 from . import spec
@@ -36,7 +38,6 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import array, range, values, monotonic
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import BaseTransport, Transport
@@ -175,15 +176,15 @@ class Connection(AbstractChannel):
                  login_method: str='AMQPLAIN', login_response: Any=None,
                  virtual_host: str='/', locale: str='en_US',
                  client_properties: MaybeDict=None,
-                 ssl: Optional[SSLArg]=False, connect_timeout: Timeout=None,
-                 channel_max: Optional[int]=None,
-                 frame_max: Optional[int]=None,
+                 ssl: SSLArg=False, connect_timeout: Timeout=None,
+                 channel_max: int=None,
+                 frame_max: int=None,
                  heartbeat: Timeout=0,
                  on_open: Thenable=None,
-                 on_blocked: Optional[ConnectionBlockedCallback]=None,
-                 on_unblocked: Optional[ConnectionUnblockedCallback]=None,
-                 bool: confirm_publish=False,
-                 on_tune_ok: Optional[ConnectionTuneOkCallback]=None,
+                 on_blocked: ConnectionBlockedCallback=None,
+                 on_unblocked: ConnectionUnblockedCallback=None,
+                 confirm_publish: bool=False,
+                 on_tune_ok: ConnectionTuneOkCallback=None,
                  read_timeout: Timeout=None,
                  write_timeout: Timeout=None,
                  socket_settings: MaybeDict=None,
@@ -291,7 +292,7 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self, callback: Optional[Callable[[], None]=None) -> None:
+    def connect(self, callback: Callable[[], None] = None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
@@ -415,7 +416,7 @@ class Connection(AbstractChannel):
         self.on_open(self)
 
     def Transport(self, host: str, connect_timeout: Timeout,
-                  ssl: Optional[SSLArg]=False,
+                  ssl: SSLArg=False,
                   read_timeout: Timeout=None,
                   write_timeout: Timeout=None,
                   socket_settings: MaybeDict=None,
@@ -433,7 +434,7 @@ class Connection(AbstractChannel):
         try:
             self.transport.close()
 
-            temp_list = [x for x in values(self.channels) if x is not self]
+            temp_list = [x for x in self.channels.values() if x is not self]
             for ch in temp_list:
                 ch.collect()
         except socket.error:
