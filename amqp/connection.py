@@ -414,8 +414,7 @@ class Connection(AbstractChannel):
         try:
             return self._avail_channel_ids.remove(channel_id)
         except ValueError:
-            raise ConnectionError(
-                'Channel %r already open' % (channel_id,))
+            raise ConnectionError('Channel %r already open' % (channel_id,))
 
     def channel(self, channel_id=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
@@ -622,8 +621,8 @@ class Connection(AbstractChannel):
 
         :keyword rate: Ignored
         """
-        AMQP_LOGGER.debug('heartbeat_tick : for connection %s'
-                          % self._connection_id)
+        AMQP_LOGGER.debug('heartbeat_tick : for connection %s',
+                          self._connection_id)
         if not self.heartbeat:
             return
 
@@ -635,23 +634,26 @@ class Connection(AbstractChannel):
         if self.prev_recv is None or self.prev_recv != recv_now:
             self.last_heartbeat_received = monotonic()
 
-        mntnc = monotonic()
-        AMQP_LOGGER.debug('heartbeat_tick : Prev sent/recv: %s/%s, '
-                          'now - %s/%s, monotonic - %s, '
-                          'last_heartbeat_sent - %s, heartbeat int. - %s '
-                          'for connection %s' %
-                          (str(self.prev_sent), str(self.prev_recv),
-                           str(sent_now), str(recv_now), str(mntnc),
-                           str(self.last_heartbeat_sent),
-                           str(self.heartbeat),
-                           self._connection_id))
+        now = monotonic()
+        AMQP_LOGGER.debug(
+            'heartbeat_tick : Prev sent/recv: %s/%s, '
+            'now - %s/%s, monotonic - %s, '
+            'last_heartbeat_sent - %s, heartbeat int. - %s '
+            'for connection %s',
+            self.prev_sent, self.prev_recv,
+            sent_now, recv_now, now,
+            self.last_heartbeat_sent,
+            self.heartbeat,
+            self._connection_id,
+        )
 
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if mntnc > self.last_heartbeat_sent + self.heartbeat:
-            AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
-                              'connection %s' % self._connection_id)
+        if now > self.last_heartbeat_sent + self.heartbeat:
+            AMQP_LOGGER.debug(
+                'heartbeat_tick: sending heartbeat for connection %s',
+                self._connection_id)
             self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 
