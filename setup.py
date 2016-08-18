@@ -26,8 +26,7 @@ classes = """
     Programming Language :: Python :: 3
     Programming Language :: Python :: 3.3
     Programming Language :: Python :: 3.4
-    License :: OSI Approved :: GNU Library or \
-Lesser General Public License (LGPL)
+    License :: OSI Approved :: BSD License
     Intended Audience :: Developers
     Operating System :: OS Independent
 """
@@ -98,7 +97,7 @@ setup(
     maintainer=meta['maintainer'],
     url=meta['homepage'],
     platforms=['any'],
-    license='LGPL',
+    license='BSD',
     packages=find_packages(exclude=['ez_setup', 'tests', 'tests.*']),
     zip_safe=False,
     install_requires=reqs('default.txt'),
