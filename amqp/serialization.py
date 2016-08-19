@@ -27,13 +27,12 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from struct import pack, unpack_from
 from time import mktime
 
 from .spec import Basic
 from .exceptions import FrameSyntaxError
 from .five import int_types, long_t, string, string_t, items
-from .utils import bytes_to_str as pstr_t, str_to_bytes
+from .utils import bytes_to_str as pstr_t, str_to_bytes, pack, unpack_from
 
 ftype_t = chr if sys.version_info[0] == 3 else None
 

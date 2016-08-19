@@ -17,13 +17,12 @@
 from __future__ import absolute_import, unicode_literals
 
 from collections import defaultdict
-from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .five import range
-from .utils import coro, str_to_bytes
+from .utils import coro, str_to_bytes, pack, pack_into, unpack_from
 
 __all__ = ['frame_handler', 'frame_writer']
 
