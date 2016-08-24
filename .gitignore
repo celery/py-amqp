@@ -2,7 +2,7 @@
 *.pyc
 *$py.class
 *~
-.*.sw[po]
+.*.sw*
 dist/
 *.egg-info
 *.egg
@@ -21,3 +21,6 @@ Documentation/
 .pydevproject
 .coverage
 .eggs/
+.cache/
+coverage.xml
+htmlcov/

@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from setuptools import setup, find_packages
-from setuptools.command.test import test
-
 import os
 import re
 import sys
 import codecs
 
+import setuptools
+import setuptools.command.test
+
 if sys.version_info < (2, 7):
     raise Exception('amqp requires Python 2.7 or higher.')
 
 NAME = 'amqp'
-entrypoints = {}
-extra = {}
 
 # -*- Classifiers -*-
 
@@ -88,8 +86,22 @@ else:
 
 # -*- %%% -*-
 
-setup(
+
+class pytest(setuptools.command.test.test):
+    user_options = [('pytest-args=', 'a', 'Arguments to pass to py.test')]
+
+    def initialize_options(self):
+        setuptools.command.test.test.initialize_options(self)
+        self.pytest_args = []
+
+    def run_tests(self):
+        import pytest
+        sys.exit(pytest.main(self.pytest_args))
+
+setuptools.setup(
     name=NAME,
+    packages=setuptools.find_packages(exclude=['ez_setup', 't', 't.*']),
+    long_description=long_description,
     version=meta['version'],
     description=meta['doc'],
     author=meta['author'],
@@ -98,12 +110,9 @@ setup(
     url=meta['homepage'],
     platforms=['any'],
     license='BSD',
-    packages=find_packages(exclude=['ez_setup', 'tests', 'tests.*']),
-    zip_safe=False,
+    classifiers=classifiers,
     install_requires=reqs('default.txt'),
     tests_require=reqs('test.txt'),
-    test_suite='nose.collector',
-    classifiers=classifiers,
-    entry_points=entrypoints,
-    long_description=long_description,
-    **extra)
+    cmdclass={'test': pytest},
+    zip_safe=False,
+)

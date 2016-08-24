@@ -1,18 +1,21 @@
 from __future__ import absolute_import, unicode_literals
 
+import pytest
+
 from struct import pack
+
+from case import Mock
 
 from amqp import spec
 from amqp.basic_message import Message
 from amqp.exceptions import UnexpectedFrame
 from amqp.method_framing import frame_handler, frame_writer
 
-from .case import Case, Mock
 
+class test_frame_handler:
 
-class test_frame_handler(Case):
-
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_conn(self):
         self.conn = Mock(name='connection')
         self.conn.bytes_recv = 0
         self.callback = Mock(name='callback')
@@ -22,13 +25,13 @@ class test_frame_handler(Case):
         buf = pack(b'>HH', 60, 51)
         self.g((1, 1, buf))
         self.callback.assert_called_with(1, (60, 51), buf, None)
-        self.assertTrue(self.conn.bytes_recv)
+        assert self.conn.bytes_recv
 
     def test_header_message_empty_body(self):
         self.g((1, 1, pack(b'>HH', *spec.Basic.Deliver)))
         self.callback.assert_not_called()
 
-        with self.assertRaises(UnexpectedFrame):
+        with pytest.raises(UnexpectedFrame):
             self.g((1, 1, pack(b'>HH', *spec.Basic.Deliver)))
 
         m = Message()
@@ -63,16 +66,17 @@ class test_frame_handler(Case):
         self.callback.assert_called_with(
             1, msg.frame_method, msg.frame_args, msg,
         )
-        self.assertEqual(msg.body, b'thequickbrownfox')
+        assert msg.body == b'thequickbrownfox'
 
     def test_heartbeat_frame(self):
         self.g((8, 1, ''))
-        self.assertTrue(self.conn.bytes_recv)
+        assert self.conn.bytes_recv
 
 
-class test_frame_writer(Case):
+class test_frame_writer:
 
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_conn(self):
         self.connection = Mock(name='connection')
         self.transport = self.connection.Transport()
         self.connection.frame_max = 512

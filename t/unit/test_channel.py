@@ -1,15 +1,18 @@
 from __future__ import absolute_import, unicode_literals
 
+import pytest
+
+from case import ContextMock, Mock, patch
+
 from amqp import spec
 from amqp.channel import Channel
 from amqp.exceptions import ConsumerCancelled, NotFound
 
-from .case import Case, ContextMock, Mock, patch
 
+class test_Channel:
 
-class test_Channel(Case):
-
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_conn(self):
         self.conn = Mock(name='connection')
         self.conn.channels = {}
         self.conn._get_free_channel_id.return_value = 2
@@ -19,17 +22,17 @@ class test_Channel(Case):
     def test_init_confirm_enabled(self):
         self.conn.confirm_publish = True
         c = Channel(self.conn, 2)
-        self.assertEqual(c.basic_publish, c.basic_publish_confirm)
+        assert c.basic_publish == c.basic_publish_confirm
 
     def test_init_confirm_disabled(self):
         self.conn.confirm_publish = False
         c = Channel(self.conn, 2)
-        self.assertEqual(c.basic_publish, c._basic_publish)
+        assert c.basic_publish == c._basic_publish
 
     def test_init_auto_channel(self):
         c = Channel(self.conn, None)
         self.conn._get_free_channel_id.assert_called_with()
-        self.assertIs(c.channel_id, self.conn._get_free_channel_id())
+        assert c.channel_id is self.conn._get_free_channel_id()
 
     def test_init_explicit_channel(self):
         Channel(self.conn, 3)
@@ -48,18 +51,18 @@ class test_Channel(Case):
         self.c.events['bar'].add(Mock())
         self.c.no_ack_consumers.add('foo')
         self.c.collect()
-        self.assertFalse(self.c.callbacks)
-        self.assertFalse(self.c.cancel_callbacks)
-        self.assertFalse(self.c.events)
-        self.assertFalse(self.c.no_ack_consumers)
-        self.assertFalse(self.c.is_open)
+        assert not self.c.callbacks
+        assert not self.c.cancel_callbacks
+        assert not self.c.events
+        assert not self.c.no_ack_consumers
+        assert not self.c.is_open
         self.c.collect()
 
     def test_do_revive(self):
         self.c.open = Mock(name='open')
         self.c.is_open = True
         self.c._do_revive()
-        self.assertFalse(self.c.is_open)
+        assert not self.c.is_open
         self.c.open.assert_called_with()
 
     def test_close__not_open(self):
@@ -78,11 +81,11 @@ class test_Channel(Case):
             (30, 'text', spec.Queue.Declare[0], spec.Queue.Declare[1]),
             wait=spec.Channel.CloseOk,
         )
-        self.assertIsNone(self.c.connection)
+        assert self.c.connection is None
 
     def test_on_close(self):
         self.c._do_revive = Mock(name='_do_revive')
-        with self.assertRaises(NotFound):
+        with pytest.raises(NotFound):
             self.c._on_close(404, 'text', 50, 61)
         self.c.send_method.assert_called_with(spec.Channel.CloseOk)
         self.c._do_revive.assert_called_with()
@@ -101,7 +104,7 @@ class test_Channel(Case):
     def test_on_flow(self):
         self.c._x_flow_ok = Mock(name='_x_flow_ok')
         self.c._on_flow(0)
-        self.assertFalse(self.c.active)
+        assert not self.c.active
         self.c._x_flow_ok.assert_called_with(0)
 
     def test_x_flow_ok(self):
@@ -121,7 +124,7 @@ class test_Channel(Case):
         self.c.on_open = Mock(name='on_open')
         self.c.is_open = False
         self.c._on_open_ok()
-        self.assertTrue(self.c.is_open)
+        assert self.c.is_open
         self.c.on_open.assert_called_with(self.c)
 
     def test_exchange_declare(self):
@@ -201,9 +204,9 @@ class test_Channel(Case):
             spec.Queue.Declare, 'BsbbbbbF',
             (0, 'q', False, True, False, False, False, {'x': 1}),
         )
-        self.assertEqual(ret.queue, 'name')
-        self.assertEqual(ret.message_count, 123)
-        self.assertEqual(ret.consumer_count, 45)
+        assert ret.queue == 'name'
+        assert ret.message_count == 123
+        assert ret.consumer_count == 45
         self.c.wait.assert_called_with(
             spec.Queue.DeclareOk, returns_tuple=True)
 
@@ -242,7 +245,7 @@ class test_Channel(Case):
         self.c._on_basic_cancel(123)
         self.c._remove_tag.return_value.assert_called_with(123)
         self.c._remove_tag.return_value = None
-        with self.assertRaises(ConsumerCancelled):
+        with pytest.raises(ConsumerCancelled):
             self.c._on_basic_cancel(123)
 
     def test_on_basic_cancel_ok(self):
@@ -253,9 +256,9 @@ class test_Channel(Case):
     def test_remove_tag(self):
         self.c.callbacks[123] = Mock()
         p = self.c.cancel_callbacks[123] = Mock()
-        self.assertIs(self.c._remove_tag(123), p)
-        self.assertNotIn(123, self.c.callbacks)
-        self.assertNotIn(123, self.c.cancel_callbacks)
+        assert self.c._remove_tag(123) is p
+        assert 123 not in self.c.callbacks
+        assert 123 not in self.c.cancel_callbacks
 
     def test_basic_consume(self):
         callback = Mock()
@@ -270,14 +273,14 @@ class test_Channel(Case):
             (0, 'q', 123, False, False, False, False, {'x': 1}),
             wait=spec.Basic.ConsumeOk,
         )
-        self.assertIs(self.c.callbacks[123], callback)
-        self.assertIs(self.c.cancel_callbacks[123], on_cancel)
+        assert self.c.callbacks[123] is callback
+        assert self.c.cancel_callbacks[123] is on_cancel
 
     def test_basic_consume__no_ack(self):
         self.c.basic_consume(
             'q', 123, arguments={'x': 1}, no_ack=True,
         )
-        self.assertIn(123, self.c.no_ack_consumers)
+        assert 123 in self.c.no_ack_consumers
 
     def test_on_basic_deliver(self):
         msg = Mock()
@@ -312,7 +315,7 @@ class test_Channel(Case):
         m = self.c._on_get_ok(
             'dtag', 'redelivered', 'ex', 'rkey', 'mcount', msg,
         )
-        self.assertIs(m, msg)
+        assert m is msg
 
     def test_basic_publish(self):
         self.c.connection.transport.having_timeout = ContextMock()
@@ -329,9 +332,9 @@ class test_Channel(Case):
         self.c.wait = Mock(name='wait')
         ret = self.c.basic_publish_confirm(1, 2, arg=1)
         self.c.confirm_select.assert_called_with()
-        self.assertTrue(self.c._confirm_selected)
+        assert self.c._confirm_selected
         self.c._basic_publish.assert_called_with(1, 2, arg=1)
-        self.assertIs(ret, self.c._basic_publish())
+        assert ret is self.c._basic_publish()
         self.c.wait.assert_called_with(spec.Basic.Ack)
         self.c.basic_publish_confirm(1, 2, arg=1)
 
@@ -361,7 +364,7 @@ class test_Channel(Case):
         )
 
     def test_on_basic_return(self):
-        with self.assertRaises(NotFound):
+        with pytest.raises(NotFound):
             self.c._on_basic_return(404, 'text', 'ex', 'rkey', 'msg')
 
     @patch('amqp.channel.error_for_code')

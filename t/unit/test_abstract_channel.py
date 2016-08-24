@@ -1,22 +1,24 @@
 from __future__ import absolute_import, unicode_literals
 
+import pytest
+
+from case import Mock, patch
 from vine import promise
 
 from amqp.abstract_channel import AbstractChannel
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
 
-from .case import Case, Mock, patch
 
-
-class test_AbstractChannel(Case):
+class test_AbstractChannel:
 
     class Channel(AbstractChannel):
 
         def _setup_listeners(self):
             pass
 
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_conn(self):
         self.conn = Mock(name='connection')
         self.conn.channels = {}
         self.channel_id = 1
@@ -51,16 +53,16 @@ class test_AbstractChannel(Case):
 
     def test_send_method__StopIteration(self):
         self.conn.frame_writer.send.side_effect = StopIteration()
-        with self.assertRaises(RecoverableConnectionError):
+        with pytest.raises(RecoverableConnectionError):
             self.c.send_method((50, 60), 'iB', (30, 0))
 
     def test_send_method__no_connection(self):
         self.c.connection = None
-        with self.assertRaises(RecoverableConnectionError):
+        with pytest.raises(RecoverableConnectionError):
             self.c.send_method((50, 60))
 
     def test_close(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.c.close()
 
     @patch('amqp.abstract_channel.ensure_promise')
@@ -79,7 +81,7 @@ class test_AbstractChannel(Case):
         prev = self.c._pending[(50, 61)] = Mock(name='p2')
         p.value = None
         self.c.wait([(50, 61)])
-        self.assertIs(self.c._pending[(50, 61)], prev)
+        assert self.c._pending[(50, 61)] is prev
 
     def test_dispatch_method__content_encoding(self):
         self.c.auto_decode = True
@@ -89,7 +91,7 @@ class test_AbstractChannel(Case):
         self.c.dispatch_method((50, 61), 'payload', self.content)
 
     def test_dispatch_method__unknown_method(self):
-        with self.assertRaises(AMQPNotImplementedError):
+        with pytest.raises(AMQPNotImplementedError):
             self.c.dispatch_method((100, 131), 'payload', self.content)
 
     def test_dispatch_method__one_shot(self):
@@ -104,7 +106,7 @@ class test_AbstractChannel(Case):
         p = self.c._pending[(50, 61)] = Mock(name='oneshot')
         self.c.dispatch_method((50, 61), 'payload', self.content)
         p.assert_called_with()
-        self.assertFalse(self.c._pending)
+        assert not self.c._pending
 
     @patch('amqp.abstract_channel.loads')
     def test_dispatch_method__listeners(self, loads):
@@ -121,5 +123,5 @@ class test_AbstractChannel(Case):
         self.c.dispatch_method((50, 61), 'payload', self.content)
         p1.assert_called_with(1, 2, 3, self.content)
         p2.assert_called_with(1, 2, 3, self.content)
-        self.assertFalse(self.c._pending)
-        self.assertTrue(self.c._callbacks[(50, 61)])
+        assert not self.c._pending
+        assert self.c._callbacks[(50, 61)]

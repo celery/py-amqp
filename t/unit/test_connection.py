@@ -1,6 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 
+import pytest
 import socket
+
+from case import ContextMock, Mock, call
 
 from amqp import Connection
 from amqp import spec
@@ -11,12 +14,11 @@ from amqp.exceptions import (
 from amqp.five import items
 from amqp.transport import TCPTransport
 
-from .case import Case, ContextMock, Mock, call
 
+class test_Connection:
 
-class test_Connection(Case):
-
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_conn(self):
         self.frame_handler = Mock(name='frame_handler')
         self.frame_writer = Mock(name='frame_writer_cls')
         self.conn = Connection(
@@ -31,7 +33,7 @@ class test_Connection(Case):
 
     def test_login_response(self):
         self.conn = Connection(login_response='foo')
-        self.assertEqual(self.conn.login_response, 'foo')
+        assert self.conn.login_response == 'foo'
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
@@ -64,16 +66,16 @@ class test_Connection(Case):
     def test_connect__already_connected(self):
         callback = Mock(name='callback')
         self.conn.transport.connected = True
-        self.assertIs(self.conn.connect(callback), callback.return_value)
+        assert self.conn.connect(callback) == callback.return_value
         callback.assert_called_with()
 
     def test_on_start(self):
         self.conn._on_start(3, 4, {'foo': 'bar'}, 'x y z', 'en_US en_GB')
-        self.assertEqual(self.conn.version_major, 3)
-        self.assertEqual(self.conn.version_minor, 4)
-        self.assertEqual(self.conn.server_properties, {'foo': 'bar'})
-        self.assertEqual(self.conn.mechanisms, ['x', 'y', 'z'])
-        self.assertEqual(self.conn.locales, ['en_US', 'en_GB'])
+        assert self.conn.version_major == 3
+        assert self.conn.version_minor == 4
+        assert self.conn.server_properties == {'foo': 'bar'}
+        assert self.conn.mechanisms == ['x', 'y', 'z']
+        assert self.conn.locales == ['en_US', 'en_GB']
         self.conn.send_method.assert_called_with(
             spec.Connection.StartOk, 'FsSs', (
                 self.conn.client_properties, self.conn.login_method,
@@ -87,7 +89,7 @@ class test_Connection(Case):
             '', '',
         )
         cap = self.conn.client_properties['capabilities']
-        self.assertTrue(cap['consumer_cancel_notify'])
+        assert cap['consumer_cancel_notify']
 
     def test_on_start__connection_blocked(self):
         self.conn._on_start(
@@ -95,7 +97,7 @@ class test_Connection(Case):
             '', '',
         )
         cap = self.conn.client_properties['capabilities']
-        self.assertTrue(cap['connection.blocked'])
+        assert cap['connection.blocked']
 
     def test_on_secure(self):
         self.conn._on_secure('vfz')
@@ -103,10 +105,10 @@ class test_Connection(Case):
     def test_on_tune(self):
         self.conn.client_heartbeat = 16
         self.conn._on_tune(345, 16, 10)
-        self.assertEqual(self.conn.channel_max, 345)
-        self.assertEqual(self.conn.frame_max, 16)
-        self.assertEqual(self.conn.server_heartbeat, 10)
-        self.assertEqual(self.conn.heartbeat, 10)
+        assert self.conn.channel_max == 345
+        assert self.conn.frame_max == 16
+        assert self.conn.server_heartbeat == 10
+        assert self.conn.heartbeat == 10
         self.conn.send_method.assert_called_with(
             spec.Connection.TuneOk, 'BlB', (
                 self.conn.channel_max, self.conn.frame_max,
@@ -118,7 +120,7 @@ class test_Connection(Case):
     def test_on_tune__client_heartbeat_disabled(self):
         self.conn.client_heartbeat = 0
         self.conn._on_tune(345, 16, 10)
-        self.assertEqual(self.conn.heartbeat, 0)
+        assert self.conn.heartbeat == 0
 
     def test_on_tune_sent(self):
         self.conn._on_tune_sent()
@@ -129,16 +131,16 @@ class test_Connection(Case):
     def test_on_open_ok(self):
         self.conn.on_open = Mock(name='on_open')
         self.conn._on_open_ok()
-        self.assertTrue(self.conn._handshake_complete)
+        assert self.conn._handshake_complete
         self.conn.on_open.assert_called_with(self.conn)
 
     def test_connected(self):
         self.conn.transport.connected = False
-        self.assertFalse(self.conn.connected)
+        assert not self.conn.connected
         self.conn.transport.connected = True
-        self.assertTrue(self.conn.connected)
+        assert self.conn.connected
         self.conn.transport = None
-        self.assertFalse(self.conn.connected)
+        assert not self.conn.connected
 
     def test_collect(self):
         channels = self.conn.channels = {
@@ -158,12 +160,12 @@ class test_Connection(Case):
 
     def test_get_free_channel_id__raises_IndexError(self):
         self.conn._avail_channel_ids = []
-        with self.assertRaises(ResourceError):
+        with pytest.raises(ResourceError):
             self.conn._get_free_channel_id()
 
     def test_claim_channel_id(self):
         self.conn._claim_channel_id(30)
-        with self.assertRaises(ConnectionError):
+        with pytest.raises(ConnectionError):
             self.conn._claim_channel_id(30)
 
     def test_channel(self):
@@ -171,10 +173,10 @@ class test_Connection(Case):
         c = self.conn.channel(3, callback)
         self.conn.Channel.assert_called_with(self.conn, 3, on_open=callback)
         c2 = self.conn.channel(3, callback)
-        self.assertIs(c2, c)
+        assert c2 is c
 
     def test_is_alive(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.conn.is_alive()
 
     def test_drain_events(self):
@@ -190,7 +192,7 @@ class test_Connection(Case):
         self.conn.on_inbound_frame.assert_called_with(
             self.conn.transport.read_frame(),
         )
-        self.assertIs(ret, self.conn.on_inbound_frame())
+        assert ret is self.conn.on_inbound_frame()
 
     def test_blocking_read__timeout(self):
         self.conn.transport = TCPTransport('localhost:5672')
@@ -216,15 +218,15 @@ class test_Connection(Case):
         self.conn.transport.read_frame = Mock(name='read_frame')
         self.conn.transport.read_frame.side_effect = SSLError(
             'operation timed out')
-        with self.assertRaises(socket.timeout):
+        with pytest.raises(socket.timeout):
             self.conn.blocking_read(3)
         self.conn.transport.read_frame.side_effect = SSLError(
             'The operation did not complete foo bar')
-        with self.assertRaises(socket.timeout):
+        with pytest.raises(socket.timeout):
             self.conn.blocking_read(3)
         self.conn.transport.read_frame.side_effect = SSLError(
             'oh noes')
-        with self.assertRaises(SSLError):
+        with pytest.raises(SSLError):
             self.conn.blocking_read(3)
 
     def test_on_inbound_method(self):
@@ -248,7 +250,7 @@ class test_Connection(Case):
 
     def test_on_close(self):
         self.conn._x_close_ok = Mock(name='_x_close_ok')
-        with self.assertRaises(NotFound):
+        with pytest.raises(NotFound):
             self.conn._on_close(404, 'bah not found', 50, 60)
 
     def test_x_close_ok(self):
@@ -281,7 +283,7 @@ class test_Connection(Case):
             (8, 0, None, None, None),
         )
         self.conn.frame_writer.send.side_effect = StopIteration()
-        with self.assertRaises(RecoverableConnectionError):
+        with pytest.raises(RecoverableConnectionError):
             self.conn.send_heartbeat()
 
     def test_heartbeat_tick__no_heartbeat(self):
@@ -296,9 +298,9 @@ class test_Connection(Case):
         self.conn.heartbeat_tick()
         self.conn.last_heartbeat_received -= 1000
         self.conn.last_heartbeat_sent -= 1000
-        with self.assertRaises(ConnectionError):
+        with pytest.raises(ConnectionError):
             self.conn.heartbeat_tick()
 
     def test_server_capabilities(self):
         self.conn.server_properties['capabilities'] = {'foo': 1}
-        self.assertEqual(self.conn.server_capabilities, {'foo': 1})
+        assert self.conn.server_capabilities == {'foo': 1}

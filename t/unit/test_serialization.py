@@ -1,18 +1,20 @@
 from __future__ import absolute_import, unicode_literals
 
+import pytest
+
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
 from struct import pack
 
+from case import ANY
+
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.serialization import GenericContent, _read_item, dumps, loads
 
-from .case import Case
 
-
-class ANY(object):
+class _ANY(object):
 
     def __eq__(self, other):
         return other is not None
@@ -21,37 +23,26 @@ class ANY(object):
         return other is None
 
 
-class test_serialization(Case):
+class test_serialization:
 
-    def test_read_item_S(self):
-        self.assertEqual(_read_item(b's8thequick')[0], 'thequick')
-
-    def test_read_item_b(self):
-        self.assertEqual(_read_item(b'b' + pack(b'>B', True))[0], True)
-
-    def test_read_item_B(self):
-        self.assertEqual(_read_item(b'B' + pack(b'>b', 123))[0], 123)
-
-    def test_read_item_U(self):
-        self.assertEqual(_read_item(b'U' + pack(b'>h', -321))[0], -321)
-
-    def test_read_item_u(self):
-        self.assertEqual(_read_item(b'u' + pack(b'>H', 321))[0], 321)
-
-    def test_read_item_i(self):
-        self.assertEqual(_read_item(b'i' + pack(b'>I', 1234))[0], 1234)
-
-    def test_read_item_L(self):
-        self.assertEqual(_read_item(b'L' + pack(b'>q', -32451))[0], -32451)
-
-    def test_read_item_l(self):
-        self.assertEqual(_read_item(b'l' + pack(b'>Q', 32451))[0], 32451)
-
-    def test_read_item_f(self):
-        self.assertEqual(ceil(_read_item(b'f' + pack(b'>f', 33.3))[0]), 34.0)
+    @pytest.mark.parametrize('descr,frame,expected,cast', [
+        ('S', b's8thequick', 'thequick', None),
+        ('b', b'b' + pack(b'>B', True), True, None),
+        ('B', b'B' + pack(b'>b', 123), 123, None),
+        ('U', b'U' + pack(b'>h', -321), -321, None),
+        ('u', b'u' + pack(b'>H', 321), 321, None),
+        ('i', b'i' + pack(b'>I', 1234), 1234, None),
+        ('L', b'L' + pack(b'>q', -32451), -32451, None),
+        ('l', b'l' + pack(b'>Q', 32451), 32451, None),
+        ('f', b'f' + pack(b'>f', 33.3), 34.0, ceil),
+    ])
+    def test_read_item(self, descr, frame, expected, cast):
+        actual = _read_item(frame)[0]
+        actual = cast(actual) if cast else actual
+        assert actual == expected
 
     def test_read_item_V(self):
-        self.assertIsNone(_read_item(b'V')[0])
+        assert _read_item(b'V')[0] is None
 
     def test_roundtrip(self):
         format = b'bobBlLbsbST'
@@ -61,11 +52,11 @@ class test_serialization(Case):
             datetime(2015, 3, 13, 10, 23),
         ])
         y = loads(format, x)
-        self.assertListEqual([
+        assert [
             True, 32, False, 3415, 4513134, 13241923419,
             True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
-            ANY(),
-        ], y[0])
+            datetime(2015, 3, 13, 17, 23),
+        ] == y[0]
 
     def test_int_boundaries(self):
         format = b'F'
@@ -73,26 +64,21 @@ class test_serialization(Case):
             {'a': -2147483649, 'b': 2147483648},  # celery/celery#3121
         ])
         y = loads(format, x)
-        self.assertListEqual([
-            {'a': -2147483649, 'b': 2147483648},  # celery/celery#3121
-        ], y[0])
+        assert y[0] == [{
+            'a': -2147483649, 'b': 2147483648,  # celery/celery#3121
+        }]
 
     def test_loads_unknown_type(self):
-        with self.assertRaises(FrameSyntaxError):
+        with pytest.raises(FrameSyntaxError):
             loads('x', 'asdsad')
 
     def test_float(self):
-        self.assertEqual(
-            int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100),
-            3231,
-        )
+        assert (int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100) ==
+                3231)
 
     def test_table(self):
         table = {'foo': 32, 'bar': 'baz', 'nil': None}
-        self.assertDictEqual(
-            loads(b'F', dumps(b'F', [table]))[0][0],
-            table,
-        )
+        assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
     def test_array(self):
         array = [
@@ -104,29 +90,27 @@ class test_serialization(Case):
             None,
         ]
         expected = list(array)
-        expected[6] = ANY()
+        expected[6] = _ANY()
 
-        self.assertListEqual(
-            expected,
-            loads('A', dumps('A', [array]))[0][0],
-        )
+        assert expected == loads('A', dumps('A', [array]))[0][0]
 
     def test_array_unknown_type(self):
-        with self.assertRaises(FrameSyntaxError):
+        with pytest.raises(FrameSyntaxError):
             dumps('A', [[object()]])
 
 
-class test_GenericContent(Case):
+class test_GenericContent:
 
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_content(self):
         self.g = GenericContent()
 
     def test_getattr(self):
         self.g.properties['foo'] = 30
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             self.g.__setstate__
-        self.assertEqual(self.g.foo, 30)
-        with self.assertRaises(AttributeError):
+        assert self.g.foo == 30
+        with pytest.raises(AttributeError):
             self.g.bar
 
     def test_load_properties(self):
@@ -153,7 +137,7 @@ class test_GenericContent(Case):
         s = m._serialize_properties()
         m2 = Message()
         m2._load_properties(m2.CLASS_ID, s)
-        self.assertDictEqual(m2.properties, m.properties)
+        assert m2.properties == m.properties
 
     def test_load_properties__some_missing(self):
         m = Message()
@@ -182,18 +166,18 @@ class test_GenericContent(Case):
         body = 'the quick brown fox'
         buf = b'\0' * 30 + pack(b'>HxxQ', m.CLASS_ID, len(body))
         buf += m._serialize_properties()
-        self.assertEqual(m.inbound_header(buf, offset=30), 42)
-        self.assertEqual(m.body_size, len(body))
-        self.assertEqual(m.properties['content_type'], 'application/json')
-        self.assertFalse(m.ready)
+        assert m.inbound_header(buf, offset=30) == 42
+        assert m.body_size == len(body)
+        assert m.properties['content_type'] == 'application/json'
+        assert not m.ready
 
     def test_inbound_header__empty_body(self):
         m = Message()
         m.properties = {}
         buf = pack(b'>HxxQ', m.CLASS_ID, 0)
         buf += m._serialize_properties()
-        self.assertEqual(m.inbound_header(buf, offset=0), 12)
-        self.assertTrue(m.ready)
+        assert m.inbound_header(buf, offset=0) == 12
+        assert m.ready
 
     def test_inbound_body(self):
         m = Message()
@@ -201,13 +185,13 @@ class test_GenericContent(Case):
         m.body_received = 8
         m._pending_chunks = [b'the', b'quick']
         m.inbound_body(b'brown')
-        self.assertFalse(m.ready)
+        assert not m.ready
         m.inbound_body(b'fox')
-        self.assertTrue(m.ready)
-        self.assertEqual(m.body, b'thequickbrownfox')
+        assert m.ready
+        assert m.body == b'thequickbrownfox'
 
     def test_inbound_body__no_chunks(self):
         m = Message()
         m.body_size = 16
         m.inbound_body('thequickbrownfox')
-        self.assertTrue(m.ready)
+        assert m.ready
