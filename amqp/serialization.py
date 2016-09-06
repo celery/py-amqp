@@ -28,7 +28,6 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-from time import mktime
 
 from .spec import Basic
 from .exceptions import FrameSyntaxError
