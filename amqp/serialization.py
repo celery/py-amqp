@@ -322,7 +322,7 @@ def dumps(format, values):
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
         elif p == 'T':
-            write(pack(b'>Q', long_t(mktime(val.timetuple()))))
+            write(pack(b'>Q', long_t(calendar.timegm(val.utctimetuple()))))
     _flushbits(bits, write)
 
     return out.getvalue()

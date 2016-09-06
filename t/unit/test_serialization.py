@@ -55,7 +55,7 @@ class test_serialization:
         assert [
             True, 32, False, 3415, 4513134, 13241923419,
             True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
-            datetime(2015, 3, 13, 17, 23),
+            datetime(2015, 3, 13, 10, 23),
         ] == y[0]
 
     def test_int_boundaries(self):
