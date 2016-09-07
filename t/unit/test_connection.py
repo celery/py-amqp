@@ -279,12 +279,9 @@ class test_Connection:
 
     def test_send_heartbeat(self):
         self.conn.send_heartbeat()
-        self.conn.frame_writer.send.assert_called_with(
-            (8, 0, None, None, None),
+        self.conn.frame_writer.assert_called_with(
+            8, 0, None, None, None,
         )
-        self.conn.frame_writer.send.side_effect = StopIteration()
-        with pytest.raises(RecoverableConnectionError):
-            self.conn.send_heartbeat()
 
     def test_heartbeat_tick__no_heartbeat(self):
         self.conn.heartbeat = 0

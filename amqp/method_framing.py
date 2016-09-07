@@ -88,7 +88,6 @@ def frame_handler(connection, callback,
     return on_frame
 
 
-@coro
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
@@ -100,10 +99,9 @@ def frame_writer(connection, transport,
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
-    while 1:
+    def write_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
         offset = 0
-        type_, channel, method_sig, args, content = yield
         if content:
             body = content.body
             bodylen = len(body)
@@ -165,3 +163,4 @@ def frame_writer(connection, transport,
             write(view[:offset])
 
         connection.bytes_sent += 1
+    return write_frame

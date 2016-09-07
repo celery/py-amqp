@@ -5,6 +5,27 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.1.0:
+
+2.1.0
+=====
+:release-date: 2016-09-07 04:23 P.M PDT
+:release-by: Ask Solem
+
+- **Requirements**
+
+    - Now depends on :ref:`Vine 1.1.2 <vine:version-1.1.2>`.
+
+- Now licensed under the BSD license!
+
+    Thanks to Barry Pederson for approving the license change,
+    which unifies the license used across all projects in the Celery
+    organization.
+
+- Datetimes in method frame arguments are now handled properly.
+
+- Fixed compatibility with Python <= 2.7.6
+
 .. _version-2.0.3:
 
 2.0.3

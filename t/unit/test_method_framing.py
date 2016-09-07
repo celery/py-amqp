@@ -86,17 +86,17 @@ class test_frame_writer:
 
     def test_write_fast_header(self):
         frame = 1, 1, spec.Queue.Declare, b'x' * 30, None
-        self.g.send(frame)
+        self.g(*frame)
         self.write.assert_called()
 
     def test_write_fast_content(self):
         msg = Message(body=b'y' * 10, content_type='utf-8')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
-        self.g.send(frame)
+        self.g(*frame)
         self.write.assert_called()
 
     def test_write_slow_content(self):
         msg = Message(body=b'y' * 2048, content_type='utf-8')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
-        self.g.send(frame)
+        self.g(*frame)
         self.write.assert_called()

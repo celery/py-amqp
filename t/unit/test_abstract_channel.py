@@ -36,9 +36,9 @@ class test_AbstractChannel:
 
     def test_send_method(self):
         self.c.send_method((50, 60), 'iB', (30, 0))
-        self.conn.frame_writer.send.assert_called_with((
+        self.conn.frame_writer.assert_called_with(
             1, self.channel_id, (50, 60), dumps('iB', (30, 0)), None,
-        ))
+        )
 
     def test_send_method__callback(self):
         callback = Mock(name='callback')
@@ -50,11 +50,6 @@ class test_AbstractChannel:
         self.c.wait = Mock(name='wait')
         self.c.send_method((50, 60), 'iB', (30, 0), wait=(50, 61))
         self.c.wait.assert_called_with((50, 61), returns_tuple=False)
-
-    def test_send_method__StopIteration(self):
-        self.conn.frame_writer.send.side_effect = StopIteration()
-        with pytest.raises(RecoverableConnectionError):
-            self.c.send_method((50, 60), 'iB', (30, 0))
 
     def test_send_method__no_connection(self):
         self.c.connection = None
