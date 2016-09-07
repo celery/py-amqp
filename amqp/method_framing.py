@@ -23,7 +23,7 @@ from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .five import range
-from .utils import coro, str_to_bytes
+from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 

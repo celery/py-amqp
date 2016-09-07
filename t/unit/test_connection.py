@@ -8,9 +8,7 @@ from case import ContextMock, Mock, call
 from amqp import Connection
 from amqp import spec
 from amqp.connection import SSLError
-from amqp.exceptions import (
-    ConnectionError, NotFound, RecoverableConnectionError, ResourceError,
-)
+from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
 from amqp.transport import TCPTransport
 
