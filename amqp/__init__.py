@@ -20,7 +20,7 @@ import re
 
 from collections import namedtuple
 
-__version__ = '2.0.3'
+__version__ = '2.1.0'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Ask Solem'
 __contact__ = 'pyamqp@celeryproject.org'
