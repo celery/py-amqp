@@ -26,6 +26,9 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Fixed compatibility with Python <= 2.7.6
 
+- Frame_writer is no longer a generator, which should solve
+  a rare "generator already executing" error (Issue #103).
+
 .. _version-2.0.3:
 
 2.0.3
