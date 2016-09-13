@@ -97,6 +97,21 @@ class test_Connection:
         cap = self.conn.client_properties['capabilities']
         assert cap['connection.blocked']
 
+    def test_on_start__authentication_failure_close(self):
+        self.conn._on_start(
+            3, 4, {'capabilities': {'authentication_failure_close': 1}},
+            '', '',
+        )
+        cap = self.conn.client_properties['capabilities']
+        assert cap['authentication_failure_close']
+
+    def test_on_start__authentication_failure_close__disabled(self):
+        self.conn._on_start(
+            3, 4, {'capabilities': {}},
+            '', '',
+        )
+        assert 'capabilities' not in self.conn.client_properties
+
     def test_on_secure(self):
         self.conn._on_secure('vfz')
 

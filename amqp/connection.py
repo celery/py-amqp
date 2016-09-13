@@ -34,7 +34,7 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import array, range, values, monotonic
+from .five import array, items, monotonic, range, values
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import Transport
@@ -60,16 +60,20 @@ Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 
 __all__ = ['Connection']
 
-#
-# Client property info that gets sent to the server on connection startup
-#
+AMQP_LOGGER = logging.getLogger('amqp')
+
+#: Default map for :attr:`Connection.library_properties`
 LIBRARY_PROPERTIES = {
     'product': 'py-amqp',
     'product_version': __version__,
-    'capabilities': {},
 }
 
-AMQP_LOGGER = logging.getLogger('amqp')
+#: Default map for :attr:`Connection.negotiate_capabilities`
+NEGOTIATE_CAPABILITIES = {
+    'consumer_cancel_notify': True,
+    'connection.blocked': True,
+    'authentication_failure_close': True,
+}
 
 
 class Connection(AbstractChannel):
@@ -92,6 +96,24 @@ class Connection(AbstractChannel):
 
     """
     Channel = Channel
+
+    #: Mapping of protocol extensions to enable.
+    #: The server will report these in server_properties[capabilities],
+    #: and if a key in this map is present the client will tell the
+    #: server to either enable or disable the capability depending
+    #: on the value set in this map.
+    #: For example with:
+    #:     negotiate_capabilities = {
+    #:         'consumer_cancel_notify': True,
+    #:     }
+    #: The client will enable this capability if the server reports
+    #: support for it, but if the value is False the client will
+    #: disable the capability.
+    negotiate_capabilities = NEGOTIATE_CAPABILITIES
+
+    #: These are sent to the server to announce what features
+    #: we support, type of client etc.
+    library_properties = LIBRARY_PROPERTIES
 
     #: Final heartbeat interval value (in float seconds) after negotiation
     heartbeat = None
@@ -187,7 +209,7 @@ class Connection(AbstractChannel):
             login_response = login_response.getvalue()[4:]
 
         self.client_properties = dict(
-            LIBRARY_PROPERTIES, **client_properties or {}
+            self.library_properties, **client_properties or {}
         )
         self.login_method = login_method
         self.login_response = login_response
@@ -328,14 +350,20 @@ class Connection(AbstractChannel):
             self.server_properties, self.mechanisms, self.locales,
         )
 
+        # Negotiate protocol extensions (capabilities)
         scap = server_properties.get('capabilities') or {}
-
-        if scap.get('consumer_cancel_notify'):
-            cap = client_properties.setdefault('capabilities', {})
-            cap['consumer_cancel_notify'] = True
-        if scap.get('connection.blocked'):
-            cap = client_properties.setdefault('capabilities', {})
-            cap['connection.blocked'] = True
+        print('SCAP: %r' %( scap,))
+        cap = client_properties.setdefault('capabilities', {})
+        cap.update({
+            wanted_cap: enable_cap
+            for wanted_cap, enable_cap in items(self.negotiate_capabilities)
+            if scap.get(wanted_cap)
+        })
+        print('CAP NOW: %r' % (cap,))
+        if not cap:
+            # no capabilities, server may not react well to having
+            # this key present in client_properties, so we remove it.
+            client_properties.pop('capabilities', None)
 
         self.send_method(
             spec.Connection.StartOk, argsig,
