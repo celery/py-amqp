@@ -50,6 +50,10 @@ Differences from `amqplib`_
         - ``Channel.events['basic_ack'].append(my_callback)`` adds a callback
           to be called when a message is confirmed. This callback is then
           called with the signature ``(delivery_tag, multiple)``.
+    - Authentication Failure Notifications
+        Instead of just closing the connection abruptly on invalid
+        credentials, py-amqp will raise an ``AccessRefused`` error
+        when connected to rabbitmq-server 3.2.0 or greater.
 - Support for ``basic_return``
 - Uses AMQP 0-9-1 instead of 0-8.
     - ``Channel.access_request`` and ``ticket`` arguments to methods
