@@ -352,14 +352,12 @@ class Connection(AbstractChannel):
 
         # Negotiate protocol extensions (capabilities)
         scap = server_properties.get('capabilities') or {}
-        print('SCAP: %r' %( scap,))
         cap = client_properties.setdefault('capabilities', {})
         cap.update({
             wanted_cap: enable_cap
             for wanted_cap, enable_cap in items(self.negotiate_capabilities)
             if scap.get(wanted_cap)
         })
-        print('CAP NOW: %r' % (cap,))
         if not cap:
             # no capabilities, server may not react well to having
             # this key present in client_properties, so we remove it.
