@@ -115,7 +115,7 @@ def frame_writer(connection, transport,
                                str_to_bytes(args)])
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
-            write(pack((b'>BHI%dsB' % framelen).encode(),
+            write(pack((str('>BHI%dsB') % framelen).encode(),
                        type_, channel, framelen, frame, 0xce))
             if body:
                 properties = content._serialize_properties()
@@ -124,13 +124,13 @@ def frame_writer(connection, transport,
                     properties,
                 ])
                 framelen = len(frame)
-                write(pack((b'>BHI%dsB' % framelen).encode(),
+                write(pack((str('>BHI%dsB') % framelen).encode(),
                            2, channel, framelen, frame, 0xce))
 
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
-                    write(pack((b'>BHI%dsB' % framelen).encode(),
+                    write(pack((str('>BHI%dsB') % framelen).encode(),
                                3, channel, framelen,
                                str_to_bytes(frame), 0xce))
 
@@ -140,7 +140,7 @@ def frame_writer(connection, transport,
                                str_to_bytes(args)])
                      if type_ == 1 else b'')
             framelen = len(frame)
-            pack_into((b'>BHI%dsB' % framelen).encode(), buf, offset,
+            pack_into((str('>BHI%dsB') % framelen).encode(), buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
@@ -151,12 +151,12 @@ def frame_writer(connection, transport,
                 ])
                 framelen = len(frame)
 
-                pack_into((b'>BHI%dsB' % framelen).encode(), buf, offset,
+                pack_into((str('>BHI%dsB') % framelen).encode(), buf, offset,
                           2, channel, framelen, frame, 0xce)
                 offset += 8 + framelen
 
                 framelen = len(body)
-                pack_into((b'>BHI%dsB' % framelen).encode(), buf, offset,
+                pack_into((str('>BHI%dsB') % framelen).encode(), buf, offset,
                           3, channel, framelen, str_to_bytes(body), 0xce)
                 offset += 8 + framelen
 
