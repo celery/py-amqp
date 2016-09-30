@@ -27,14 +27,18 @@ from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
-#
-# set of methods that require both a content frame and a body frame.
-#
+#: Set of methods that require both a content frame and a body frame.
 _CONTENT_METHODS = frozenset([
     spec.Basic.Return,
     spec.Basic.Deliver,
     spec.Basic.GetOk,
 ])
+
+
+#: Number of bytes reserved for protocol in a content frame.
+#: We use this to calculate when a frame exceeeds the max frame size,
+#: and if it does not the message will fit into the preallocated buffer.
+FRAME_OVERHEAD = 40
 
 
 def frame_handler(connection, callback,
@@ -102,23 +106,31 @@ def frame_writer(connection, transport,
     def write_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
         offset = 0
+        properties = None
+        args = str_to_bytes(args)
         if content:
+            properties = content._serialize_properties()
             body = content.body
             bodylen = len(body)
-            bigbody = bodylen > chunk_size
+            framelen = (
+                len(args) +
+                (len(properties) or 0) +
+                bodylen +
+                FRAME_OVERHEAD
+            )
+            bigbody = framelen > chunk_size
         else:
             body, bodylen, bigbody = None, 0, 0
 
+
         if bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (b''.join([pack(b'>HH', *method_sig),
-                               str_to_bytes(args)])
+            frame = (b''.join([pack(b'>HH', *method_sig), args])
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
             write(pack((str('>BHI%dsB') % framelen).encode(),
                        type_, channel, framelen, frame, 0xce))
             if body:
-                properties = content._serialize_properties()
                 frame = b''.join([
                     pack(b'>HHQ', method_sig[0], 0, len(body)),
                     properties,
@@ -136,15 +148,13 @@ def frame_writer(connection, transport,
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (b''.join([pack(b'>HH', *method_sig),
-                               str_to_bytes(args)])
+            frame = (b''.join([pack(b'>HH', *method_sig), args])
                      if type_ == 1 else b'')
             framelen = len(frame)
             pack_into((str('>BHI%dsB') % framelen).encode(), buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
-                properties = content._serialize_properties()
                 frame = b''.join([
                     pack(b'>HHQ', method_sig[0], 0, len(body)),
                     properties,
