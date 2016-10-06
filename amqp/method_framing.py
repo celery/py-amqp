@@ -122,7 +122,6 @@ def frame_writer(connection, transport,
         else:
             body, bodylen, bigbody = None, 0, 0
 
-
         if bigbody:
             # ## SLOW: string copy and write for every frame
             frame = (b''.join([pack(b'>HH', *method_sig), args])
