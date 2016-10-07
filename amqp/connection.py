@@ -342,7 +342,7 @@ class Connection(AbstractChannel):
         self.version_major = version_major
         self.version_minor = version_minor
         self.server_properties = server_properties
-        self.mechanisms = mechanisms.split(' ')
+        self.mechanisms = mechanisms.split(b' ')
         self.locales = locales.split(' ')
         AMQP_LOGGER.debug(
             START_DEBUG_FMT,
@@ -367,7 +367,11 @@ class Connection(AbstractChannel):
             if authentication.mechanism in self.mechanisms:
                 break
         else:
-            raise Exception("Couldn't find appropriate auth mechanism")
+            raise Exception(
+                "Couldn't find appropriate auth mechanism "
+                "(can offer {0}; available {1})".format(
+                    b", ".join(m.mechanism for m in self.authentication).decode(),
+                    b", ".join(self.mechanisms).decode()))
 
         self.send_method(
             spec.Connection.StartOk, argsig,

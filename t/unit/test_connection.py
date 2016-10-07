@@ -10,6 +10,7 @@ from amqp import spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
+from amqp.sasl import SASL, AMQPLAIN
 from amqp.transport import TCPTransport
 
 
@@ -22,6 +23,7 @@ class test_Connection:
         self.conn = Connection(
             frame_handler=self.frame_handler,
             frame_writer=self.frame_writer,
+            authentication=AMQPLAIN('foo', 'bar'),
         )
         self.conn.Channel = Mock(name='Channel')
         self.conn.Transport = Mock(name='Transport')
@@ -29,9 +31,16 @@ class test_Connection:
         self.conn.send_method = Mock(name='send_method')
         self.conn.frame_writer = Mock(name='frame_writer')
 
-    def test_login_response(self):
-        self.conn = Connection(login_response='foo')
-        assert self.conn.login_response == 'foo'
+    def test_sasl_authentication(self):
+        authentication = SASL()
+        self.conn = Connection(authentication=authentication)
+        assert self.conn.authentication == (authentication,)
+
+    def test_amqplain(self):
+        self.conn = Connection(userid='foo', password='bar')
+        assert isinstance(self.conn.authentication[0], AMQPLAIN)
+        assert self.conn.authentication[0].username == 'foo'
+        assert self.conn.authentication[0].password == 'bar'
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
@@ -68,23 +77,23 @@ class test_Connection:
         callback.assert_called_with()
 
     def test_on_start(self):
-        self.conn._on_start(3, 4, {'foo': 'bar'}, 'x y z', 'en_US en_GB')
+        self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN', 'en_US en_GB')
         assert self.conn.version_major == 3
         assert self.conn.version_minor == 4
         assert self.conn.server_properties == {'foo': 'bar'}
-        assert self.conn.mechanisms == ['x', 'y', 'z']
+        assert self.conn.mechanisms == [b'x', b'y', b'z', b'AMQPLAIN', b'PLAIN']
         assert self.conn.locales == ['en_US', 'en_GB']
         self.conn.send_method.assert_called_with(
             spec.Connection.StartOk, 'FsSs', (
-                self.conn.client_properties, self.conn.login_method,
-                self.conn.login_response, self.conn.locale,
+                self.conn.client_properties, b'AMQPLAIN',
+                self.conn.authentication[0].start(self.conn), self.conn.locale,
             ),
         )
 
     def test_on_start__consumer_cancel_notify(self):
         self.conn._on_start(
             3, 4, {'capabilities': {'consumer_cancel_notify': 1}},
-            '', '',
+            b'AMQPLAIN', '',
         )
         cap = self.conn.client_properties['capabilities']
         assert cap['consumer_cancel_notify']
@@ -92,7 +101,7 @@ class test_Connection:
     def test_on_start__connection_blocked(self):
         self.conn._on_start(
             3, 4, {'capabilities': {'connection.blocked': 1}},
-            '', '',
+            b'AMQPLAIN', '',
         )
         cap = self.conn.client_properties['capabilities']
         assert cap['connection.blocked']
@@ -100,7 +109,7 @@ class test_Connection:
     def test_on_start__authentication_failure_close(self):
         self.conn._on_start(
             3, 4, {'capabilities': {'authentication_failure_close': 1}},
-            '', '',
+            b'AMQPLAIN', '',
         )
         cap = self.conn.client_properties['capabilities']
         assert cap['authentication_failure_close']
@@ -108,7 +117,7 @@ class test_Connection:
     def test_on_start__authentication_failure_close__disabled(self):
         self.conn._on_start(
             3, 4, {'capabilities': {}},
-            '', '',
+            b'AMQPLAIN', '',
         )
         assert 'capabilities' not in self.conn.client_properties
 
