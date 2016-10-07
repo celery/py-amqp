@@ -28,6 +28,7 @@ from vine import ensure_promise
 from . import __version__
 from . import spec
 from .abstract_channel import AbstractChannel
+from amqp.sasl import AMQPLAIN, SASL
 from .channel import Channel
 from .exceptions import (
     AMQPDeprecationWarning, ChannelError, ResourceError,
@@ -173,6 +174,7 @@ class Connection(AbstractChannel):
 
     def __init__(self, host='localhost:5672', userid='guest', password='guest',
                  login_method='AMQPLAIN', login_response=None,
+                 authentication=(),
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
@@ -199,20 +201,18 @@ class Connection(AbstractChannel):
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
-        if (login_response is None) \
-                and (userid is not None) \
-                and (password is not None):
-            login_response = BytesIO()
-            _write_table({'LOGIN': userid, 'PASSWORD': password},
-                         login_response.write, [])
-            # Skip the length at the beginning
-            login_response = login_response.getvalue()[4:]
+        if authentication:
+            if isinstance(authentication, SASL):
+                authentication = (authentication,)
+            self.authentication = authentication
+        elif userid is not None and password is not None:
+            self.authentication = (AMQPLAIN(userid, password),)
+        else:
+            raise ValueError("Must supply authentication or userid/password")
 
         self.client_properties = dict(
             self.library_properties, **client_properties or {}
         )
-        self.login_method = login_method
-        self.login_response = login_response
         self.locale = locale
         self.host = host
         self.virtual_host = virtual_host
@@ -363,10 +363,16 @@ class Connection(AbstractChannel):
             # this key present in client_properties, so we remove it.
             client_properties.pop('capabilities', None)
 
+        for authentication in self.authentication:
+            if authentication.mechanism in self.mechanisms:
+                break
+        else:
+            raise Exception("Couldn't find appropriate auth mechanism")
+
         self.send_method(
             spec.Connection.StartOk, argsig,
-            (client_properties, self.login_method,
-             self.login_response, self.locale),
+            (client_properties, authentication.mechanism,
+             authentication.start(self), self.locale),
         )
 
     def _on_secure(self, challenge):
