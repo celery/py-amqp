@@ -119,7 +119,6 @@ class test_Connection:
             ),
         )
 
-
     def test_on_start__consumer_cancel_notify(self):
         self.conn._on_start(
             3, 4, {'capabilities': {'consumer_cancel_notify': 1}},
