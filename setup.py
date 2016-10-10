@@ -105,6 +105,7 @@ setuptools.setup(
     long_description=long_description,
     version=meta['version'],
     description=meta['doc'],
+    keywords='amqp rabbitmq cloudamqp messaging',
     author=meta['author'],
     author_email=meta['contact'],
     maintainer=meta['maintainer'],
