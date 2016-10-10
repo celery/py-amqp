@@ -10,7 +10,7 @@ from amqp import sasl
 from amqp.serialization import _write_table
 
 
-class tet_SASL:
+class test_SASL:
     def test_sasl_notimplemented(self):
         mech = sasl.SASL()
         with pytest.raises(NotImplementedError):
@@ -93,7 +93,7 @@ class tet_SASL:
         context.step.return_value = b'secrets'
         name = Mock()
         gssapi.SecurityContext.return_value = context
-        gssapi.Name = name
+        gssapi.Name.return_value = name
         connection = Mock()
         connection.transport.host = 'broker.example.org'
         GSSAPI = sasl._get_gssapi_mechanism()
