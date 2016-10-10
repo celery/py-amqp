@@ -99,6 +99,17 @@ class test_Connection:
             ),
         )
 
+    def test_missing_credentials(self):
+        with pytest.raises(ValueError):
+            self.conn = Connection(userid=None, password=None)
+        with pytest.raises(ValueError):
+            self.conn = Connection(password=None)
+
+    def test_mechanism_mismatch(self):
+        with pytest.raises(ConnectionError):
+            self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z',
+                                'en_US en_GB')
+
     def test_login_method_response(self):
         # An old way of doing things.:
         login_method, login_response = b'foo', b'bar'

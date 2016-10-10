@@ -368,7 +368,7 @@ class Connection(AbstractChannel):
             if authentication.mechanism in self.mechanisms:
                 break
         else:
-            raise Exception(
+            raise ConnectionError(
                 "Couldn't find appropriate auth mechanism "
                 "(can offer: {0}; available: {1})".format(
                     b", ".join(m.mechanism
