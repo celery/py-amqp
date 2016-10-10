@@ -3,6 +3,8 @@ from __future__ import absolute_import, unicode_literals
 from io import BytesIO
 import socket
 
+import warnings
+
 from amqp.serialization import _write_table
 
 
@@ -89,8 +91,21 @@ else:
 
         def start(self, connection):
             name = gssapi.Name(b'{}@{}'.format(self.service,
-                                              self.get_hostname(connection)),
+                                               self.get_hostname(connection)),
                                gssapi.NameType.hostbased_service)
             self.context = gssapi.SecurityContext(name=name)
             data = self.context.step(None)
             return data
+
+
+class RAW(SASL):
+    mechanism = None
+
+    def __init__(self, mechanism, response):
+        self.mechanism, self.response = mechanism, response
+        warnings.warn("Passing login_method and login_response to Connection "
+                      "is deprecated. Please implement a SASL subclass "
+                      "instead.", DeprecationWarning)
+
+    def start(self, connection):
+        return self.response

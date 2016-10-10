@@ -24,6 +24,7 @@ import warnings
 from vine import ensure_promise
 
 from . import __version__
+from . import sasl
 from . import spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
@@ -34,7 +35,6 @@ from .exceptions import (
 )
 from .five import array, items, monotonic, range, values
 from .method_framing import frame_handler, frame_writer
-from .sasl import AMQPLAIN, PLAIN, SASL
 from .transport import Transport
 
 try:
@@ -204,12 +204,14 @@ class Connection(AbstractChannel):
                 "heeded; use authentication parameter instead",
                 DeprecationWarning)
         if authentication:
-            if isinstance(authentication, SASL):
+            if isinstance(authentication, sasl.SASL):
                 authentication = (authentication,)
             self.authentication = authentication
+        elif login_method is not None and login_response is not None:
+            self.authentication = (sasl.RAW(login_method, login_response))
         elif userid is not None and password is not None:
-            self.authentication = (AMQPLAIN(userid, password),
-                                   PLAIN(userid, password))
+            self.authentication = (sasl.AMQPLAIN(userid, password),
+                                   sasl.PLAIN(userid, password))
         else:
             raise ValueError("Must supply authentication or userid/password")
 

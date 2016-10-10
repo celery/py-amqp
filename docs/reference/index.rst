@@ -18,6 +18,7 @@
     amqp.transport
     amqp.method_framing
     amqp.protocol
+    amqp.sasl
     amqp.serialization
     amqp.spec
     amqp.utils
