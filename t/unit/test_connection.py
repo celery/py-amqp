@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import socket
 
+import warnings
 from case import ContextMock, Mock, call
 
 from amqp import Connection
@@ -10,7 +11,7 @@ from amqp import spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
-from amqp.sasl import SASL, AMQPLAIN
+from amqp.sasl import SASL, AMQPLAIN, PLAIN
 from amqp.transport import TCPTransport
 
 
@@ -41,6 +42,12 @@ class test_Connection:
         assert isinstance(self.conn.authentication[0], AMQPLAIN)
         assert self.conn.authentication[0].username == 'foo'
         assert self.conn.authentication[0].password == 'bar'
+
+    def test_plain(self):
+        self.conn = Connection(userid='foo', password='bar')
+        assert isinstance(self.conn.authentication[1], PLAIN)
+        assert self.conn.authentication[1].username == 'foo'
+        assert self.conn.authentication[1].password == 'bar'
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
@@ -77,11 +84,13 @@ class test_Connection:
         callback.assert_called_with()
 
     def test_on_start(self):
-        self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN', 'en_US en_GB')
+        self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN',
+                            'en_US en_GB')
         assert self.conn.version_major == 3
         assert self.conn.version_minor == 4
         assert self.conn.server_properties == {'foo': 'bar'}
-        assert self.conn.mechanisms == [b'x', b'y', b'z', b'AMQPLAIN', b'PLAIN']
+        assert self.conn.mechanisms == [b'x', b'y', b'z',
+                                        b'AMQPLAIN', b'PLAIN']
         assert self.conn.locales == ['en_US', 'en_GB']
         self.conn.send_method.assert_called_with(
             spec.Connection.StartOk, 'FsSs', (
@@ -89,6 +98,27 @@ class test_Connection:
                 self.conn.authentication[0].start(self.conn), self.conn.locale,
             ),
         )
+
+    def test_login_method_response(self):
+        # An old way of doing things.:
+        login_method, login_response = b'foo', b'bar'
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.conn = Connection(login_method=login_method,
+                                   login_response=login_response)
+            self.conn.send_method = Mock(name='send_method')
+            self.conn._on_start(3, 4, {'foo': 'bar'}, login_method,
+                                'en_US en_GB')
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+
+        self.conn.send_method.assert_called_with(
+            spec.Connection.StartOk, 'FsSs', (
+                self.conn.client_properties, login_method,
+                login_response, self.conn.locale,
+            ),
+        )
+
 
     def test_on_start__consumer_cancel_notify(self):
         self.conn._on_start(

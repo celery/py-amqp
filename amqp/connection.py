@@ -199,16 +199,12 @@ class Connection(AbstractChannel):
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
-        if login_method is not None or login_response is not None:
-            warnings.warn("login_method and login_response are no longer "
-                "heeded; use authentication parameter instead",
-                DeprecationWarning)
         if authentication:
             if isinstance(authentication, sasl.SASL):
                 authentication = (authentication,)
             self.authentication = authentication
         elif login_method is not None and login_response is not None:
-            self.authentication = (sasl.RAW(login_method, login_response))
+            self.authentication = (sasl.RAW(login_method, login_response),)
         elif userid is not None and password is not None:
             self.authentication = (sasl.AMQPLAIN(userid, password),
                                    sasl.PLAIN(userid, password))
@@ -375,7 +371,8 @@ class Connection(AbstractChannel):
             raise Exception(
                 "Couldn't find appropriate auth mechanism "
                 "(can offer: {0}; available: {1})".format(
-                    b", ".join(m.mechanism for m in self.authentication).decode(),
+                    b", ".join(m.mechanism
+                               for m in self.authentication).decode(),
                     b", ".join(self.mechanisms).decode()))
 
         self.send_method(

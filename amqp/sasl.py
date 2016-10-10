@@ -102,6 +102,8 @@ class RAW(SASL):
     mechanism = None
 
     def __init__(self, mechanism, response):
+        assert isinstance(mechanism, bytes)
+        assert isinstance(response, bytes)
         self.mechanism, self.response = mechanism, response
         warnings.warn("Passing login_method and login_response to Connection "
                       "is deprecated. Please implement a SASL subclass "
