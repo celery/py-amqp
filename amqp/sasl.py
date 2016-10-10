@@ -58,44 +58,51 @@ class AMQPLAIN(SASL):
         # Skip the length at the beginning
         return login_response.getvalue()[4:]
 
-try:
-    import gssapi
-except ImportError:
-    class GSSAPI(SASL):
-        def __init__(self, service=b'amqp', rdns=False):
-            raise NotImplementedError("You need to install the `gssapi` module"
-                                      " for GSSAPI SASL support")
-else:
-    class GSSAPI(SASL):
-        """
-        GSSAPI SASL authentication mechanism
 
-        See https://tools.ietf.org/html/rfc4752 for details
-        """
-        mechanism = b'GSSAPI'
+def _get_gssapi_mechanism():
+    try:
+        import gssapi
+    except ImportError:
+        class GSSAPI(SASL):
+            def __init__(self, service=b'amqp', rdns=False):
+                raise NotImplementedError("You need to install the `gssapi` "
+                                          "module for GSSAPI SASL support")
+    else:
+        class GSSAPI(SASL):
+            """
+            GSSAPI SASL authentication mechanism
 
-        def __init__(self, service=b'amqp', rdns=False):
-            self.service = service
-            self.rdns = rdns
+            See https://tools.ietf.org/html/rfc4752 for details
+            """
+            mechanism = b'GSSAPI'
 
-        def get_hostname(self, connection):
-            if self.rdns:
-                peer = connection.transport.sock.getpeername()
-                if isinstance(peer, tuple) and len(peer) == 2:
-                    hostname, _, _ = socket.gethostbyaddr(peer[0])
-                    return hostname
+            def __init__(self, service=b'amqp', rdns=False):
+                self.service = service
+                self.rdns = rdns
+
+            def get_hostname(self, connection):
+                if self.rdns:
+                    peer = connection.transport.sock.getpeername()
+                    if isinstance(peer, tuple) and len(peer) == 2:
+                        hostname, _, _ = socket.gethostbyaddr(peer[0])
+                    else:
+                        raise AssertionError
                 else:
-                    raise AssertionError
-            else:
-                return connection.transport.host
+                    hostname = connection.transport.host
+                if not isinstance(hostname, bytes):
+                    hostname = hostname.encode('ascii')
+                return hostname
 
-        def start(self, connection):
-            name = gssapi.Name(b'{}@{}'.format(self.service,
-                                               self.get_hostname(connection)),
-                               gssapi.NameType.hostbased_service)
-            self.context = gssapi.SecurityContext(name=name)
-            data = self.context.step(None)
-            return data
+            def start(self, connection):
+                name = gssapi.Name(b'@'.join([self.service,
+                                              self.get_hostname(connection)]),
+                                   gssapi.NameType.hostbased_service)
+                self.context = gssapi.SecurityContext(name=name)
+                data = self.context.step(None)
+                return data
+    return GSSAPI
+
+GSSAPI = _get_gssapi_mechanism()
 
 
 class RAW(SASL):
