@@ -21,8 +21,6 @@ import socket
 import uuid
 import warnings
 
-from io import BytesIO
-
 from vine import ensure_promise
 
 from . import __version__
@@ -37,7 +35,6 @@ from .exceptions import (
 from .five import array, items, monotonic, range, values
 from .method_framing import frame_handler, frame_writer
 from .sasl import AMQPLAIN, PLAIN, SASL
-from .serialization import _write_table
 from .transport import Transport
 
 try:
@@ -375,7 +372,7 @@ class Connection(AbstractChannel):
         else:
             raise Exception(
                 "Couldn't find appropriate auth mechanism "
-                "(can offer {0}; available {1})".format(
+                "(can offer: {0}; available: {1})".format(
                     b", ".join(m.mechanism for m in self.authentication).decode(),
                     b", ".join(self.mechanisms).decode()))
 

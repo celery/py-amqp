@@ -1,19 +1,35 @@
 from __future__ import absolute_import, unicode_literals
 
 from io import BytesIO
-import abc
 import socket
 
 from amqp.serialization import _write_table
 
 
 class SASL(object):
-    pass
+    """
+    The base class for all amqp SASL authentication mechanisms
+
+    You should sub-class this if you're implementing your own authentication.
+    """
+
+    @property
+    def mechanism(self):
+        """Returns a bytes containing the SASL mechanism name"""
+        raise NotImplementedError
+
+    def start(self, connection):
+        """Returns the first response to a SASL challenge as a bytes object"""
+        raise NotImplementedError
 
 
 class PLAIN(SASL):
+    """
+    PLAIN SASL authentication mechanism.
+
+    See https://tools.ietf.org/html/rfc4616 for details
+    """
     mechanism = b'PLAIN'
-    # As per https://tools.ietf.org/html/rfc4616
 
     def __init__(self, username, password):
         self.username, self.password = username, password
@@ -43,9 +59,17 @@ class AMQPLAIN(SASL):
 try:
     import gssapi
 except ImportError:
-    pass
+    class GSSAPI(SASL):
+        def __init__(self, service=b'amqp', rdns=False):
+            raise NotImplementedError("You need to install the `gssapi` module"
+                                      " for GSSAPI SASL support")
 else:
     class GSSAPI(SASL):
+        """
+        GSSAPI SASL authentication mechanism
+
+        See https://tools.ietf.org/html/rfc4752 for details
+        """
         mechanism = b'GSSAPI'
 
         def __init__(self, service=b'amqp', rdns=False):
@@ -70,4 +94,3 @@ else:
             self.context = gssapi.SecurityContext(name=name)
             data = self.context.step(None)
             return data
-
