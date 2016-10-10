@@ -211,7 +211,8 @@ class Connection(AbstractChannel):
                 authentication = (authentication,)
             self.authentication = authentication
         elif userid is not None and password is not None:
-            self.authentication = (AMQPLAIN(userid, password),)
+            self.authentication = (AMQPLAIN(userid, password),
+                                   PLAIN(userid, password))
         else:
             raise ValueError("Must supply authentication or userid/password")
 
