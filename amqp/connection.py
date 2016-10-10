@@ -28,7 +28,6 @@ from vine import ensure_promise
 from . import __version__
 from . import spec
 from .abstract_channel import AbstractChannel
-from amqp.sasl import AMQPLAIN, SASL
 from .channel import Channel
 from .exceptions import (
     AMQPDeprecationWarning, ChannelError, ResourceError,
@@ -37,6 +36,7 @@ from .exceptions import (
 )
 from .five import array, items, monotonic, range, values
 from .method_framing import frame_handler, frame_writer
+from .sasl import AMQPLAIN, PLAIN, SASL
 from .serialization import _write_table
 from .transport import Transport
 
@@ -173,7 +173,7 @@ class Connection(AbstractChannel):
     )
 
     def __init__(self, host='localhost:5672', userid='guest', password='guest',
-                 login_method='AMQPLAIN', login_response=None,
+                 login_method=None, login_response=None,
                  authentication=(),
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
@@ -187,8 +187,9 @@ class Connection(AbstractChannel):
         (defaults to 'localhost', if a port is not specified then
         5672 is used)
 
-        If login_response is not specified, one is built up for you from
-        userid and password if they are present.
+        Authentication can be controlled by passing one or more
+        `amqp.sasl.SASL` instances as the `authentication` parameter, or
+        by using the userid and password parameters (for AMQPLAIN and PLAIN).
 
         The 'ssl' parameter may be simply True/False, or for Python >= 2.6
         a dictionary of options to pass to ssl.wrap_socket() such as
@@ -201,6 +202,10 @@ class Connection(AbstractChannel):
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
+        if login_method is not None or login_response is not None:
+            warnings.warn("login_method and login_response are no longer "
+                "heeded; use authentication parameter instead",
+                DeprecationWarning)
         if authentication:
             if isinstance(authentication, SASL):
                 authentication = (authentication,)
