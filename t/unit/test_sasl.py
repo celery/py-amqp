@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import contextlib
 from io import BytesIO
 
-from case import Mock, patch
+from case import Mock, patch, call
 import pytest
 import sys
 
@@ -104,7 +104,7 @@ class test_SASL:
             gssapi.Name.assert_called_with(b'amqp@broker.example.org',
                                            gssapi.NameType.hostbased_service)
 
-    def test_gssapi_step_without_service_name(self):
+    def test_gssapi_step_without_client_name(self):
         with self.fake_gssapi() as gssapi:
             context = Mock()
             context.step.return_value = b'secrets'
@@ -119,5 +119,29 @@ class test_SASL:
             response = mech.start(connection)
 
             gssapi.SecurityContext.assert_called_with(name=name, creds=None)
+            context.step.assert_called_with(None)
+            assert response == b'secrets'
+
+    def test_gssapi_step_with_client_name(self):
+        with self.fake_gssapi() as gssapi:
+            context = Mock()
+            context.step.return_value = b'secrets'
+            client_name, service_name, credentials = Mock(), Mock(), Mock()
+            gssapi.SecurityContext.return_value = context
+            gssapi.Credentials.return_value = credentials
+            gssapi.Name.side_effect = [client_name, service_name]
+            connection = Mock()
+            connection.transport.host = 'broker.example.org'
+            GSSAPI = sasl._get_gssapi_mechanism()
+
+            mech = GSSAPI(client_name='amqp-client/client.example.org')
+            response = mech.start(connection)
+            gssapi.Name.assert_has_calls([
+                call(b'amqp-client/client.example.org'),
+                call(b'amqp@broker.example.org',
+                     gssapi.NameType.hostbased_service)])
+            gssapi.Credentials.assert_called_with(name=client_name)
+            gssapi.SecurityContext.assert_called_with(name=service_name,
+                                                      creds=credentials)
             context.step.assert_called_with(None)
             assert response == b'secrets'

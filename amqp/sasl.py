@@ -90,6 +90,8 @@ def _get_gssapi_mechanism():
 
             def __init__(self, client_name=None, service=b'amqp',
                          rdns=False, fail_soft=False):
+                if client_name and not isinstance(client_name, bytes):
+                    client_name = client_name.encode('ascii')
                 self.client_name = client_name
                 self.fail_soft = fail_soft
                 self.service = service
