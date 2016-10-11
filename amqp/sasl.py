@@ -63,11 +63,23 @@ def _get_gssapi_mechanism():
     try:
         import gssapi
     except ImportError:
-        class GSSAPI(SASL):
-            def __init__(self, service=b'amqp', rdns=False):
-                raise NotImplementedError("You need to install the `gssapi` "
-                                          "module for GSSAPI SASL support")
+        class FakeGSSAPI(SASL):
+            """A no op SASL mechanism for when gssapi isn't available"""
+            mechanism = None
+
+            def __init__(self, client_name=None, service=b'amqp',
+                         rdns=False, fail_soft=False):
+                if not fail_soft:
+                    raise NotImplementedError(
+                        "You need to install the `gssapi` module for GSSAPI "
+                        "SASL support")
+
+            def start(self):
+                return NotImplemented
+        return FakeGSSAPI
     else:
+        import gssapi.raw.misc
+
         class GSSAPI(SASL):
             """
             GSSAPI SASL authentication mechanism
@@ -76,7 +88,10 @@ def _get_gssapi_mechanism():
             """
             mechanism = b'GSSAPI'
 
-            def __init__(self, service=b'amqp', rdns=False):
+            def __init__(self, client_name=None, service=b'amqp',
+                         rdns=False, fail_soft=False):
+                self.client_name = client_name
+                self.fail_soft = fail_soft
                 self.service = service
                 self.rdns = rdns
 
@@ -94,13 +109,23 @@ def _get_gssapi_mechanism():
                 return hostname
 
             def start(self, connection):
-                name = gssapi.Name(b'@'.join([self.service,
-                                              self.get_hostname(connection)]),
-                                   gssapi.NameType.hostbased_service)
-                self.context = gssapi.SecurityContext(name=name)
-                data = self.context.step(None)
-                return data
-    return GSSAPI
+                try:
+                    if self.client_name:
+                        creds = gssapi.Credentials(
+                            name=gssapi.Name(self.client_name))
+                    else:
+                        creds = None
+                    hostname = self.get_hostname(connection)
+                    name = gssapi.Name(b'@'.join([self.service, hostname]),
+                                       gssapi.NameType.hostbased_service)
+                    context = gssapi.SecurityContext(name=name, creds=creds)
+                    return context.step(None)
+                except gssapi.raw.misc.GSSError:
+                    if self.fail_soft:
+                        return NotImplemented
+                    else:
+                        raise
+        return GSSAPI
 
 GSSAPI = _get_gssapi_mechanism()
 

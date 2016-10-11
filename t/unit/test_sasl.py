@@ -1,5 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
+import contextlib
 from io import BytesIO
 
 from case import Mock, patch
@@ -45,67 +46,78 @@ class test_SASL:
         if gssapi is not None:
             sys.modules['gssapi'] = gssapi
 
+    @contextlib.contextmanager
+    def fake_gssapi(self):
+        orig_gssapi = sys.modules.pop('gssapi', None)
+        orig_gssapi_raw = sys.modules.pop('gssapi.raw', None)
+        orig_gssapi_raw_misc = sys.modules.pop('gssapi.raw.misc', None)
+        gssapi = sys.modules['gssapi'] = Mock()
+        sys.modules['gssapi.raw'] = gssapi.raw
+        sys.modules['gssapi.raw.misc'] = gssapi.raw.misc
+
+        class GSSError(Exception):
+            pass
+
+        gssapi.raw.misc.GSSError = GSSError
+        try:
+            yield gssapi
+        finally:
+            if orig_gssapi is None:
+                del sys.modules['gssapi']
+            else:
+                sys.modules['gssapi'] = orig_gssapi
+            if orig_gssapi_raw is None:
+                del sys.modules['gssapi.raw']
+            else:
+                sys.modules['gssapi.raw'] = orig_gssapi_raw
+            if orig_gssapi_raw_misc is None:
+                del sys.modules['gssapi.raw.misc']
+            else:
+                sys.modules['gssapi.raw.misc'] = orig_gssapi_raw_misc
+
     @patch('socket.gethostbyaddr')
     def test_gssapi_rdns(self, gethostbyaddr):
-        orig_gssapi = sys.modules.pop('gssapi', None)
-        gssapi = sys.modules['gssapi'] = Mock()
-        connection = Mock()
-        connection.transport.sock.getpeername.return_value = ('192.0.2.0',
-                                                              5672)
-        gethostbyaddr.return_value = ('broker.example.org', (), ())
-        GSSAPI = sasl._get_gssapi_mechanism()
+        with self.fake_gssapi() as gssapi:
+            connection = Mock()
+            connection.transport.sock.getpeername.return_value = ('192.0.2.0',
+                                                                  5672)
+            gethostbyaddr.return_value = ('broker.example.org', (), ())
+            GSSAPI = sasl._get_gssapi_mechanism()
 
-        mech = GSSAPI(rdns=True)
-        mech.start(connection)
+            mech = GSSAPI(rdns=True)
+            mech.start(connection)
 
-        connection.transport.sock.getpeername.assert_called()
-        gethostbyaddr.assert_called_with('192.0.2.0')
-        gssapi.Name.assert_called_with(b'amqp@broker.example.org',
-                                       gssapi.NameType.hostbased_service)
-
-        if orig_gssapi is None:
-            del sys.modules['gssapi']
-        else:
-            sys.modules['gssapi'] = orig_gssapi
+            connection.transport.sock.getpeername.assert_called()
+            gethostbyaddr.assert_called_with('192.0.2.0')
+            gssapi.Name.assert_called_with(b'amqp@broker.example.org',
+                                           gssapi.NameType.hostbased_service)
 
     def test_gssapi_no_rdns(self):
-        orig_gssapi = sys.modules.pop('gssapi', None)
-        gssapi = sys.modules['gssapi'] = Mock()
-        connection = Mock()
-        connection.transport.host = 'broker.example.org'
-        GSSAPI = sasl._get_gssapi_mechanism()
+        with self.fake_gssapi() as gssapi:
+            connection = Mock()
+            connection.transport.host = 'broker.example.org'
+            GSSAPI = sasl._get_gssapi_mechanism()
 
-        mech = GSSAPI()
-        mech.start(connection)
+            mech = GSSAPI()
+            mech.start(connection)
 
-        gssapi.Name.assert_called_with(b'amqp@broker.example.org',
-                                       gssapi.NameType.hostbased_service)
+            gssapi.Name.assert_called_with(b'amqp@broker.example.org',
+                                           gssapi.NameType.hostbased_service)
 
-        if orig_gssapi is None:
-            del sys.modules['gssapi']
-        else:
-            sys.modules['gssapi'] = orig_gssapi
+    def test_gssapi_step_without_service_name(self):
+        with self.fake_gssapi() as gssapi:
+            context = Mock()
+            context.step.return_value = b'secrets'
+            name = Mock()
+            gssapi.SecurityContext.return_value = context
+            gssapi.Name.return_value = name
+            connection = Mock()
+            connection.transport.host = 'broker.example.org'
+            GSSAPI = sasl._get_gssapi_mechanism()
 
-    def test_gssapi_step(self):
-        orig_gssapi = sys.modules.pop('gssapi', None)
-        gssapi = sys.modules['gssapi'] = Mock()
-        context = Mock()
-        context.step.return_value = b'secrets'
-        name = Mock()
-        gssapi.SecurityContext.return_value = context
-        gssapi.Name.return_value = name
-        connection = Mock()
-        connection.transport.host = 'broker.example.org'
-        GSSAPI = sasl._get_gssapi_mechanism()
+            mech = GSSAPI()
+            response = mech.start(connection)
 
-        mech = GSSAPI()
-        response = mech.start(connection)
-
-        gssapi.SecurityContext.assert_called_with(name=name)
-        context.step.assert_called_with(None)
-        assert response == b'secrets'
-
-        if orig_gssapi is None:
-            del sys.modules['gssapi']
-        else:
-            sys.modules['gssapi'] = orig_gssapi
+            gssapi.SecurityContext.assert_called_with(name=name, creds=None)
+            context.step.assert_called_with(None)
+            assert response == b'secrets'

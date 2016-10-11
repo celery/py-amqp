@@ -207,7 +207,8 @@ class Connection(AbstractChannel):
             self.authentication = (sasl.RAW(login_method, login_response),)
         elif userid is not None and password is not None:
             self.authentication = (sasl.AMQPLAIN(userid, password),
-                                   sasl.PLAIN(userid, password))
+                                   sasl.PLAIN(userid, password),
+                                   sasl.GSSAPI(userid, fail_soft=True))
         else:
             raise ValueError("Must supply authentication or userid/password")
 
@@ -366,19 +367,22 @@ class Connection(AbstractChannel):
 
         for authentication in self.authentication:
             if authentication.mechanism in self.mechanisms:
-                break
+                login_response = authentication.start(self)
+                if login_response is not NotImplemented:
+                    break
         else:
             raise ConnectionError(
                 "Couldn't find appropriate auth mechanism "
                 "(can offer: {0}; available: {1})".format(
                     b", ".join(m.mechanism
-                               for m in self.authentication).decode(),
+                               for m in self.authentication
+                               if m.mechanism).decode(),
                     b", ".join(self.mechanisms).decode()))
 
         self.send_method(
             spec.Connection.StartOk, argsig,
             (client_properties, authentication.mechanism,
-             authentication.start(self), self.locale),
+             login_response, self.locale),
         )
 
     def _on_secure(self, challenge):
