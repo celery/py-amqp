@@ -257,17 +257,18 @@ def _flushbits(bits, write, pack=pack):
 
 
 def dumps(format, values):
-    """"
-    bit = b
-    octet = o
-    short = B
-    long = l
-    long long = L
-    shortstr = s
-    longstr = S
-    table = F
-    array = A
+    """"Serialize AMQP arguments.
 
+    Notes:
+        bit = b
+        octet = o
+        short = B
+        long = l
+        long long = L
+        shortstr = s
+        longstr = S
+        table = F
+        array = A
     """
     bitcount = 0
     bits = []
@@ -402,6 +403,7 @@ def _write_item(v, write, bits, pack=pack,
 
 def decode_properties_basic(buf, offset=0,
                             unpack_from=unpack_from, pstr_t=pstr_t):
+    """Decode basic properties."""
     properties = {}
 
     flags, = unpack_from(b'>H', buf, offset)
@@ -480,14 +482,12 @@ class GenericContent(object):
     """Abstract base class for AMQP content.
 
     Subclasses should override the PROPERTIES attribute.
-
     """
+
     CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
     def __init__(self, frame_method=None, frame_args=None, **props):
-        """Save the properties appropriate to this AMQP content type
-        in a 'properties' dictionary."""
         self.frame_method = frame_method
         self.frame_args = frame_args
 
@@ -498,9 +498,8 @@ class GenericContent(object):
         self.ready = False
 
     def __getattr__(self, name):
-        """Look for additional properties in the 'properties'
-        dictionary, and if present - the 'delivery_info'
-        dictionary."""
+        # Look for additional properties in the 'properties'
+        # dictionary, and if present - the 'delivery_info' dictionary.
         if name == '__setstate__':
             # Allows pickling/unpickling to work
             raise AttributeError('__setstate__')
@@ -511,20 +510,24 @@ class GenericContent(object):
 
     def _load_properties(self, class_id, buf, offset=0,
                          classes=PROPERTY_CLASSES, unpack_from=unpack_from):
-        """Given the raw bytes containing the property-flags and property-list
+        """Load AMQP properties.
+
+        Given the raw bytes containing the property-flags and property-list
         from a content-frame-header, parse and insert into a dictionary
-        stored in this object as an attribute named 'properties'."""
-        #
+        stored in this object as an attribute named 'properties'.
+        """
         # Read 16-bit shorts until we get one with a low bit set to zero
-        #
         props, offset = classes[class_id](buf, offset)
         self.properties = props
         return offset
 
     def _serialize_properties(self):
-        """serialize the 'properties' attribute (a dictionary) into
+        """Serialize AMQP properties.
+
+        Serialize the 'properties' attribute (a dictionary) into
         the raw bytes making up a set of property flags and a
-        property list, suitable for putting into a content frame header."""
+        property list, suitable for putting into a content frame header.
+        """
         shift = 15
         flag_bits = 0
         flags = []

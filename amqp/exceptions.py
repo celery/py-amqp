@@ -1,4 +1,4 @@
-"""Exceptions used by amqp"""
+"""Exceptions used by amqp."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -36,11 +36,13 @@ __all__ = [
 
 
 class AMQPDeprecationWarning(UserWarning):
-    pass
+    """Warning for deprecated things."""
 
 
 @python_2_unicode_compatible
 class AMQPError(Exception):
+    """Base class for all AMQP exceptions."""
+
     code = 0
 
     def __init__(self, reply_text=None, method_sig=None,
@@ -66,102 +68,136 @@ class AMQPError(Exception):
 
 
 class ConnectionError(AMQPError):
-    pass
+    """AMQP Connection Error."""
 
 
 class ChannelError(AMQPError):
-    pass
+    """AMQP Channel Error."""
 
 
 class RecoverableChannelError(ChannelError):
-    pass
+    """Exception class for recoverable channel errors."""
 
 
 class IrrecoverableChannelError(ChannelError):
-    pass
+    """Exception class for irrecoverable channel errors."""
 
 
 class RecoverableConnectionError(ConnectionError):
-    pass
+    """Exception class for recoverable connection errors."""
 
 
 class IrrecoverableConnectionError(ConnectionError):
-    pass
+    """Exception class for irrecoverable connection errors."""
 
 
 class Blocked(RecoverableConnectionError):
-    pass
+    """AMQP Connection Blocked Predicate."""
 
 
 class ConsumerCancelled(RecoverableConnectionError):
-    pass
+    """AMQP Consumer Cancelled Predicate."""
 
 
 class ContentTooLarge(RecoverableChannelError):
+    """AMQP Content Too Large Error."""
+
     code = 311
 
 
 class NoConsumers(RecoverableChannelError):
+    """AMQP No Consumers Error."""
+
     code = 313
 
 
 class ConnectionForced(RecoverableConnectionError):
+    """AMQP Connection Forced Error."""
+
     code = 320
 
 
 class InvalidPath(IrrecoverableConnectionError):
+    """AMQP Invalid Path Error."""
+
     code = 402
 
 
 class AccessRefused(IrrecoverableChannelError):
+    """AMQP Access Refused Error."""
+
     code = 403
 
 
 class NotFound(IrrecoverableChannelError):
+    """AMQP Not Found Error."""
+
     code = 404
 
 
 class ResourceLocked(RecoverableChannelError):
+    """AMQP Resource Locked Error."""
+
     code = 405
 
 
 class PreconditionFailed(IrrecoverableChannelError):
+    """AMQP Precondition Failed Error."""
+
     code = 406
 
 
 class FrameError(IrrecoverableConnectionError):
+    """AMQP Frame Error."""
+
     code = 501
 
 
 class FrameSyntaxError(IrrecoverableConnectionError):
+    """AMQP Frame Syntax Error."""
+
     code = 502
 
 
 class InvalidCommand(IrrecoverableConnectionError):
+    """AMQP Invalid Command Error."""
+
     code = 503
 
 
 class ChannelNotOpen(IrrecoverableConnectionError):
+    """AMQP Channel Not Open Error."""
+
     code = 504
 
 
 class UnexpectedFrame(IrrecoverableConnectionError):
+    """AMQP Unexpected Frame."""
+
     code = 505
 
 
 class ResourceError(RecoverableConnectionError):
+    """AMQP Resource Error."""
+
     code = 506
 
 
 class NotAllowed(IrrecoverableConnectionError):
+    """AMQP Not Allowed Error."""
+
     code = 530
 
 
 class AMQPNotImplementedError(IrrecoverableConnectionError):
+    """AMQP Not Implemented Error."""
+
     code = 540
 
 
 class InternalError(IrrecoverableConnectionError):
+    """AMQP Internal Error."""
+
     code = 541
 
 

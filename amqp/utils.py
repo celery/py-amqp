@@ -1,3 +1,4 @@
+"""Compatibility utilities."""
 from __future__ import absolute_import, unicode_literals
 
 import logging
@@ -20,6 +21,7 @@ try:
     from os import set_cloexec  # Python 3.4?
 except ImportError:  # pragma: no cover
     def set_cloexec(fd, cloexec):  # noqa
+        """Set flag to close fd after exec."""
         if fcntl is None:
             return
         try:
@@ -37,8 +39,12 @@ except ImportError:  # pragma: no cover
 
 
 def get_errno(exc):
-    """:exc:`socket.error` and :exc:`IOError` first got
-    the ``.errno`` attribute in Py2.7"""
+    """Get exception errno (if set).
+
+    Notes:
+        :exc:`socket.error` and :exc:`IOError` first got
+        the ``.errno`` attribute in Py2.7.
+    """
     try:
         return exc.errno
     except AttributeError:
@@ -52,7 +58,7 @@ def get_errno(exc):
 
 
 def coro(gen):
-
+    """Decorator to mark generator as a co-routine."""
     @wraps(gen)
     def _boot(*args, **kwargs):
         co = gen(*args, **kwargs)
@@ -65,32 +71,38 @@ def coro(gen):
 if is_py3k:  # pragma: no cover
 
     def str_to_bytes(s):
+        """Convert str to bytes."""
         if isinstance(s, str):
             return s.encode()
         return s
 
     def bytes_to_str(s):
+        """Convert bytes to str."""
         if isinstance(s, bytes):
             return s.decode()
         return s
 else:
 
     def str_to_bytes(s):                # noqa
+        """Convert str to bytes."""
         if isinstance(s, unicode):
             return s.encode()
         return s
 
     def bytes_to_str(s):                # noqa
+        """Convert bytes to str."""
         return s
 
 
 class NullHandler(logging.Handler):
+    """A logging handler that does nothing."""
 
     def emit(self, record):
         pass
 
 
 def get_logger(logger):
+    """Get logger by name."""
     if isinstance(logger, string_t):
         logger = logging.getLogger(logger)
     if not logger.handlers:

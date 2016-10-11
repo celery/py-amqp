@@ -1,4 +1,4 @@
-"""AMQP Channels"""
+"""AMQP Channels."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ class VDeprecationWarning(DeprecationWarning):
 
 
 class Channel(AbstractChannel):
-    """Work with channels
+    """AMQP Channel.
 
     The channel class provides methods for a client to establish a
     virtual connection - a channel - to a server and for both peers to
@@ -69,7 +69,17 @@ class Channel(AbstractChannel):
         close-channel       = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
 
+    Create a channel bound to a connection and using the specified
+    numeric channel_id, and open on the server.
+
+    The 'auto_decode' parameter (defaults to True), indicates
+    whether the library should attempt to decode the body
+    of Messages to a Unicode string if there's a 'content_encoding'
+    property for the message.  If there's no 'content_encoding'
+    property, or the decode raises an Exception, the message body
+    is left as plain bytes.
     """
+
     _METHODS = {
         spec.method(spec.Channel.Close, 'BsBB'),
         spec.method(spec.Channel.CloseOk),
@@ -104,17 +114,6 @@ class Channel(AbstractChannel):
 
     def __init__(self, connection,
                  channel_id=None, auto_decode=True, on_open=None):
-        """Create a channel bound to a connection and using the specified
-        numeric channel_id, and open on the server.
-
-        The 'auto_decode' parameter (defaults to True), indicates
-        whether the library should attempt to decode the body
-        of Messages to a Unicode string if there's a 'content_encoding'
-        property for the message.  If there's no 'content_encoding'
-        property, or the decode raises an Exception, the message body
-        is left as plain bytes.
-
-        """
         if channel_id:
             connection._claim_channel_id(channel_id)
         else:
@@ -158,8 +157,10 @@ class Channel(AbstractChannel):
         })
 
     def collect(self):
-        """Tear down this object, after we've agreed to close
-        with the server."""
+        """Tear down this object.
+
+        Best called after we've agreed to close with the server.
+        """
         AMQP_LOGGER.debug('Closed channel #%s', self.channel_id)
         self.is_open = False
         channel_id, self.channel_id = self.channel_id, None
@@ -178,7 +179,7 @@ class Channel(AbstractChannel):
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BsBB'):
-        """Request a channel close
+        """Request a channel close.
 
         This method indicates that the sender wants to close the
         channel. This may be due to internal conditions (e.g. a forced
@@ -222,7 +223,6 @@ class Channel(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
         try:
             is_closed = (
@@ -242,7 +242,7 @@ class Channel(AbstractChannel):
             self.connection = None
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
-        """Request a channel close
+        """Request a channel close.
 
         This method indicates that the sender wants to close the
         channel. This may be due to internal conditions (e.g. a forced
@@ -286,9 +286,7 @@ class Channel(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
-
         self.send_method(spec.Channel.CloseOk)
         self._do_revive()
         raise error_for_code(
@@ -296,7 +294,7 @@ class Channel(AbstractChannel):
         )
 
     def _on_close_ok(self):
-        """Confirm a channel close
+        """Confirm a channel close.
 
         This method confirms a Channel.Close method and tells the
         recipient that it is safe to release resources for the channel
@@ -307,12 +305,11 @@ class Channel(AbstractChannel):
             A peer that detects a socket closure without having
             received a Channel.Close-Ok handshake method SHOULD log
             the error.
-
         """
         self.collect()
 
     def flow(self, active):
-        """Enable/disable flow from peer
+        """Enable/disable flow from peer.
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
@@ -355,14 +352,13 @@ class Channel(AbstractChannel):
 
                 If True, the peer starts sending content frames.  If
                 False, the peer stops sending content frames.
-
         """
         return self.send_method(
             spec.Channel.Flow, 'b', (active,), wait=spec.Channel.FlowOk,
         )
 
     def _on_flow(self, active):
-        """Enable/disable flow from peer
+        """Enable/disable flow from peer.
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
@@ -405,13 +401,12 @@ class Channel(AbstractChannel):
 
                 If True, the peer starts sending content frames.  If
                 False, the peer stops sending content frames.
-
         """
         self.active = active
         self._x_flow_ok(self.active)
 
     def _x_flow_ok(self, active):
-        """Confirm a flow method
+        """Confirm a flow method.
 
         Confirms to the peer that a flow command was received and
         processed.
@@ -424,12 +419,11 @@ class Channel(AbstractChannel):
                 Confirms the setting of the processed flow method:
                 True means the peer will start sending or continue
                 to send content frames; False means it will not.
-
         """
         return self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
     def open(self):
-        """Open a channel for use
+        """Open a channel for use.
 
         This method opens a virtual connection (a channel).
 
@@ -446,7 +440,6 @@ class Channel(AbstractChannel):
                 Configures out-of-band transfers on this channel.  The
                 syntax and meaning of this field will be formally
                 defined at a later date.
-
         """
         if self.is_open:
             return
@@ -456,11 +449,10 @@ class Channel(AbstractChannel):
         )
 
     def _on_open_ok(self):
-        """Signal that the channel is ready
+        """Signal that the channel is ready.
 
         This method signals to the client that the channel is ready
         for use.
-
         """
         self.is_open = True
         self.on_open(self)
@@ -508,7 +500,7 @@ class Channel(AbstractChannel):
     def exchange_declare(self, exchange, type, passive=False, durable=False,
                          auto_delete=True, nowait=False, arguments=None,
                          argsig='BssbbbbbF'):
-        """Declare exchange, create if needed
+        """Declare exchange, create if needed.
 
         This method creates an exchange if it does not already exist,
         and if the exchange exists, verifies that it is of the correct
@@ -627,7 +619,6 @@ class Channel(AbstractChannel):
                 semantics of these arguments depends on the server
                 implementation.  This field is ignored if passive is
                 True.
-
         """
         if auto_delete:
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
@@ -641,7 +632,7 @@ class Channel(AbstractChannel):
 
     def exchange_delete(self, exchange, if_unused=False, nowait=False,
                         argsig='Bsbb'):
-        """Delete an exchange
+        """Delete an exchange.
 
         This method deletes an exchange.  When an exchange is deleted
         all queue bindings on the exchange are cancelled.
@@ -681,7 +672,6 @@ class Channel(AbstractChannel):
                 client should not wait for a reply method.  If the
                 server could not complete the method it will raise a
                 channel or connection exception.
-
         """
         return self.send_method(
             spec.Exchange.Delete, argsig, (0, exchange, if_unused, nowait),
@@ -690,7 +680,7 @@ class Channel(AbstractChannel):
 
     def exchange_bind(self, destination, source='', routing_key='',
                       nowait=False, arguments=None, argsig='BsssbF'):
-        """This method binds an exchange to an exchange.
+        """Bind an exchange to an exchange.
 
         RULE:
 
@@ -759,7 +749,6 @@ class Channel(AbstractChannel):
                 A set of arguments for the binding. The syntax and
                 semantics of these arguments depends on the exchange
                 class.
-
         """
         return self.send_method(
             spec.Exchange.Bind, argsig,
@@ -769,7 +758,7 @@ class Channel(AbstractChannel):
 
     def exchange_unbind(self, destination, source='', routing_key='',
                         nowait=False, arguments=None, argsig='BsssbF'):
-        """This method unbinds an exchange from an exchange.
+        """Unbind an exchange from an exchange.
 
         RULE:
 
@@ -817,7 +806,6 @@ class Channel(AbstractChannel):
             arguments: table
 
                 Specifies the arguments of the binding to unbind.
-
         """
         return self.send_method(
             spec.Exchange.Unbind, argsig,
@@ -853,7 +841,7 @@ class Channel(AbstractChannel):
 
     def queue_bind(self, queue, exchange='', routing_key='',
                    nowait=False, arguments=None, argsig='BsssbF'):
-        """Bind queue to an exchange
+        """Bind queue to an exchange.
 
         This method binds a queue to an exchange.  Until a queue is
         bound it will not receive any messages.  In a classic
@@ -958,7 +946,7 @@ class Channel(AbstractChannel):
 
     def queue_unbind(self, queue, exchange, routing_key='',
                      nowait=False, arguments=None, argsig='BsssF'):
-        """Unbind a queue from an exchange
+        """Unbind a queue from an exchange.
 
         This method unbinds a queue from an exchange.
 
@@ -1006,7 +994,6 @@ class Channel(AbstractChannel):
                 arguments of binding
 
                 Specifies the arguments of the binding to unbind.
-
         """
         return self.send_method(
             spec.Queue.Unbind, argsig,
@@ -1017,7 +1004,7 @@ class Channel(AbstractChannel):
     def queue_declare(self, queue='', passive=False, durable=False,
                       exclusive=False, auto_delete=True, nowait=False,
                       arguments=None, argsig='BsbbbbbF'):
-        """Declare queue, create if needed
+        """Declare queue, create if needed.
 
         This method creates or checks a queue.  When creating a new
         queue the client can specify various properties that control
@@ -1167,7 +1154,6 @@ class Channel(AbstractChannel):
             the name of the queue (essential for automatically-named queues)
             message count
             consumer count
-
         """
         self.send_method(
             spec.Queue.Declare, argsig,
@@ -1182,7 +1168,7 @@ class Channel(AbstractChannel):
     def queue_delete(self, queue='',
                      if_unused=False, if_empty=False, nowait=False,
                      argsig='Bsbbb'):
-        """Delete a queue
+        """Delete a queue.
 
         This method deletes a queue.  When a queue is deleted any
         pending messages are sent to a dead-letter queue if this is
@@ -1245,7 +1231,6 @@ class Channel(AbstractChannel):
                 client should not wait for a reply method.  If the
                 server could not complete the method it will raise a
                 channel or connection exception.
-
         """
         return self.send_method(
             spec.Queue.Delete, argsig,
@@ -1254,7 +1239,7 @@ class Channel(AbstractChannel):
         )
 
     def queue_purge(self, queue='', nowait=False, argsig='Bsb'):
-        """Purge a queue
+        """Purge a queue.
 
         This method removes all messages from a queue.  It does not
         cancel consumers.  Purged messages are deleted without any
@@ -1307,7 +1292,6 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         if nowait is False, returns a message_count
-
         """
         return self.send_method(
             spec.Queue.Purge, argsig, (0, queue, nowait),
@@ -1375,7 +1359,7 @@ class Channel(AbstractChannel):
     #
 
     def basic_ack(self, delivery_tag, multiple=False, argsig='Lb'):
-        """Acknowledge one or more messages
+        """Acknowledge one or more messages.
 
         This method acknowledges one or more messages delivered via
         the Deliver or Get-Ok methods.  The client can ask to confirm
@@ -1419,14 +1403,13 @@ class Channel(AbstractChannel):
                     The server MUST validate that a non-zero delivery-
                     tag refers to an delivered message, and raise a
                     channel exception if this is not the case.
-
         """
         return self.send_method(
             spec.Basic.Ack, argsig, (delivery_tag, multiple),
         )
 
     def basic_cancel(self, consumer_tag, nowait=False, argsig='sb'):
-        """End a queue consumer
+        """End a queue consumer.
 
         This method cancels a consumer. This does not affect already
         delivered messages, but it does mean the server will not send
@@ -1463,7 +1446,6 @@ class Channel(AbstractChannel):
                 client should not wait for a reply method.  If the
                 server could not complete the method it will raise a
                 channel or connection exception.
-
         """
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
@@ -1495,7 +1477,7 @@ class Channel(AbstractChannel):
                       no_ack=False, exclusive=False, nowait=False,
                       callback=None, arguments=None, on_cancel=None,
                       argsig='BssbbbbF'):
-        """Start a queue consumer
+        """Start a queue consumer.
 
         This method asks the server to start a "consumer", which is a
         transient request for messages from a specific queue.
@@ -1588,9 +1570,7 @@ class Channel(AbstractChannel):
                 as the single argument.  If no callable is specified,
                 messages are quietly discarded, no_ack should probably
                 be set to True in that case.
-
         """
-
         p = self.send_method(
             spec.Basic.Consume, argsig,
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
@@ -1633,7 +1613,7 @@ class Channel(AbstractChannel):
             fun(msg)
 
     def basic_get(self, queue='', no_ack=False, argsig='Bsb'):
-        """Direct access to a queue
+        """Direct access to a queue.
 
         This method provides a direct access to the messages in a
         queue using a synchronous dialogue that is designed for
@@ -1667,7 +1647,6 @@ class Channel(AbstractChannel):
                 before it can deliver them to the application.
 
         Non-blocking, returns a message object, or None.
-
         """
         ret = self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
@@ -1695,7 +1674,7 @@ class Channel(AbstractChannel):
     def _basic_publish(self, msg, exchange='', routing_key='',
                        mandatory=False, immediate=False, timeout=None,
                        argsig='Bssbb'):
-        """Publish a message
+        """Publish a message.
 
         This method publishes a message to a specific exchange. The
         message will be routed to queues as defined by the exchange
@@ -1758,7 +1737,6 @@ class Channel(AbstractChannel):
                 RULE:
 
                     The server SHOULD implement the immediate flag.
-
         """
         if not self.connection:
             raise RecoverableConnectionError(
@@ -1783,7 +1761,7 @@ class Channel(AbstractChannel):
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
                   argsig='lBb'):
-        """Specify quality of service
+        """Specify quality of service.
 
         This method requests a specific quality of service.  The QoS
         can be specified for the current channel or for all channels
@@ -1844,7 +1822,6 @@ class Channel(AbstractChannel):
                 By default the QoS settings apply to the current
                 channel only.  If this field is set, they are applied
                 to the entire connection.
-
         """
         return self.send_method(
             spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
@@ -1852,7 +1829,7 @@ class Channel(AbstractChannel):
         )
 
     def basic_recover(self, requeue=False):
-        """Redeliver unacknowledged messages
+        """Redeliver unacknowledged messages.
 
         This method asks the broker to redeliver all unacknowledged
         messages on a specified channel. Zero or more messages may be
@@ -1879,7 +1856,6 @@ class Channel(AbstractChannel):
                 server will attempt to requeue the message,
                 potentially then delivering it to an alternative
                 subscriber.
-
         """
         return self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
@@ -1887,7 +1863,7 @@ class Channel(AbstractChannel):
         return self.send_method(spec.Basic.RecoverAsync, 'b', (requeue,))
 
     def basic_reject(self, delivery_tag, requeue, argsig='Lb'):
-        """Reject an incoming message
+        """Reject an incoming message.
 
         This method allows a client to reject a message.  It can be
         used to interrupt and cancel large incoming messages, or
@@ -1954,7 +1930,6 @@ class Channel(AbstractChannel):
                     sophisticated tracking to hold the message on the
                     queue and redeliver it to the same client at a
                     later stage.
-
         """
         return self.send_method(
             spec.Basic.Reject, argsig, (delivery_tag, requeue),
@@ -1962,7 +1937,7 @@ class Channel(AbstractChannel):
 
     def _on_basic_return(self, reply_code, reply_text,
                          exchange, routing_key, message):
-        """Return a failed message
+        """Return a failed message.
 
         This method returns an undeliverable message that was
         published with the "immediate" flag set, or an unroutable
@@ -1992,7 +1967,6 @@ class Channel(AbstractChannel):
 
                 Specifies the routing key name specified when the
                 message was published.
-
         """
         exc = error_for_code(
             reply_code, reply_text, spec.Basic.Return, ChannelError,
@@ -2032,38 +2006,36 @@ class Channel(AbstractChannel):
     #
 
     def tx_commit(self):
-        """Commit the current transaction
+        """Commit the current transaction.
 
         This method commits all messages published and acknowledged in
         the current transaction.  A new transaction starts immediately
         after a commit.
-
         """
         return self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
 
     def tx_rollback(self):
-        """Abandon the current transaction
+        """Abandon the current transaction.
 
         This method abandons all messages published and acknowledged
         in the current transaction.  A new transaction starts
         immediately after a rollback.
-
         """
         return self.send_method(spec.Tx.Rollback, wait=spec.Tx.RollbackOk)
 
     def tx_select(self):
-        """Select standard transaction mode
+        """Select standard transaction mode.
 
         This method sets the channel to use standard transactions.
         The client must use this method at least once on a channel
         before using the Commit or Rollback methods.
-
         """
         return self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
 
     def confirm_select(self, nowait=False):
-        """Enables publisher confirms for this channel (an RabbitMQ
-        extension).
+        """Enable publisher confirms for this channel.
+
+        Note: This is an RabbitMQ extension.
 
         Can now be used if the channel is in transactional mode.
 
@@ -2072,7 +2044,6 @@ class Channel(AbstractChannel):
             The client should not wait for a reply method. If the
             server could not complete the method it will raise a channel
             or connection exception.
-
         """
         return self.send_method(
             spec.Confirm.Select, 'b', (nowait,),
