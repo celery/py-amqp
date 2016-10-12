@@ -1,4 +1,4 @@
-"""AMQP Connections"""
+"""AMQP Connections."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -75,7 +75,9 @@ NEGOTIATE_CAPABILITIES = {
 
 
 class Connection(AbstractChannel):
-    """The connection class provides methods for a client to establish a
+    """AMQP Connection.
+
+    The connection class provides methods for a client to establish a
     network connection to a server, and for both peers to operate the
     connection thereafter.
 
@@ -91,8 +93,23 @@ class Connection(AbstractChannel):
         use-connection      = *channel
         close-connection    = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
+    Create a connection to the specified host, which should be
+    a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
+    (defaults to 'localhost', if a port is not specified then
+    5672 is used)
 
+    Authentication can be controlled by passing one or more
+    `amqp.sasl.SASL` instances as the `authentication` parameter, or
+    by using the userid and password parameters (for AMQPLAIN and PLAIN).
+
+    The 'ssl' parameter may be simply True/False, or for Python >= 2.6
+    a dictionary of options to pass to ssl.wrap_socket() such as
+    requiring certain certificates.
+
+    The "socket_settings" parameter is a dictionary defining tcp
+    settings which will be applied as socket options.
     """
+
     Channel = Channel
 
     #: Mapping of protocol extensions to enable.
@@ -179,23 +196,6 @@ class Connection(AbstractChannel):
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
                  socket_settings=None, frame_handler=frame_handler,
                  frame_writer=frame_writer, **kwargs):
-        """Create a connection to the specified host, which should be
-        a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
-        (defaults to 'localhost', if a port is not specified then
-        5672 is used)
-
-        Authentication can be controlled by passing one or more
-        `amqp.sasl.SASL` instances as the `authentication` parameter, or
-        by using the userid and password parameters (for AMQPLAIN and PLAIN).
-
-        The 'ssl' parameter may be simply True/False, or for Python >= 2.6
-        a dictionary of options to pass to ssl.wrap_socket() such as
-        requiring certain certificates.
-
-        The "socket_settings" parameter is a dictionary defining tcp
-        settings which will be applied as socket options.
-
-        """
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
@@ -459,8 +459,11 @@ class Connection(AbstractChannel):
             raise ConnectionError('Channel %r already open' % (channel_id,))
 
     def channel(self, channel_id=None, callback=None):
-        """Fetch a Channel object identified by the numeric channel_id, or
-        create that object if it doesn't already exist."""
+        """Create new channel.
+
+        Fetch a Channel object identified by the numeric channel_id, or
+        create that object if it doesn't already exist.
+        """
         if self.channels is not None:
             try:
                 return self.channels[channel_id]
@@ -488,8 +491,7 @@ class Connection(AbstractChannel):
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BsBB'):
-
-        """Request a connection close
+        """Request a connection close.
 
         This method indicates that the sender wants to close the
         connection. This may be due to internal conditions (e.g. a
@@ -540,7 +542,6 @@ class Connection(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
         if self._transport is None:
             # already closed
@@ -553,7 +554,7 @@ class Connection(AbstractChannel):
         )
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
-        """Request a connection close
+        """Request a connection close.
 
         This method indicates that the sender wants to close the
         connection. This may be due to internal conditions (e.g. a
@@ -604,29 +605,26 @@ class Connection(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
         self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
     def _x_close_ok(self):
-        """Confirm a connection close
+        """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
         recipient that it is safe to release resources for the
         connection and close the socket.
 
         RULE:
-
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
-
         """
         self.send_method(spec.Connection.CloseOk, callback=self._on_close_ok)
 
     def _on_close_ok(self):
-        """Confirm a connection close
+        """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
         recipient that it is safe to release resources for the
@@ -636,12 +634,15 @@ class Connection(AbstractChannel):
 
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
-
         """
         self.collect()
 
     def _on_blocked(self):
-        """RabbitMQ Extension."""
+        """Callback called when connection blocked.
+
+        Notes:
+            This is an RabbitMQ Extension.
+        """
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
@@ -654,11 +655,18 @@ class Connection(AbstractChannel):
         self.frame_writer(8, 0, None, None, None)
 
     def heartbeat_tick(self, rate=2):
-        """Send heartbeat packets, if necessary, and fail if none have been
-        received recently.  This should be called frequently, on the order of
-        once per second.
+        """Send heartbeat packets if necessary.
 
-        :keyword rate: Ignored
+        Raises:
+            ~amqp.exceptions.ConnectionForvced: if none have been
+                received recently.
+
+        Note:
+            This should be called frequently, on the order of
+            once per second.
+
+        Keyword Arguments:
+            rate (int): Previously used, but ignored now.
         """
         AMQP_LOGGER.debug('heartbeat_tick : for connection %s',
                           self._connection_id)

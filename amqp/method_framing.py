@@ -1,4 +1,4 @@
-"""Convert between frames and higher-level AMQP methods"""
+"""Convert between frames and higher-level AMQP methods."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -43,6 +43,7 @@ FRAME_OVERHEAD = 40
 
 def frame_handler(connection, callback,
                   unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
+    """Create closure that reads frames."""
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
@@ -95,6 +96,7 @@ def frame_handler(connection, callback,
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
+    """Create closure that writes frames."""
     write = transport.write
 
     # memoryview first supported in Python 2.7

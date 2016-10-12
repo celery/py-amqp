@@ -1,3 +1,4 @@
+"""Transport implementation."""
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -38,7 +39,7 @@ try:
     from ssl import SSLError
 except ImportError:  # pragma: no cover
     class SSLError(Exception):  # noqa
-        pass
+        """Dummy SSL exception."""
 
 _UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
@@ -66,6 +67,7 @@ TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
 
 
 def to_host_port(host, default=AMQP_PORT):
+    """Convert hostname:port string to host, port tuple."""
     port = default
     m = IPV6_LITERAL.match(host)
     if m:
@@ -80,7 +82,8 @@ def to_host_port(host, default=AMQP_PORT):
 
 
 class _AbstractTransport(object):
-    """Common superclass for TCP and SSL transports"""
+    """Common superclass for TCP and SSL transports."""
+
     connected = False
 
     def __init__(self, host, connect_timeout=None,
@@ -187,12 +190,11 @@ class _AbstractTransport(object):
             self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):
-        """Read exactly n bytes from the peer"""
+        """Read exactly n bytes from the peer."""
         raise NotImplementedError('Must be overriden in subclass')
 
     def _setup_transport(self):
-        """Do any additional initialization of the class (used
-        by the subclasses)."""
+        """Do any additional initialization of the class."""
         pass
 
     def _shutdown_transport(self):
@@ -260,7 +262,7 @@ class _AbstractTransport(object):
 
 
 class SSLTransport(_AbstractTransport):
-    """Transport that works over SSL"""
+    """Transport that works over SSL."""
 
     def __init__(self, host, connect_timeout=None, ssl=None, **kwargs):
         self.sslopts = ssl if isinstance(ssl, dict) else {}
@@ -285,7 +287,7 @@ class SSLTransport(_AbstractTransport):
         return ctx.wrap_socket(sock, **sslopts)
 
     def _shutdown_transport(self):
-        """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
+        """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
         if self.sock is not None:
             try:
                 unwrap = self.sock.unwrap
@@ -345,14 +347,14 @@ class TCPTransport(_AbstractTransport):
     """Transport that deals directly with TCP socket."""
 
     def _setup_transport(self):
-        """Setup to _write() directly to the socket, and
-        do our own buffered reads."""
+        # Setup to _write() directly to the socket, and
+        # do our own buffered reads.
         self._write = self.sock.sendall
         self._read_buffer = EMPTY_BUFFER
         self._quick_recv = self.sock.recv
 
     def _read(self, n, initial=False, _errnos=(errno.EAGAIN, errno.EINTR)):
-        """Read exactly n bytes from the socket"""
+        """Read exactly n bytes from the socket."""
         recv = self._quick_recv
         rbuf = self._read_buffer
         try:
@@ -377,7 +379,10 @@ class TCPTransport(_AbstractTransport):
 
 
 def Transport(host, connect_timeout=None, ssl=False, **kwargs):
-    """Given a few parameters from the Connection constructor,
-    select and create a subclass of _AbstractTransport."""
+    """Create transport.
+
+    Given a few parameters from the Connection constructor,
+    select and create a subclass of _AbstractTransport.
+    """
     transport = SSLTransport if ssl else TCPTransport
     return transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
