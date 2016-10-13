@@ -1,3 +1,4 @@
+"""SASL mechanisms for AMQP authentication."""
 from __future__ import absolute_import, unicode_literals
 
 from io import BytesIO
@@ -9,28 +10,27 @@ from amqp.serialization import _write_table
 
 
 class SASL(object):
-    """
-    The base class for all amqp SASL authentication mechanisms
+    """The base class for all amqp SASL authentication mechanisms.
 
     You should sub-class this if you're implementing your own authentication.
     """
 
     @property
     def mechanism(self):
-        """Returns a bytes containing the SASL mechanism name"""
+        """Return a bytes containing the SASL mechanism name."""
         raise NotImplementedError
 
     def start(self, connection):
-        """Returns the first response to a SASL challenge as a bytes object"""
+        """Return the first response to a SASL challenge as a bytes object."""
         raise NotImplementedError
 
 
 class PLAIN(SASL):
-    """
-    PLAIN SASL authentication mechanism.
+    """PLAIN SASL authentication mechanism.
 
     See https://tools.ietf.org/html/rfc4616 for details
     """
+
     mechanism = b'PLAIN'
 
     def __init__(self, username, password):
@@ -46,6 +46,11 @@ class PLAIN(SASL):
 
 
 class AMQPLAIN(SASL):
+    """AMQPLAIN SASL authentication mechanism.
+
+    This is a non-standard mechanism used by AMQP servers.
+    """
+
     mechanism = b'AMQPLAIN'
 
     def __init__(self, username, password):
@@ -64,7 +69,8 @@ def _get_gssapi_mechanism():
         import gssapi
     except ImportError:
         class FakeGSSAPI(SASL):
-            """A no op SASL mechanism for when gssapi isn't available"""
+            """A no-op SASL mechanism for when gssapi isn't available."""
+
             mechanism = None
 
             def __init__(self, client_name=None, service=b'amqp',
@@ -81,11 +87,11 @@ def _get_gssapi_mechanism():
         import gssapi.raw.misc
 
         class GSSAPI(SASL):
-            """
-            GSSAPI SASL authentication mechanism
+            """GSSAPI SASL authentication mechanism.
 
             See https://tools.ietf.org/html/rfc4752 for details
             """
+
             mechanism = b'GSSAPI'
 
             def __init__(self, client_name=None, service=b'amqp',
@@ -133,6 +139,12 @@ GSSAPI = _get_gssapi_mechanism()
 
 
 class RAW(SASL):
+    """A generic custom SASL mechanism.
+
+    This mechanism takes a mechanism name and response to send to the server,
+    so can be used for simple custom authentication schemes.
+    """
+
     mechanism = None
 
     def __init__(self, mechanism, response):
