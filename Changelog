@@ -5,7 +5,33 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.1.1:
+
+2.1.1
+=====
+:release-date: 2016-10-13 06:36 P.M PDT
+:release-by: Ask Solem
+
 .. _version-2.1.0:
+
+- **Requirements**
+
+    - Now depends on :ref:`Vine 1.1.3 <vine:version-1.1.3>`.
+
+- Frame writer: Account for overhead when calculating frame size.
+
+    The client would crash if the message was within a certain size.
+
+-  Fixed struct unicode problems (#108)
+
+    * Standardize pack invocations on bytestrings.
+
+    * Leave some literals as strings to enable interpolation.
+
+    * Fix flake8 fail.
+
+    Fix contributed by **Brendan Smithyman**.
+
 
 2.1.0
 =====
