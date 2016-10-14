@@ -80,7 +80,7 @@ def _get_gssapi_mechanism():
                         "You need to install the `gssapi` module for GSSAPI "
                         "SASL support")
 
-            def start(self):
+            def start(self):  # pragma: no cover
                 return NotImplemented
         return FakeGSSAPI
     else:
@@ -104,12 +104,11 @@ def _get_gssapi_mechanism():
                 self.rdns = rdns
 
             def get_hostname(self, connection):
-                if self.rdns:
-                    peer = connection.transport.sock.getpeername()
-                    if isinstance(peer, tuple) and len(peer) == 2:
-                        hostname, _, _ = socket.gethostbyaddr(peer[0])
-                    else:
-                        raise AssertionError
+                sock = connection.transport.sock
+                if self.rdns and sock.family in (socket.AF_INET,
+                                                 socket.AF_INET6):
+                    peer = sock.getpeername()
+                    hostname, _, _ = socket.gethostbyaddr(peer[0])
                 else:
                     hostname = connection.transport.host
                 if not isinstance(hostname, bytes):

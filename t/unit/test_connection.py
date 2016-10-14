@@ -37,17 +37,22 @@ class test_Connection:
         self.conn = Connection(authentication=authentication)
         assert self.conn.authentication == (authentication,)
 
+    def test_sasl_authentication_iterable(self):
+        authentication = SASL()
+        self.conn = Connection(authentication=(authentication,))
+        assert self.conn.authentication == (authentication,)
+
     def test_amqplain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[0], AMQPLAIN)
-        assert self.conn.authentication[0].username == 'foo'
-        assert self.conn.authentication[0].password == 'bar'
+        assert isinstance(self.conn.authentication[1], AMQPLAIN)
+        assert self.conn.authentication[1].username == 'foo'
+        assert self.conn.authentication[1].password == 'bar'
 
     def test_plain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[1], PLAIN)
-        assert self.conn.authentication[1].username == 'foo'
-        assert self.conn.authentication[1].password == 'bar'
+        assert isinstance(self.conn.authentication[2], PLAIN)
+        assert self.conn.authentication[2].username == 'foo'
+        assert self.conn.authentication[2].password == 'bar'
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')

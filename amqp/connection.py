@@ -206,9 +206,9 @@ class Connection(AbstractChannel):
         elif login_method is not None and login_response is not None:
             self.authentication = (sasl.RAW(login_method, login_response),)
         elif userid is not None and password is not None:
-            self.authentication = (sasl.AMQPLAIN(userid, password),
-                                   sasl.PLAIN(userid, password),
-                                   sasl.GSSAPI(userid, fail_soft=True))
+            self.authentication = (sasl.GSSAPI(userid, fail_soft=True),
+                                   sasl.AMQPLAIN(userid, password),
+                                   sasl.PLAIN(userid, password))
         else:
             raise ValueError("Must supply authentication or userid/password")
 

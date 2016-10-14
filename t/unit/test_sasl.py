@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import contextlib
+import socket
 from io import BytesIO
 
 from case import Mock, patch, call
@@ -81,6 +82,7 @@ class test_SASL:
             connection = Mock()
             connection.transport.sock.getpeername.return_value = ('192.0.2.0',
                                                                   5672)
+            connection.transport.sock.family = socket.AF_INET
             gethostbyaddr.return_value = ('broker.example.org', (), ())
             GSSAPI = sasl._get_gssapi_mechanism()
 
