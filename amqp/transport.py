@@ -17,10 +17,12 @@
 from __future__ import absolute_import, unicode_literals
 
 import errno
+import platform
 import re
 import struct
 import socket
 import ssl
+import sys
 
 from contextlib import contextmanager
 from struct import unpack
@@ -178,12 +180,31 @@ class _AbstractTransport(object):
         }
 
     def _set_socket_options(self, socket_settings):
+        has_tcp_user_timeout = False
+        TCP_USER_TIMEOUT = 19
+
+        if sys.platform.startswith('linux'):
+            linux_version = platform.release().split('-')[0].split('.')
+            linux_version = tuple(int(n) for n in linux_version)
+            if linux_version >= (2, 6, 37):
+                has_tcp_user_timeout = True
+
+                if self.connect_timeout is None:
+                    user_timeout = 0
+                else:
+                    user_timeout = self.connect_timeout * 1000
+
         if not socket_settings:
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            if has_tcp_user_timeout:
+                self.sock.setsockopt(SOL_TCP, TCP_USER_TIMEOUT,
+                                     user_timeout)
             return
 
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
         tcp_opts.setdefault(socket.TCP_NODELAY, 1)
+        if has_tcp_user_timeout:
+            tcp_opts.setdefault(TCP_USER_TIMEOUT, user_timeout)
         tcp_opts.update(socket_settings)
 
         for opt, val in items(tcp_opts):
