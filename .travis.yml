@@ -16,6 +16,12 @@ env:
     - TOXENV=flakeplus
     - TOXENV=pydocstyle
     - TOXENV=apicheck
+
+matrix:
+  allow_failures:
+    - env: TOXENV=pypy3
+  fast_finish: true
+
 install: travis_retry pip install -U tox
 script: tox -v -- -v
 after_success:
