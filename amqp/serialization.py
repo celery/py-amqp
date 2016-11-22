@@ -54,78 +54,78 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
 
     # 'S': long string
     if ftype == 'S':
-        slen, = unpack_from(b'>I', buf, offset)
+        slen, = unpack_from('>I', buf, offset)
         offset += 4
         val = pstr_t(buf[offset:offset + slen])
         offset += slen
     # 's': short string
     elif ftype == 's':
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         val = pstr_t(buf[offset:offset + slen])
         offset += slen
     # 'b': short-short int
     elif ftype == 'b':
-        val, = unpack_from(b'>B', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         offset += 1
     # 'B': short-short unsigned int
     elif ftype == 'B':
-        val, = unpack_from(b'>b', buf, offset)
+        val, = unpack_from('>b', buf, offset)
         offset += 1
     # 'U': short int
     elif ftype == 'U':
-        val, = unpack_from(b'>h', buf, offset)
+        val, = unpack_from('>h', buf, offset)
         offset += 2
     # 'u': short unsigned int
     elif ftype == 'u':
-        val, = unpack_from(b'>H', buf, offset)
+        val, = unpack_from('>H', buf, offset)
         offset += 2
     # 'I': long int
     elif ftype == 'I':
-        val, = unpack_from(b'>i', buf, offset)
+        val, = unpack_from('>i', buf, offset)
         offset += 4
     # 'i': long unsigned int
     elif ftype == 'i':
-        val, = unpack_from(b'>I', buf, offset)
+        val, = unpack_from('>I', buf, offset)
         offset += 4
     # 'L': long long int
     elif ftype == 'L':
-        val, = unpack_from(b'>q', buf, offset)
+        val, = unpack_from('>q', buf, offset)
         offset += 8
     # 'l': long long unsigned int
     elif ftype == 'l':
-        val, = unpack_from(b'>Q', buf, offset)
+        val, = unpack_from('>Q', buf, offset)
         offset += 8
     # 'f': float
     elif ftype == 'f':
-        val, = unpack_from(b'>f', buf, offset)
+        val, = unpack_from('>f', buf, offset)
         offset += 4
     # 'd': double
     elif ftype == 'd':
-        val, = unpack_from(b'>d', buf, offset)
+        val, = unpack_from('>d', buf, offset)
         offset += 8
     # 'D': decimal
     elif ftype == 'D':
-        d, = unpack_from(b'>B', buf, offset)
+        d, = unpack_from('>B', buf, offset)
         offset += 1
-        n, = unpack_from(b'>i', buf, offset)
+        n, = unpack_from('>i', buf, offset)
         offset += 4
         val = Decimal(n) / Decimal(10 ** d)
     # 'F': table
     elif ftype == 'F':
-        tlen, = unpack_from(b'>I', buf, offset)
+        tlen, = unpack_from('>I', buf, offset)
         offset += 4
         limit = offset + tlen
         val = {}
         while offset < limit:
-            keylen, = unpack_from(b'>B', buf, offset)
+            keylen, = unpack_from('>B', buf, offset)
             offset += 1
             key = pstr_t(buf[offset:offset + keylen])
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
     elif ftype == 'A':
-        alen, = unpack_from(b'>I', buf, offset)
+        alen, = unpack_from('>I', buf, offset)
         offset += 4
         limit = offset + alen
         val = []
@@ -134,12 +134,12 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
             val.append(v)
     # 't' (bool)
     elif ftype == 't':
-        val, = unpack_from(b'>B', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         val = bool(val)
         offset += 1
     # 'T': timestamp
     elif ftype == 'T':
-        val, = unpack_from(b'>Q', buf, offset)
+        val, = unpack_from('>Q', buf, offset)
         offset += 8
         val = datetime.utcfromtimestamp(val)
     # 'V': void
@@ -186,51 +186,51 @@ def loads(format, buf, offset=0,
             offset += 1
         elif p == 'o':
             bitcount = bits = 0
-            val, = unpack_from(b'>B', buf, offset)
+            val, = unpack_from('>B', buf, offset)
             offset += 1
         elif p == 'B':
             bitcount = bits = 0
-            val, = unpack_from(b'>H', buf, offset)
+            val, = unpack_from('>H', buf, offset)
             offset += 2
         elif p == 'l':
             bitcount = bits = 0
-            val, = unpack_from(b'>I', buf, offset)
+            val, = unpack_from('>I', buf, offset)
             offset += 4
         elif p == 'L':
             bitcount = bits = 0
-            val, = unpack_from(b'>Q', buf, offset)
+            val, = unpack_from('>Q', buf, offset)
             offset += 8
         elif p == 'f':
             bitcount = bits = 0
-            val, = unpack_from(b'>f', buf, offset)
+            val, = unpack_from('>f', buf, offset)
             offset += 4
         elif p == 's':
             bitcount = bits = 0
-            slen, = unpack_from(b'B', buf, offset)
+            slen, = unpack_from('B', buf, offset)
             offset += 1
             val = buf[offset:offset + slen].decode('utf-8')
             offset += slen
         elif p == 'S':
             bitcount = bits = 0
-            slen, = unpack_from(b'>I', buf, offset)
+            slen, = unpack_from('>I', buf, offset)
             offset += 4
             val = buf[offset:offset + slen].decode('utf-8')
             offset += slen
         elif p == 'F':
             bitcount = bits = 0
-            tlen, = unpack_from(b'>I', buf, offset)
+            tlen, = unpack_from('>I', buf, offset)
             offset += 4
             limit = offset + tlen
             val = {}
             while offset < limit:
-                keylen, = unpack_from(b'>B', buf, offset)
+                keylen, = unpack_from('>B', buf, offset)
                 offset += 1
                 key = pstr_t(buf[offset:offset + keylen])
                 offset += keylen
                 val[key], offset = _read_item(buf, offset)
         elif p == 'A':
             bitcount = bits = 0
-            alen, = unpack_from(b'>I', buf, offset)
+            alen, = unpack_from('>I', buf, offset)
             offset += 4
             limit = offset + alen
             val = []
@@ -239,7 +239,7 @@ def loads(format, buf, offset=0,
                 val.append(aval)
         elif p == 'T':
             bitcount = bits = 0
-            val, = unpack_from(b'>Q', buf, offset)
+            val, = unpack_from('>Q', buf, offset)
             offset += 8
             val = datetime.utcfromtimestamp(val)
         else:
@@ -250,7 +250,7 @@ def loads(format, buf, offset=0,
 
 def _flushbits(bits, write, pack=pack):
     if bits:
-        write(pack(b'B' * len(bits), *bits))
+        write(pack('B' * len(bits), *bits))
         bits[:] = []
     return 0
 
@@ -287,32 +287,32 @@ def dumps(format, values):
             bitcount += 1
         elif p == 'o':
             bitcount = _flushbits(bits, write)
-            write(pack(b'B', val))
+            write(pack('B', val))
         elif p == 'B':
             bitcount = _flushbits(bits, write)
-            write(pack(b'>H', int(val)))
+            write(pack('>H', int(val)))
         elif p == 'l':
             bitcount = _flushbits(bits, write)
-            write(pack(b'>I', val))
+            write(pack('>I', val))
         elif p == 'L':
             bitcount = _flushbits(bits, write)
-            write(pack(b'>Q', val))
+            write(pack('>Q', val))
         elif p == 'f':
             bitcount = _flushbits(bits, write)
-            write(pack(b'>f', val))
+            write(pack('>f', val))
         elif p == 's':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
                 val = val.encode('utf-8')
-            write(pack(b'B', len(val)))
+            write(pack('B', len(val)))
             write(val)
         elif p == 'S':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
                 val = val.encode('utf-8')
-            write(pack(b'>I', len(val)))
+            write(pack('>I', len(val)))
             write(val)
         elif p == 'F':
             bitcount = _flushbits(bits, write)
@@ -321,7 +321,7 @@ def dumps(format, values):
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
         elif p == 'T':
-            write(pack(b'>Q', long_t(calendar.timegm(val.utctimetuple()))))
+            write(pack('>Q', long_t(calendar.timegm(val.utctimetuple()))))
     _flushbits(bits, write)
 
     return out.getvalue()
@@ -333,7 +333,7 @@ def _write_table(d, write, bits, pack=pack):
     for k, v in items(d):
         if isinstance(k, string):
             k = k.encode('utf-8')
-        twrite(pack(b'B', len(k)))
+        twrite(pack('B', len(k)))
         twrite(k)
         try:
             _write_item(v, twrite, bits)
@@ -341,7 +341,7 @@ def _write_table(d, write, bits, pack=pack):
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v))
     table_data = out.getvalue()
-    write(pack(b'>I', len(table_data)))
+    write(pack('>I', len(table_data)))
     write(table_data)
 
 
@@ -355,7 +355,7 @@ def _write_array(l, write, bits, pack=pack):
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_VALUE.format(type(v), v))
     array_data = out.getvalue()
-    write(pack(b'>I', len(array_data)))
+    write(pack('>I', len(array_data)))
     write(array_data)
 
 
@@ -367,17 +367,17 @@ def _write_item(v, write, bits, pack=pack,
     if isinstance(v, (string_t, bytes)):
         if isinstance(v, string):
             v = v.encode('utf-8')
-        write(pack(b'>cI', b'S', len(v)))
+        write(pack('>cI', b'S', len(v)))
         write(v)
     elif isinstance(v, bool):
-        write(pack(b'>cB', b't', int(v)))
+        write(pack('>cB', b't', int(v)))
     elif isinstance(v, float):
-        write(pack(b'>cd', b'd', v))
+        write(pack('>cd', b'd', v))
     elif isinstance(v, int_types):
         if v > 2147483647 or v < -2147483647:
-            write(pack(b'>cq', b'L', v))
+            write(pack('>cq', b'L', v))
         else:
-            write(pack(b'>ci', b'I', v))
+            write(pack('>ci', b'I', v))
     elif isinstance(v, Decimal):
         sign, digits, exponent = v.as_tuple()
         v = 0
@@ -385,9 +385,9 @@ def _write_item(v, write, bits, pack=pack,
             v = (v * 10) + d
         if sign:
             v = -v
-        write(pack(b'>cBi', b'D', -exponent, v))
+        write(pack('>cBi', b'D', -exponent, v))
     elif isinstance(v, datetime):
-        write(pack(b'>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
+        write(pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
     elif isinstance(v, dict):
         write(b'F')
         _write_table(v, write, bits)
@@ -405,16 +405,16 @@ def decode_properties_basic(buf, offset=0,
     """Decode basic properties."""
     properties = {}
 
-    flags, = unpack_from(b'>H', buf, offset)
+    flags, = unpack_from('>H', buf, offset)
     offset += 2
 
     if flags & 0x8000:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['content_type'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x4000:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['content_encoding'] = pstr_t(buf[offset:offset + slen])
         offset += slen
@@ -422,51 +422,51 @@ def decode_properties_basic(buf, offset=0,
         _f, offset = loads('F', buf, offset)
         properties['application_headers'], = _f
     if flags & 0x1000:
-        properties['delivery_mode'], = unpack_from(b'>B', buf, offset)
+        properties['delivery_mode'], = unpack_from('>B', buf, offset)
         offset += 1
     if flags & 0x0800:
-        properties['priority'], = unpack_from(b'>B', buf, offset)
+        properties['priority'], = unpack_from('>B', buf, offset)
         offset += 1
     if flags & 0x0400:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['correlation_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0200:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['reply_to'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0100:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['expiration'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0080:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['message_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0040:
-        properties['timestamp'], = unpack_from(b'>Q', buf, offset)
+        properties['timestamp'], = unpack_from('>Q', buf, offset)
         offset += 8
     if flags & 0x0020:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['type'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0010:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['user_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0008:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['app_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0004:
-        slen, = unpack_from(b'>B', buf, offset)
+        slen, = unpack_from('>B', buf, offset)
         offset += 1
         properties['cluster_id'] = pstr_t(buf[offset:offset + slen])
         offset += slen
@@ -552,13 +552,13 @@ class GenericContent(object):
         result = BytesIO()
         write = result.write
         for flag_bits in flags:
-            write(pack(b'>H', flag_bits))
+            write(pack('>H', flag_bits))
         write(dumps(b''.join(sformat), svalues))
 
         return result.getvalue()
 
     def inbound_header(self, buf, offset=0):
-        class_id, self.body_size = unpack_from(b'>HxxQ', buf, offset)
+        class_id, self.body_size = unpack_from('>HxxQ', buf, offset)
         offset += 12
         self._load_properties(class_id, buf, offset)
         if not self.body_size:
