@@ -472,6 +472,7 @@ def decode_properties_basic(buf, offset=0,
         offset += slen
     return properties, offset
 
+
 PROPERTY_CLASSES = {
     Basic.CLASS_ID: decode_properties_basic,
 }
