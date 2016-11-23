@@ -18,6 +18,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
+import errno
 
 from collections import defaultdict
 from warnings import warn
@@ -1741,6 +1742,15 @@ class Channel(AbstractChannel):
         if not self.connection:
             raise RecoverableConnectionError(
                 'basic_publish: connection closed')
+
+        try:
+            # Check if an event was sent, such as the out of memory message
+            self.connection.drain_events(timeout=0)
+        except socket.error as e:
+            if e.errno != errno.EAGAIN:
+                # If the error was that no event was available just continue
+                raise
+
         try:
             with self.connection.transport.having_timeout(timeout):
                 return self.send_method(
