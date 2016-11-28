@@ -252,17 +252,22 @@ class SSLTransport(_AbstractTransport):
 
     def _write(self, s):
         """Write a string out to the SSL socket fully."""
-        try:
-            write = self.sock.write
-        except AttributeError:
-            # Works around a bug in python socket library
-            raise IOError('Socket closed')
-        else:
-            while s:
+        write = self.sock.write
+        while s:
+            try:
                 n = write(s)
-                if not n:
-                    raise IOError('Socket closed')
-                s = s[n:]
+            except (ValueError, AttributeError):
+                # AG: sock._sslobj might become null in the meantime if the
+                # remote connection has hung up.
+                # In python 3.2, an AttributeError is raised because the SSL
+                # module tries to access self._sslobj.write (w/ self._sslobj ==
+                # None)
+                # In python 3.4, a ValueError is raised is self._sslobj is
+                # None. So much for portability... :/
+                n = 0
+            if not n:
+                raise IOError('Socket closed')
+            s = s[n:]
 
 
 class TCPTransport(_AbstractTransport):
