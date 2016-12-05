@@ -78,12 +78,12 @@ KNOWN_TCP_OPTS = (
     'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
     'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
 )
-TCP_OPTS = [
+TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
-]
+}
 if HAS_TCP_USER_TIMEOUT:
     KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
-    TCP_OPTS['TCP_USER_TIMEOUT'] = TCP_USER_TIMEOUT
+    TCP_OPTS.add(TCP_USER_TIMEOUT)
 
 
 def to_host_port(host, default=AMQP_PORT):
