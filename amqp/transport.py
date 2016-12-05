@@ -17,6 +17,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import errno
+import math
 import platform
 import re
 import struct
@@ -36,6 +37,19 @@ try:
     from socket import SOL_TCP
 except ImportError:  # pragma: no cover
     from socket import IPPROTO_TCP as SOL_TCP  # noqa
+
+LINUX_VERSION = None
+if sys.platform.startswith('linux'):
+    LINUX_VERSION = tuple(map(
+        int, platform.release().split('-')[0].split('.')))
+
+try:
+    from socket import TCP_USER_TIMEOUT
+    HAS_TCP_USER_TIMEOUT = True
+except ImportError:  # pragma: no cover
+    # should be in Python 3.6+ on Linux.
+    TCP_USER_TIMEOUT = 18
+    HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)
 
 try:
     from ssl import SSLError
@@ -64,8 +78,12 @@ KNOWN_TCP_OPTS = (
     'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
     'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
 )
-TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
-            if hasattr(socket, opt)]
+TCP_OPTS = [
+    getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
+]
+if HAS_TCP_USER_TIMEOUT:
+    KNOWN_TCP_OPTS =+ ('TCP_USER_TIMEOUT',)
+    TCP_OPTS['TCP_USER_TIMEOUT'] = TCP_USER_TIMEOUT
 
 
 def to_host_port(host, default=AMQP_PORT):
@@ -179,31 +197,19 @@ class _AbstractTransport(object):
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
         }
 
-    def _set_socket_options(self, socket_settings):
-        has_tcp_user_timeout = False
-        TCP_USER_TIMEOUT = 19
-
-        if sys.platform.startswith('linux'):
-            linux_version = platform.release().split('-')[0].split('.')
-            linux_version = tuple(int(n) for n in linux_version)
-            if linux_version >= (2, 6, 37):
-                has_tcp_user_timeout = True
-
-                if self.connect_timeout is None:
-                    user_timeout = 0
-                else:
-                    user_timeout = self.connect_timeout * 1000
+    def _set_socket_options(self, socket_settings, user_timeout=0):
+        if self.connect_timeout is not None:
+            user_timeout = int(math.ceil(self.connect_timeout * 1000.0))
 
         if not socket_settings:
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            if has_tcp_user_timeout:
-                self.sock.setsockopt(SOL_TCP, TCP_USER_TIMEOUT,
-                                     user_timeout)
+            if HAS_TCP_USER_TIMEOUT:
+                self.sock.setsockopt(SOL_TCP, TCP_USER_TIMEOUT, user_timeout)
             return
 
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
         tcp_opts.setdefault(socket.TCP_NODELAY, 1)
-        if has_tcp_user_timeout:
+        if HAS_TCP_USER_TIMEOUT:
             tcp_opts.setdefault(TCP_USER_TIMEOUT, user_timeout)
         tcp_opts.update(socket_settings)
 
