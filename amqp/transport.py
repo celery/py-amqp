@@ -82,7 +82,7 @@ TCP_OPTS = [
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
 ]
 if HAS_TCP_USER_TIMEOUT:
-    KNOWN_TCP_OPTS =+ ('TCP_USER_TIMEOUT',)
+    KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
     TCP_OPTS['TCP_USER_TIMEOUT'] = TCP_USER_TIMEOUT
 
 
