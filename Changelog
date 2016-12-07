@@ -5,6 +5,57 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.1.2:
+
+2.1.2
+=====
+:release-date: 2016-12-07 02:00 P.M PST
+
+- Linux: Now sets the :data:`~socket.TCP_USER_TIMEOUT` flag if available
+  for better failed connection detection.
+
+    The timeout is set to the ``connect_timeout`` value by default,
+    but can also be specified by using the ``socket_settings`` argument
+    to :class:`~amqp.Connection`:
+
+    .. code-block:: python
+
+        from amqp import Connection
+        from amqp.platform import TCP_USER_TIMEOUT
+
+        conn = Connection(socket_settings={
+            TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+        })
+
+    When using :pypi:`Kombu` this can be specified as part of the
+    ``transport_options``:
+
+    .. code-block:: python
+
+        from amqp.platform import TCP_USER_TIMEOUT
+        from kombu import Connection
+
+        conn = Connection(transport_options={
+            'socket_settings': {
+                TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+            },
+        })
+
+    Or when using :pypi:`Celery` it can be specified using the
+    ``broker_transport_options`` setting:
+
+    .. code-block:: python
+
+        from amqp.platform import TCP_USER_TIMEOUT
+        from celery import Celery
+
+        app = Celery()
+        app.conf.update(
+            broker_transport_options={
+                TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+            }
+        )
+
 .. _version-2.1.1:
 
 2.1.1
