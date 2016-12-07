@@ -197,7 +197,8 @@ class _AbstractTransport(object):
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
         }
 
-    def _set_socket_options(self, socket_settings, user_timeout=0):
+    def _set_socket_options(self, socket_settings):
+        user_timeout = 0
         if self.connect_timeout is not None:
             user_timeout = int(math.ceil(self.connect_timeout * 1000.0))
 
