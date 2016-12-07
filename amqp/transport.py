@@ -18,12 +18,10 @@ from __future__ import absolute_import, unicode_literals
 
 import errno
 import math
-import platform
 import re
 import struct
 import socket
 import ssl
-import sys
 
 from contextlib import contextmanager
 from struct import unpack

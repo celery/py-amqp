@@ -1,5 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 
+import sys
+import platform
+
 # Jython does not have this attribute
 try:
     from socket import SOL_TCP
