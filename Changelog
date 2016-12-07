@@ -14,6 +14,8 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 - Linux: Now sets the :data:`~socket.TCP_USER_TIMEOUT` flag if available
   for better failed connection detection.
 
+    Contributed by **Jelte Fennema**.
+
     The timeout is set to the ``connect_timeout`` value by default,
     but can also be specified by using the ``socket_settings`` argument
     to :class:`~amqp.Connection`:
@@ -55,6 +57,10 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
                 TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
             }
         )
+
+- Python compatibility: Fixed compatibility when using the python ``-b`` flag.
+
+    Fix contributed by Jon Dufresne.
 
 .. _version-2.1.1:
 
