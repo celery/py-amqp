@@ -162,7 +162,7 @@ class _AbstractTransport(object):
                 if interval is not None:
                     self.sock.setsockopt(
                         socket.SOL_SOCKET, timeout,
-                        struct.pack(b'll', interval, 0),
+                        struct.pack(str('ll'), interval, 0),
                     )
             self._setup_transport()
 
@@ -230,7 +230,7 @@ class _AbstractTransport(object):
         try:
             frame_header = read(7, True)
             read_frame_buffer += frame_header
-            frame_type, channel, size = unpack(b'>BHI', frame_header)
+            frame_type, channel, size = unpack(str('>BHI'), frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
