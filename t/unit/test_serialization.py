@@ -25,14 +25,14 @@ class test_serialization:
 
     @pytest.mark.parametrize('descr,frame,expected,cast', [
         ('S', b's8thequick', 'thequick', None),
-        ('b', b'b' + pack('>B', True), True, None),
-        ('B', b'B' + pack('>b', 123), 123, None),
-        ('U', b'U' + pack('>h', -321), -321, None),
-        ('u', b'u' + pack('>H', 321), 321, None),
-        ('i', b'i' + pack('>I', 1234), 1234, None),
-        ('L', b'L' + pack('>q', -32451), -32451, None),
-        ('l', b'l' + pack('>Q', 32451), 32451, None),
-        ('f', b'f' + pack('>f', 33.3), 34.0, ceil),
+        ('b', b'b' + pack(b'>B', True), True, None),
+        ('B', b'B' + pack(b'>b', 123), 123, None),
+        ('U', b'U' + pack(b'>h', -321), -321, None),
+        ('u', b'u' + pack(b'>H', 321), 321, None),
+        ('i', b'i' + pack(b'>I', 1234), 1234, None),
+        ('L', b'L' + pack(b'>q', -32451), -32451, None),
+        ('l', b'l' + pack(b'>Q', 32451), 32451, None),
+        ('f', b'f' + pack(b'>f', 33.3), 34.0, ceil),
     ])
     def test_read_item(self, descr, frame, expected, cast):
         actual = _read_item(frame)[0]
@@ -162,7 +162,7 @@ class test_GenericContent:
             'content_encoding': 'utf-8',
         }
         body = 'the quick brown fox'
-        buf = b'\0' * 30 + pack('>HxxQ', m.CLASS_ID, len(body))
+        buf = b'\0' * 30 + pack(b'>HxxQ', m.CLASS_ID, len(body))
         buf += m._serialize_properties()
         assert m.inbound_header(buf, offset=30) == 42
         assert m.body_size == len(body)
@@ -172,7 +172,7 @@ class test_GenericContent:
     def test_inbound_header__empty_body(self):
         m = Message()
         m.properties = {}
-        buf = pack('>HxxQ', m.CLASS_ID, 0)
+        buf = pack(b'>HxxQ', m.CLASS_ID, 0)
         buf += m._serialize_properties()
         assert m.inbound_header(buf, offset=0) == 12
         assert m.ready
