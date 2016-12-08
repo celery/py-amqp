@@ -22,21 +22,21 @@ class test_frame_handler:
         self.g = frame_handler(self.conn, self.callback)
 
     def test_header(self):
-        buf = pack(b'>HH', 60, 51)
+        buf = pack(str('>HH'), 60, 51)
         self.g((1, 1, buf))
         self.callback.assert_called_with(1, (60, 51), buf, None)
         assert self.conn.bytes_recv
 
     def test_header_message_empty_body(self):
-        self.g((1, 1, pack(b'>HH', *spec.Basic.Deliver)))
+        self.g((1, 1, pack(str('>HH'), *spec.Basic.Deliver)))
         self.callback.assert_not_called()
 
         with pytest.raises(UnexpectedFrame):
-            self.g((1, 1, pack(b'>HH', *spec.Basic.Deliver)))
+            self.g((1, 1, pack(str('>HH'), *spec.Basic.Deliver)))
 
         m = Message()
         m.properties = {}
-        buf = pack(b'>HxxQ', m.CLASS_ID, 0)
+        buf = pack(str('>HxxQ'), m.CLASS_ID, 0)
         buf += m._serialize_properties()
         self.g((2, 1, buf))
 
@@ -47,12 +47,12 @@ class test_frame_handler:
         )
 
     def test_header_message_content(self):
-        self.g((1, 1, pack(b'>HH', *spec.Basic.Deliver)))
+        self.g((1, 1, pack(str('>HH'), *spec.Basic.Deliver)))
         self.callback.assert_not_called()
 
         m = Message()
         m.properties = {}
-        buf = pack(b'>HxxQ', m.CLASS_ID, 16)
+        buf = pack(str('>HxxQ'), m.CLASS_ID, 16)
         buf += m._serialize_properties()
         self.g((2, 1, buf))
         self.callback.assert_not_called()
