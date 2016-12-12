@@ -87,8 +87,8 @@ ConnectionFrameHandler = typing.Callable[
     typing.Generator[typing.Any, typing.Any, typing.Any],
 ]
 ConnectionFrameWriter = typing.Callable[
-    ['Connection', BaseTransport], typing.Generator[typing.Any, typing.Any,
-        typing.Any],
+    ['Connection', BaseTransport],
+    typing.Generator[typing.Any, typing.Any, typing.Any],
 ]
 MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
 
@@ -152,7 +152,9 @@ class Connection(AbstractChannel):
         spec.method(spec.Connection.CloseOk),
     ]
 
-    _METHODS = {m.method_sig: m for m in _METHODSET}  # type: MethodSigMethodMapping
+    _METHODS: MethodSigMethodMapping = {
+        m.method_sig: m for m in _METHODSET
+    }
 
     connection_errors = (  # type: Tuple[Exception]
         ConnectionError,
@@ -184,7 +186,7 @@ class Connection(AbstractChannel):
                  on_blocked: ConnectionBlockedCallback=None,
                  on_unblocked: ConnectionUnblockedCallback=None,
                  confirm_publish: bool=False,
-                 on_tune_ok: ConnectionTuneOkCallback=None,
+                 on_tune_ok: Callable=None,
                  read_timeout: Timeout=None,
                  write_timeout: Timeout=None,
                  socket_settings: MaybeDict=None,
@@ -239,7 +241,7 @@ class Connection(AbstractChannel):
         super(Connection, self).__init__(self, 0)
 
         self._frame_writer = None      # type: Generator
-        self._on_inbound_frame = None  # type: ConnectionInboundFrameHandler
+        self._on_inbound_frame = None  # type: Any
         self._transport = None         # type: BaseTransport
 
         # Properties set in the Tune method
@@ -292,24 +294,25 @@ class Connection(AbstractChannel):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    def connect(self, callback: Callable[[], None] = None) -> None:
+    async def connect(self, callback: Callable[[], None] = None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
         if self.connected:
-            return callback() if callback else None
-        self.transport = self.Transport(
-            self.host, self.connect_timeout, self.ssl,
-            self.read_timeout, self.write_timeout,
-            socket_settings=self.socket_settings,
-        )
-        self.transport.connect()
-        self.on_inbound_frame = self.frame_handler_cls(
-            self, self.on_inbound_method)
-        self.frame_writer = self.frame_writer_cls(self, self.transport)
+            await callback() if callback else None
+        else:
+            self.transport = self.Transport(
+                self.host, self.connect_timeout, self.ssl,
+                self.read_timeout, self.write_timeout,
+                socket_settings=self.socket_settings,
+            )
+            await self.transport.connect()
+            self.on_inbound_frame = self.frame_handler_cls(
+                self, self.on_inbound_method)
+            self.frame_writer = self.frame_writer_cls(self, self.transport)
 
-        while not self._handshake_complete:
-            self.drain_events(timeout=self.connect_timeout)
+            while not self._handshake_complete:
+                await self.drain_events(timeout=self.connect_timeout)
 
     def _warn_force_connect(self, attr: str) -> None:
         warnings.warn(AMQPDeprecationWarning(
@@ -327,7 +330,7 @@ class Connection(AbstractChannel):
         self._transport = transport
 
     @property
-    def on_inbound_frame(self) -> ConnectionInboundFrameHandler:
+    def on_inbound_frame(self) -> Any:
         if self._on_inbound_frame is None:
             self._warn_force_connect('on_inbound_frame')
             self.connect()
@@ -348,9 +351,13 @@ class Connection(AbstractChannel):
     def frame_writer(self, frame_writer):
         self._frame_writer = frame_writer
 
-    def _on_start(self, version_major: int, version_minor: int,
-                  server_properties: Mapping[Any, Any],
-                  mechanisms: str, locales: str, argsig: str='FsSs') -> None:
+    async def _on_start(self,
+                        version_major: int,
+                        version_minor: int,
+                        server_properties: Mapping[Any, Any],
+                        mechanisms: str,
+                        locales: str,
+                        argsig: str='FsSs') -> None:
         # type: (int, int, Mapping[Any, Any], str, str, str) -> None
         client_properties = self.client_properties
         self.version_major = version_major
@@ -373,17 +380,20 @@ class Connection(AbstractChannel):
             cap = client_properties.setdefault('capabilities', {})
             cap['connection.blocked'] = True
 
-        self.send_method(
+        return await self.send_method(
             spec.Connection.StartOk, argsig,
             (client_properties, self.login_method,
              self.login_response, self.locale),
         )
 
-    def _on_secure(self, challenge: str) -> None:
-        pass
+    async def _on_secure(self, challenge: str) -> None:
+        ...
 
-    def _on_tune(self, channel_max: int, frame_max: int,
-                 server_heartbeat: Timeout, argsig: str='BlB'):
+    async def _on_tune(self,
+                       channel_max: int,
+                       frame_max: int,
+                       server_heartbeat: Timeout,
+                       argsig: str='BlB'):
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -400,20 +410,20 @@ class Connection(AbstractChannel):
         if not self.client_heartbeat:
             self.heartbeat = 0
 
-        self.send_method(
+        return await self.send_method(
             spec.Connection.TuneOk, argsig,
             (self.channel_max, self.frame_max, self.heartbeat),
             callback=self._on_tune_sent,
         )
 
-    def _on_tune_sent(self, argsig: str='ssb'):
-        self.send_method(
+    async def _on_tune_sent(self, argsig: str='ssb'):
+        return await self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
-    def _on_open_ok(self) -> None:
+    async def _on_open_ok(self) -> None:
         self._handshake_complete = True
-        self.on_open(self)
+        return await self.on_open(self)
 
     def Transport(self, host: str, connect_timeout: Timeout,
                   ssl: SSLArg=False,
@@ -457,7 +467,7 @@ class Connection(AbstractChannel):
             raise ConnectionError(
                 'Channel %r already open' % (channel_id,))
 
-    def channel(self, channel_id: int=None, callback=None):
+    async def channel(self, channel_id: int=None, callback=None):
         """Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist."""
         if self.channels is not None:
@@ -465,28 +475,28 @@ class Connection(AbstractChannel):
                 return self.channels[channel_id]
             except KeyError:
                 channel = self.Channel(self, channel_id, on_open=callback)
-                channel.open()
+                await channel.open()
                 return channel
         raise RecoverableConnectionError('Connection already closed.')
 
     def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
-    def drain_events(self, timeout: Timeout=None) -> None:
-        return self.blocking_read(timeout)
+    async def drain_events(self, timeout: Timeout=None) -> None:
+        return await self.blocking_read(timeout)
 
-    def blocking_read(self, timeout: Timeout=None) -> Frame:
+    async def blocking_read(self, timeout: Timeout=None) -> Any:
         with self.transport.having_timeout(timeout):
-            frame = self.transport.read_frame()
-        return self.on_inbound_frame(frame)
+            frame = await self.transport.read_frame()
+        return await self.on_inbound_frame(frame)
 
-    def on_inbound_method(self, channel_id, method_sig, payload, content):
-        return self.channels[channel_id].dispatch_method(
+    async def on_inbound_method(self, channel_id, method_sig, payload, content):
+        return await self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
 
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              argsig='BsBB'):
+    async def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
+                    argsig='BsBB'):
 
         """Request a connection close
 
@@ -545,13 +555,13 @@ class Connection(AbstractChannel):
             # already closed
             return
 
-        return self.send_method(
+        return await self.send_method(
             spec.Connection.Close, argsig,
             (reply_code, reply_text, method_sig[0], method_sig[1]),
             wait=spec.Connection.CloseOk,
         )
 
-    def _on_close(self, reply_code, reply_text, class_id, method_id):
+    async def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close
 
         This method indicates that the sender wants to close the
@@ -605,11 +615,11 @@ class Connection(AbstractChannel):
                 is the ID of the method.
 
         """
-        self._x_close_ok()
+        await self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    def _x_close_ok(self):
+    async def _x_close_ok(self):
         """Confirm a connection close
 
         This method confirms a Connection.Close method and tells the
@@ -622,9 +632,10 @@ class Connection(AbstractChannel):
             received a Close-Ok handshake method SHOULD log the error.
 
         """
-        self.send_method(spec.Connection.CloseOk, callback=self._on_close_ok)
+        return await self.send_method(
+            spec.Connection.CloseOk, callback=self._on_close_ok)
 
-    def _on_close_ok(self):
+    async def _on_close_ok(self):
         """Confirm a connection close
 
         This method confirms a Connection.Close method and tells the
@@ -639,23 +650,23 @@ class Connection(AbstractChannel):
         """
         self.collect()
 
-    def _on_blocked(self):
+    async def _on_blocked(self):
         """RabbitMQ Extension."""
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
-            return self.on_blocked(reason)
+            return await self.on_blocked(reason)
 
-    def _on_unblocked(self):
+    async def _on_unblocked(self):
         if self.on_unblocked:
-            return self.on_unblocked()
+            return await self.on_unblocked()
 
-    def send_heartbeat(self):
+    async def send_heartbeat(self):
         try:
-            self.frame_writer.send((8, 0, None, None, None))
+            return await self.frame_writer.send((8, 0, None, None, None))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
-    def heartbeat_tick(self, rate=2):
+    async def heartbeat_tick(self, rate=2):
         """Send heartbeat packets, if necessary, and fail if none have been
         received recently.  This should be called frequently, on the order of
         once per second.
@@ -692,7 +703,7 @@ class Connection(AbstractChannel):
         if mntnc > self.last_heartbeat_sent + self.heartbeat:
             AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
                               'connection %s' % self._connection_id)
-            self.send_heartbeat()
+            await self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 
         # if we've missed two intervals' heartbeats, fail; this gives the
@@ -709,4 +720,3 @@ class Connection(AbstractChannel):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
-abstract.Connection.register(Connection)

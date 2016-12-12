@@ -173,12 +173,12 @@ class Channel(AbstractChannel):
         self.events.clear()
         self.no_ack_consumers.clear()
 
-    def _do_revive(self):
+    async def _do_revive(self):
         self.is_open = False
         self.open()
 
-    def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-              argsig='BsBB'):
+    async def close(self, reply_code=0, reply_text='',
+                    method_sig=(0, 0), argsig='BsBB'):
         """Request a channel close
 
         This method indicates that the sender wants to close the
@@ -234,7 +234,7 @@ class Channel(AbstractChannel):
             if is_closed:
                 return
 
-            return self.send_method(
+            return await self.send_method(
                 spec.Channel.Close, argsig,
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Channel.CloseOk,
@@ -242,7 +242,7 @@ class Channel(AbstractChannel):
         finally:
             self.connection = None
 
-    def _on_close(self, reply_code, reply_text, class_id, method_id):
+    async def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a channel close
 
         This method indicates that the sender wants to close the
@@ -290,8 +290,8 @@ class Channel(AbstractChannel):
 
         """
 
-        self.send_method(spec.Channel.CloseOk)
-        self._do_revive()
+        await self.send_method(spec.Channel.CloseOk)
+        await self._do_revive()
         raise error_for_code(
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
@@ -312,7 +312,7 @@ class Channel(AbstractChannel):
         """
         self.collect()
 
-    def flow(self, active):
+    async def flow(self, active):
         """Enable/disable flow from peer
 
         This method asks the peer to pause or restart the flow of
@@ -358,11 +358,11 @@ class Channel(AbstractChannel):
                 False, the peer stops sending content frames.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Channel.Flow, 'b', (active,), wait=spec.Channel.FlowOk,
         )
 
-    def _on_flow(self, active):
+    async def _on_flow(self, active):
         """Enable/disable flow from peer
 
         This method asks the peer to pause or restart the flow of
@@ -409,9 +409,9 @@ class Channel(AbstractChannel):
 
         """
         self.active = active
-        self._x_flow_ok(self.active)
+        return await self._x_flow_ok(self.active)
 
-    def _x_flow_ok(self, active):
+    async def _x_flow_ok(self, active):
         """Confirm a flow method
 
         Confirms to the peer that a flow command was received and
@@ -427,9 +427,9 @@ class Channel(AbstractChannel):
                 to send content frames; False means it will not.
 
         """
-        return self.send_method(spec.Channel.FlowOk, 'b', (active,))
+        return await self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
-    def open(self):
+    async def open(self):
         """Open a channel for use
 
         This method opens a virtual connection (a channel).
@@ -452,11 +452,11 @@ class Channel(AbstractChannel):
         if self.is_open:
             return
 
-        return self.send_method(
+        return await self.send_method(
             spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
         )
 
-    def _on_open_ok(self):
+    async def _on_open_ok(self):
         """Signal that the channel is ready
 
         This method signals to the client that the channel is ready
@@ -464,7 +464,7 @@ class Channel(AbstractChannel):
 
         """
         self.is_open = True
-        self.on_open(self)
+        await self.on_open(self)
         AMQP_LOGGER.debug('Channel open')
 
     #############
@@ -506,9 +506,10 @@ class Channel(AbstractChannel):
     #     exception with reply code 507 (not allowed).
     #
 
-    def exchange_declare(self, exchange, type, passive=False, durable=False,
-                         auto_delete=True, nowait=False, arguments=None,
-                         argsig='BssbbbbbF'):
+    async def exchange_declare(self, exchange, type,
+                               passive=False, durable=False,
+                               auto_delete=True, nowait=False,
+                               arguments=None, argsig='BssbbbbbF'):
         """Declare exchange, create if needed
 
         This method creates an exchange if it does not already exist,
@@ -633,15 +634,16 @@ class Channel(AbstractChannel):
         if auto_delete:
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
 
-        self.send_method(
+        return await self.send_method(
             spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,
              False, nowait, arguments),
             wait=None if nowait else spec.Exchange.DeclareOk,
         )
 
-    def exchange_delete(self, exchange, if_unused=False, nowait=False,
-                        argsig='Bsbb'):
+    async def exchange_delete(self, exchange,
+                              if_unused=False, nowait=False,
+                              argsig='Bsbb'):
         """Delete an exchange
 
         This method deletes an exchange.  When an exchange is deleted
@@ -684,13 +686,13 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Exchange.Delete, argsig, (0, exchange, if_unused, nowait),
             wait=None if nowait else spec.Exchange.DeleteOk,
         )
 
-    def exchange_bind(self, destination, source='', routing_key='',
-                      nowait=False, arguments=None, argsig='BsssbF'):
+    async def exchange_bind(self, destination, source='', routing_key='',
+                            nowait=False, arguments=None, argsig='BsssbF'):
         """This method binds an exchange to an exchange.
 
         RULE:
@@ -762,14 +764,14 @@ class Channel(AbstractChannel):
                 class.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Exchange.Bind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
             wait=None if nowait else spec.Exchange.BindOk,
         )
 
-    def exchange_unbind(self, destination, source='', routing_key='',
-                        nowait=False, arguments=None, argsig='BsssbF'):
+    async def exchange_unbind(self, destination, source='', routing_key='',
+                              nowait=False, arguments=None, argsig='BsssbF'):
         """This method unbinds an exchange from an exchange.
 
         RULE:
@@ -820,7 +822,7 @@ class Channel(AbstractChannel):
                 Specifies the arguments of the binding to unbind.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Exchange.Unbind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
             wait=None if nowait else spec.Exchange.UnbindOk,
@@ -852,8 +854,8 @@ class Channel(AbstractChannel):
     #     content off queues are specific to a given content class.
     #
 
-    def queue_bind(self, queue, exchange='', routing_key='',
-                   nowait=False, arguments=None, argsig='BsssbF'):
+    async def queue_bind(self, queue, exchange='', routing_key='',
+                         nowait=False, arguments=None, argsig='BsssbF'):
         """Bind queue to an exchange
 
         This method binds a queue to an exchange.  Until a queue is
@@ -951,14 +953,14 @@ class Channel(AbstractChannel):
                 semantics of these arguments depends on the exchange
                 class.
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Queue.Bind, argsig,
             (0, queue, exchange, routing_key, nowait, arguments),
             wait=None if nowait else spec.Queue.BindOk,
         )
 
-    def queue_unbind(self, queue, exchange, routing_key='',
-                     nowait=False, arguments=None, argsig='BsssF'):
+    async def queue_unbind(self, queue, exchange, routing_key='',
+                           nowait=False, arguments=None, argsig='BsssF'):
         """Unbind a queue from an exchange
 
         This method unbinds a queue from an exchange.
@@ -1009,15 +1011,15 @@ class Channel(AbstractChannel):
                 Specifies the arguments of the binding to unbind.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Queue.Unbind, argsig,
             (0, queue, exchange, routing_key, arguments),
             wait=None if nowait else spec.Queue.UnbindOk,
         )
 
-    def queue_declare(self, queue='', passive=False, durable=False,
-                      exclusive=False, auto_delete=True, nowait=False,
-                      arguments=None, argsig='BsbbbbbF'):
+    async def queue_declare(self, queue='', passive=False, durable=False,
+                            exclusive=False, auto_delete=True, nowait=False,
+                            arguments=None, argsig='BsbbbbbF'):
         """Declare queue, create if needed
 
         This method creates or checks a queue.  When creating a new
@@ -1170,19 +1172,19 @@ class Channel(AbstractChannel):
             consumer count
 
         """
-        self.send_method(
+        await self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
              nowait, arguments),
         )
         if not nowait:
-            return queue_declare_ok_t(*self.wait(
+            return await queue_declare_ok_t(*self.wait(
                 spec.Queue.DeclareOk, returns_tuple=True,
             ))
 
-    def queue_delete(self, queue='',
-                     if_unused=False, if_empty=False, nowait=False,
-                     argsig='Bsbbb'):
+    async def queue_delete(self, queue='',
+                           if_unused=False, if_empty=False, nowait=False,
+                           argsig='Bsbbb'):
         """Delete a queue
 
         This method deletes a queue.  When a queue is deleted any
@@ -1248,13 +1250,13 @@ class Channel(AbstractChannel):
                 channel or connection exception.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Queue.Delete, argsig,
             (0, queue, if_unused, if_empty, nowait),
             wait=None if nowait else spec.Queue.DeleteOk,
         )
 
-    def queue_purge(self, queue='', nowait=False, argsig='Bsb'):
+    async def queue_purge(self, queue='', nowait=False, argsig='Bsb'):
         """Purge a queue
 
         This method removes all messages from a queue.  It does not
@@ -1310,7 +1312,7 @@ class Channel(AbstractChannel):
         if nowait is False, returns a message_count
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Queue.Purge, argsig, (0, queue, nowait),
             wait=None if nowait else spec.Queue.PurgeOk,
         )
@@ -1375,7 +1377,7 @@ class Channel(AbstractChannel):
     #     acknowledgments on Basic content.
     #
 
-    def basic_ack(self, delivery_tag, multiple=False, argsig='Lb'):
+    async def basic_ack(self, delivery_tag, multiple=False, argsig='Lb'):
         """Acknowledge one or more messages
 
         This method acknowledges one or more messages delivered via
@@ -1422,11 +1424,11 @@ class Channel(AbstractChannel):
                     channel exception if this is not the case.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Basic.Ack, argsig, (delivery_tag, multiple),
         )
 
-    def basic_cancel(self, consumer_tag, nowait=False, argsig='sb'):
+    async def basic_cancel(self, consumer_tag, nowait=False, argsig='sb'):
         """End a queue consumer
 
         This method cancels a consumer. This does not affect already
@@ -1468,12 +1470,12 @@ class Channel(AbstractChannel):
         """
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
-            return self.send_method(
+            return await self.send_method(
                 spec.Basic.Cancel, argsig, (consumer_tag, nowait),
                 wait=None if nowait else spec.Basic.CancelOk,
             )
 
-    def _on_basic_cancel(self, consumer_tag):
+    async def _on_basic_cancel(self, consumer_tag):
         """Consumer cancelled by server.
 
         Most likely the queue was deleted.
@@ -1481,7 +1483,7 @@ class Channel(AbstractChannel):
         """
         callback = self._remove_tag(consumer_tag)
         if callback:
-            callback(consumer_tag)
+            await callback(consumer_tag)
         else:
             raise ConsumerCancelled(consumer_tag, spec.Basic.Cancel)
 
@@ -1492,10 +1494,10 @@ class Channel(AbstractChannel):
         self.callbacks.pop(consumer_tag, None)
         return self.cancel_callbacks.pop(consumer_tag, None)
 
-    def basic_consume(self, queue='', consumer_tag='', no_local=False,
-                      no_ack=False, exclusive=False, nowait=False,
-                      callback=None, arguments=None, on_cancel=None,
-                      argsig='BssbbbbF'):
+    async def basic_consume(self, queue='', consumer_tag='', no_local=False,
+                            no_ack=False, exclusive=False, nowait=False,
+                            callback=None, arguments=None, on_cancel=None,
+                            argsig='BssbbbbF'):
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a
@@ -1592,7 +1594,7 @@ class Channel(AbstractChannel):
 
         """
 
-        p = self.send_method(
+        p = await self.send_method(
             spec.Basic.Consume, argsig,
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
              nowait, arguments),
@@ -1611,8 +1613,8 @@ class Channel(AbstractChannel):
             self.no_ack_consumers.add(consumer_tag)
         return p
 
-    def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
-                          exchange, routing_key, msg):
+    async def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
+                                exchange, routing_key, msg):
         msg.channel = self
         msg.delivery_info = {
             'consumer_tag': consumer_tag,
@@ -1629,11 +1631,11 @@ class Channel(AbstractChannel):
                 REJECTED_MESSAGE_WITHOUT_CALLBACK,
                 delivery_tag, consumer_tag, exchange, routing_key,
             )
-            self.basic_reject(delivery_tag, requeue=True)
+            return await self.basic_reject(delivery_tag, requeue=True)
         else:
-            fun(msg)
+            return await fun(msg)
 
-    def basic_get(self, queue='', no_ack=False, argsig='Bsb'):
+    async def basic_get(self, queue='', no_ack=False, argsig='Bsb'):
         """Direct access to a queue
 
         This method provides a direct access to the messages in a
@@ -1670,19 +1672,19 @@ class Channel(AbstractChannel):
         Non-blocking, returns a message object, or None.
 
         """
-        ret = self.send_method(
+        ret = await self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
             wait=[spec.Basic.GetOk, spec.Basic.GetEmpty], returns_tuple=True,
         )
         if not ret or len(ret) < 2:
-            return self._on_get_empty(*ret)
-        return self._on_get_ok(*ret)
+            return await self._on_get_empty(*ret)
+        return await self._on_get_ok(*ret)
 
-    def _on_get_empty(self, cluster_id=None):
+    async def _on_get_empty(self, cluster_id=None):
         pass
 
-    def _on_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
-                   message_count, msg):
+    async def _on_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
+                         message_count, msg):
         msg.channel = self
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
@@ -1691,11 +1693,11 @@ class Channel(AbstractChannel):
             'routing_key': routing_key,
             'message_count': message_count
         }
-        return msg
+        yield msg
 
-    def _basic_publish(self, msg, exchange='', routing_key='',
-                       mandatory=False, immediate=False, timeout=None,
-                       argsig='Bssbb'):
+    async def _basic_publish(self, msg, exchange='', routing_key='',
+                             mandatory=False, immediate=False, timeout=None,
+                             argsig='Bssbb'):
         """Publish a message
 
         This method publishes a message to a specific exchange. The
@@ -1766,7 +1768,7 @@ class Channel(AbstractChannel):
                 'basic_publish: connection closed')
         try:
             with self.connection.transport.having_timeout(timeout):
-                return self.send_method(
+                return await self.send_method(
                     spec.Basic.Publish, argsig,
                     (0, exchange, routing_key, mandatory, immediate), msg
                 )
@@ -1774,16 +1776,16 @@ class Channel(AbstractChannel):
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
 
-    def basic_publish_confirm(self, *args, **kwargs):
+    async def basic_publish_confirm(self, *args, **kwargs):
         if not self._confirm_selected:
             self._confirm_selected = True
             self.confirm_select()
-        ret = self._basic_publish(*args, **kwargs)
-        self.wait(spec.Basic.Ack)
-        return ret
+        ret = await self._basic_publish(*args, **kwargs)
+        await self.wait(spec.Basic.Ack)
+        yield ret
 
-    def basic_qos(self, prefetch_size, prefetch_count, a_global,
-                  argsig='lBb'):
+    async def basic_qos(self, prefetch_size, prefetch_count, a_global,
+                        argsig='lBb'):
         """Specify quality of service
 
         This method requests a specific quality of service.  The QoS
@@ -1847,12 +1849,12 @@ class Channel(AbstractChannel):
                 to the entire connection.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
             wait=spec.Basic.QosOk,
         )
 
-    def basic_recover(self, requeue=False):
+    async def basic_recover(self, requeue=False):
         """Redeliver unacknowledged messages
 
         This method asks the broker to redeliver all unacknowledged
@@ -1882,12 +1884,13 @@ class Channel(AbstractChannel):
                 subscriber.
 
         """
-        return self.send_method(spec.Basic.Recover, 'b', (requeue,))
+        return await self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
-    def basic_recover_async(self, requeue=False):
-        return self.send_method(spec.Basic.RecoverAsync, 'b', (requeue,))
+    async def basic_recover_async(self, requeue=False):
+        return await self.send_method(
+            spec.Basic.RecoverAsync, 'b', (requeue,))
 
-    def basic_reject(self, delivery_tag, requeue, argsig='Lb'):
+    async def basic_reject(self, delivery_tag, requeue, argsig='Lb'):
         """Reject an incoming message
 
         This method allows a client to reject a message.  It can be
@@ -1957,12 +1960,12 @@ class Channel(AbstractChannel):
                     later stage.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Basic.Reject, argsig, (delivery_tag, requeue),
         )
 
-    def _on_basic_return(self, reply_code, reply_text,
-                         exchange, routing_key, message):
+    async def _on_basic_return(self, reply_code, reply_text,
+                               exchange, routing_key, message):
         """Return a failed message
 
         This method returns an undeliverable message that was
@@ -2002,7 +2005,7 @@ class Channel(AbstractChannel):
         if not handlers:
             raise exc
         for callback in handlers:
-            callback(exc, exchange, routing_key, message)
+            await callback(exc, exchange, routing_key, message)
 
     #############
     #
@@ -2032,7 +2035,7 @@ class Channel(AbstractChannel):
     #
     #
 
-    def tx_commit(self):
+    async def tx_commit(self):
         """Commit the current transaction
 
         This method commits all messages published and acknowledged in
@@ -2040,9 +2043,9 @@ class Channel(AbstractChannel):
         after a commit.
 
         """
-        return self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
+        return await self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
 
-    def tx_rollback(self):
+    async def tx_rollback(self):
         """Abandon the current transaction
 
         This method abandons all messages published and acknowledged
@@ -2050,9 +2053,9 @@ class Channel(AbstractChannel):
         immediately after a rollback.
 
         """
-        return self.send_method(spec.Tx.Rollback, wait=spec.Tx.RollbackOk)
+        return await self.send_method(spec.Tx.Rollback, wait=spec.Tx.RollbackOk)
 
-    def tx_select(self):
+    async def tx_select(self):
         """Select standard transaction mode
 
         This method sets the channel to use standard transactions.
@@ -2060,9 +2063,9 @@ class Channel(AbstractChannel):
         before using the Commit or Rollback methods.
 
         """
-        return self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
+        return await self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
 
-    def confirm_select(self, nowait=False):
+    async def confirm_select(self, nowait=False):
         """Enables publisher confirms for this channel (an RabbitMQ
         extension).
 
@@ -2075,11 +2078,11 @@ class Channel(AbstractChannel):
             or connection exception.
 
         """
-        return self.send_method(
+        return await self.send_method(
             spec.Confirm.Select, 'b', (nowait,),
             wait=None if nowait else spec.Confirm.SelectOk,
         )
 
-    def _on_basic_ack(self, delivery_tag, multiple):
+    async def _on_basic_ack(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
-            callback(delivery_tag, multiple)
+            await callback(delivery_tag, multiple)

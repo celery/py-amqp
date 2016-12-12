@@ -49,16 +49,17 @@ class AbstractChannel:
     def __exit__(self, *exc_info):
         self.close()
 
-    def send_method(self, sig,
-                    format=None, args=None, content=None,
-                    wait=None, callback=None, returns_tuple=False):
+    async def send_method(self, sig,
+                          format=None, args=None, content=None,
+                          wait=None, callback=None, returns_tuple=False):
         p = promise()
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            conn.frame_writer.send((1, self.channel_id, sig, args, content))
+            await conn.frame_writer.send((
+                1, self.channel_id, sig, args, content))
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
@@ -67,14 +68,15 @@ class AbstractChannel:
             p.then(callback)
         p()
         if wait:
-            return self.wait(wait, returns_tuple=returns_tuple)
+            return await self.wait(wait, returns_tuple=returns_tuple)
         return p
 
-    def close(self):
+    async def close(self):
         """Close this Channel or Connection"""
         raise NotImplementedError('Must be overriden in subclass')
 
-    def wait(self, method, callback=None, timeout=None, returns_tuple=False):
+    async def wait(self, method,
+                   callback=None, timeout=None, returns_tuple=False):
         p = ensure_promise(callback)
         pending = self._pending
         prev_p = []
@@ -87,11 +89,11 @@ class AbstractChannel:
 
         try:
             while not p.ready:
-                self.connection.drain_events(timeout=timeout)
+                await self.connection.drain_events(timeout=timeout)
 
             if p.value:
                 args, kwargs = p.value
-                return args if returns_tuple else (args and args[0])
+                yield args if returns_tuple else (args and args[0])
         finally:
             for i, m in enumerate(method):
                 if prev_p[i] is not None:
@@ -99,7 +101,7 @@ class AbstractChannel:
                 else:
                     pending.pop(m, None)
 
-    def dispatch_method(self, method_sig, payload, content):
+    async def dispatch_method(self, method_sig, payload, content):
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
@@ -136,7 +138,7 @@ class AbstractChannel:
             args.append(content)
 
         for listener in listeners:
-            listener(*args)
+            await listener(*args)
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP
