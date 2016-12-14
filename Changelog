@@ -5,11 +5,43 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.1.4:
+
+2.1.4
+=====
+:release-date: 2016-12-14 03:40 P.M PST
+:release-by: Ask Solem
+
+- Removes byte string comparison warnings when running under ``python -b``.
+
+    Fix contributed by **Jon Dufresne**.
+
+- Linux version parsing broke when the version included a '+' character
+  (Issue #119).
+
+- Now sets default TCP settings for platforms that support them (e.g. Linux).
+
+    +----------------------+---------------+
+    |   Constant           |   Value       |
+    +======================+===============+
+    | ``TCP_KEEPIDLE``     | ``60``        |
+    +----------------------+---------------+
+    | ``TCP_KEEPINTVL``    | ``10``        |
+    +----------------------+---------------+
+    | ``TCP_KEEPCNT``      | ``9``         |
+    +----------------------+---------------+
+    | ``TCP_USER_TIMEOUT`` | ``1000`` (1s) |
+    +----------------------+---------------+
+
+    This will help detecting the socket being closed earlier, which is very
+    important in failover and load balancing scenarios.
+
 .. _version-2.1.3:
 
 2.1.3
 =====
 :release-date: 2016-12-07 06:00 P.M PST
+:release-by: Ask Solem
 
 - Fixes compatibility with Python 2.7.5 and below (Issue #107).
 
