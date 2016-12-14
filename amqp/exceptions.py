@@ -15,10 +15,8 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
-
-from struct import pack, unpack
-
 from .five import python_2_unicode_compatible
+from .platform import pack, unpack
 
 __all__ = [
     'AMQPError',
@@ -296,5 +294,5 @@ METHOD_NAME_MAP = {
 
 
 for _method_id, _method_name in list(METHOD_NAME_MAP.items()):
-    METHOD_NAME_MAP[unpack(str('>I'), pack(str('>HH'), *_method_id))[0]] = \
+    METHOD_NAME_MAP[unpack('>I', pack('>HH', *_method_id))[0]] = \
         _method_name

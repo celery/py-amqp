@@ -4,12 +4,11 @@ import errno
 import socket
 import pytest
 
-from struct import pack
-
 from case import Mock, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
+from amqp.platform import pack
 
 
 class MockSocket(object):
@@ -264,11 +263,11 @@ class test_AbstractTransport:
             self.t._read.return_value = b'thequickbrownfox'
             self.t._read.side_effect = on_read2
             return ret
-        self.t._read.return_value = pack(str('>BHI'), 1, 1, 16)
+        self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
 
         self.t.read_frame()
-        self.t._read.return_value = pack(str('>BHI'), 1, 1, 16)
+        self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
         checksum[0] = b'\x13'
         with pytest.raises(UnexpectedFrame):

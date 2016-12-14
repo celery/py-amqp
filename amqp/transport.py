@@ -18,16 +18,17 @@ from __future__ import absolute_import, unicode_literals
 
 import errno
 import re
-import struct
 import socket
 import ssl
 
 from contextlib import contextmanager
-from struct import unpack
 
 from .exceptions import UnexpectedFrame
 from .five import items
-from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
+from .platform import (
+    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT,
+    pack, unpack,
+)
 from .utils import get_errno, set_cloexec
 
 try:
@@ -178,7 +179,7 @@ class _AbstractTransport(object):
                 if interval is not None:
                     self.sock.setsockopt(
                         socket.SOL_SOCKET, timeout,
-                        struct.pack(str('ll'), interval, 0),
+                        pack('ll', interval, 0),
                     )
             self._setup_transport()
 
@@ -235,7 +236,7 @@ class _AbstractTransport(object):
         try:
             frame_header = read(7, True)
             read_frame_buffer += frame_header
-            frame_type, channel, size = unpack(str('>BHI'), frame_header)
+            frame_type, channel, size = unpack('>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:

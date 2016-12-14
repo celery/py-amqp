@@ -17,12 +17,12 @@
 from __future__ import absolute_import, unicode_literals
 
 from collections import defaultdict
-from struct import pack, unpack_from, pack_into
 
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .five import range
+from .platform import pack, unpack_from, pack_into
 from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
@@ -56,7 +56,7 @@ def frame_handler(connection, callback,
                     frame_type, expected_types[channel]),
             )
         elif frame_type == 1:
-            method_sig = unpack_from(str('>HH'), buf, 0)
+            method_sig = unpack_from('>HH', buf, 0)
 
             if method_sig in content_methods:
                 # Save what we've got so far and wait for the content-header
@@ -126,48 +126,48 @@ def frame_writer(connection, transport,
 
         if bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (b''.join([pack(str('>HH'), *method_sig), args])
+            frame = (b''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
-            write(pack(str('>BHI%dsB') % framelen,
+            write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
             if body:
                 frame = b''.join([
-                    pack(str('>HHQ'), method_sig[0], 0, len(body)),
+                    pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
-                write(pack(str('>BHI%dsB') % framelen,
+                write(pack('>BHI%dsB' % framelen,
                            2, channel, framelen, frame, 0xce))
 
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
-                    write(pack(str('>BHI%dsB') % framelen,
+                    write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
                                str_to_bytes(frame), 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (b''.join([pack(str('>HH'), *method_sig), args])
+            frame = (b''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else b'')
             framelen = len(frame)
-            pack_into(str('>BHI%dsB') % framelen, buf, offset,
+            pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
                 frame = b''.join([
-                    pack(str('>HHQ'), method_sig[0], 0, len(body)),
+                    pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
 
-                pack_into(str('>BHI%dsB') % framelen, buf, offset,
+                pack_into('>BHI%dsB' % framelen, buf, offset,
                           2, channel, framelen, frame, 0xce)
                 offset += 8 + framelen
 
                 framelen = len(body)
-                pack_into(str('>BHI%dsB') % framelen, buf, offset,
+                pack_into('>BHI%dsB' % framelen, buf, offset,
                           3, channel, framelen, str_to_bytes(body), 0xce)
                 offset += 8 + framelen
 
