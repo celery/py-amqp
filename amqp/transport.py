@@ -17,7 +17,6 @@
 from __future__ import absolute_import, unicode_literals
 
 import errno
-import math
 import re
 import struct
 import socket
@@ -81,7 +80,6 @@ else:
         TCP_KEEPINTVL: 10,
         TCP_KEEPCNT: 9,
     })
-
 
 
 def to_host_port(host, default=AMQP_PORT):
