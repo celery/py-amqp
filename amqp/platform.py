@@ -12,8 +12,9 @@ except ImportError:  # pragma: no cover
 
 LINUX_VERSION = None
 if sys.platform.startswith('linux'):
-    LINUX_VERSION = tuple(map(
-        int, platform.release().split('-')[0].split('.')))
+    # On some platforms, this is not numeric, e.g. '4.4.21+'
+    version_string = filter(lambda c: c.isdigit() or c in '.-', platform.release())
+    LINUX_VERSION = tuple(map(int, version_string.split('-')[0].split('.')))
 
 try:
     from socket import TCP_USER_TIMEOUT
