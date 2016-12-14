@@ -198,7 +198,8 @@ class _AbstractTransport(object):
     def _set_socket_options(self, socket_settings):
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
         final_socket_settings = dict(DEFAULT_SOCKET_SETTINGS)
-        final_socket_settings.update(socket_settings)
+        if socket_settings:
+            final_socket_settings.update(socket_settings)
         tcp_opts.update(final_socket_settings)
         for opt, val in items(tcp_opts):
             self.sock.setsockopt(SOL_TCP, opt, val)
