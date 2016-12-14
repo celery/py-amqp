@@ -4,7 +4,7 @@
 
 |build-status| |coverage| |license| |wheel| |pyversion| |pyimp|
 
-:Version: 2.1.3
+:Version: 2.1.4
 :Web: https://amqp.readthedocs.io/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
