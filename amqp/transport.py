@@ -61,9 +61,27 @@ KNOWN_TCP_OPTS = (
 TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
 }
+DEFAULT_SOCKET_SETTINGS = {
+    socket.TCP_NODELAY: 1,
+}
+
 if HAS_TCP_USER_TIMEOUT:
     KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
     TCP_OPTS.add(TCP_USER_TIMEOUT)
+    DEFAULT_SOCKET_SETTINGS[TCP_USER_TIMEOUT] = 1000
+
+
+try:
+    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT # noqa
+except ImportError:
+    pass
+else:
+    DEFAULT_SOCKET_SETTINGS.update({
+        TCP_KEEPIDLE: 60,
+        TCP_KEEPINTVL: 10,
+        TCP_KEEPCNT: 9,
+    })
+
 
 
 def to_host_port(host, default=AMQP_PORT):
@@ -178,22 +196,10 @@ class _AbstractTransport(object):
         }
 
     def _set_socket_options(self, socket_settings):
-        user_timeout = 0
-        if self.connect_timeout is not None:
-            user_timeout = int(math.ceil(self.connect_timeout * 1000.0))
-
-        if not socket_settings:
-            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            if HAS_TCP_USER_TIMEOUT:
-                self.sock.setsockopt(SOL_TCP, TCP_USER_TIMEOUT, user_timeout)
-            return
-
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
-        tcp_opts.setdefault(socket.TCP_NODELAY, 1)
-        if HAS_TCP_USER_TIMEOUT:
-            tcp_opts.setdefault(TCP_USER_TIMEOUT, user_timeout)
-        tcp_opts.update(socket_settings)
-
+        final_socket_settings = dict(DEFAULT_SOCKET_SETTINGS)
+        final_socket_settings.update(socket_settings)
+        tcp_opts.update(final_socket_settings)
         for opt, val in items(tcp_opts):
             self.sock.setsockopt(SOL_TCP, opt, val)
 
