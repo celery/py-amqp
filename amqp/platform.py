@@ -44,6 +44,7 @@ except ImportError:  # pragma: no cover
 
 if sys.version_info < (2, 7, 6):
     import functools
+
     def _to_bytes_arg(fun):
         @functools.wraps(fun)
         def _inner(s, *args, **kwargs):
