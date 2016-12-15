@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
+import asyncio
 import logging
 import socket
 import typing
@@ -192,6 +193,7 @@ class Connection(AbstractChannel):
                  socket_settings: MaybeDict=None,
                  frame_handler: ConnectionFrameHandler=frame_handler,
                  frame_writer: ConnectionFrameWriter=frame_writer,
+                 loop: asyncio.events.AbstractEventloop = None,
                  **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -209,6 +211,7 @@ class Connection(AbstractChannel):
         settings which will be applied as socket options.
 
         """
+        self.loop = loop or asyncio.get_event_loop()
         self._connection_id = uuid.uuid4().hex  # type: str
         channel_max = channel_max or 65535      # type: int
         frame_max = frame_max or 131072         # type: int

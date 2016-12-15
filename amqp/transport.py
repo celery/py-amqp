@@ -15,6 +15,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
+import asyncio
 import errno
 import re
 import struct
@@ -29,7 +30,7 @@ from typing import (
 )
 
 from .exceptions import UnexpectedFrame
-from .types import SSLArg, MaybeDict, Timeout
+from .types import SSLArg, Timeout
 from .utils import get_errno, set_cloexec
 
 # Jython does not have this attribute
@@ -70,10 +71,6 @@ TCP_OPTS = [getattr(socket, opt)
 
 Frame = namedtuple('Frame', ('tuple', 'channel', 'data'))
 
-StructUnpackT = Callable[
-    [AnyStr, ByteString], Tuple[Any]
-]
-
 
 def to_host_port(host, default=AMQP_PORT):
     # type: (str, int) -> (str, int)
@@ -93,11 +90,17 @@ def to_host_port(host, default=AMQP_PORT):
 class BaseTransport:
     """Common superclass for TCP and SSL transports"""
     connected = False
+    rstream = None
+    wstream = None
 
-    def __init__(self, host: str, connect_timeout: Timeout=None,
-                 read_timeout: Timeout=None, write_timeout: Timeout=None,
-                 socket_settings: MaybeDict=None,
-                 raise_on_initial_eintr: bool=True, **kwargs) -> None:
+    def __init__(self, host: str,
+                 connect_timeout: Timeout = None,
+                 read_timeout: Timeout = None,
+                 write_timeout: Timeout = None,
+                 socket_settings: Mapping = None,
+                 raise_on_initial_eintr: bool = True,
+                 ssl: SSLArg = None,
+                 **kwargs) -> None:
         self.connected = True                      # type: bool
         self.sock = None                           # type: Socket
         self._read_buffer = EMPTY_BUFFER           # type: ByteString
@@ -105,12 +108,13 @@ class BaseTransport:
         self.connect_timeout = connect_timeout     # type: Timeout
         self.read_timeout = read_timeout           # type: Timeout
         self.write_timeout = write_timeout         # type: Timeout
-        self.socket_settings = socket_settings     # type: MaybeDict
+        self.socket_settings = socket_settings     # type: Mapping
+        self.ssl = ssl                             # type: SSLArg
         self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
 
-    def connect(self) -> None:
-        self._connect(self.host, self.port, self.connect_timeout)
-        self._init_socket(
+    async def connect(self) -> None:
+        await self._connect(self.host, self.port, self.connect_timeout)
+        await self._init_socket(
             self.socket_settings, self.read_timeout, self.write_timeout,
         )
 
@@ -137,46 +141,36 @@ class BaseTransport:
                 if timeout != prev:
                     sock.settimeout(prev)
 
-    def _connect(self, host: str, port: int, timeout: Timeout) -> None:
-        entries = socket.getaddrinfo(
-            host, port, 0, socket.SOCK_STREAM, SOL_TCP,
+    async def _connect(self, host: str, port: int, timeout: Timeout) -> None:
+        self.rstream, self.wstream = await asyncio.open_connection(
+            host=host, port=port, ssl=self.ssl,
         )
-        for i, res in enumerate(entries):
-            af, socktype, proto, canonname, sa = res
-            try:
-                self.sock = socket.socket(af, socktype, proto)
-                try:
-                    set_cloexec(self.sock, True)
-                except NotImplementedError:
-                    pass
-                self.sock.settimeout(timeout)
-                self.sock.connect(sa)
-            except socket.error:
-                self.sock.close()
-                self.sock = None
-                if i + 1 >= len(entries):
-                    raise
-            else:
-                break
-
-    def _init_socket(self, socket_settings: MaybeDict,
-                     read_timeout: Timeout, write_timeout: Timeout) -> None:
+        self._read = self.rstream.readexactly
+        self._write = self.wstream.write
+        self.sock = self.wstream.transport._sock
+        await self._write(AMQP_PROTOCOL_HEADER)
         try:
-            self.sock.settimeout(None)  # set socket back to blocking mode
-            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            set_cloexec(self.sock, True)
+        except NotImplementedError:
+            pass
+        self.connected = True
+
+    def _init_socket(self, socket_settings: Mapping,
+                     read_timeout: Timeout, write_timeout: Timeout) -> None:
+        sock = self.wstream.transport.socket
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self._set_socket_options(socket_settings)
 
             # set socket timeouts
             for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
                                       (socket.SO_RCVTIMEO, read_timeout)):
                 if interval is not None:
-                    self.sock.setsockopt(
+                    sock.setsockopt(
                         socket.SOL_SOCKET, timeout,
                         struct.pack('ll', interval, 0),
                     )
             self._setup_transport()
-
-            self._write(AMQP_PROTOCOL_HEADER)
         except (OSError, IOError, socket.error) as exc:
             if get_errno(exc) not in _UNAVAIL:
                 self.connected = False
@@ -188,7 +182,7 @@ class BaseTransport:
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
         }
 
-    def _set_socket_options(self, socket_settings: MaybeDict) -> None:
+    def _set_socket_options(self, socket_settings: Mapping) -> None:
         if not socket_settings:
             self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
             return
@@ -200,10 +194,6 @@ class BaseTransport:
         for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
-    def _read(self, n: int, initial: bool=False) -> ByteString:
-        """Read exactly n BytesString from the peer"""
-        raise NotImplementedError('Must be overriden in subclass')
-
     def _setup_transport(self) -> None:
         """Do any additional initialization of the class (used
         by the subclasses)."""
@@ -213,38 +203,30 @@ class BaseTransport:
         """Do any preliminary work in shutting down the connection."""
         pass
 
-    def _write(self, s: ByteString) -> int:
-        """Completely write a string to the peer."""
-        raise NotImplementedError('Must be overriden in subclass')
-
     def close(self) -> None:
-        if self.sock is not None:
-            self._shutdown_transport()
-            # Call shutdown first to make sure that pending messages
-            # reach the AMQP broker if the program exits after
-            # calling this method.
-            self.sock.shutdown(socket.SHUT_RDWR)
-            self.sock.close()
-            self.sock = None
+        if self.wstream is not None:
+            self.wstream.close()
+        self.wstream = None
+        self.rstream = None
         self.connected = False
 
-    def read_frame(self, unpack: StructUnpackT=unpack) -> Frame:
+    async def read_frame(self, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_header = read(7, True)
+            frame_header = await read(7, True)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack(u'>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
-                part1 = read(SIGNED_INT_MAX)
-                part2 = read(size - SIGNED_INT_MAX)
+                part1 = await read(SIGNED_INT_MAX)
+                part2 = await read(size - SIGNED_INT_MAX)
                 payload = ''.join([part1, part2])
             else:
-                payload = read(size)
+                payload = await read(size)
             read_frame_buffer += payload
-            ch = ord(read(1))
+            ch = ord(await read(1))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
@@ -262,9 +244,9 @@ class BaseTransport:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
-    def write(self, s: ByteString) -> None:
+    async def write(self, s: ByteString) -> None:
         try:
-            self._write(s)
+            await self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:
@@ -273,137 +255,11 @@ class BaseTransport:
             raise
 
 
-class SSLTransport(BaseTransport):
-    """Transport that works over SSL"""
-
-    def __init__(self, host: str, connect_timeout: Timeout=None,
-                 ssl: Optional[SSLArg]=None, **kwargs) -> None:
-        # type: Dict[AnyStr, Any]
-        self.sslopts = ssl if isinstance(ssl, dict) else {}
-        self._read_buffer = EMPTY_BUFFER  # type: ByteString
-        super().__init__(
-            host, connect_timeout=connect_timeout, **kwargs)
-
-    def _setup_transport(self) -> None:
-        """Wrap the socket in an SSL object."""
-        self.sock = self._wrap_socket(self.sock, **self.sslopts or {})
-        self.sock.do_handshake()
-        self._quick_recv = self.sock.read
-
-    def _wrap_socket(self, sock: socket.socket,
-                     context: MaybeDict=None, **sslopts) -> socket.socket:
-        if context:
-            return self._wrap_context(sock, sslopts, **context)
-        return ssl.wrap_socket(sock, **sslopts)
-
-    def _wrap_context(self, sock: socket.socket, sslopts: Mapping[AnyStr, Any],
-                      check_hostname: bool=None,
-                      **ctx_options) -> socket.socket:
-        ctx = ssl.create_default_context(**ctx_options)
-        ctx.check_hostname = check_hostname
-        return ctx.wrap_socket(sock, **sslopts)
-
-    def _shutdown_transport(self) -> None:
-        """Unwrap a Python 2.6 SSL socket, so we can call shutdown()"""
-        if self.sock is not None:
-            try:
-                unwrap = self.sock.unwrap  # type: Callable[[], Socket]
-            except AttributeError:
-                return
-            self.sock = unwrap()
-
-    def _read(self, n: int,
-              initial: bool=False,
-              _errnos: Set[int]=(errno.ENOENT, errno.EAGAIN, errno.EINTR)
-              ) -> ByteString:
-
-        # According to SSL_read(3), it can at most return 16kb of data.
-        # Thus, we use an internal read buffer like TCPTransport._read
-        # to get the exact number of ByteString wanted.
-        recv = self._quick_recv
-        rbuf = self._read_buffer
-        try:
-            while len(rbuf) < n:
-                try:
-                    s = recv(n - len(rbuf))  # type: ByteString
-                except socket.error as exc:
-                    # ssl.sock.read may cause ENOENT if the
-                    # operation couldn't be performed (Issue celery#1414).
-                    if exc.errno in _errnos:
-                        if initial and self.raise_on_initial_eintr:
-                            raise socket.timeout()
-                        continue
-                    raise
-                if not s:
-                    raise IOError('Socket closed')
-                rbuf += s
-        except:
-            self._read_buffer = rbuf
-            raise
-        result, self._read_buffer = rbuf[:n], rbuf[n:]
-        return result
-
-    def _write(self, s: str) -> None:
-        """Write a string out to the SSL socket fully."""
-        write = self.sock.write  # type: Callable[[ByteString], int]
-        while s:
-            try:
-                n = write(s)
-            except (ValueError, AttributeError):
-                # AG: sock._sslobj might become null in the meantime if the
-                # remote connection has hung up.
-                # In python 3.2, an AttributeError is raised because the SSL
-                # module tries to access self._sslobj.write (w/ self._sslobj ==
-                # None)
-                # In python 3.4, a ValueError is raised is self._sslobj is
-                # None. So much for portability... :/
-                n = 0
-            if not n:
-                raise IOError('Socket closed')
-            s = s[n:]
-
-
-class TCPTransport(BaseTransport):
-    """Transport that deals directly with TCP socket."""
-
-    def _setup_transport(self) -> None:
-        """Setup to _write() directly to the socket, and
-        do our own buffered reads."""
-        self._write = self.sock.sendall    # type: Callable[[ByteString], int]
-        self._read_buffer = EMPTY_BUFFER   # type: ByteString
-        self._quick_recv = self.sock.recv  # type: Callable[[int], ByteString]
-
-    def _read(self, n: int,
-              initial: bool=False,
-              _errnos: Set[int]={errno.EAGAIN, errno.EINTR}) -> ByteString:
-        """Read exactly n bytes from the socket"""
-        recv = self._quick_recv
-        rbuf = self._read_buffer
-        try:
-            while len(rbuf) < n:
-                try:
-                    s = recv(n - len(rbuf))
-                except socket.error as exc:
-                    if exc.errno in _errnos:
-                        if initial and self.raise_on_initial_eintr:
-                            raise socket.timeout()
-                        continue
-                    raise
-                if not s:
-                    raise IOError('Socket closed')
-                rbuf += s
-        except:
-            self._read_buffer = rbuf
-            raise
-
-        result, self._read_buffer = rbuf[:n], rbuf[n:]
-        return result
-
-
-def Transport(host: str,
-              connect_timeout: Timeout=None,
-              ssl: Optional[SSLArg]=False, **kwargs) -> BaseTransport:
+async def connect(host: str,
+                  connect_timeout: Timeout=None,
+                  ssl: SSLArg=False, **kwargs) -> BaseTransport:
     """Given a few parameters from the Connection constructor,
     select and create a subclass of BaseTransport."""
-    transport = SSLTransport if ssl else TCPTransport
-    return transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
+    t = Transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
+    await t.connect()
+    return t
