@@ -1,11 +1,11 @@
 from __future__ import absolute_import, unicode_literals
 
+from case import Mock
+
 from amqp.basic_message import Message
 
-from .case import Case, Mock
 
-
-class test_Message(Case):
+class test_Message:
 
     def test_message(self):
         m = Message(
@@ -14,6 +14,6 @@ class test_Message(Case):
             application_headers={'h': 'v'},
         )
         m.delivery_info = {'delivery_tag': '1234'},
-        self.assertEqual(m.body, 'foo')
-        self.assertTrue(m.channel)
-        self.assertDictEqual(m.headers, {'h': 'v'})
+        assert m.body == 'foo'
+        assert m.channel
+        assert m.headers == {'h': 'v'}

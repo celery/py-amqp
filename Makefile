@@ -1,14 +1,16 @@
 PROJ=amqp
 PGPIDENT="Celery Security Team"
 PYTHON=python
+PYTEST=py.test
 GIT=git
 TOX=tox
-NOSETESTS=nosetests
 ICONV=iconv
 FLAKE8=flake8
 FLAKEPLUS=flakeplus
+PYDOCSTYLE=pydocstyle
 SPHINX2RST=sphinx2rst
 
+TESTDIR=t
 SPHINX_DIR=docs/
 SPHINX_BUILDDIR="${SPHINX_DIR}/_build"
 README=README.rst
@@ -33,6 +35,7 @@ help:
 	@echo "    flakes --------  - Check code for syntax and style errors."
 	@echo "      flakecheck     - Run flake8 on the source code."
 	@echo "      flakepluscheck - Run flakeplus on the source code."
+	@echo "      pep257check    - Run pep257 on the source code."
 	@echo "readme               - Regenerate README.rst file."
 	@echo "contrib              - Regenerate CONTRIBUTING.rst file"
 	@echo "clean-dist --------- - Clean all distribution build artifacts."
@@ -77,18 +80,21 @@ apicheck:
 	(cd "$(SPHINX_DIR)"; $(MAKE) apicheck)
 
 flakecheck:
-	$(FLAKE8) --ignore=X999 "$(PROJ)"
+	$(FLAKE8) "$(PROJ)" "$(TESTDIR)"
 
 flakediag:
 	-$(MAKE) flakecheck
 
 flakepluscheck:
-	$(FLAKEPLUS) --$(FLAKEPLUSTARGET) "$(PROJ)"
+	$(FLAKEPLUS) --$(FLAKEPLUSTARGET) "$(PROJ)" "$(TESTDIR)"
 
 flakeplusdiag:
 	-$(MAKE) flakepluscheck
 
-flakes: flakediag flakeplusdiag
+pep257check:
+	$(PYDOCSTYLE) "$(PROJ)"
+
+flakes: flakediag flakeplusdiag pep257check
 
 clean-readme:
 	-rm -f $(README)
@@ -131,7 +137,8 @@ test:
 	$(PYTHON) setup.py test
 
 cov:
-	$(NOSETESTS) -xv --with-coverage --cover-html --cover-branch
+	(cd $(TESTDIR); $(PYTEST) -xv --cov="$(PROJ)" --cov-report=html)
+	mv $(TESTDIR)/htmlcov .
 
 build:
 	$(PYTHON) setup.py sdist bdist_wheel

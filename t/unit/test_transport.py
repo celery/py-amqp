@@ -1,14 +1,11 @@
 from __future__ import absolute_import, unicode_literals
-
 import errno
 import socket
-
-from struct import pack
-
+import pytest
+from case import Mock
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
-
-from .case import Case, Mock, patch
+from amqp.platform import pack
 
 
 class MockSocket:
@@ -28,10 +25,10 @@ TCP_KEEPINTVL = 5
 TCP_KEEPCNT = 6
 
 
-class SocketOptions(Case):
+class test_socket_options:
 
-    def setUp(self):
-        super(SocketOptions, self).setUp()
+    @pytest.fixture(autouse=True)
+    def setup_self(self, patching):
         self.host = '127.0.0.1'
         self.connect_timeout = 3
         self.socket = MockSocket()
@@ -40,8 +37,8 @@ class SocketOptions(Case):
         except ImportError:
             fcntl = None
         if fcntl is not None:
-            self.patch('fcntl.fcntl')
-        socket = self.patch('socket.socket')
+            patching('fcntl.fcntl')
+        socket = patching('socket.socket')
         socket().getsockopt = self.socket.getsockopt
         socket().setsockopt = self.socket.setsockopt
 
@@ -61,10 +58,10 @@ class SocketOptions(Case):
             socket.SOL_TCP, TCP_KEEPCNT, self.tcp_keepcnt,
         )
 
-        self.patch('amqp.transport.TCPTransport._write')
-        self.patch('amqp.transport.TCPTransport._setup_transport')
-        self.patch('amqp.transport.SSLTransport._write')
-        self.patch('amqp.transport.SSLTransport._setup_transport')
+        patching('amqp.transport.TCPTransport._write')
+        patching('amqp.transport.TCPTransport._setup_transport')
+        patching('amqp.transport.SSLTransport._write')
+        patching('amqp.transport.SSLTransport._setup_transport')
 
     def test_backward_compatibility_tcp_transport(self):
         self.transp = transport.Transport(
@@ -73,25 +70,23 @@ class SocketOptions(Case):
         self.transp.connect()
         expected = 1
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
-        self.assertEqual(result, expected)
+        assert result == expected
 
     def test_backward_compatibility_SSL_transport(self):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, ssl=True,
         )
-        self.assertIsNotNone(self.transp.sslopts)
+        assert self.transp.sslopts is not None
         self.transp.connect()
-        self.assertIsNotNone(self.transp.sock)
+        assert self.transp.sock is not None
 
     def test_use_default_sock_tcp_opts(self):
         self.transp = transport.Transport(
             self.host, self.connect_timeout, socket_settings={},
         )
         self.transp.connect()
-        self.assertIn(
-            socket.TCP_NODELAY,
-            self.transp._get_tcp_socket_defaults(self.transp.sock),
-        )
+        assert (socket.TCP_NODELAY in
+                self.transp._get_tcp_socket_defaults(self.transp.sock))
 
     def test_set_single_sock_tcp_opt_tcp_transport(self):
         tcp_keepidle = self.tcp_keepidle + 5
@@ -103,7 +98,7 @@ class SocketOptions(Case):
         self.transp.connect()
         expected = tcp_keepidle
         result = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPIDLE)
-        self.assertEqual(result, expected)
+        assert result == expected
 
     def test_set_single_sock_tcp_opt_SSL_transport(self):
         self.tcp_keepidle += 5
@@ -115,7 +110,7 @@ class SocketOptions(Case):
         self.transp.connect()
         expected = self.tcp_keepidle
         result = self.socket.getsockopt(socket.SOL_TCP, TCP_KEEPIDLE)
-        self.assertEqual(result, expected)
+        assert result == expected
 
     def test_values_are_set(self):
         socket_settings = {
@@ -138,7 +133,7 @@ class SocketOptions(Case):
             TCP_KEEPINTVL: tcp_keepintvl,
             TCP_KEEPCNT: tcp_keepcnt
         }
-        self.assertEqual(result, expected)
+        assert result == expected
 
     def test_passing_wrong_options(self):
         socket_settings = object()
@@ -146,7 +141,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             self.transp.connect()
 
     def test_passing_wrong_value_options(self):
@@ -155,7 +150,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
-        with self.assertRaises(socket.error):
+        with pytest.raises(socket.error):
             self.transp.connect()
 
     def test_passing_value_as_string(self):
@@ -164,7 +159,7 @@ class SocketOptions(Case):
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
         )
-        with self.assertRaises(socket.error):
+        with pytest.raises(socket.error):
             self.transp.connect()
 
     def test_passing_tcp_nodelay(self):
@@ -176,20 +171,21 @@ class SocketOptions(Case):
         self.transp.connect()
         expected = 0
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
-        self.assertEqual(result, expected)
+        assert result == expected
 
 
-class test_Transport(Case):
+class test_Transport:
 
     class Transport(transport.Transport):
 
         def _connect(self, *args):
-            pass
+            ...
 
         def _init_socket(self, *args):
-            pass
+            ...
 
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_transport(self):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
@@ -199,7 +195,7 @@ class test_Transport(Case):
         assert self.Transport('[fe80::1]:5432').port == 5432
 
     def test_read(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.t._read(1024)
 
     def test_setup_transport(self):
@@ -209,7 +205,7 @@ class test_Transport(Case):
         self.t._shutdown_transport()
 
     def test_write(self):
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             self.t._write('foo')
 
     def test_close(self):
@@ -217,19 +213,19 @@ class test_Transport(Case):
         self.t.close()
         sock.shutdown.assert_called_with(socket.SHUT_RDWR)
         sock.close.assert_called_with()
-        self.assertIsNone(self.t.sock)
+        assert self.t.sock is None
         self.t.close()
 
     def test_read_frame__timeout(self):
         self.t._read = Mock()
         self.t._read.side_effect = socket.timeout()
-        with self.assertRaises(socket.timeout):
+        with pytest.raises(socket.timeout):
             self.t.read_frame()
 
     def test_read_frame__SSLError(self):
         self.t._read = Mock()
         self.t._read.side_effect = transport.SSLError('timed out')
-        with self.assertRaises(socket.timeout):
+        with pytest.raises(socket.timeout):
             self.t.read_frame()
 
     def test_read_frame__EINTR(self):
@@ -238,9 +234,9 @@ class test_Transport(Case):
         exc = OSError()
         exc.errno = errno.EINTR
         self.t._read.side_effect = exc
-        with self.assertRaises(OSError):
+        with pytest.raises(OSError):
             self.t.read_frame()
-        self.assertTrue(self.t.connected)
+        assert self.t.connected
 
     def test_read_frame__EBADF(self):
         self.t._read = Mock()
@@ -248,9 +244,9 @@ class test_Transport(Case):
         exc = OSError()
         exc.errno = errno.EBADF
         self.t._read.side_effect = exc
-        with self.assertRaises(OSError):
+        with pytest.raises(OSError):
             self.t.read_frame()
-        self.assertFalse(self.t.connected)
+        assert not self.t.connected
 
     def test_read_frame__simple(self):
         self.t._read = Mock()
@@ -264,14 +260,14 @@ class test_Transport(Case):
             self.t._read.return_value = b'thequickbrownfox'
             self.t._read.side_effect = on_read2
             return ret
-        self.t._read.return_value = pack(b'>BHI', 1, 1, 16)
+        self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
 
         self.t.read_frame()
-        self.t._read.return_value = pack(b'>BHI', 1, 1, 16)
+        self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
         checksum[0] = b'\x13'
-        with self.assertRaises(UnexpectedFrame):
+        with pytest.raises(UnexpectedFrame):
             self.t.read_frame()
 
     def test_write__success(self):
@@ -282,7 +278,7 @@ class test_Transport(Case):
     def test_write__socket_timeout(self):
         self.t._write = Mock()
         self.t._write.side_effect = socket.timeout
-        with self.assertRaises(socket.timeout):
+        with pytest.raises(socket.timeout):
             self.t.write('foo')
 
     def test_write__EINTR(self):
@@ -291,31 +287,32 @@ class test_Transport(Case):
         exc = OSError()
         exc.errno = errno.EINTR
         self.t._write.side_effect = exc
-        with self.assertRaises(OSError):
+        with pytest.raises(OSError):
             self.t.write('foo')
-        self.assertTrue(self.t.connected)
+        assert self.t.connected
         exc.errno = errno.EBADF
-        with self.assertRaises(OSError):
+        with pytest.raises(OSError):
             self.t.write('foo')
-        self.assertFalse(self.t.connected)
+        assert not self.t.connected
 
 
-class test_TCPTransport(Case):
+class test_TCPTransport:
 
     class Transport(transport.TCPTransport):
 
         def _connect(self, *args):
-            pass
+            ...
 
         def _init_socket(self, *args):
-            pass
+            ...
 
-    def setup(self):
+    @pytest.fixture(autouse=True)
+    def setup_transport(self):
         self.t = self.Transport('host', 3)
 
     def test_setup_transport(self):
         self.t.sock = Mock()
         self.t._setup_transport()
-        self.assertIs(self.t._write, self.t.sock.sendall)
-        self.assertIsNotNone(self.t._read_buffer)
-        self.assertIs(self.t._quick_recv, self.t.sock.recv)
+        assert self.t._write is self.t.sock.sendall
+        assert self.t._read_buffer is not None
+        assert self.t._quick_recv is self.t.sock.recv

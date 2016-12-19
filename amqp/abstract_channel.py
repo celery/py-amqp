@@ -24,13 +24,15 @@ __all__ = ['AbstractChannel']
 
 
 class AbstractChannel:
-    """Superclass for both the Connection, which is treated
-    as channel 0, and other user-created Channel objects.
+    """Superclass for Connection and Channel.
+
+    The connection is treated as channel 0, then comes
+    user-created channel objects.
 
     The subclasses must have a _METHOD_MAP class property, mapping
     between AMQP method signatures and Python methods.
-
     """
+
     def __init__(self, connection, channel_id):
         self.connection = connection
         self.channel_id = channel_id
@@ -57,8 +59,7 @@ class AbstractChannel:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            await conn.frame_writer(
-                1, self.channel_id, sig, args, content)
+            await conn.frame_writer(1, self.channel_id, sig, args, content)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
@@ -73,7 +74,7 @@ class AbstractChannel:
         return p
 
     async def close(self):
-        """Close this Channel or Connection"""
+        """Close this Channel or Connection."""
         raise NotImplementedError('Must be overriden in subclass')
 
     async def wait(self, method,

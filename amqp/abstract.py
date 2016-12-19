@@ -1,8 +1,9 @@
 from abc import ABCMeta
 
-class Channel(ABCMeta):
-    pass
+
+class Channel(metaclass=ABCMeta):
+    ...
 
 
 class Connection(Channel):
-    pass
+    ...

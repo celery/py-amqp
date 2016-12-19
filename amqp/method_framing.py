@@ -1,4 +1,4 @@
-"""Convert between frames and higher-level AMQP methods"""
+"""Convert between frames and higher-level AMQP methods."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -22,13 +22,11 @@ from struct import pack, unpack_from, pack_into
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .utils import coro, str_to_bytes
+from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
-#
-# set of methods that require both a content frame and a body frame.
-#
+#: Set of methods that require both a content frame and a body frame.
 _CONTENT_METHODS = frozenset([
     spec.Basic.Return,
     spec.Basic.Deliver,
@@ -36,8 +34,15 @@ _CONTENT_METHODS = frozenset([
 ])
 
 
+#: Number of bytes reserved for protocol in a content frame.
+#: We use this to calculate when a frame exceeeds the max frame size,
+#: and if it does not the message will fit into the preallocated buffer.
+FRAME_OVERHEAD = 40
+
+
 def frame_handler(connection, callback,
                   unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
+    """Create closure that reads frames."""
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
@@ -50,7 +55,7 @@ def frame_handler(connection, callback,
                     frame_type, expected_types[channel]),
             )
         elif frame_type == 1:
-            method_sig = unpack_from(u'>HH', buf, 0)
+            method_sig = unpack_from('>HH', buf, 0)
 
             if method_sig in content_methods:
                 # Save what we've got so far and wait for the content-header
@@ -90,6 +95,7 @@ def frame_handler(connection, callback,
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
+    """Create closure that writes frames."""
     write = transport.write
     flush_write_buffer = transport.flush_write_buffer
 
@@ -99,64 +105,70 @@ def frame_writer(connection, transport,
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
-    async def on_frame(type_, channel, method_sig, args, content):
+    async def write_frame(type_, channel, method_sig, args, content):
+
         chunk_size = connection.frame_max - 8
         offset = 0
+        properties = None
+        args = str_to_bytes(args)
         if content:
+            properties = content._serialize_properties()
             body = content.body
             bodylen = len(body)
-            bigbody = bodylen > chunk_size
+            framelen = (
+                len(args) +
+                (len(properties) or 0) +
+                bodylen +
+                FRAME_OVERHEAD
+            )
+            bigbody = framelen > chunk_size
         else:
             body, bodylen, bigbody = None, 0, 0
 
         if bigbody:
             # ## SLOW: string copy and write for every frame
-            frame = (b''.join([pack(b'>HH', *method_sig),
-                               str_to_bytes(args)])
+            frame = (b''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
-            write(pack((u'>BHI%dsB' % framelen).encode(),
+            write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
             if body:
-                properties = content._serialize_properties()
                 frame = b''.join([
-                    pack(b'>HHQ', method_sig[0], 0, len(body)),
+                    pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
-                write(pack((u'>BHI%dsB' % framelen).encode(),
+                write(pack('>BHI%dsB' % framelen,
                            2, channel, framelen, frame, 0xce))
 
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
-                    write(pack((u'>BHI%dsB' % framelen).encode(),
+                    write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
                                str_to_bytes(frame), 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
-            frame = (b''.join([pack(b'>HH', *method_sig),
-                               str_to_bytes(args)])
+            frame = (b''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else b'')
             framelen = len(frame)
-            pack_into((u'>BHI%dsB' % framelen).encode(), buf, offset,
+            pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
             if body:
-                properties = content._serialize_properties()
                 frame = b''.join([
-                    pack(b'>HHQ', method_sig[0], 0, len(body)),
+                    pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
                 ])
                 framelen = len(frame)
 
-                pack_into((u'>BHI%dsB' % framelen).encode(), buf, offset,
+                pack_into('>BHI%dsB' % framelen, buf, offset,
                           2, channel, framelen, frame, 0xce)
                 offset += 8 + framelen
 
                 framelen = len(body)
-                pack_into((u'>BHI%dsB' % framelen).encode(), buf, offset,
+                pack_into('>BHI%dsB' % framelen, buf, offset,
                           3, channel, framelen, str_to_bytes(body), 0xce)
                 offset += 8 + framelen
 
@@ -164,4 +176,4 @@ def frame_writer(connection, transport,
 
         await flush_write_buffer()
         connection.bytes_sent += 1
-    return on_frame
+    return write_frame

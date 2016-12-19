@@ -1,4 +1,4 @@
-"""AMQP Connections"""
+"""AMQP Connections."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
@@ -14,8 +14,6 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import asyncio
 import logging
 import socket
@@ -25,7 +23,9 @@ import warnings
 
 from array import array
 from io import BytesIO
+from ssl import SSLError
 from time import monotonic
+from typing import Mapping, Generator, Callable, List, Any
 
 from vine import Thenable, ensure_promise
 
@@ -39,19 +39,10 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from . import transport
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .transport import Transport
-from .types import SSLArg, Timeout, MaybeDict
-
-from typing import Mapping, Generator, Callable, List, Any
-
-try:
-    from ssl import SSLError
-except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        pass
+from .types import SSLArg
 
 W_FORCE_CONNECT = """\
 The .{attr} attribute on the connection was accessed before
@@ -68,16 +59,20 @@ Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 
 __all__ = ['Connection']
 
-#
-# Client property info that gets sent to the server on connection startup
-#
-LIBRARY_PROPERTIES = {
+AMQP_LOGGER: logging.Logger = logging.getLogger('amqp')
+
+#: Default map for :attr:`Connection.library_properties`
+LIBRARY_PROPERTIES: Mapping[str, Any] = {
     'product': 'py-amqp',
     'product_version': __version__,
-    'capabilities': {},
 }
 
-AMQP_LOGGER = logging.getLogger('amqp')
+#: Default map for :attr:`Connection.negotiate_capabilities`
+NEGOTIATE_CAPABILITIES: Mapping[str, Any] = {
+    'consumer_cancel_notify': True,
+    'connection.blocked': True,
+    'authentication_failure_close': True,
+}
 
 ConnectionBlockedCallback = typing.Callable[[str], None]
 ConnectionUnblockedCallback = typing.Callable[[], None]
@@ -96,7 +91,9 @@ MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
 
 
 class Connection(AbstractChannel):
-    """The connection class provides methods for a client to establish a
+    """AMQP Connection.
+
+    The connection class provides methods for a client to establish a
     network connection to a server, and for both peers to operate the
     connection thereafter.
 
@@ -112,39 +109,71 @@ class Connection(AbstractChannel):
         use-connection      = *channel
         close-connection    = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
+    Create a connection to the specified host, which should be
+    a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
+    (defaults to 'localhost', if a port is not specified then
+    5672 is used)
 
+    If login_response is not specified, one is built up for you from
+    userid and password if they are present.
+
+    The 'ssl' parameter may be simply True/False, or for Python >= 2.6
+    a dictionary of options to pass to ssl.wrap_socket() such as
+    requiring certain certificates.
+
+    The "socket_settings" parameter is a dictionary defining tcp
+    settings which will be applied as socket options.
     """
-    Channel = Channel
-    Transport = Transport
+
+    Channel: Channel = Channel
+    Transport: Transport = Transport
+
+    #: Mapping of protocol extensions to enable.
+    #: The server will report these in server_properties[capabilities],
+    #: and if a key in this map is present the client will tell the
+    #: server to either enable or disable the capability depending
+    #: on the value set in this map.
+    #: For example with:
+    #:     negotiate_capabilities = {
+    #:         'consumer_cancel_notify': True,
+    #:     }
+    #: The client will enable this capability if the server reports
+    #: support for it, but if the value is False the client will
+    #: disable the capability.
+    negotiate_capabilities = NEGOTIATE_CAPABILITIES
+
+    #: These are sent to the server to announce what features
+    #: we support, type of client etc.
+    library_properties = LIBRARY_PROPERTIES
 
     #: Final heartbeat interval value (in float seconds) after negotiation
-    heartbeat = None  # type: Timeout
+    heartbeat: float = None
 
     #: Original heartbeat interval value proposed by client.
-    client_heartbeat = None  # type: Timeout
+    client_heartbeat: float = None
 
     #: Original heartbeat interval proposed by server.
-    server_heartbeat = None  # type: Timeout
+    server_heartbeat: float = None
 
     #: Time of last heartbeat sent (in monotonic time, if available).
-    last_heartbeat_sent = 0  # type: float
+    last_heartbeat_sent: float = 0.0
 
     #: Time of last heartbeat received (in monotonic time, if available).
-    last_heartbeat_received = 0  # type: float
+    last_heartbeat_received: float = 0.0
 
     #: Number of successful writes to socket.
-    bytes_sent = 0  # type: int
+    bytes_sent: int = 0
 
     #: Number of successful reads from socket.
-    bytes_recv = 0  # type: int
+    bytes_recv: int = 0
 
     #: Number of bytes sent to socket at the last heartbeat check.
-    prev_sent = None  # type: Optional[int]
+    prev_sent: int = None
 
     #: Number of bytes received from socket at the last heartbeat check.
-    prev_recv = None  # type: Optional[int]
+    prev_recv: int = None
 
-    _METHODSET = [  # type: List[spec.method_sig_t]
+    _METHODSET: List[spec.method_sig_t] = [
         spec.method(spec.Connection.Start, 'ooFSS'),
         spec.method(spec.Connection.OpenOk),
         spec.method(spec.Connection.Secure, 's'),
@@ -159,123 +188,113 @@ class Connection(AbstractChannel):
         m.method_sig: m for m in _METHODSET
     }
 
-    connection_errors = (  # type: Tuple[Exception]
+    connection_errors: Tuple[Any, ...] = (
         ConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    channel_errors = (ChannelError,)   # type: Tuple[Exception]
-    recoverable_connection_errors = (  # type: Tuple[Exception]
+    channel_errors: Tuple[Any, ...] = (ChannelError,)
+    recoverable_connection_errors: Tuple[Any, ...] = (
         RecoverableConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    recoverable_channel_errors = (    # type: Tuple[Exception]
+    recoverable_channel_errors: Tuple[Any, ...] = (
         RecoverableChannelError,
     )
 
-    def __init__(self, host: str='localhost:5672',
-                 userid: str='guest', password: str='guest',
-                 login_method: str='AMQPLAIN', login_response: Any=None,
-                 virtual_host: str='/', locale: str='en_US',
-                 client_properties: MaybeDict=None,
-                 ssl: SSLArg=False, connect_timeout: Timeout=None,
-                 channel_max: int=None,
-                 frame_max: int=None,
-                 heartbeat: Timeout=0,
-                 on_open: Thenable=None,
-                 on_blocked: ConnectionBlockedCallback=None,
-                 on_unblocked: ConnectionUnblockedCallback=None,
-                 confirm_publish: bool=False,
-                 on_tune_ok: Callable=None,
-                 read_timeout: Timeout=None,
-                 write_timeout: Timeout=None,
-                 socket_settings: MaybeDict=None,
-                 frame_handler: ConnectionFrameHandler=frame_handler,
-                 frame_writer: ConnectionFrameWriter=frame_writer,
+    def __init__(self,
+                 host: str = 'localhost:5672',
+                 userid: str = 'guest',
+                 password: str = 'guest',
+                 login_method: str = 'AMQPLAIN',
+                 login_response: Any = None,
+                 virtual_host: str = '/',
+                 locale: str = 'en_US',
+                 client_properties: Mapping = None,
+                 ssl: SSLArg = False,
+                 connect_timeout: float = None,
+                 channel_max: int = None,
+                 frame_max: int = None,
+                 heartbeat: float = 0.0,
+                 on_open: Thenable = None,
+                 on_blocked: ConnectionBlockedCallback = None,
+                 on_unblocked: ConnectionUnblockedCallback = None,
+                 confirm_publish: bool = False,
+                 on_tune_ok: Callable = None,
+                 read_timeout: float = None,
+                 write_timeout: float = None,
+                 socket_settings: Mapping = None,
+                 frame_handler: ConnectionFrameHandler = frame_handler,
+                 frame_writer: ConnectionFrameWriter = frame_writer,
                  loop: Any = None,
                  **kwargs):
-        """Create a connection to the specified host, which should be
-        a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
-        (defaults to 'localhost', if a port is not specified then
-        5672 is used)
-
-        If login_response is not specified, one is built up for you from
-        userid and password if they are present.
-
-        The 'ssl' parameter may be simply True/False, or for Python >= 2.6
-        a dictionary of options to pass to ssl.wrap_socket() such as
-        requiring certain certificates.
-
-        The "socket_settings" parameter is a dictionary defining tcp
-        settings which will be applied as socket options.
-
-        """
         self.loop = loop or asyncio.get_event_loop()
-        self._connection_id = uuid.uuid4().hex  # type: str
-        channel_max = channel_max or 65535      # type: int
-        frame_max = frame_max or 131072         # type: int
+        self._connection_id: str = uuid.uuid4().hex
+        channel_max: int = channel_max or 65535
+        frame_max: int = frame_max or 131072
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
-            login_response = BytesIO()          # type: ByteString
+            login_response: ByteString = BytesIO()
             _write_table({'LOGIN': userid, 'PASSWORD': password},
                          login_response.write, [])
             # Skip the length at the beginning
             login_response = login_response.getvalue()[4:]
 
-        self.client_properties = dict(  # type: Mapping[Any, Any]
-            LIBRARY_PROPERTIES, **client_properties or {}
+        self.client_properties = dict(
+            self.library_properties, **client_properties or {}
         )
-        self.login_method = login_method      # type: str
-        self.login_response = login_response  # type: str
-        self.locale = locale                  # type: str
-        self.host = host                      # type: str
-        self.virtual_host = virtual_host      # type: str
-        self.on_tune_ok = ensure_promise(on_tune_ok)  # type: promise
+        self.login_method: str = login_method
+        self.login_response: str = login_response
+        self.locale: str = locale
+        self.host: str = host
+        self.virtual_host: str = virtual_host
+        self.on_tune_ok: Thenable = ensure_promise(on_tune_ok)
 
-        self.frame_handler_cls = frame_handler  # type: ConnectionFrameHandler
-        self.frame_writer_cls = frame_writer    # type: ConnectionFrameWriter
+        self.frame_handler_cls: ConnectionFrameHandler = frame_handler
+        self.frame_writer_cls: ConnectionFrameWriter = frame_writer
 
-        self._handshake_complete = False  # type: bool
+        self._handshake_complete: bool = False
 
-        self.channels = {}  # type: Mapping[int, Channel]
+        self.channels: Mapping[int, Channel] = {}
         # The connection object itself is treated as channel 0
-        super(Connection, self).__init__(self, 0)
+        super().__init__(self, 0)
 
-        self._frame_writer = None      # type: Generator
-        self._on_inbound_frame = None  # type: Any
-        self._transport = None         # type: Transport
+        self._frame_writer: Callable = None
+        self._on_inbound_frame: Any = None
+        self._transport: Transport = None         # type: Transport
 
         # Properties set in the Tune method
-        self.channel_max = channel_max     # type: int
-        self.frame_max = frame_max         # type: int
-        self.client_heartbeat = heartbeat  # type: timeout
+        self.channel_max: int = channel_max
+        self.frame_max: int = frame_max
+        self.client_heartbeat: float = heartbeat
 
-        self.confirm_publish = confirm_publish  # type: bool
-        self.ssl = ssl                          # type: SSLArg
-        self.read_timeout = read_timeout        # type: Timeout
-        self.write_timeout = write_timeout      # type: Timeout
-        self.socket_settings = socket_settings  # type: MaybeDict
+        self.confirm_publish: bool = confirm_publish
+        self.ssl: SSLArg = ssl
+        self.read_timeout: float = read_timeout
+        self.write_timeout: float = write_timeout
+        self.socket_settings: Mapping = socket_settings
 
         # Callbacks
-        self.on_blocked = on_blocked  # type: ConnectionBlockedCallback
-        self.on_unblocked = on_unblocked  # type: ConnectionUnblockedCallback
-        self.on_open = ensure_promise(on_open)  # type: Thenable
+        self.on_blocked: ConnectionBlockedCallback = on_blocked
+        self.on_unblocked: ConnectionUnblockedCallback = on_unblocked
+        self.on_open: Thenable = ensure_promise(on_open)
 
         # type: Sequence[int]
-        self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
+        self._avail_channel_ids: Sequence[int] = array(
+            'H', range(self.channel_max, 0, -1))
 
         # Properties set in the Start method
-        self.version_major = 0        # type: int
-        self.version_minor = 0        # type: int
-        self.server_properties = {}   # type: Mapping[Any, Any]
-        self.mechanisms = []          # type: List[Any]
-        self.locales = []             # type: List[Str]
+        self.version_major: int = 0
+        self.version_minor: int = 0
+        self.server_properties: Mapping[str, Any] = {}
+        self.mechanisms: List[Any] = []
+        self.locales: List[str] = []
 
-        self.connect_timeout = connect_timeout  # type: Timeout
+        self.connect_timeout: float = connect_timeout
 
     def __enter__(self) -> Any:
         self.connect()
@@ -377,14 +396,18 @@ class Connection(AbstractChannel):
             self.server_properties, self.mechanisms, self.locales,
         )
 
+        # Negotiate protocol extensions (capabilities)
         scap = server_properties.get('capabilities') or {}
-
-        if scap.get('consumer_cancel_notify'):
-            cap = client_properties.setdefault('capabilities', {})
-            cap['consumer_cancel_notify'] = True
-        if scap.get('connection.blocked'):
-            cap = client_properties.setdefault('capabilities', {})
-            cap['connection.blocked'] = True
+        cap = client_properties.setdefault('capabilities', {})
+        cap.update({
+            wanted_cap: enable_cap
+            for wanted_cap, enable_cap in self.negotiate_capabilities.items()
+            if scap.get(wanted_cap)
+        })
+        if not cap:
+            # no capabilities, server may not react well to having
+            # this key present in client_properties, so we remove it.
+            client_properties.pop('capabilities', None)
 
         return await self.send_method(
             spec.Connection.StartOk, argsig,
@@ -398,7 +421,7 @@ class Connection(AbstractChannel):
     async def _on_tune(self,
                        channel_max: int,
                        frame_max: int,
-                       server_heartbeat: Timeout,
+                       server_heartbeat: float,
                        argsig: str='BlB'):
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
@@ -459,12 +482,16 @@ class Connection(AbstractChannel):
         try:
             self._avail_channel_ids.remove(channel_id)
         except ValueError:
-            raise ConnectionError(
-                'Channel %r already open' % (channel_id,))
+            raise ConnectionError('Channel %r already open' % (channel_id,))
 
-    async def channel(self, channel_id: int=None, callback=None):
-        """Fetch a Channel object identified by the numeric channel_id, or
-        create that object if it doesn't already exist."""
+    async def channel(self,
+                      channel_id: int = None,
+                      callback: Callable = None) -> Channel:
+        """Create new channel.
+
+        Fetch a Channel object identified by the numeric channel_id, or
+        create that object if it doesn't already exist.
+        """
         if self.channels is not None:
             try:
                 return self.channels[channel_id]
@@ -477,10 +504,10 @@ class Connection(AbstractChannel):
     def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
-    async def drain_events(self, timeout: Timeout=None) -> None:
+    async def drain_events(self, timeout: float=None) -> None:
         return await self.blocking_read(timeout)
 
-    async def blocking_read(self, timeout: Timeout=None) -> Any:
+    async def blocking_read(self, timeout: float=None) -> Any:
         with self.transport.having_timeout(timeout):
             frame = await self.transport.read_frame()
         return await self.on_inbound_frame(frame)
@@ -490,10 +517,12 @@ class Connection(AbstractChannel):
             method_sig, payload, content,
         )
 
-    async def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
-                    argsig='BsBB'):
-
-        """Request a connection close
+    async def close(self,
+                    reply_code: int = 0,
+                    reply_text: str = '',
+                    method_sig: Tuple[int, int] = (0, 0),
+                    argsig: str = 'BsBB'):
+        """Request a connection close.
 
         This method indicates that the sender wants to close the
         connection. This may be due to internal conditions (e.g. a
@@ -544,7 +573,6 @@ class Connection(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
         if self._transport is None:
             # already closed
@@ -557,7 +585,7 @@ class Connection(AbstractChannel):
         )
 
     async def _on_close(self, reply_code, reply_text, class_id, method_id):
-        """Request a connection close
+        """Request a connection close.
 
         This method indicates that the sender wants to close the
         connection. This may be due to internal conditions (e.g. a
@@ -608,30 +636,27 @@ class Connection(AbstractChannel):
 
                 When the close is provoked by a method exception, this
                 is the ID of the method.
-
         """
         await self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
     async def _x_close_ok(self):
-        """Confirm a connection close
+        """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
         recipient that it is safe to release resources for the
         connection and close the socket.
 
         RULE:
-
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
-
         """
         return await self.send_method(
             spec.Connection.CloseOk, callback=self._on_close_ok)
 
     async def _on_close_ok(self):
-        """Confirm a connection close
+        """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
         recipient that it is safe to release resources for the
@@ -641,12 +666,15 @@ class Connection(AbstractChannel):
 
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
-
         """
         self.collect()
 
     async def _on_blocked(self):
-        """RabbitMQ Extension."""
+        """Callback called when connection blocked.
+
+        Notes:
+            This is an RabbitMQ Extension.
+        """
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return await self.on_blocked(reason)
@@ -656,20 +684,24 @@ class Connection(AbstractChannel):
             return await self.on_unblocked()
 
     async def send_heartbeat(self):
-        try:
-            return await self.frame_writer(8, 0, None, None, None)
-        except StopIteration:
-            raise RecoverableConnectionError('connection already closed')
+        return await self.frame_writer(8, 0, None, None, None)
 
     async def heartbeat_tick(self, rate=2):
-        """Send heartbeat packets, if necessary, and fail if none have been
-        received recently.  This should be called frequently, on the order of
-        once per second.
+        """Send heartbeat packets if necessary.
 
-        :keyword rate: Ignored
+        Raises:
+            ~amqp.exceptions.ConnectionForvced: if none have been
+                received recently.
+
+        Note:
+            This should be called frequently, on the order of
+            once per second.
+
+        Keyword Arguments:
+            rate (int): Previously used, but ignored now.
         """
-        AMQP_LOGGER.debug('heartbeat_tick : for connection %s'
-                          % self._connection_id)
+        AMQP_LOGGER.debug('heartbeat_tick : for connection %s',
+                          self._connection_id)
         if not self.heartbeat:
             return
 
@@ -681,23 +713,26 @@ class Connection(AbstractChannel):
         if self.prev_recv is None or self.prev_recv != recv_now:
             self.last_heartbeat_received = monotonic()
 
-        mntnc = monotonic()
-        AMQP_LOGGER.debug('heartbeat_tick : Prev sent/recv: %s/%s, '
-                          'now - %s/%s, monotonic - %s, '
-                          'last_heartbeat_sent - %s, heartbeat int. - %s '
-                          'for connection %s' %
-                          (str(self.prev_sent), str(self.prev_recv),
-                           str(sent_now), str(recv_now), str(mntnc),
-                           str(self.last_heartbeat_sent),
-                           str(self.heartbeat),
-                           self._connection_id))
+        now = monotonic()
+        AMQP_LOGGER.debug(
+            'heartbeat_tick : Prev sent/recv: %s/%s, '
+            'now - %s/%s, monotonic - %s, '
+            'last_heartbeat_sent - %s, heartbeat int. - %s '
+            'for connection %s',
+            self.prev_sent, self.prev_recv,
+            sent_now, recv_now, now,
+            self.last_heartbeat_sent,
+            self.heartbeat,
+            self._connection_id,
+        )
 
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if mntnc > self.last_heartbeat_sent + self.heartbeat:
-            AMQP_LOGGER.debug('heartbeat_tick: sending heartbeat for '
-                              'connection %s' % self._connection_id)
+        if now > self.last_heartbeat_sent + self.heartbeat:
+            AMQP_LOGGER.debug(
+                'heartbeat_tick: sending heartbeat for connection %s',
+                self._connection_id)
             await self.send_heartbeat()
             self.last_heartbeat_sent = monotonic()
 

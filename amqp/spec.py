@@ -1,17 +1,27 @@
-from __future__ import absolute_import, unicode_literals
+"""AMQP Spec."""
+from typing import ByteString, NamedTuple
 
-from collections import namedtuple
+method_sig_t = NamedTuple('method_sig_t', [
+    ('major', int),
+    ('minor', int),
+])
+method_t = NamedTuple('method_t', [
+    ('method_sig', method_sig_t),
+    ('args', ByteString),
+    ('content', bool),
+])
 
-method_sig_t = namedtuple('method_sig_t', ('major', 'minor'))
-method_t = namedtuple('method_t', ('method_sig', 'args', 'content'))
 
-
-def method(method_sig, args=None, content=False):
-    # type: (method_sig_t, str, ByteStr) -> method_t
+def method(method_sig: method_sig_t,
+           args: ByteString = None,
+           content: bool = False):
+    """Create amqp method specification tuple."""
     return method_t(method_sig, args, content)
 
 
 class Connection:
+    """AMQ Connection class."""
+
     CLASS_ID = 10
 
     Start = method_sig_t(CLASS_ID, 10)
@@ -29,6 +39,8 @@ class Connection:
 
 
 class Channel:
+    """AMQ Channel class."""
+
     CLASS_ID = 20
 
     Open = method_sig_t(CLASS_ID, 10)
@@ -40,6 +52,8 @@ class Channel:
 
 
 class Exchange:
+    """AMQ Exchange class."""
+
     CLASS_ID = 40
 
     Declare = method_sig_t(CLASS_ID, 10)
@@ -53,6 +67,8 @@ class Exchange:
 
 
 class Queue:
+    """AMQ Queue class."""
+
     CLASS_ID = 50
 
     Declare = method_sig_t(CLASS_ID, 10)
@@ -68,6 +84,8 @@ class Queue:
 
 
 class Basic:
+    """AMQ Basic class."""
+
     CLASS_ID = 60
 
     Qos = method_sig_t(CLASS_ID, 10)
@@ -91,6 +109,8 @@ class Basic:
 
 
 class Confirm:
+    """AMQ Confirm class."""
+
     CLASS_ID = 85
 
     Select = method_sig_t(CLASS_ID, 10)
@@ -98,6 +118,8 @@ class Confirm:
 
 
 class Tx:
+    """AMQ Tx class."""
+
     CLASS_ID = 90
 
     Select = method_sig_t(CLASS_ID, 10)

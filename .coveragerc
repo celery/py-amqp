@@ -2,7 +2,7 @@
 branch = 1
 cover_pylib = 0
 include=*amqp/*
-omit = amqp.tests.*
+omit = t.*
 
 [report]
 omit =
