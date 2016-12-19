@@ -17,7 +17,6 @@
 import asyncio
 import logging
 import socket
-import typing
 import uuid
 import warnings
 
@@ -25,7 +24,7 @@ from array import array
 from io import BytesIO
 from ssl import SSLError
 from time import monotonic
-from typing import Mapping, Generator, Callable, List, Any
+from typing import Any, ByteString, Callable, List, Mapping, Tuple
 
 from vine import Thenable, ensure_promise
 
@@ -74,20 +73,20 @@ NEGOTIATE_CAPABILITIES: Mapping[str, Any] = {
     'authentication_failure_close': True,
 }
 
-ConnectionBlockedCallback = typing.Callable[[str], None]
-ConnectionUnblockedCallback = typing.Callable[[], None]
-ConnectionInboundMethodHandler = typing.Callable[
-    [int, typing.Tuple[Any], typing.ByteString, typing.ByteString], typing.Any,
+ConnectionBlockedCallback = Callable[[str], None]
+ConnectionUnblockedCallback = Callable[[], None]
+ConnectionInboundMethodHandler = Callable[
+    [int, Tuple[Any], ByteString, ByteString], Any,
 ]
-ConnectionFrameHandler = typing.Callable[
+ConnectionFrameHandler = Callable[
     ['Connection', ConnectionInboundMethodHandler],
-    typing.Generator[typing.Any, typing.Any, typing.Any],
+    Callable,
 ]
-ConnectionFrameWriter = typing.Callable[
+ConnectionFrameWriter = Callable[
     ['Connection', Transport],
-    typing.Generator[typing.Any, typing.Any, typing.Any],
+    Callable,
 ]
-MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
+MethodSigMethodMapping = Mapping[Tuple[Any], Tuple[Any]]
 
 
 class Connection(AbstractChannel):
@@ -366,7 +365,7 @@ class Connection(AbstractChannel):
         self._on_inbound_frame = on_inbound_frame
 
     @property
-    def frame_writer(self) -> Generator[Any, Any, Any]:
+    def frame_writer(self) -> Callable:
         if self._frame_writer is None:
             self._warn_force_connect('frame_writer')
             self.connect()
