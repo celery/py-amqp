@@ -15,9 +15,8 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
-
+import typing
 from vine import ensure_promise, promise
-
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
 
@@ -58,15 +57,17 @@ class AbstractChannel:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            await conn.frame_writer.send((
-                1, self.channel_id, sig, args, content))
+            await conn.frame_writer(
+                1, self.channel_id, sig, args, content)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
         # TODO temp: callback should be after write_method ... ;)
-        if callback:
-            p.then(callback)
         p()
+        if callback:
+            cbret = callback()
+            if isinstance(cbret, typing.Coroutine):
+                await cbret
         if wait:
             return await self.wait(wait, returns_tuple=returns_tuple)
         return p
@@ -93,7 +94,7 @@ class AbstractChannel:
 
             if p.value:
                 args, kwargs = p.value
-                yield args if returns_tuple else (args and args[0])
+                return args if returns_tuple else (args and args[0])
         finally:
             for i, m in enumerate(method):
                 if prev_p[i] is not None:
@@ -138,7 +139,9 @@ class AbstractChannel:
             args.append(content)
 
         for listener in listeners:
-            await listener(*args)
+            lisret = listener(*args)
+            if isinstance(lisret, typing.Coroutine):
+                await lisret
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

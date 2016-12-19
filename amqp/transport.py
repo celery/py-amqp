@@ -87,7 +87,7 @@ def to_host_port(host, default=AMQP_PORT):
     return host, port
 
 
-class BaseTransport:
+class Transport:
     """Common superclass for TCP and SSL transports"""
     connected = False
     rstream = None
@@ -113,8 +113,10 @@ class BaseTransport:
         self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
 
     async def connect(self) -> None:
+        print('CONNECTING')
         await self._connect(self.host, self.port, self.connect_timeout)
-        await self._init_socket(
+        print('INIT SOCKET')
+        self._init_socket(
             self.socket_settings, self.read_timeout, self.write_timeout,
         )
 
@@ -147,8 +149,11 @@ class BaseTransport:
         )
         self._read = self.rstream.readexactly
         self._write = self.wstream.write
+        self.flush_write_buffer = self.wstream.drain
+        print('WRITE IS NOW: %r' % (self._write,))
         self.sock = self.wstream.transport._sock
-        await self._write(AMQP_PROTOCOL_HEADER)
+        self.wstream.write(AMQP_PROTOCOL_HEADER)
+        await self.wstream.drain()
         try:
             set_cloexec(self.sock, True)
         except NotImplementedError:
@@ -157,7 +162,7 @@ class BaseTransport:
 
     def _init_socket(self, socket_settings: Mapping,
                      read_timeout: Timeout, write_timeout: Timeout) -> None:
-        sock = self.wstream.transport.socket
+        sock = self.sock
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self._set_socket_options(socket_settings)
@@ -208,13 +213,14 @@ class BaseTransport:
             self.wstream.close()
         self.wstream = None
         self.rstream = None
+        self.flush_write_buffer = None
         self.connected = False
 
     async def read_frame(self, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_header = await read(7, True)
+            frame_header = await read(7)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack(u'>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
@@ -244,9 +250,9 @@ class BaseTransport:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
-    async def write(self, s: ByteString) -> None:
+    def write(self, s: ByteString) -> None:
         try:
-            await self._write(s)
+            self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:
@@ -257,9 +263,9 @@ class BaseTransport:
 
 async def connect(host: str,
                   connect_timeout: Timeout=None,
-                  ssl: SSLArg=False, **kwargs) -> BaseTransport:
+                  ssl: SSLArg=False, **kwargs) -> Transport:
     """Given a few parameters from the Connection constructor,
-    select and create a subclass of BaseTransport."""
+    select and create a subclass of Transport."""
     t = Transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
     await t.connect()
     return t

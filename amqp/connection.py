@@ -39,9 +39,10 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
+from . import transport
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
-from .transport import BaseTransport, Transport
+from .transport import Transport
 from .types import SSLArg, Timeout, MaybeDict
 
 from typing import Mapping, Generator, Callable, List, Any
@@ -88,7 +89,7 @@ ConnectionFrameHandler = typing.Callable[
     typing.Generator[typing.Any, typing.Any, typing.Any],
 ]
 ConnectionFrameWriter = typing.Callable[
-    ['Connection', BaseTransport],
+    ['Connection', Transport],
     typing.Generator[typing.Any, typing.Any, typing.Any],
 ]
 MethodSigMethodMapping = Mapping[typing.Tuple[Any], typing.Tuple[Any]]
@@ -114,6 +115,7 @@ class Connection(AbstractChannel):
 
     """
     Channel = Channel
+    Transport = Transport
 
     #: Final heartbeat interval value (in float seconds) after negotiation
     heartbeat = None  # type: Timeout
@@ -193,7 +195,7 @@ class Connection(AbstractChannel):
                  socket_settings: MaybeDict=None,
                  frame_handler: ConnectionFrameHandler=frame_handler,
                  frame_writer: ConnectionFrameWriter=frame_writer,
-                 loop: asyncio.events.AbstractEventloop = None,
+                 loop: Any = None,
                  **kwargs):
         """Create a connection to the specified host, which should be
         a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
@@ -245,7 +247,7 @@ class Connection(AbstractChannel):
 
         self._frame_writer = None      # type: Generator
         self._on_inbound_frame = None  # type: Any
-        self._transport = None         # type: BaseTransport
+        self._transport = None         # type: Transport
 
         # Properties set in the Tune method
         self.channel_max = channel_max     # type: int
@@ -305,9 +307,10 @@ class Connection(AbstractChannel):
             await callback() if callback else None
         else:
             self.transport = self.Transport(
-                self.host, self.connect_timeout, self.ssl,
+                self.host, self.connect_timeout,
                 self.read_timeout, self.write_timeout,
                 socket_settings=self.socket_settings,
+                ssl=self.ssl,
             )
             await self.transport.connect()
             self.on_inbound_frame = self.frame_handler_cls(
@@ -322,7 +325,7 @@ class Connection(AbstractChannel):
             W_FORCE_CONNECT.format(attr=attr)))
 
     @property
-    def transport(self) -> BaseTransport:
+    def transport(self) -> Transport:
         if self._transport is None:
             self._warn_force_connect('transport')
             self.connect()
@@ -426,18 +429,7 @@ class Connection(AbstractChannel):
 
     async def _on_open_ok(self) -> None:
         self._handshake_complete = True
-        return await self.on_open(self)
-
-    def Transport(self, host: str, connect_timeout: Timeout,
-                  ssl: SSLArg=False,
-                  read_timeout: Timeout=None,
-                  write_timeout: Timeout=None,
-                  socket_settings: MaybeDict=None,
-                  **kwargs) -> BaseTransport:
-        return Transport(
-            host, connect_timeout=connect_timeout, ssl=ssl,
-            read_timeout=read_timeout, write_timeout=write_timeout,
-            socket_settings=socket_settings, **kwargs)
+        return self.on_open(self)
 
     @property
     def connected(self) -> bool:
@@ -665,7 +657,7 @@ class Connection(AbstractChannel):
 
     async def send_heartbeat(self):
         try:
-            return await self.frame_writer.send((8, 0, None, None, None))
+            return await self.frame_writer(8, 0, None, None, None)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 

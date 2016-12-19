@@ -179,9 +179,9 @@ class SocketOptions(Case):
         self.assertEqual(result, expected)
 
 
-class test_BaseTransport(Case):
+class test_Transport(Case):
 
-    class Transport(transport.BaseTransport):
+    class Transport(transport.Transport):
 
         def _connect(self, *args):
             pass
@@ -298,58 +298,6 @@ class test_BaseTransport(Case):
         with self.assertRaises(OSError):
             self.t.write('foo')
         self.assertFalse(self.t.connected)
-
-
-class test_SSLTransport(Case):
-
-    class Transport(transport.SSLTransport):
-
-        def _connect(self, *args):
-            pass
-
-        def _init_socket(self, *args):
-            pass
-
-    def setup(self):
-        self.t = self.Transport(
-            'fe80::9a5a:ebff::fecb::ad1c:30', 3, ssl={'foo': 30},
-        )
-
-    def test_setup_transport(self):
-        sock = self.t.sock = Mock()
-        self.t._wrap_socket = Mock()
-        self.t._setup_transport()
-        self.t._wrap_socket.assert_called_with(sock, foo=30)
-        self.t.sock.do_handshake.assert_called_with()
-        self.assertIs(self.t._quick_recv, self.t.sock.read)
-
-    @patch('ssl.wrap_socket', create=True)
-    def test_wrap_socket(self, wrap_socket):
-        sock = Mock()
-        self.t._wrap_context = Mock()
-        self.t._wrap_socket(sock, foo=1)
-        wrap_socket.assert_called_with(sock, foo=1)
-
-        self.t._wrap_socket(sock, {'c': 2}, foo=1)
-        self.t._wrap_context.assert_called_with(sock, {'foo': 1}, c=2)
-
-    @patch('ssl.create_default_context', create=True)
-    def test_wrap_context(self, create_default_context):
-        sock = Mock()
-        self.t._wrap_context(sock, {'f': 1}, check_hostname=True, bar=3)
-        create_default_context.assert_called_with(bar=3)
-        ctx = create_default_context()
-        self.assertTrue(ctx.check_hostname)
-        ctx.wrap_socket.assert_called_with(sock, f=1)
-
-    def test_shutdown_transport(self):
-        self.t.sock = None
-        self.t._shutdown_transport()
-        self.t.sock = object()
-        self.t._shutdown_transport()
-        sock = self.t.sock = Mock()
-        self.t._shutdown_transport()
-        self.assertIs(self.t.sock, sock.unwrap())
 
 
 class test_TCPTransport(Case):

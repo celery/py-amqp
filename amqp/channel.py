@@ -464,7 +464,7 @@ class Channel(AbstractChannel):
 
         """
         self.is_open = True
-        await self.on_open(self)
+        self.on_open(self)
         AMQP_LOGGER.debug('Channel open')
 
     #############
@@ -1178,9 +1178,10 @@ class Channel(AbstractChannel):
              nowait, arguments),
         )
         if not nowait:
-            return await queue_declare_ok_t(*self.wait(
+            ret = await self.wait(
                 spec.Queue.DeclareOk, returns_tuple=True,
-            ))
+            )
+            return queue_declare_ok_t(*ret)
 
     async def queue_delete(self, queue='',
                            if_unused=False, if_empty=False, nowait=False,

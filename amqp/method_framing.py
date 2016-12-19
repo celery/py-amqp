@@ -41,7 +41,7 @@ def frame_handler(connection, callback,
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
-    def on_frame(frame):
+    async def on_frame(frame):
         frame_type, channel, buf = frame
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
@@ -59,7 +59,7 @@ def frame_handler(connection, callback,
                 )
                 expected_types[channel] = 2
             else:
-                callback(channel, method_sig, buf, None)
+                await callback(channel, method_sig, buf, None)
 
         elif frame_type == 2:
             msg = partial_messages[channel]
@@ -69,7 +69,7 @@ def frame_handler(connection, callback,
                 # bodyless message, we're done
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                callback(channel, msg.frame_method, msg.frame_args, msg)
+                await callback(channel, msg.frame_method, msg.frame_args, msg)
             else:
                 # wait for the content-body
                 expected_types[channel] = 3
@@ -79,7 +79,7 @@ def frame_handler(connection, callback,
             if msg.ready:
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                callback(channel, msg.frame_method, msg.frame_args, msg)
+                await callback(channel, msg.frame_method, msg.frame_args, msg)
         elif frame_type == 8:
             # bytes_recv already updated
             pass
@@ -87,11 +87,11 @@ def frame_handler(connection, callback,
     return on_frame
 
 
-@coro
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes):
     write = transport.write
+    flush_write_buffer = transport.flush_write_buffer
 
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
@@ -99,10 +99,9 @@ def frame_writer(connection, transport,
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
-    while 1:
+    async def on_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
         offset = 0
-        type_, channel, method_sig, args, content = yield
         if content:
             body = content.body
             bodylen = len(body)
@@ -163,4 +162,6 @@ def frame_writer(connection, transport,
 
             write(view[:offset])
 
+        await flush_write_buffer()
         connection.bytes_sent += 1
+    return on_frame
