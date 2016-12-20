@@ -126,12 +126,18 @@ class Transport:
         self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
 
     async def connect(self) -> None:
-        print('CONNECTING')
-        await self._connect(self.host, self.port, self.connect_timeout)
-        print('INIT SOCKET')
+        self.rstream, self.wstream = await asyncio.open_connection(
+            host=self.host, port=self.port, ssl=self.ssl,
+        )
+        self.sock = self.wstream.transport._sock
         self._init_socket(
             self.socket_settings, self.read_timeout, self.write_timeout,
         )
+        self._read = self.rstream.readexactly
+        self._write = self.wstream.write
+        self.flush_write_buffer = self.wstream.drain
+        self.wstream.write(AMQP_PROTOCOL_HEADER)
+        await self.wstream.drain()
 
     @contextmanager
     def having_timeout(self, timeout: float) -> Any:
@@ -156,17 +162,6 @@ class Transport:
                 if timeout != prev:
                     sock.settimeout(prev)
 
-    async def _connect(self, host: str, port: int, timeout: float) -> None:
-        self.rstream, self.wstream = await asyncio.open_connection(
-            host=host, port=port, ssl=self.ssl,
-        )
-        self._read = self.rstream.readexactly
-        self._write = self.wstream.write
-        self.flush_write_buffer = self.wstream.drain
-        print('WRITE IS NOW: %r' % (self._write,))
-        self.sock = self.wstream.transport._sock
-        self.wstream.write(AMQP_PROTOCOL_HEADER)
-        await self.wstream.drain()
 
     def _init_socket(self, socket_settings: Mapping,
                      read_timeout: float, write_timeout: float) -> None:
@@ -186,9 +181,6 @@ class Transport:
                         pack('ll', interval, 0),
                     )
             self._setup_transport()
-            self._write(AMQP_PROTOCOL_HEADER)
-        except (BlockingIOError, InterruptedError):
-            raise
         except (OSError, IOError, socket.error):
             self.connected = False
             raise
@@ -240,20 +232,17 @@ class Transport:
             if size > SIGNED_INT_MAX:
                 part1 = await read(SIGNED_INT_MAX)
                 part2 = await read(size - SIGNED_INT_MAX)
-                payload = ''.join([cast(bytes, part1), cast(bytes, part2)])
+                payload = ''.join([part1, part2])
             else:
-                payload = cast(bytes, await read(size))
+                payload = await read(size)
             read_frame_buffer += payload
-            ch = ord(cast(bytes, await read(1)))
+            ch = ord(await read(1))
         except socket.timeout:
-            self._read_buffer = read_frame_buffer + cast(
-                bytes, self._read_buffer)
+            self._read_buffer = read_frame_buffer + self._read_buffer
             raise
         except SSLError as exc:
             if 'timed out' in str(exc):
                 raise socket.timeout()
-        except (BlockingIOError, FileNotFoundError, InterruptedError):
-            raise
         except (OSError, IOError, socket.error):
             self.connected = False
             raise
@@ -267,8 +256,6 @@ class Transport:
         try:
             self._write(s)
         except socket.timeout:
-            raise
-        except (BlockingIOError, FileNotFoundError, InterruptedError):
             raise
         except (OSError, IOError, socket.error):
             self.connected = False

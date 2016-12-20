@@ -17,16 +17,14 @@
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
 from typing import Any, Callable, Optional, Set, Tuple
-from .abstract import (
-    AbstractChannel, AbstractConnection, AbstractMessage, AbstractTransport,
-)
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
+from .transport import Frame
+from .types import (
+    AbstractChannel, AbstractConnection, AbstractMessage, AbstractTransport,
+)
 from .utils import str_to_bytes
-
-if 0:
-    from .transport import Frame
 
 __all__ = ['frame_handler', 'frame_writer']
 

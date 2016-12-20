@@ -17,7 +17,7 @@
 import re
 from typing import NamedTuple
 
-__version__ = '2.1.4'
+__version__ = '3.0.0a1'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Ask Solem'
 __contact__ = 'pyamqp@celeryproject.org'
@@ -74,7 +74,7 @@ from .exceptions import (           # noqa
     InternalError,
     error_for_code,
 )
-from .utils import promise      # noqa
+from vine import promise      # noqa
 
 
 __all__ = [

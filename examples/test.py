@@ -5,26 +5,28 @@ from amqp import Connection, Channel, Message
 
 class Driver:
 
-    received_messages: int = 0
+    messages_received: int = 0
+    messages_sent: int = 0
 
     def __init__(self, loop=None) -> None:
         self.loop = loop or asyncio.get_event_loop()
 
     async def connect(self) -> Connection:
         self.connection = Connection()
+        print('CONNECTION IS: %r' % (self.connection,))
         await self.connection.connect()
         return self.connection
 
     async def new_channel(self) -> Channel:
         return await self.connection.channel()
 
-    async def start(self) -> None:
+    async def start(self, n: int = 10_000) -> None:
         await self.connect()
         channel = await self.new_channel()
         await self.declare_queues(channel)
-        for i in range(100):
+        for i in range(n):
             await self.publish(channel, str(i))
-        await self.consume(channel, 100)
+        await self.consume(channel, n)
 
     async def declare_queues(self, channel):
         print('DECLARING FOO')
@@ -37,17 +39,20 @@ class Driver:
 
     async def publish(self, channel, msg):
         message = Message(body=msg)
-        print('PUBLISH: %r' % (msg,))
+        if not self.messages_sent % 1000:
+            print('PUBLISH: %r' % (msg,))
         await channel.basic_publish(message, exchange='foo', routing_key='foo')
+        self.messages_sent += 1
 
     async def consume(self, channel, n):
         await channel.basic_consume('foo', callback=self.on_message)
-        while self.received_messages < n:
+        while self.messages_received < n:
             await channel.connection.drain_events()
 
     async def on_message(self, message):
-        print('RECEIVED MESSAGE: %r' % (message.body,))
-        self.received_messages += 1
+        if not self.messages_received % 1000:
+            print('RECEIVED MESSAGE: %r' % (message.body,))
+        self.messages_received += 1
         await message.channel.basic_ack(message.delivery_tag)
 
 

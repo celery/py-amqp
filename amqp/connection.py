@@ -749,3 +749,6 @@ class Connection(ChannelBase):
     @property
     def server_capabilities(self):
         return self.server_properties.get('capabilities') or {}
+
+    def __repr__(self):
+        return '<{name} {0.host}>'.format(self, name=type(self).__name__)

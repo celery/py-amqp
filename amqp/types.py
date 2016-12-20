@@ -23,7 +23,7 @@ class AbstractConnection(AbstractChannel):
     ...
 
 
-class TransportT(metaclass=abc.ABCMeta):
+class AbstractTransport(metaclass=abc.ABCMeta):
     ...
 
 
