@@ -10,14 +10,6 @@ class Driver:
     def __init__(self, loop=None) -> None:
         self.loop = loop or asyncio.get_event_loop()
 
-    async def connect(self) -> Connection:
-        self.connection = Connection()
-        await self.connection.connect()
-        return self.connection
-
-    async def new_channel(self) -> Channel:
-        return await self.connection.channel()
-
     async def start(self, n: int = 10_000) -> None:
         await self.connect()
         channel = await self.new_channel()
@@ -25,6 +17,14 @@ class Driver:
         for i in range(n):
             await self.publish(channel, str(i))
         await self.consume(channel, n)
+
+    async def connect(self) -> Connection:
+        self.connection = Connection()
+        await self.connection.connect()
+        return self.connection
+
+    async def new_channel(self) -> Channel:
+        return await self.connection.channel()
 
     async def declare_queues(self, channel):
         print('DECLARING FOO')
