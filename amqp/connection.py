@@ -418,7 +418,7 @@ class Connection(AbstractChannel):
 
     def collect(self):
         try:
-            self.transport.close()
+            self._transport.close()
 
             temp_list = [x for x in values(self.channels) if x is not self]
             for ch in temp_list:
