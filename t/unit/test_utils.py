@@ -1,8 +1,5 @@
-from __future__ import absolute_import, unicode_literals
 from case import Mock, patch
-from amqp.utils import (
-    get_errno, coro, str_to_bytes, bytes_to_str, NullHandler, get_logger,
-)
+from amqp.utils import get_errno, str_to_bytes, bytes_to_str, get_logger
 
 
 class test_get_errno:
@@ -25,17 +22,6 @@ class test_get_errno:
         assert not get_errno(object())
 
 
-class test_coro:
-
-    def test_advances(self):
-        @coro
-        def x():
-            yield 1
-            yield 2
-        it = x()
-        assert next(it) == 2
-
-
 class test_str_to_bytes:
 
     def test_from_unicode(self):
@@ -52,12 +38,6 @@ class test_bytes_to_str:
 
     def test_from_bytes(self):
         assert bytes_to_str(b'foo')
-
-
-class test_NullHandler:
-
-    def test_emit(self):
-        NullHandler().emit(Mock(name='record'))
 
 
 class test_get_logger:

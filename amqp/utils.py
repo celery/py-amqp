@@ -1,39 +1,16 @@
 """Compatibility utilities."""
-from __future__ import absolute_import, unicode_literals
-
 import logging
+import os
+from typing import AnyStr, Optional, Union, cast
+from .types import Fd
 
-# enables celery 3.1.23 to start again
-from vine import promise                # noqa
-from vine.utils import wraps
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover
-    fcntl = None   # noqa
-
-try:
-    from os import set_cloexec  # Python 3.4?
-except ImportError:  # pragma: no cover
-    def set_cloexec(fd, cloexec):  # noqa
-        """Set flag to close fd after exec."""
-        if fcntl is None:
-            return
-        try:
-            FD_CLOEXEC = fcntl.FD_CLOEXEC
-        except AttributeError:
-            raise NotImplementedError(
-                'close-on-exec flag not supported on this platform',
-            )
-        flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-        if cloexec:
-            flags |= FD_CLOEXEC
-        else:
-            flags &= ~FD_CLOEXEC
-        return fcntl.fcntl(fd, fcntl.F_SETFD, flags)
+__all__ = [
+    'get_errno', 'set_cloexec',
+    'str_to_bytes', 'bytes_to_str', 'get_logger',
+]
 
 
-def get_errno(exc):
+def get_errno(exc: Exception):
     """Get exception errno (if set).
 
     Notes:
@@ -52,40 +29,28 @@ def get_errno(exc):
     return 0
 
 
-def coro(gen):
-    """Decorator to mark generator as a co-routine."""
-    @wraps(gen)
-    def _boot(*args, **kwargs):
-        co = gen(*args, **kwargs)
-        next(co)
-        return co
-
-    return _boot
+def set_cloexec(fd: Fd, cloexec: bool) -> None:
+    if not isinstance(fd, int):
+        fd = fd.fileno()
+    os.set_inheritable(fd, cloexec)
 
 
-def str_to_bytes(s):
+def str_to_bytes(s: AnyStr) -> bytes:
     if isinstance(s, str):
-        return s.encode()
+        return cast(str, s).encode()
     return s
 
 
-def bytes_to_str(s):
+def bytes_to_str(s: AnyStr) -> str:
     if isinstance(s, bytes):
-        return s.decode()
+        return cast(bytes, s).decode()
     return s
 
 
-class NullHandler(logging.Handler):
-    """A logging handler that does nothing."""
-
-    def emit(self, record):
-        ...
-
-
-def get_logger(logger):
+def get_logger(logger: Optional[Union[logging.Logger, str]]) -> logging.Logger:
     """Get logger by name."""
     if isinstance(logger, str):
         logger = logging.getLogger(logger)
-    if not logger.handlers:
-        logger.addHandler(NullHandler())
+    if not logger.hasHandlers():
+        logger.addHandler(logging.NullHandler())
     return logger

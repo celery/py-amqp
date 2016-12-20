@@ -14,19 +14,14 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import socket
-
 from collections import defaultdict
 from queue import Queue
 from warnings import warn
-
 from vine import ensure_promise
-
 from . import spec
-from .abstract_channel import AbstractChannel
+from .abstract_channel import ChannelBase
 from .exceptions import (
     ChannelError, ConsumerCancelled,
     RecoverableChannelError, RecoverableConnectionError, error_for_code,
@@ -35,7 +30,7 @@ from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
 
-AMQP_LOGGER = logging.getLogger('amqp')
+logger = logging.getLogger('amqp')
 
 EXCHANGE_AUTODELETE_DEPRECATED = """\
 The auto_delete flag for exchanges has been deprecated and will be removed
@@ -52,7 +47,7 @@ class VDeprecationWarning(DeprecationWarning):
     ...
 
 
-class Channel(AbstractChannel):
+class Channel(ChannelBase):
     """AMQP Channel.
 
     The channel class provides methods for a client to establish a
@@ -119,7 +114,7 @@ class Channel(AbstractChannel):
         else:
             channel_id = connection._get_free_channel_id()
 
-        AMQP_LOGGER.debug('using channel_id: %s', channel_id)
+        logger.debug('using channel_id: %s', channel_id)
 
         super().__init__(connection, channel_id)
 
@@ -161,7 +156,7 @@ class Channel(AbstractChannel):
 
         Best called after we've agreed to close with the server.
         """
-        AMQP_LOGGER.debug('Closed channel #%s', self.channel_id)
+        logger.debug('Closed channel #%s', self.channel_id)
         self.is_open = False
         channel_id, self.channel_id = self.channel_id, None
         connection, self.connection = self.connection, None
@@ -456,7 +451,7 @@ class Channel(AbstractChannel):
         """
         self.is_open = True
         self.on_open(self)
-        AMQP_LOGGER.debug('Channel open')
+        logger.debug('Channel open')
 
     #############
     #
@@ -1607,7 +1602,7 @@ class Channel(AbstractChannel):
         try:
             fun = self.callbacks[consumer_tag]
         except KeyError:
-            AMQP_LOGGER.warn(
+            logger.warn(
                 REJECTED_MESSAGE_WITHOUT_CALLBACK,
                 delivery_tag, consumer_tag, exchange, routing_key,
             )

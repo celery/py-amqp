@@ -1,18 +1,14 @@
-from __future__ import absolute_import, unicode_literals
-
 import pytest
-
 from case import Mock, patch
 from vine import promise
-
-from amqp.abstract_channel import AbstractChannel
+from amqp.abstract_channel import ChannelBase
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
 
 
-class test_AbstractChannel:
+class test_ChannelBase:
 
-    class Channel(AbstractChannel):
+    class Channel(ChannelBase):
 
         def _setup_listeners(self):
             ...

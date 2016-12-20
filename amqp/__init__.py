@@ -14,11 +14,8 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import re
-
-from collections import namedtuple
+from typing import NamedTuple
 
 __version__ = '2.1.4'
 __author__ = 'Barry Pederson'
@@ -29,9 +26,13 @@ __docformat__ = 'restructuredtext'
 
 # -eof meta-
 
-version_info_t = namedtuple('version_info_t', (
-    'major', 'minor', 'micro', 'releaselevel', 'serial',
-))
+version_info_t = NamedTuple('version_info_t', [
+    ('major', int),
+    ('minor', int),
+    ('micro', int),
+    ('releaselevel', str),
+    ('serial', str),
+])
 
 # bumpversion can only search for {current_version}
 # so we have to parse the version here.

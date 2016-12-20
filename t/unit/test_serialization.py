@@ -1,7 +1,4 @@
-from __future__ import absolute_import, unicode_literals
-
 import pytest
-
 from datetime import datetime
 from decimal import Decimal
 from math import ceil

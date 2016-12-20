@@ -18,16 +18,16 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import calendar
-
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-
-from .spec import Basic
+from typing import (
+    Any, Callable, Dict, List,
+    Mapping, Sequence, Tuple,
+)
+from .spec import Basic, method_sig_t
 from .exceptions import FrameSyntaxError
 from .utils import bytes_to_str as pstr_t, str_to_bytes
 
@@ -44,7 +44,10 @@ ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
 """
 
 
-def _read_item(buf, offset=0, unpack_from=unpack_from, chr=chr):
+def _read_item(buf: bytes,
+               offset: int = 0,
+               unpack_from: Callable = unpack_from,
+               chr: Callable = chr) -> Tuple[Any, int]:
     ftype = chr(buf[offset])
     offset += 1
 
@@ -148,9 +151,10 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, chr=chr):
     return val, offset
 
 
-def loads(format, buf, offset=0,
-          ord=ord, unpack_from=unpack_from,
-          _read_item=_read_item, pstr_t=pstr_t):
+def loads(format: str, buf: bytes, offset: int = 0,
+          ord: Callable=ord, unpack_from: Callable=unpack_from,
+          _read_item: Callable=_read_item,
+          pstr_t: Callable=pstr_t) -> Tuple[Sequence, int]:
     """Deserialize amqp format.
 
     bit = b
@@ -244,14 +248,14 @@ def loads(format, buf, offset=0,
     return values, offset
 
 
-def _flushbits(bits, write, pack=pack):
+def _flushbits(bits: int, write: Callable, pack: Callable=pack) -> int:
     if bits:
         write(pack('B' * len(bits), *bits))
         bits[:] = []
     return 0
 
 
-def dumps(format, values):
+def dumps(format: str, values: Sequence[Any]) -> bytes:
     """"Serialize AMQP arguments.
 
     Notes:
@@ -265,12 +269,11 @@ def dumps(format, values):
         table = F
         array = A
     """
-    bitcount = 0
-    bits = []
-    out = BytesIO()
-    write = out.write
-
-    format = pstr_t(format)
+    bitcount = 0             # type: int
+    bits = []                # type: List[int]
+    out = BytesIO()          # type: BytesIO
+    write = out.write        # type: Callable[[bytes], None]
+    format = pstr_t(format)  # type: bytes
 
     for i, val in enumerate(values):
         p = format[i]
@@ -323,7 +326,8 @@ def dumps(format, values):
     return out.getvalue()
 
 
-def _write_table(d, write, bits, pack=pack):
+def _write_table(d: Mapping[str, Any], write: Callable, bits: List[int],
+                 pack: Callable=pack) -> None:
     out = BytesIO()
     twrite = out.write
     for k, v in d.items():
@@ -341,7 +345,8 @@ def _write_table(d, write, bits, pack=pack):
     write(table_data)
 
 
-def _write_array(l, write, bits, pack=pack):
+def _write_array(l: Sequence, write: Callable, bits: List[int],
+                 pack: Callable=pack) -> None:
     out = BytesIO()
     awrite = out.write
     for v in l:
@@ -355,11 +360,21 @@ def _write_array(l, write, bits, pack=pack):
     write(array_data)
 
 
-def _write_item(v, write, bits, pack=pack,
-                str=str, bytes=bytes, bool=bool,
-                float=float, int=int, Decimal=Decimal,
-                datetime=datetime, dict=dict, list=list, tuple=tuple,
-                None_t=None):
+def _write_item(v: Any,
+                write: Callable,
+                bits: List[int],
+                pack: Callable = pack,
+                str: Any = str,
+                bytes: Any = bytes,
+                bool: Any = bool,
+                float: Any = float,
+                int: Any = int,
+                Decimal: Any = Decimal,
+                datetime: Any = datetime,
+                dict: Any = dict,
+                list: Any = list,
+                tuple: Any = tuple,
+                None_t: Any = None) -> None:
     if isinstance(v, (str, bytes)):
         if isinstance(v, str):
             v = v.encode('utf-8')
@@ -396,8 +411,11 @@ def _write_item(v, write, bits, pack=pack,
         raise ValueError()
 
 
-def decode_properties_basic(buf, offset=0,
-                            unpack_from=unpack_from, pstr_t=pstr_t):
+def decode_properties_basic(
+        buf: bytes,
+        offset: int = 0,
+        unpack_from: Callable = unpack_from,
+        pstr_t: Callable = pstr_t) -> Tuple[Dict[str, Any], int]:
     """Decode basic properties."""
     properties = {}
 
@@ -483,7 +501,10 @@ class GenericContent:
     CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
-    def __init__(self, frame_method=None, frame_args=None, **props):
+    def __init__(self,
+                 frame_method: method_sig_t = None,
+                 frame_args: str = None,
+                 **props) -> None:
         self.frame_method = frame_method
         self.frame_args = frame_args
 
@@ -493,7 +514,7 @@ class GenericContent:
         self.body_size = 0
         self.ready = False
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         # Look for additional properties in the 'properties'
         # dictionary, and if present - the 'delivery_info' dictionary.
         if name == '__setstate__':
@@ -504,8 +525,12 @@ class GenericContent:
             return self.properties[name]
         raise AttributeError(name)
 
-    def _load_properties(self, class_id, buf, offset=0,
-                         classes=PROPERTY_CLASSES, unpack_from=unpack_from):
+    def _load_properties(self,
+                         class_id: int,
+                         buf: bytes,
+                         offset: int = 0,
+                         classes: Mapping = PROPERTY_CLASSES,
+                         unpack_from: Callable = unpack_from) -> int:
         """Load AMQP properties.
 
         Given the raw bytes containing the property-flags and property-list
@@ -517,7 +542,7 @@ class GenericContent:
         self.properties = props
         return offset
 
-    def _serialize_properties(self):
+    def _serialize_properties(self) -> bytes:
         """Serialize AMQP properties.
 
         Serialize the 'properties' attribute (a dictionary) into
@@ -553,7 +578,7 @@ class GenericContent:
 
         return result.getvalue()
 
-    def inbound_header(self, buf, offset=0):
+    def inbound_header(self, buf: bytes, offset: int = 0) -> int:
         class_id, self.body_size = unpack_from('>HxxQ', buf, offset)
         offset += 12
         self._load_properties(class_id, buf, offset)
@@ -561,7 +586,7 @@ class GenericContent:
             self.ready = True
         return offset
 
-    def inbound_body(self, buf):
+    def inbound_body(self, buf: bytes):
         chunks = self._pending_chunks
         self.body_received += len(buf)
         if self.body_received >= self.body_size:

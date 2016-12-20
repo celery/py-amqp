@@ -1,4 +1,3 @@
-from __future__ import absolute_import, unicode_literals
 import errno
 import socket
 import pytest
@@ -294,25 +293,3 @@ class test_Transport:
         with pytest.raises(OSError):
             self.t.write('foo')
         assert not self.t.connected
-
-
-class test_TCPTransport:
-
-    class Transport(transport.TCPTransport):
-
-        def _connect(self, *args):
-            ...
-
-        def _init_socket(self, *args):
-            ...
-
-    @pytest.fixture(autouse=True)
-    def setup_transport(self):
-        self.t = self.Transport('host', 3)
-
-    def test_setup_transport(self):
-        self.t.sock = Mock()
-        self.t._setup_transport()
-        assert self.t._write is self.t.sock.sendall
-        assert self.t._read_buffer is not None
-        assert self.t._quick_recv is self.t.sock.recv

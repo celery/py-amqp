@@ -14,16 +14,15 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
 import typing
 from vine import ensure_promise, promise
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
 
-__all__ = ['AbstractChannel']
+__all__ = ['ChannelBase']
 
 
-class AbstractChannel:
+class ChannelBase:
     """Superclass for Connection and Channel.
 
     The connection is treated as channel 0, then comes

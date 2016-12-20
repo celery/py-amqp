@@ -14,15 +14,19 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
-
+from typing import Any, Callable, Optional, Set, Tuple
+from .abstract import (
+    AbstractChannel, AbstractConnection, AbstractMessage, AbstractTransport,
+)
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .utils import str_to_bytes
+
+if 0:
+    from .transport import Frame
 
 __all__ = ['frame_handler', 'frame_writer']
 
@@ -39,9 +43,16 @@ _CONTENT_METHODS = frozenset([
 #: and if it does not the message will fit into the preallocated buffer.
 FRAME_OVERHEAD = 40
 
+FrameHandlerCallback = Callable[[AbstractChannel, int, str, bytes], None]
+FrameWriterSend = Tuple[
+    int, int, spec.method_sig_t, bytes, Optional[AbstractMessage]]
 
-def frame_handler(connection, callback,
-                  unpack_from=unpack_from, content_methods=_CONTENT_METHODS):
+
+def frame_handler(
+        connection: AbstractConnection,
+        callback: FrameHandlerCallback,
+        content_methods: Set[spec.method_sig_t] = _CONTENT_METHODS,
+        unpack_from: Callable = unpack_from) -> Callable[[Frame], None]:
     """Create closure that reads frames."""
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
@@ -92,9 +103,14 @@ def frame_handler(connection, callback,
     return on_frame
 
 
-def frame_writer(connection, transport,
-                 pack=pack, pack_into=pack_into, range=range, len=len,
-                 bytes=bytes, str_to_bytes=str_to_bytes):
+def frame_writer(connection: AbstractConnection,
+                 transport: AbstractTransport,
+                 pack: Callable = pack,
+                 pack_into: Callable = pack_into,
+                 range: Callable = range,
+                 len: Callable = len,
+                 bytes: Any = bytes,
+                 str_to_bytes: Callable = str_to_bytes) -> Callable:
     """Create closure that writes frames."""
     write = transport.write
     flush_write_buffer = transport.flush_write_buffer

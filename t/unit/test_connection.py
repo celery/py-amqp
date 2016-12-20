@@ -1,10 +1,6 @@
-from __future__ import absolute_import, unicode_literals
-
 import pytest
 import socket
-
 from case import ContextMock, Mock, call
-
 from amqp import Connection
 from amqp import spec
 from amqp.connection import SSLError

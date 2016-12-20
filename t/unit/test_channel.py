@@ -1,9 +1,5 @@
-from __future__ import absolute_import, unicode_literals
-
 import pytest
-
 from case import ContextMock, Mock, patch
-
 from amqp import spec
 from amqp.channel import Channel
 from amqp.exceptions import ConsumerCancelled, NotFound

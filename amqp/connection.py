@@ -31,7 +31,7 @@ from vine import Thenable, ensure_promise
 from . import __version__
 from . import spec
 from . import abstract
-from .abstract_channel import AbstractChannel
+from .abstract_channel import ChannelBase
 from .channel import Channel
 from .exceptions import (
     AMQPDeprecationWarning, ChannelError, ResourceError,
@@ -89,7 +89,7 @@ ConnectionFrameWriter = Callable[
 MethodSigMethodMapping = Mapping[Tuple[Any], Tuple[Any]]
 
 
-class Connection(AbstractChannel):
+class Connection(ChannelBase):
     """AMQP Connection.
 
     The connection class provides methods for a client to establish a

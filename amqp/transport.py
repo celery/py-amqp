@@ -14,37 +14,27 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from __future__ import absolute_import, unicode_literals
-
 import asyncio
-import errno
 import re
 import socket
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from ssl import SSLError
 from struct import pack, unpack
 from typing import (
-    Any, AnyStr, ByteString, Callable, Mapping, NamedTuple,
+    Any, Callable, Dict, Mapping, NamedTuple, Tuple, Union, cast,
 )
 
 from .exceptions import UnexpectedFrame
 from .types import SSLArg
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
-from .utils import get_errno, set_cloexec
-
-try:
-    from ssl import SSLError
-except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        """Dummy SSL exception."""
-
-_UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
+from .utils import set_cloexec
 
 AMQP_PORT = 5672
 
 EMPTY_BUFFER = bytes()
 
-SIGNED_INT_MAX = 0x7FFFFFFF  # type: int
+SIGNED_INT_MAX = 0x7FFFFFFF
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
 AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
@@ -53,19 +43,18 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
 Frame = NamedTuple('Frame', [
-    ('tuple', Any),
+    ('type', int),
     ('channel', int),
-    ('data', Any),
+    ('data', bytes),
 ])
 
 # available socket options for TCP level
-KNOWN_TCP_OPTS = (
+KNOWN_TCP_OPTS = {  # type: Set[str]
     'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
     'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
     'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
     'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
-)
-
+}
 
 TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
@@ -74,11 +63,14 @@ DEFAULT_SOCKET_SETTINGS = {
     socket.TCP_NODELAY: 1,
 }
 
+StructUnpackT = Callable[
+    [Union[bytes, str], bytes], Tuple[Any]
+]
+
 if HAS_TCP_USER_TIMEOUT:
     KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
     TCP_OPTS.add(TCP_USER_TIMEOUT)
     DEFAULT_SOCKET_SETTINGS[TCP_USER_TIMEOUT] = 1000
-
 
 try:
     from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT # noqa
@@ -92,7 +84,7 @@ else:
     })
 
 
-def to_host_port(host: str, default: int = AMQP_PORT) -> (str, int):
+def to_host_port(host: str, default: int = AMQP_PORT) -> Tuple[str, int]:
     """Convert hostname:port string to host, port tuple."""
     port = default
     m = IPV6_LITERAL.match(host)
@@ -123,8 +115,8 @@ class Transport:
                  ssl: SSLArg = None,
                  **kwargs) -> None:
         self.connected = True                      # type: bool
-        self.sock = None                           # type: Socket
-        self._read_buffer = EMPTY_BUFFER           # type: ByteString
+        self.sock = None                           # type: socket.socket
+        self._read_buffer = EMPTY_BUFFER           # type: bytes
         self.host, self.port = to_host_port(host)  # type: str, int
         self.connect_timeout = connect_timeout     # type: float
         self.read_timeout = read_timeout           # type: float
@@ -175,11 +167,6 @@ class Transport:
         self.sock = self.wstream.transport._sock
         self.wstream.write(AMQP_PROTOCOL_HEADER)
         await self.wstream.drain()
-        try:
-            set_cloexec(self.sock, True)
-        except NotImplementedError:
-            pass
-        self.connected = True
 
     def _init_socket(self, socket_settings: Mapping,
                      read_timeout: float, write_timeout: float) -> None:
@@ -187,6 +174,8 @@ class Transport:
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self._set_socket_options(socket_settings)
+            with suppress(NotImplementedError):
+                set_cloexec(self.sock, True)
 
             # set socket timeouts
             for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
@@ -197,18 +186,20 @@ class Transport:
                         pack('ll', interval, 0),
                     )
             self._setup_transport()
-        except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+            self._write(AMQP_PROTOCOL_HEADER)
+        except (BlockingIOError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
 
     def _get_tcp_socket_defaults(
-            self, sock: socket.socket) -> Mapping[AnyStr, Any]:
+            self, sock: socket.socket) -> Dict[int, int]:
         return {
             opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
         }
 
-    def _set_socket_options(self, socket_settings):
+    def _set_socket_options(self, socket_settings: Mapping) -> None:
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
         final_socket_settings = dict(DEFAULT_SOCKET_SETTINGS)
         if socket_settings:
@@ -249,21 +240,22 @@ class Transport:
             if size > SIGNED_INT_MAX:
                 part1 = await read(SIGNED_INT_MAX)
                 part2 = await read(size - SIGNED_INT_MAX)
-                payload = ''.join([part1, part2])
+                payload = ''.join([cast(bytes, part1), cast(bytes, part2)])
             else:
-                payload = await read(size)
+                payload = cast(bytes, await read(size))
             read_frame_buffer += payload
-            ch = ord(await read(1))
+            ch = ord(cast(bytes, await read(1)))
         except socket.timeout:
-            self._read_buffer = read_frame_buffer + self._read_buffer
+            self._read_buffer = read_frame_buffer + cast(
+                bytes, self._read_buffer)
             raise
-        except (OSError, IOError, SSLError, socket.error) as exc:
-            # Don't disconnect for ssl read time outs
-            # http://bugs.python.org/issue10272
-            if isinstance(exc, SSLError) and 'timed out' in str(exc):
+        except SSLError as exc:
+            if 'timed out' in str(exc):
                 raise socket.timeout()
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+        except (BlockingIOError, FileNotFoundError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
         if ch == 206:  # '\xce'
             return Frame(frame_type, channel, payload)
@@ -271,14 +263,15 @@ class Transport:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
-    def write(self, s: ByteString) -> None:
+    def write(self, s: bytes) -> None:
         try:
             self._write(s)
         except socket.timeout:
             raise
-        except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
+        except (BlockingIOError, FileNotFoundError, InterruptedError):
+            raise
+        except (OSError, IOError, socket.error):
+            self.connected = False
             raise
 
 
