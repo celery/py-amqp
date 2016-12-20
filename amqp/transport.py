@@ -22,7 +22,7 @@ from contextlib import contextmanager, suppress
 from ssl import SSLError
 from struct import pack, unpack
 from typing import (
-    Any, Callable, Dict, Mapping, NamedTuple, Tuple, Union, cast,
+    Any, Callable, Dict, Mapping, NamedTuple, Tuple, Union,
 )
 
 from .exceptions import UnexpectedFrame
@@ -161,7 +161,6 @@ class Transport:
             finally:
                 if timeout != prev:
                     sock.settimeout(prev)
-
 
     def _init_socket(self, socket_settings: Mapping,
                      read_timeout: float, write_timeout: float) -> None:

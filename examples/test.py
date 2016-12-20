@@ -1,5 +1,4 @@
 import asyncio
-
 from amqp import Connection, Channel, Message
 
 
@@ -13,7 +12,6 @@ class Driver:
 
     async def connect(self) -> Connection:
         self.connection = Connection()
-        print('CONNECTION IS: %r' % (self.connection,))
         await self.connection.connect()
         return self.connection
 

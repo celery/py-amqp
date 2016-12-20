@@ -2,7 +2,6 @@ import pytest
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
-
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack

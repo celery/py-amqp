@@ -1,4 +1,3 @@
-from __future__ import absolute_import, unicode_literals
 import pytest
 from amqp.platform import _linux_version_to_tuple
 
