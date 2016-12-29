@@ -171,6 +171,13 @@ class test_Connection:
         self.conn.channels[1].collect.side_effect = socket.error()
         self.conn.collect()
 
+    def test_collect_no_transport(self):
+        self.conn = Connection()
+        self.conn.connect = Mock(name='connect')
+        assert not self.conn.connected
+        self.conn.collect()
+        assert not self.conn.connect.called
+
     def test_get_free_channel_id__raises_IndexError(self):
         self.conn._avail_channel_ids = []
         with pytest.raises(ResourceError):
