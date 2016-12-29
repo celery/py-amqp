@@ -26,7 +26,7 @@ from contextlib import contextmanager
 from .exceptions import UnexpectedFrame
 from .five import items
 from .platform import (
-    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT,
+    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT, SKIP_KNOWN_TCP_OPTS,
     pack, unpack,
 )
 from .utils import get_errno, set_cloexec
@@ -58,9 +58,14 @@ KNOWN_TCP_OPTS = (
     'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
     'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
 )
-TCP_OPTS = {
-    getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
-}
+
+if SKIP_KNOWN_TCP_OPTS:
+    TCP_OPTS = {}
+else:
+    TCP_OPTS = {
+        getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
+    }
+
 DEFAULT_SOCKET_SETTINGS = {
     socket.TCP_NODELAY: 1,
 }
