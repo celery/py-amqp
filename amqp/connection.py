@@ -21,11 +21,10 @@ import socket
 import uuid
 import warnings
 
-from io import BytesIO
-
 from vine import ensure_promise
 
 from . import __version__
+from . import sasl
 from . import spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
@@ -36,7 +35,6 @@ from .exceptions import (
 )
 from .five import array, items, monotonic, range, values
 from .method_framing import frame_handler, frame_writer
-from .serialization import _write_table
 from .transport import Transport
 
 try:
@@ -100,8 +98,9 @@ class Connection(AbstractChannel):
     (defaults to 'localhost', if a port is not specified then
     5672 is used)
 
-    If login_response is not specified, one is built up for you from
-    userid and password if they are present.
+    Authentication can be controlled by passing one or more
+    `amqp.sasl.SASL` instances as the `authentication` parameter, or
+    by using the userid and password parameters (for AMQPLAIN and PLAIN).
 
     The 'ssl' parameter may be simply True/False, or for Python >= 2.6
     a dictionary of options to pass to ssl.wrap_socket() such as
@@ -188,7 +187,8 @@ class Connection(AbstractChannel):
     )
 
     def __init__(self, host='localhost:5672', userid='guest', password='guest',
-                 login_method='AMQPLAIN', login_response=None,
+                 login_method=None, login_response=None,
+                 authentication=(),
                  virtual_host='/', locale='en_US', client_properties=None,
                  ssl=False, connect_timeout=None, channel_max=None,
                  frame_max=None, heartbeat=0, on_open=None, on_blocked=None,
@@ -199,20 +199,22 @@ class Connection(AbstractChannel):
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
-        if (login_response is None) \
-                and (userid is not None) \
-                and (password is not None):
-            login_response = BytesIO()
-            _write_table({'LOGIN': userid, 'PASSWORD': password},
-                         login_response.write, [])
-            # Skip the length at the beginning
-            login_response = login_response.getvalue()[4:]
+        if authentication:
+            if isinstance(authentication, sasl.SASL):
+                authentication = (authentication,)
+            self.authentication = authentication
+        elif login_method is not None and login_response is not None:
+            self.authentication = (sasl.RAW(login_method, login_response),)
+        elif userid is not None and password is not None:
+            self.authentication = (sasl.GSSAPI(userid, fail_soft=True),
+                                   sasl.AMQPLAIN(userid, password),
+                                   sasl.PLAIN(userid, password))
+        else:
+            raise ValueError("Must supply authentication or userid/password")
 
         self.client_properties = dict(
             self.library_properties, **client_properties or {}
         )
-        self.login_method = login_method
-        self.login_response = login_response
         self.locale = locale
         self.host = host
         self.virtual_host = virtual_host
@@ -342,7 +344,7 @@ class Connection(AbstractChannel):
         self.version_major = version_major
         self.version_minor = version_minor
         self.server_properties = server_properties
-        self.mechanisms = mechanisms.split(' ')
+        self.mechanisms = mechanisms.split(b' ')
         self.locales = locales.split(' ')
         AMQP_LOGGER.debug(
             START_DEBUG_FMT,
@@ -363,10 +365,24 @@ class Connection(AbstractChannel):
             # this key present in client_properties, so we remove it.
             client_properties.pop('capabilities', None)
 
+        for authentication in self.authentication:
+            if authentication.mechanism in self.mechanisms:
+                login_response = authentication.start(self)
+                if login_response is not NotImplemented:
+                    break
+        else:
+            raise ConnectionError(
+                "Couldn't find appropriate auth mechanism "
+                "(can offer: {0}; available: {1})".format(
+                    b", ".join(m.mechanism
+                               for m in self.authentication
+                               if m.mechanism).decode(),
+                    b", ".join(self.mechanisms).decode()))
+
         self.send_method(
             spec.Connection.StartOk, argsig,
-            (client_properties, self.login_method,
-             self.login_response, self.locale),
+            (client_properties, authentication.mechanism,
+             login_response, self.locale),
         )
 
     def _on_secure(self, challenge):
