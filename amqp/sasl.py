@@ -134,6 +134,7 @@ def _get_gssapi_mechanism():
                         raise
         return GSSAPI
 
+
 GSSAPI = _get_gssapi_mechanism()
 
 
