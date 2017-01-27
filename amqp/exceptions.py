@@ -1,5 +1,4 @@
-"""Exceptions used by amqp."""
-# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
+"""Exceptions used by amqp.""" # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,7 +13,9 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+from typing import Any, Mapping
 from struct import pack, unpack
+from .spec import method_sig_t
 
 __all__ = [
     'AMQPError',
@@ -40,8 +41,11 @@ class AMQPError(Exception):
 
     code = 0
 
-    def __init__(self, reply_text=None, method_sig=None,
-                 method_name=None, reply_code=None):
+    def __init__(self,
+                 reply_text: str = None,
+                 method_sig: method_sig_t = None,
+                 method_name: str = None,
+                 reply_code: int = None) -> None:
         self.message = reply_text
         self.reply_code = reply_code or self.code
         self.reply_text = reply_text
@@ -52,13 +56,13 @@ class AMQPError(Exception):
         Exception.__init__(self, reply_code,
                            reply_text, method_sig, self.method_name)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.method:
             return '{0.method}: ({0.reply_code}) {0.reply_text}'.format(self)
         return self.reply_text or '<AMQPError: unknown error>'
 
     @property
-    def method(self):
+    def method(self) -> Any:
         return self.method_name or self.method_sig
 
 
@@ -196,7 +200,7 @@ class InternalError(IrrecoverableConnectionError):
     code = 541
 
 
-ERROR_MAP = {
+ERROR_MAP = {  # type: Mapping[int, type]
     311: ContentTooLarge,
     313: NoConsumers,
     320: ConnectionForced,
@@ -217,14 +221,14 @@ ERROR_MAP = {
 }
 
 
-def error_for_code(code, text, method, default):
+def error_for_code(code: int, text: str, method: Any, default: type):
     try:
         return ERROR_MAP[code](text, method, reply_code=code)
     except KeyError:
         return default(text, method, reply_code=code)
 
 
-METHOD_NAME_MAP = {
+METHOD_NAME_MAP = {  # type: Mapping[method_sig_t, str]
     (10, 10): 'Connection.start',
     (10, 11): 'Connection.start_ok',
     (10, 20): 'Connection.secure',

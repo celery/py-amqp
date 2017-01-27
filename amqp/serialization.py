@@ -23,13 +23,10 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-from typing import (
-    Any, Callable, Dict, List,
-    Mapping, Sequence, Tuple,
-)
+from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple
 from .spec import Basic, method_sig_t
 from .exceptions import FrameSyntaxError
-from .utils import bytes_to_str as pstr_t, str_to_bytes
+from .utils import want_bytes, want_str
 
 ILLEGAL_TABLE_TYPE = """\
     Table type {0!r} not handled by amqp.
@@ -55,13 +52,13 @@ def _read_item(buf: bytes,
     if ftype == 'S':
         slen, = unpack_from('>I', buf, offset)
         offset += 4
-        val = pstr_t(buf[offset:offset + slen])
+        val = want_str(buf[offset:offset + slen])
         offset += slen
     # 's': short string
     elif ftype == 's':
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        val = pstr_t(buf[offset:offset + slen])
+        val = want_str(buf[offset:offset + slen])
         offset += slen
     # 'b': short-short int
     elif ftype == 'b':
@@ -119,7 +116,7 @@ def _read_item(buf: bytes,
         while offset < limit:
             keylen, = unpack_from('>B', buf, offset)
             offset += 1
-            key = pstr_t(buf[offset:offset + keylen])
+            key = want_str(buf[offset:offset + keylen])
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
@@ -152,28 +149,30 @@ def _read_item(buf: bytes,
 
 
 def loads(format: str, buf: bytes, offset: int = 0,
-          ord: Callable=ord, unpack_from: Callable=unpack_from,
-          _read_item: Callable=_read_item,
-          pstr_t: Callable=pstr_t) -> Tuple[Sequence, int]:
+          ord: Callable = ord,
+          unpack_from: Callable = unpack_from,
+          _read_item: Callable = _read_item,
+          want_str: Callable = want_str) -> Tuple[Sequence, int]:
     """Deserialize amqp format.
 
-    bit = b
-    octet = o
-    short = B
-    long = l
-    long long = L
-    float = f
-    shortstr = s
-    longstr = S
-    table = F
-    array = A
-    timestamp = T
+    Notes:
+        bit = b
+        octet = o
+        short = B
+        long = l
+        long long = L
+        float = f
+        shortstr = s
+        longstr = S
+        table = F
+        array = A
+        timestamp = T
     """
     bitcount = bits = 0
 
     values = []
     append = values.append
-    format = pstr_t(format)
+    format = want_str(format)
 
     for p in format:
         if p == 'b':
@@ -225,7 +224,7 @@ def loads(format: str, buf: bytes, offset: int = 0,
             while offset < limit:
                 keylen, = unpack_from('>B', buf, offset)
                 offset += 1
-                key = pstr_t(buf[offset:offset + keylen])
+                key = want_str(buf[offset:offset + keylen])
                 offset += keylen
                 val[key], offset = _read_item(buf, offset)
         elif p == 'A':
@@ -248,7 +247,8 @@ def loads(format: str, buf: bytes, offset: int = 0,
     return values, offset
 
 
-def _flushbits(bits: int, write: Callable, pack: Callable=pack) -> int:
+def _flushbits(bits: List[int], write: Callable,
+               pack: Callable = pack) -> int:
     if bits:
         write(pack('B' * len(bits), *bits))
         bits[:] = []
@@ -269,11 +269,11 @@ def dumps(format: str, values: Sequence[Any]) -> bytes:
         table = F
         array = A
     """
-    bitcount = 0             # type: int
-    bits = []                # type: List[int]
-    out = BytesIO()          # type: BytesIO
-    write = out.write        # type: Callable[[bytes], None]
-    format = pstr_t(format)  # type: bytes
+    bitcount = 0                   # type: int
+    bits = []                      # type: List[int]
+    out = BytesIO()                # type: BytesIO
+    write = out.write              # type: Callable[[bytes], None]
+    format = want_str(format)      # type: bytes
 
     for i, val in enumerate(values):
         p = format[i]
@@ -415,7 +415,7 @@ def decode_properties_basic(
         buf: bytes,
         offset: int = 0,
         unpack_from: Callable = unpack_from,
-        pstr_t: Callable = pstr_t) -> Tuple[Dict[str, Any], int]:
+        want_str: Callable = want_str) -> Tuple[Dict[str, Any], int]:
     """Decode basic properties."""
     properties = {}
 
@@ -425,12 +425,12 @@ def decode_properties_basic(
     if flags & 0x8000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_type'] = pstr_t(buf[offset:offset + slen])
+        properties['content_type'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x4000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_encoding'] = pstr_t(buf[offset:offset + slen])
+        properties['content_encoding'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x2000:
         _f, offset = loads('F', buf, offset)
@@ -444,22 +444,22 @@ def decode_properties_basic(
     if flags & 0x0400:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['correlation_id'] = pstr_t(buf[offset:offset + slen])
+        properties['correlation_id'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0200:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['reply_to'] = pstr_t(buf[offset:offset + slen])
+        properties['reply_to'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0100:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['expiration'] = pstr_t(buf[offset:offset + slen])
+        properties['expiration'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0080:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['message_id'] = pstr_t(buf[offset:offset + slen])
+        properties['message_id'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0040:
         properties['timestamp'], = unpack_from('>Q', buf, offset)
@@ -467,22 +467,22 @@ def decode_properties_basic(
     if flags & 0x0020:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['type'] = pstr_t(buf[offset:offset + slen])
+        properties['type'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0010:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['user_id'] = pstr_t(buf[offset:offset + slen])
+        properties['user_id'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0008:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['app_id'] = pstr_t(buf[offset:offset + slen])
+        properties['app_id'] = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0004:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['cluster_id'] = pstr_t(buf[offset:offset + slen])
+        properties['cluster_id'] = want_str(buf[offset:offset + slen])
         offset += slen
     return properties, offset
 
@@ -565,7 +565,7 @@ class GenericContent:
 
                 flag_bits |= (1 << shift)
                 if proptype != 'bit':
-                    sformat.append(str_to_bytes(proptype))
+                    sformat.append(want_bytes(proptype))
                     svalues.append(val)
 
             shift -= 1

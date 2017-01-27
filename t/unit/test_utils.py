@@ -1,5 +1,5 @@
 from case import Mock, patch
-from amqp.utils import get_errno, str_to_bytes, bytes_to_str, get_logger
+from amqp.utils import get_errno, want_bytes, want_str, get_logger
 
 
 class test_get_errno:
@@ -22,22 +22,22 @@ class test_get_errno:
         assert not get_errno(object())
 
 
-class test_str_to_bytes:
+class test_want_bytes:
 
     def test_from_unicode(self):
-        assert isinstance(str_to_bytes('foo'), bytes)
+        assert isinstance(want_bytes('foo'), bytes)
 
     def test_from_bytes(self):
-        assert isinstance(str_to_bytes(b'foo'), bytes)
+        assert isinstance(want_bytes(b'foo'), bytes)
 
 
-class test_bytes_to_str:
+class test_want_str:
 
     def test_from_unicode(self):
-        assert isinstance(bytes_to_str('foo'), str)
+        assert isinstance(want_str('foo'), str)
 
     def test_from_bytes(self):
-        assert bytes_to_str(b'foo')
+        assert want_str(b'foo')
 
 
 class test_get_logger:
@@ -48,7 +48,7 @@ class test_get_logger:
         getLogger.assert_called_with('foo.bar')
         assert x is getLogger()
 
-    @patch('amqp.utils.NullHandler')
+    @patch('logging.NullHandler')
     def test_as_logger(self, _NullHandler):
         m = Mock(name='logger')
         m.handlers = None

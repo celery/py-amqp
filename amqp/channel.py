@@ -19,7 +19,8 @@ import socket
 from collections import defaultdict
 from queue import Queue
 from warnings import warn
-from vine import ensure_promise
+from vine import Thenable, ensure_promise
+from typing import Any, Callable, Mapping, Optional
 from . import spec
 from .abstract_channel import ChannelBase
 from .exceptions import (
@@ -27,6 +28,9 @@ from .exceptions import (
     RecoverableChannelError, RecoverableConnectionError, error_for_code,
 )
 from .protocol import queue_declare_ok_t
+from .spec import method_sig_t
+from .types import ConnectionT, MessageT
+from .utils import coroutine
 
 __all__ = ['Channel']
 
@@ -107,8 +111,10 @@ class Channel(ChannelBase):
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
-    def __init__(self, connection,
-                 channel_id=None, auto_decode=True, on_open=None):
+    def __init__(self, connection: ConnectionT,
+                 channel_id: int = None,
+                 auto_decode: bool = True,
+                 on_open: Thenable = None) -> None:
         if channel_id:
             connection._claim_channel_id(channel_id)
         else:
@@ -135,10 +141,11 @@ class Channel(ChannelBase):
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
 
-    def then(self, on_success, on_error=None):
+    def then(self, on_success: Thenable,
+             on_error: Thenable = None) -> Thenable:
         return self.on_open.then(on_success, on_error)
 
-    def _setup_listeners(self):
+    def _setup_listeners(self) -> None:
         self._callbacks.update({
             spec.Channel.Close: self._on_close,
             spec.Channel.CloseOk: self._on_close_ok,
@@ -151,7 +158,7 @@ class Channel(ChannelBase):
             spec.Basic.Ack: self._on_basic_ack,
         })
 
-    def collect(self):
+    def collect(self) -> None:
         """Tear down this object.
 
         Best called after we've agreed to close with the server.
@@ -168,12 +175,17 @@ class Channel(ChannelBase):
         self.events.clear()
         self.no_ack_consumers.clear()
 
-    async def _do_revive(self):
+    @coroutine
+    def _do_revive(self) -> None:
         self.is_open = False
-        self.open()
+        yield from self.open()
 
-    async def close(self, reply_code=0, reply_text='',
-                    method_sig=(0, 0), argsig='BsBB'):
+    @coroutine
+    def close(self,
+              reply_code: int = 0,
+              reply_text: str = '',
+              method_sig: method_sig_t = (0, 0),
+              argsig: str = 'BsBB') -> None:
         """Request a channel close.
 
         This method indicates that the sender wants to close the
@@ -225,18 +237,18 @@ class Channel(ChannelBase):
                 self.connection is None or
                 self.connection.channels is None
             )
-            if is_closed:
-                return
-
-            return await self.send_method(
-                spec.Channel.Close, argsig,
-                (reply_code, reply_text, method_sig[0], method_sig[1]),
-                wait=spec.Channel.CloseOk,
-            )
+            if not is_closed:
+                yield from self.send_method(
+                    spec.Channel.Close, argsig,
+                    (reply_code, reply_text, method_sig[0], method_sig[1]),
+                    wait=spec.Channel.CloseOk,
+                )
         finally:
             self.connection = None
 
-    async def _on_close(self, reply_code, reply_text, class_id, method_id):
+    @coroutine
+    def _on_close(self, reply_code: int, reply_text: int,
+                  class_id: int, method_id: int) -> None:
         """Request a channel close.
 
         This method indicates that the sender wants to close the
@@ -282,13 +294,14 @@ class Channel(ChannelBase):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        await self.send_method(spec.Channel.CloseOk)
-        await self._do_revive()
+        yield from self.send_method(spec.Channel.CloseOk)
+        yield from self._do_revive()
         raise error_for_code(
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
 
-    def _on_close_ok(self):
+    @coroutine
+    def _on_close_ok(self) -> None:
         """Confirm a channel close.
 
         This method confirms a Channel.Close method and tells the
@@ -303,7 +316,8 @@ class Channel(ChannelBase):
         """
         self.collect()
 
-    async def flow(self, active):
+    @coroutine
+    def flow(self, active: bool) -> None:
         """Enable/disable flow from peer.
 
         This method asks the peer to pause or restart the flow of
@@ -348,11 +362,12 @@ class Channel(ChannelBase):
                 If True, the peer starts sending content frames.  If
                 False, the peer stops sending content frames.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Channel.Flow, 'b', (active,), wait=spec.Channel.FlowOk,
         )
 
-    async def _on_flow(self, active):
+    @coroutine
+    def _on_flow(self, active: bool) -> None:
         """Enable/disable flow from peer.
 
         This method asks the peer to pause or restart the flow of
@@ -398,9 +413,10 @@ class Channel(ChannelBase):
                 False, the peer stops sending content frames.
         """
         self.active = active
-        return await self._x_flow_ok(self.active)
+        yield from self._x_flow_ok(self.active)
 
-    async def _x_flow_ok(self, active):
+    @coroutine
+    def _x_flow_ok(self, active: bool) -> None:
         """Confirm a flow method.
 
         Confirms to the peer that a flow command was received and
@@ -415,9 +431,10 @@ class Channel(ChannelBase):
                 True means the peer will start sending or continue
                 to send content frames; False means it will not.
         """
-        return await self.send_method(spec.Channel.FlowOk, 'b', (active,))
+        yield from self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
-    async def open(self):
+    @coroutine
+    def open(self) -> None:
         """Open a channel for use.
 
         This method opens a virtual connection (a channel).
@@ -436,21 +453,20 @@ class Channel(ChannelBase):
                 syntax and meaning of this field will be formally
                 defined at a later date.
         """
-        if self.is_open:
-            return
+        if not self.is_open:
+            yield from self.send_method(
+                spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
+            )
 
-        return await self.send_method(
-            spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
-        )
-
-    async def _on_open_ok(self):
+    @coroutine
+    def _on_open_ok(self) -> None:
         """Signal that the channel is ready.
 
         This method signals to the client that the channel is ready
         for use.
         """
         self.is_open = True
-        self.on_open(self)
+        yield from self.on_open(self)
         logger.debug('Channel open')
 
     #############
@@ -492,10 +508,14 @@ class Channel(ChannelBase):
     #     exception with reply code 507 (not allowed).
     #
 
-    async def exchange_declare(self, exchange, type,
-                               passive=False, durable=False,
-                               auto_delete=True, nowait=False,
-                               arguments=None, argsig='BssbbbbbF'):
+    @coroutine
+    def exchange_declare(self, exchange: str, type: str,
+                         passive: bool = False,
+                         durable: bool = False,
+                         auto_delete: bool = True,
+                         nowait: bool = False,
+                         arguments: Mapping[str, Any] = None,
+                         argsig: str = 'BssbbbbbF') -> None:
         """Declare exchange, create if needed.
 
         This method creates an exchange if it does not already exist,
@@ -619,16 +639,18 @@ class Channel(ChannelBase):
         if auto_delete:
             warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
 
-        return await self.send_method(
+        yield from self.send_method(
             spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,
              False, nowait, arguments),
             wait=None if nowait else spec.Exchange.DeclareOk,
         )
 
-    async def exchange_delete(self, exchange,
-                              if_unused=False, nowait=False,
-                              argsig='Bsbb'):
+    @coroutine
+    def exchange_delete(self, exchange: str,
+                        if_unused: bool = False,
+                        nowait: bool = False,
+                        argsig: str = 'Bsbb') -> None:
         """Delete an exchange.
 
         This method deletes an exchange.  When an exchange is deleted
@@ -670,13 +692,18 @@ class Channel(ChannelBase):
                 server could not complete the method it will raise a
                 channel or connection exception.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Exchange.Delete, argsig, (0, exchange, if_unused, nowait),
             wait=None if nowait else spec.Exchange.DeleteOk,
         )
 
-    async def exchange_bind(self, destination, source='', routing_key='',
-                            nowait=False, arguments=None, argsig='BsssbF'):
+    @coroutine
+    def exchange_bind(self, destination: str,
+                      source: str = '',
+                      routing_key: str = '',
+                      nowait: bool = False,
+                      arguments: Mapping[str, Any] = None,
+                      argsig: str = 'BsssbF') -> None:
         """Bind an exchange to an exchange.
 
         RULE:
@@ -747,14 +774,19 @@ class Channel(ChannelBase):
                 semantics of these arguments depends on the exchange
                 class.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Exchange.Bind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
             wait=None if nowait else spec.Exchange.BindOk,
         )
 
-    async def exchange_unbind(self, destination, source='', routing_key='',
-                              nowait=False, arguments=None, argsig='BsssbF'):
+    @coroutine
+    def exchange_unbind(self, destination: str,
+                        source: str = '',
+                        routing_key: str = '',
+                        nowait: bool = False,
+                        arguments: Mapping[str, Any] = None,
+                        argsig: str = 'BsssbF') -> None:
         """Unbind an exchange from an exchange.
 
         RULE:
@@ -804,7 +836,7 @@ class Channel(ChannelBase):
 
                 Specifies the arguments of the binding to unbind.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Exchange.Unbind, argsig,
             (0, destination, source, routing_key, nowait, arguments),
             wait=None if nowait else spec.Exchange.UnbindOk,
@@ -836,8 +868,13 @@ class Channel(ChannelBase):
     #     content off queues are specific to a given content class.
     #
 
-    async def queue_bind(self, queue, exchange='', routing_key='',
-                         nowait=False, arguments=None, argsig='BsssbF'):
+    @coroutine
+    def queue_bind(self, queue: str,
+                   exchange: str = '',
+                   routing_key: str = '',
+                   nowait: bool = False,
+                   arguments: Mapping[str, Any] = None,
+                   argsig: str = 'BsssbF') -> None:
         """Bind queue to an exchange.
 
         This method binds a queue to an exchange.  Until a queue is
@@ -935,14 +972,18 @@ class Channel(ChannelBase):
                 semantics of these arguments depends on the exchange
                 class.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Queue.Bind, argsig,
             (0, queue, exchange, routing_key, nowait, arguments),
             wait=None if nowait else spec.Queue.BindOk,
         )
 
-    async def queue_unbind(self, queue, exchange, routing_key='',
-                           nowait=False, arguments=None, argsig='BsssF'):
+    @coroutine
+    def queue_unbind(self, queue: str, exchange: str,
+                     routing_key: str = '',
+                     nowait: bool = False,
+                     arguments: Mapping[str, Any] = None,
+                     argsig: str = 'BsssF') -> None:
         """Unbind a queue from an exchange.
 
         This method unbinds a queue from an exchange.
@@ -992,15 +1033,23 @@ class Channel(ChannelBase):
 
                 Specifies the arguments of the binding to unbind.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Queue.Unbind, argsig,
             (0, queue, exchange, routing_key, arguments),
             wait=None if nowait else spec.Queue.UnbindOk,
         )
 
-    async def queue_declare(self, queue='', passive=False, durable=False,
-                            exclusive=False, auto_delete=True, nowait=False,
-                            arguments=None, argsig='BsbbbbbF'):
+    @coroutine
+    def queue_declare(
+            self,
+            queue: str = '',
+            passive: bool = False,
+            durable: bool = False,
+            exclusive: bool = False,
+            auto_delete: bool = True,
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BsbbbbbF') -> Optional[queue_declare_ok_t]:
         """Declare queue, create if needed.
 
         This method creates or checks a queue.  When creating a new
@@ -1152,20 +1201,24 @@ class Channel(ChannelBase):
             message count
             consumer count
         """
-        await self.send_method(
+        yield from self.send_method(
             spec.Queue.Declare, argsig,
             (0, queue, passive, durable, exclusive, auto_delete,
              nowait, arguments),
         )
         if not nowait:
-            ret = await self.wait(
+            ret = yield from self.wait(
                 spec.Queue.DeclareOk, returns_tuple=True,
             )
             return queue_declare_ok_t(*ret)
 
-    async def queue_delete(self, queue='',
-                           if_unused=False, if_empty=False, nowait=False,
-                           argsig='Bsbbb'):
+    @coroutine
+    def queue_delete(self,
+                     queue: str = '',
+                     if_unused: bool = False,
+                     if_empty: bool = False,
+                     nowait: bool = False,
+                     argsig: str = 'Bsbbb') -> None:
         """Delete a queue.
 
         This method deletes a queue.  When a queue is deleted any
@@ -1230,13 +1283,17 @@ class Channel(ChannelBase):
                 server could not complete the method it will raise a
                 channel or connection exception.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Queue.Delete, argsig,
             (0, queue, if_unused, if_empty, nowait),
             wait=None if nowait else spec.Queue.DeleteOk,
         )
 
-    async def queue_purge(self, queue='', nowait=False, argsig='Bsb'):
+    @coroutine
+    def queue_purge(self,
+                    queue: str = '',
+                    nowait: bool = False,
+                    argsig: str = 'Bsb') -> Optional[int]:
         """Purge a queue.
 
         This method removes all messages from a queue.  It does not
@@ -1291,7 +1348,7 @@ class Channel(ChannelBase):
 
         if nowait is False, returns a message_count
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Queue.Purge, argsig, (0, queue, nowait),
             wait=None if nowait else spec.Queue.PurgeOk,
         )
@@ -1356,7 +1413,10 @@ class Channel(ChannelBase):
     #     acknowledgments on Basic content.
     #
 
-    async def basic_ack(self, delivery_tag, multiple=False, argsig='Lb'):
+    @coroutine
+    def basic_ack(self, delivery_tag: str,
+                  multiple: bool = False,
+                  argsig: str = 'Lb') -> None:
         """Acknowledge one or more messages.
 
         This method acknowledges one or more messages delivered via
@@ -1402,11 +1462,14 @@ class Channel(ChannelBase):
                     tag refers to an delivered message, and raise a
                     channel exception if this is not the case.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Basic.Ack, argsig, (delivery_tag, multiple),
         )
 
-    async def basic_cancel(self, consumer_tag, nowait=False, argsig='sb'):
+    @coroutine
+    def basic_cancel(self, consumer_tag: str,
+                     nowait: bool = False,
+                     argsig: str = 'sb') -> None:
         """End a queue consumer.
 
         This method cancels a consumer. This does not affect already
@@ -1447,12 +1510,13 @@ class Channel(ChannelBase):
         """
         if self.connection is not None:
             self.no_ack_consumers.discard(consumer_tag)
-            return await self.send_method(
+            yield from self.send_method(
                 spec.Basic.Cancel, argsig, (consumer_tag, nowait),
                 wait=None if nowait else spec.Basic.CancelOk,
             )
 
-    async def _on_basic_cancel(self, consumer_tag):
+    @coroutine
+    def _on_basic_cancel(self, consumer_tag: str) -> None:
         """Consumer cancelled by server.
 
         Most likely the queue was deleted.
@@ -1460,21 +1524,30 @@ class Channel(ChannelBase):
         """
         callback = self._remove_tag(consumer_tag)
         if callback:
-            await callback(consumer_tag)
+            yield from callback(consumer_tag)
         else:
             raise ConsumerCancelled(consumer_tag, spec.Basic.Cancel)
 
-    def _on_basic_cancel_ok(self, consumer_tag):
+    @coroutine
+    def _on_basic_cancel_ok(self, consumer_tag: str) -> None:
         self._remove_tag(consumer_tag)
 
-    def _remove_tag(self, consumer_tag):
+    def _remove_tag(self, consumer_tag: str) -> None:
         self.callbacks.pop(consumer_tag, None)
         return self.cancel_callbacks.pop(consumer_tag, None)
 
-    async def basic_consume(self, queue='', consumer_tag='', no_local=False,
-                            no_ack=False, exclusive=False, nowait=False,
-                            callback=None, arguments=None, on_cancel=None,
-                            argsig='BssbbbbF'):
+    @coroutine
+    def basic_consume(self,
+                      queue: str = '',
+                      consumer_tag: str = '',
+                      no_local: bool = False,
+                      no_ack: bool = False,
+                      exclusive: bool = False,
+                      nowait: bool = False,
+                      callback: Callable = None,
+                      arguments: Mapping[str, Any] = None,
+                      on_cancel: Callable = None,
+                      argsig: str = 'BssbbbbF') -> None:
         """Start a queue consumer.
 
         This method asks the server to start a "consumer", which is a
@@ -1569,7 +1642,7 @@ class Channel(ChannelBase):
                 messages are quietly discarded, no_ack should probably
                 be set to True in that case.
         """
-        p = await self.send_method(
+        p = yield from self.send_method(
             spec.Basic.Consume, argsig,
             (0, queue, consumer_tag, no_local, no_ack, exclusive,
              nowait, arguments),
@@ -1588,8 +1661,10 @@ class Channel(ChannelBase):
             self.no_ack_consumers.add(consumer_tag)
         return p
 
-    async def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
-                                exchange, routing_key, msg):
+    @coroutine
+    def _on_basic_deliver(self, consumer_tag: str, delivery_tag: str,
+                          redelivered: bool, exchange: str, routing_key: str,
+                          msg: MessageT):
         msg.channel = self
         msg.delivery_info = {
             'consumer_tag': consumer_tag,
@@ -1606,11 +1681,15 @@ class Channel(ChannelBase):
                 REJECTED_MESSAGE_WITHOUT_CALLBACK,
                 delivery_tag, consumer_tag, exchange, routing_key,
             )
-            return await self.basic_reject(delivery_tag, requeue=True)
+            yield from self.basic_reject(delivery_tag, requeue=True)
         else:
-            return await fun(msg)
+            yield from fun(msg)
 
-    async def basic_get(self, queue='', no_ack=False, argsig='Bsb'):
+    @coroutine
+    def basic_get(self,
+                  queue: str = '',
+                  no_ack: bool = False,
+                  argsig: str = 'Bsb') -> Optional[MessageT]:
         """Direct access to a queue.
 
         This method provides a direct access to the messages in a
@@ -1646,19 +1725,22 @@ class Channel(ChannelBase):
 
         Non-blocking, returns a message object, or None.
         """
-        ret = await self.send_method(
+        ret = yield from self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
             wait=[spec.Basic.GetOk, spec.Basic.GetEmpty], returns_tuple=True,
         )
         if not ret or len(ret) < 2:
-            return await self._on_get_empty(*ret)
-        return await self._on_get_ok(*ret)
+            yield from self._on_get_empty(*ret)
+        yield from self._on_get_ok(*ret)
 
-    async def _on_get_empty(self, cluster_id=None):
+    @coroutine
+    def _on_get_empty(self, cluster_id: str = None) -> None:
         ...
 
-    async def _on_get_ok(self, delivery_tag, redelivered,
-                         exchange, routing_key, message_count, msg):
+    @coroutine
+    def _on_get_ok(self, delivery_tag: str, redelivered: bool,
+                   exchange: str, routing_key: str,
+                   message_count: int, msg: MessageT) -> MessageT:
         msg.channel = self
         msg.delivery_info = {
             'delivery_tag': delivery_tag,
@@ -1669,9 +1751,14 @@ class Channel(ChannelBase):
         }
         yield msg
 
-    async def _basic_publish(self, msg, exchange='', routing_key='',
-                             mandatory=False, immediate=False, timeout=None,
-                             argsig='Bssbb'):
+    @coroutine
+    def _basic_publish(self, msg: MessageT,
+                       exchange: str = '',
+                       routing_key: str = '',
+                       mandatory: bool = False,
+                       immediate: bool = False,
+                       timeout: float = None,
+                       argsig: str = 'Bssbb') -> None:
         """Publish a message.
 
         This method publishes a message to a specific exchange. The
@@ -1741,7 +1828,7 @@ class Channel(ChannelBase):
                 'basic_publish: connection closed')
         try:
             with self.connection.transport.having_timeout(timeout):
-                return await self.send_method(
+                yield from self.send_method(
                     spec.Basic.Publish, argsig,
                     (0, exchange, routing_key, mandatory, immediate), msg
                 )
@@ -1749,16 +1836,20 @@ class Channel(ChannelBase):
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
 
-    async def basic_publish_confirm(self, *args, **kwargs):
+    @coroutine
+    def basic_publish_confirm(self, *args, **kwargs) -> None:
         if not self._confirm_selected:
             self._confirm_selected = True
-            self.confirm_select()
-        ret = await self._basic_publish(*args, **kwargs)
-        await self.wait(spec.Basic.Ack)
-        yield ret
+            yield from self.confirm_select()
+        yield from self._basic_publish(*args, **kwargs)
+        yield from self.wait(spec.Basic.Ack)
 
-    async def basic_qos(self, prefetch_size, prefetch_count, a_global,
-                        argsig='lBb'):
+    @coroutine
+    def basic_qos(self,
+                  prefetch_size: int,
+                  prefetch_count: int,
+                  a_global: bool,
+                  argsig: str = 'lBb') -> None:
         """Specify quality of service.
 
         This method requests a specific quality of service.  The QoS
@@ -1821,12 +1912,13 @@ class Channel(ChannelBase):
                 channel only.  If this field is set, they are applied
                 to the entire connection.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
             wait=spec.Basic.QosOk,
         )
 
-    async def basic_recover(self, requeue=False):
+    @coroutine
+    def basic_recover(self, requeue: bool = False) -> None:
         """Redeliver unacknowledged messages.
 
         This method asks the broker to redeliver all unacknowledged
@@ -1855,13 +1947,16 @@ class Channel(ChannelBase):
                 potentially then delivering it to an alternative
                 subscriber.
         """
-        return await self.send_method(spec.Basic.Recover, 'b', (requeue,))
+        yield from self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
-    async def basic_recover_async(self, requeue=False):
-        return await self.send_method(
+    @coroutine
+    def basic_recover_async(self, requeue: bool = False) -> None:
+        yield from self.send_method(
             spec.Basic.RecoverAsync, 'b', (requeue,))
 
-    async def basic_reject(self, delivery_tag, requeue, argsig='Lb'):
+    @coroutine
+    def basic_reject(self, delivery_tag: str, requeue: bool,
+                     argsig: str = 'Lb') -> None:
         """Reject an incoming message.
 
         This method allows a client to reject a message.  It can be
@@ -1930,12 +2025,14 @@ class Channel(ChannelBase):
                     queue and redeliver it to the same client at a
                     later stage.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Basic.Reject, argsig, (delivery_tag, requeue),
         )
 
-    async def _on_basic_return(self, reply_code, reply_text,
-                               exchange, routing_key, message):
+    @coroutine
+    def _on_basic_return(self, reply_code: int, reply_text: str,
+                         exchange: str, routing_key: str,
+                         message: MessageT) -> None:
         """Return a failed message.
 
         This method returns an undeliverable message that was
@@ -1974,7 +2071,7 @@ class Channel(ChannelBase):
         if not handlers:
             raise exc
         for callback in handlers:
-            await callback(exc, exchange, routing_key, message)
+            yield from callback(exc, exchange, routing_key, message)
 
     #############
     #
@@ -2004,35 +2101,39 @@ class Channel(ChannelBase):
     #
     #
 
-    async def tx_commit(self):
+    @coroutine
+    def tx_commit(self) -> None:
         """Commit the current transaction.
 
         This method commits all messages published and acknowledged in
         the current transaction.  A new transaction starts immediately
         after a commit.
         """
-        return await self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
+        yield from self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
 
-    async def tx_rollback(self):
+    @coroutine
+    def tx_rollback(self) -> None:
         """Abandon the current transaction.
 
         This method abandons all messages published and acknowledged
         in the current transaction.  A new transaction starts
         immediately after a rollback.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Tx.Rollback, wait=spec.Tx.RollbackOk)
 
-    async def tx_select(self):
+    @coroutine
+    def tx_select(self) -> None:
         """Select standard transaction mode.
 
         This method sets the channel to use standard transactions.
         The client must use this method at least once on a channel
         before using the Commit or Rollback methods.
         """
-        return await self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
+        yield from self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
 
-    async def confirm_select(self, nowait=False):
+    @coroutine
+    def confirm_select(self, nowait: bool = False) -> None:
         """Enable publisher confirms for this channel.
 
         Note: This is an RabbitMQ extension.
@@ -2045,11 +2146,12 @@ class Channel(ChannelBase):
             server could not complete the method it will raise a channel
             or connection exception.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Confirm.Select, 'b', (nowait,),
             wait=None if nowait else spec.Confirm.SelectOk,
         )
 
-    async def _on_basic_ack(self, delivery_tag, multiple):
+    @coroutine
+    def _on_basic_ack(self, delivery_tag: str, multiple: bool) -> None:
         for callback in self.events['basic_ack']:
-            await callback(delivery_tag, multiple)
+            yield from callback(delivery_tag, multiple)

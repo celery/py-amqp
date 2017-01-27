@@ -1,10 +1,10 @@
 import errno
 import socket
 import pytest
+from struct import pack
 from case import Mock
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
-from amqp.platform import pack
 
 
 class MockSocket:

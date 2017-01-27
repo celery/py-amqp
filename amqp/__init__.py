@@ -74,13 +74,17 @@ from .exceptions import (           # noqa
     InternalError,
     error_for_code,
 )
+from .types import ChannelT, ConnectionT, MessageT
 from vine import promise      # noqa
 
 
 __all__ = [
     'Connection',
+    'ConnectionT',
     'Channel',
+    'ChannelT',
     'Message',
+    'MessageT',
     'promise',
     'AMQPError',
     'ConnectionError',

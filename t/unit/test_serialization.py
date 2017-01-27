@@ -2,9 +2,9 @@ import pytest
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
+from struct import pack
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
-from amqp.platform import pack
 from amqp.serialization import GenericContent, _read_item, dumps, loads
 
 

@@ -28,7 +28,7 @@ from typing import (
 from .exceptions import UnexpectedFrame
 from .types import SSLArg
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
-from .utils import set_cloexec
+from .utils import coroutine, set_cloexec
 
 AMQP_PORT = 5672
 
@@ -62,10 +62,6 @@ TCP_OPTS = {
 DEFAULT_SOCKET_SETTINGS = {
     socket.TCP_NODELAY: 1,
 }
-
-StructUnpackT = Callable[
-    [Union[bytes, str], bytes], Tuple[Any]
-]
 
 if HAS_TCP_USER_TIMEOUT:
     KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
@@ -125,8 +121,9 @@ class Transport:
         self.ssl = ssl                             # type: SSLArg
         self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
 
-    async def connect(self) -> None:
-        self.rstream, self.wstream = await asyncio.open_connection(
+    @coroutine
+    def connect(self) -> None:
+        self.rstream, self.wstream = yield from asyncio.open_connection(
             host=self.host, port=self.port, ssl=self.ssl,
         )
         self.sock = self.wstream.transport._sock
@@ -137,7 +134,7 @@ class Transport:
         self._write = self.wstream.write
         self.flush_write_buffer = self.wstream.drain
         self.wstream.write(AMQP_PROTOCOL_HEADER)
-        await self.wstream.drain()
+        yield from self.wstream.drain()
 
     @contextmanager
     def having_timeout(self, timeout: float) -> Any:
@@ -199,7 +196,7 @@ class Transport:
         for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
-    def _read(self, n, initial=False):
+    def _read(self, n: int, initial: bool = False):
         """Read exactly n bytes from the peer."""
         raise NotImplementedError('Must be overriden in subclass')
 
@@ -219,23 +216,24 @@ class Transport:
         self.flush_write_buffer = None
         self.connected = False
 
-    async def read_frame(self, unpack: Callable = unpack) -> Frame:
+    @coroutine
+    def read_frame(self, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_header = await read(7)
+            frame_header = yield from read(7)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack('>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
-                part1 = await read(SIGNED_INT_MAX)
-                part2 = await read(size - SIGNED_INT_MAX)
+                part1 = yield from read(SIGNED_INT_MAX)
+                part2 = yield from read(size - SIGNED_INT_MAX)
                 payload = ''.join([part1, part2])
             else:
-                payload = await read(size)
+                payload = yield from read(size)
             read_frame_buffer += payload
-            ch = ord(await read(1))
+            ch = ord(yield from read(1))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
@@ -246,14 +244,15 @@ class Transport:
             self.connected = False
             raise
         if ch == 206:  # '\xce'
-            return Frame(frame_type, channel, payload)
+            yield Frame(frame_type, channel, payload)
         else:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
+    @coroutine
     def write(self, s: bytes) -> None:
         try:
-            self._write(s)
+            yield from self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error):
@@ -261,11 +260,13 @@ class Transport:
             raise
 
 
-async def connect(host: str,
-                  connect_timeout: float=None,
-                  ssl: SSLArg=False, **kwargs) -> Transport:
+@coroutine
+def connect(host: str,
+            connect_timeout: float = None,
+            ssl: SSLArg = False,
+            **kwargs) -> Transport:
     """Given a few parameters from the Connection constructor,
     select and create a subclass of Transport."""
     t = Transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
-    await t.connect()
-    return t
+    yield from t.connect()
+    yield t

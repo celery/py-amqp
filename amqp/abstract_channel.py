@@ -14,10 +14,15 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-import typing
-from vine import ensure_promise, promise
+from typing import Any, Callable, Coroutine, Sequence, Union
+from vine import Thenable, ensure_promise, promise
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
+from .types import ConnectionT
+from .spec import method_sig_t
+from .utils import coroutine
+
+WaitMethodT = Union[method_sig_t, Sequence[method_sig_t]]
 
 __all__ = ['ChannelBase']
 
@@ -32,7 +37,7 @@ class ChannelBase:
     between AMQP method signatures and Python methods.
     """
 
-    def __init__(self, connection, channel_id):
+    def __init__(self, connection: ConnectionT, channel_id: int):
         self.connection = connection
         self.channel_id = channel_id
         connection.channels[channel_id] = self
@@ -43,22 +48,28 @@ class ChannelBase:
 
         self._setup_listeners()
 
-    def __enter__(self):
+    def __enter__(self) -> 'ChannelBase':
         return self
 
-    def __exit__(self, *exc_info):
+    def __exit__(self, *exc_info) -> None:
         self.close()
 
-    async def send_method(self, sig,
-                          format=None, args=None, content=None,
-                          wait=None, callback=None, returns_tuple=False):
+    @coroutine
+    def send_method(self, sig: method_sig_t,
+                    format: str = None,
+                    args: Sequence = None,
+                    content: bytes = None,
+                    wait: WaitMethodT = None,
+                    callback: Callable = None,
+                    returns_tuple: bool = False) -> Thenable:
         p = promise()
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            await conn.frame_writer(1, self.channel_id, sig, args, content)
+            yield from conn.frame_writer(
+                1, self.channel_id, sig, args, content)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
@@ -66,18 +77,23 @@ class ChannelBase:
         p()
         if callback:
             cbret = callback()
-            if isinstance(cbret, typing.Coroutine):
-                await cbret
+            if isinstance(cbret, Coroutine):
+                yield from cbret
         if wait:
-            return await self.wait(wait, returns_tuple=returns_tuple)
-        return p
+            yield from self.wait(wait, returns_tuple=returns_tuple)
+        yield p
 
-    async def close(self):
+    @coroutine
+    def close(self) -> None:
         """Close this Channel or Connection."""
         raise NotImplementedError('Must be overriden in subclass')
 
-    async def wait(self, method,
-                   callback=None, timeout=None, returns_tuple=False):
+    @coroutine
+    def wait(self,
+             method: WaitMethodT,
+             callback: Callable = None,
+             timeout: float = None,
+             returns_tuple: bool = False) -> Any:
         p = ensure_promise(callback)
         pending = self._pending
         prev_p = []
@@ -90,11 +106,11 @@ class ChannelBase:
 
         try:
             while not p.ready:
-                await self.connection.drain_events(timeout=timeout)
+                yield from self.connection.drain_events(timeout=timeout)
 
             if p.value:
                 args, kwargs = p.value
-                return args if returns_tuple else (args and args[0])
+                yield args if returns_tuple else (args and args[0])
         finally:
             for i, m in enumerate(method):
                 if prev_p[i] is not None:
@@ -102,7 +118,11 @@ class ChannelBase:
                 else:
                     pending.pop(m, None)
 
-    async def dispatch_method(self, method_sig, payload, content):
+    @coroutine
+    def dispatch_method(self,
+                        method_sig: method_sig_t,
+                        payload: bytes,
+                        content: bytes) -> None:
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
@@ -140,8 +160,8 @@ class ChannelBase:
 
         for listener in listeners:
             lisret = listener(*args)
-            if isinstance(lisret, typing.Coroutine):
-                await lisret
+            if isinstance(lisret, Coroutine):
+                yield from lisret
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

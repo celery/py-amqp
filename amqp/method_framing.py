@@ -16,19 +16,18 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
-from typing import Any, Callable, Optional, Set, Tuple
+from typing import Any, Callable, Set
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .transport import Frame
-from .types import (
-    AbstractChannel, AbstractConnection, AbstractMessage, AbstractTransport,
-)
-from .utils import str_to_bytes
+from .types import ChannelT, ConnectionT, TransportT
+from .utils import coroutine, want_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
 #: Set of methods that require both a content frame and a body frame.
+# type: Set[method_sig_t]
 _CONTENT_METHODS = frozenset([
     spec.Basic.Return,
     spec.Basic.Deliver,
@@ -41,13 +40,11 @@ _CONTENT_METHODS = frozenset([
 #: and if it does not the message will fit into the preallocated buffer.
 FRAME_OVERHEAD = 40
 
-FrameHandlerCallback = Callable[[AbstractChannel, int, str, bytes], None]
-FrameWriterSend = Tuple[
-    int, int, spec.method_sig_t, bytes, Optional[AbstractMessage]]
+FrameHandlerCallback = Callable[[ChannelT, int, str, bytes], None]
 
 
 def frame_handler(
-        connection: AbstractConnection,
+        connection: ConnectionT,
         callback: FrameHandlerCallback,
         content_methods: Set[spec.method_sig_t] = _CONTENT_METHODS,
         unpack_from: Callable = unpack_from) -> Callable[[Frame], None]:
@@ -55,7 +52,8 @@ def frame_handler(
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
-    async def on_frame(frame):
+    @coroutine
+    def on_frame(frame):
         frame_type, channel, buf = frame
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
@@ -73,7 +71,7 @@ def frame_handler(
                 )
                 expected_types[channel] = 2
             else:
-                await callback(channel, method_sig, buf, None)
+                yield from callback(channel, method_sig, buf, None)
 
         elif frame_type == 2:
             msg = partial_messages[channel]
@@ -83,7 +81,8 @@ def frame_handler(
                 # bodyless message, we're done
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                await callback(channel, msg.frame_method, msg.frame_args, msg)
+                yield from callback(
+                    channel, msg.frame_method, msg.frame_args, msg)
             else:
                 # wait for the content-body
                 expected_types[channel] = 3
@@ -93,7 +92,8 @@ def frame_handler(
             if msg.ready:
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                await callback(channel, msg.frame_method, msg.frame_args, msg)
+                yield from callback(
+                    channel, msg.frame_method, msg.frame_args, msg)
         elif frame_type == 8:
             # bytes_recv already updated
             pass
@@ -101,14 +101,14 @@ def frame_handler(
     return on_frame
 
 
-def frame_writer(connection: AbstractConnection,
-                 transport: AbstractTransport,
+def frame_writer(connection: ConnectionT,
+                 transport: TransportT,
                  pack: Callable = pack,
                  pack_into: Callable = pack_into,
                  range: Callable = range,
                  len: Callable = len,
                  bytes: Any = bytes,
-                 str_to_bytes: Callable = str_to_bytes) -> Callable:
+                 want_bytes: Callable = want_bytes) -> Callable:
     """Create closure that writes frames."""
     write = transport.write
     flush_write_buffer = transport.flush_write_buffer
@@ -119,12 +119,16 @@ def frame_writer(connection: AbstractConnection,
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
-    async def write_frame(type_, channel, method_sig, args, content):
-
+    @coroutine
+    def write_frame(type_: int,
+                    channel: int,
+                    method_sig: method_sig_t,
+                    args: bytes,
+                    content: bytes) -> None:
         chunk_size = connection.frame_max - 8
         offset = 0
-        properties = None
-        args = str_to_bytes(args)
+        properties = None  # type: bytes
+        args = want_bytes(args)
         if content:
             properties = content._serialize_properties()
             body = content.body
@@ -160,7 +164,7 @@ def frame_writer(connection: AbstractConnection,
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
-                               str_to_bytes(frame), 0xce))
+                               want_bytes(frame), 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
@@ -183,11 +187,11 @@ def frame_writer(connection: AbstractConnection,
 
                 framelen = len(body)
                 pack_into('>BHI%dsB' % framelen, buf, offset,
-                          3, channel, framelen, str_to_bytes(body), 0xce)
+                          3, channel, framelen, want_bytes(body), 0xce)
                 offset += 8 + framelen
 
             write(view[:offset])
 
-        await flush_write_buffer()
+        yield from flush_write_buffer()
         connection.bytes_sent += 1
     return write_frame

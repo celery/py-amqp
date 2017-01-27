@@ -40,8 +40,10 @@ from .exceptions import (
 )
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
+from .spec import method_sig_t
 from .transport import Transport
 from .types import SSLArg
+from .utils import coroutine
 
 W_FORCE_CONNECT = """\
 The .{attr} attribute on the connection was accessed before
@@ -58,16 +60,16 @@ Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 
 __all__ = ['Connection']
 
-AMQP_LOGGER: logging.Logger = logging.getLogger('amqp')
+logger = logging.getLogger('amqp')  # type: logging.Logger
 
 #: Default map for :attr:`Connection.library_properties`
-LIBRARY_PROPERTIES: Mapping[str, Any] = {
+LIBRARY_PROPERTIES = {  # type: Mapping[str, Any]
     'product': 'py-amqp',
     'product_version': __version__,
 }
 
 #: Default map for :attr:`Connection.negotiate_capabilities`
-NEGOTIATE_CAPABILITIES: Mapping[str, Any] = {
+NEGOTIATE_CAPABILITIES = {  # type: Mapping[str, Any]
     'consumer_cancel_notify': True,
     'connection.blocked': True,
     'authentication_failure_close': True,
@@ -124,8 +126,8 @@ class Connection(ChannelBase):
     settings which will be applied as socket options.
     """
 
-    Channel: Channel = Channel
-    Transport: Transport = Transport
+    Channel = Channel      # type: type
+    Transport = Transport  # type: type
 
     #: Mapping of protocol extensions to enable.
     #: The server will report these in server_properties[capabilities],
@@ -146,33 +148,33 @@ class Connection(ChannelBase):
     library_properties = LIBRARY_PROPERTIES
 
     #: Final heartbeat interval value (in float seconds) after negotiation
-    heartbeat: float = None
+    heartbeat = None  # type: float
 
     #: Original heartbeat interval value proposed by client.
-    client_heartbeat: float = None
+    client_heartbeat = None  # type: float
 
     #: Original heartbeat interval proposed by server.
-    server_heartbeat: float = None
+    server_heartbeat = None  # type: float
 
     #: Time of last heartbeat sent (in monotonic time, if available).
-    last_heartbeat_sent: float = 0.0
+    last_heartbeat_sent = 0.0  # type: float
 
     #: Time of last heartbeat received (in monotonic time, if available).
-    last_heartbeat_received: float = 0.0
+    last_heartbeat_received = 0.0  # type: float
 
     #: Number of successful writes to socket.
-    bytes_sent: int = 0
+    bytes_sent = 0
 
     #: Number of successful reads from socket.
-    bytes_recv: int = 0
+    bytes_recv = 0
 
     #: Number of bytes sent to socket at the last heartbeat check.
-    prev_sent: int = None
+    prev_sent = None  # type: int
 
     #: Number of bytes received from socket at the last heartbeat check.
-    prev_recv: int = None
+    prev_recv = None  # type: int
 
-    _METHODSET: List[spec.method_sig_t] = [
+    _METHODSET = [  # type: List[spec.method_sig_t]
         spec.method(spec.Connection.Start, 'ooFSS'),
         spec.method(spec.Connection.OpenOk),
         spec.method(spec.Connection.Secure, 's'),
@@ -183,24 +185,24 @@ class Connection(ChannelBase):
         spec.method(spec.Connection.CloseOk),
     ]
 
-    _METHODS: MethodSigMethodMapping = {
+    _METHODS = {  # type: MethodSigMethodMapping
         m.method_sig: m for m in _METHODSET
     }
 
-    connection_errors: Tuple[Any, ...] = (
+    connection_errors = (
         ConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    channel_errors: Tuple[Any, ...] = (ChannelError,)
-    recoverable_connection_errors: Tuple[Any, ...] = (
+    channel_errors = (ChannelError,)
+    recoverable_connection_errors = (
         RecoverableConnectionError,
         socket.error,
         IOError,
         OSError,
     )
-    recoverable_channel_errors: Tuple[Any, ...] = (
+    recoverable_channel_errors = (
         RecoverableChannelError,
     )
 
@@ -231,13 +233,13 @@ class Connection(ChannelBase):
                  loop: Any = None,
                  **kwargs):
         self.loop = loop or asyncio.get_event_loop()
-        self._connection_id: str = uuid.uuid4().hex
-        channel_max: int = channel_max or 65535
-        frame_max: int = frame_max or 131072
+        self._connection_id = uuid.uuid4().hex  # type: str
+        channel_max = channel_max or 65535  # type: int
+        frame_max = frame_max or 131072  # type: int
         if (login_response is None) \
                 and (userid is not None) \
                 and (password is not None):
-            login_response: ByteString = BytesIO()
+            login_response = BytesIO()
             _write_table({'LOGIN': userid, 'PASSWORD': password},
                          login_response.write, [])
             # Skip the length at the beginning
@@ -246,54 +248,54 @@ class Connection(ChannelBase):
         self.client_properties = dict(
             self.library_properties, **client_properties or {}
         )
-        self.login_method: str = login_method
-        self.login_response: str = login_response
-        self.locale: str = locale
-        self.host: str = host
-        self.virtual_host: str = virtual_host
-        self.on_tune_ok: Thenable = ensure_promise(on_tune_ok)
+        self.login_method = login_method      # type: str
+        self.login_response = login_response  # type: str
+        self.locale = locale                  # type: str
+        self.host = host                      # type: str
+        self.virtual_host = virtual_host      # type: str
+        self.on_tune_ok = ensure_promise(on_tune_ok)  # type: Thenable
 
-        self.frame_handler_cls: ConnectionFrameHandler = frame_handler
-        self.frame_writer_cls: ConnectionFrameWriter = frame_writer
+        self.frame_handler_cls = frame_handler  # type: Callable
+        self.frame_writer_cls = frame_writer    # type: Callable
 
-        self._handshake_complete: bool = False
+        self._handshake_complete = False
 
-        self.channels: Mapping[int, Channel] = {}
+        self.channels = {}  # type: Mapping[int, ChannelT]
         # The connection object itself is treated as channel 0
         super().__init__(self, 0)
 
-        self._frame_writer: Callable = None
-        self._on_inbound_frame: Any = None
-        self._transport: Transport = None         # type: Transport
+        self._frame_writer = None           # type: Callable
+        self._on_inbound_frame = None       # type: Any
+        self._transport = None              # type: TransportT
 
         # Properties set in the Tune method
-        self.channel_max: int = channel_max
-        self.frame_max: int = frame_max
-        self.client_heartbeat: float = heartbeat
+        self.channel_max = channel_max      # type: int
+        self.frame_max = frame_max          # type: int
+        self.client_heartbeat = heartbeat   # type: float
 
-        self.confirm_publish: bool = confirm_publish
-        self.ssl: SSLArg = ssl
-        self.read_timeout: float = read_timeout
-        self.write_timeout: float = write_timeout
-        self.socket_settings: Mapping = socket_settings
+        self.confirm_publish = confirm_publish           # type: bool
+        self.ssl = ssl                                   # type: SSLArg
+        self.read_timeout = read_timeout                 # type: float
+        self.write_timeout = write_timeout               # type: float
+        self.socket_settings = socket_settings           # type: Mapping
 
         # Callbacks
-        self.on_blocked: ConnectionBlockedCallback = on_blocked
-        self.on_unblocked: ConnectionUnblockedCallback = on_unblocked
-        self.on_open: Thenable = ensure_promise(on_open)
+        self.on_blocked = on_blocked  # type: ConnectionBlockedCallback
+        self.on_unblocked = on_unblocked  # type: ConnectionUnblockedCallback
+        self.on_open = ensure_promise(on_open)  # type: Thenable
 
         # type: Sequence[int]
-        self._avail_channel_ids: Sequence[int] = array(
+        self._avail_channel_ids = array(
             'H', range(self.channel_max, 0, -1))
 
         # Properties set in the Start method
-        self.version_major: int = 0
-        self.version_minor: int = 0
-        self.server_properties: Mapping[str, Any] = {}
-        self.mechanisms: List[Any] = []
-        self.locales: List[str] = []
+        self.version_major = 0
+        self.version_minor = 0
+        self.server_properties = {}  # type: Mapping[str, Any]
+        self.mechanisms = []  # type: List[str]
+        self.locales = []     # type: List[str]
 
-        self.connect_timeout: float = connect_timeout
+        self.connect_timeout = connect_timeout  # type: float
 
     def __enter__(self) -> Any:
         self.connect()
@@ -302,7 +304,9 @@ class Connection(ChannelBase):
     def __exit__(self, *eargs) -> None:
         self.close()
 
-    def then(self, on_success: Thenable, on_error: Thenable=None) -> Thenable:
+    def then(self,
+             on_success: Thenable,
+             on_error: Thenable = None) -> Thenable:
         return self.on_open.then(on_success, on_error)
 
     def _setup_listeners(self) -> None:
@@ -317,12 +321,14 @@ class Connection(ChannelBase):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    async def connect(self, callback: Callable[[], None] = None) -> None:
+    @coroutine
+    def connect(self, callback: Callable[[], None] = None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
         if self.connected:
-            await callback() if callback else None
+            if callback:
+                yield from callback()
         else:
             self.transport = self.Transport(
                 self.host, self.connect_timeout,
@@ -330,13 +336,13 @@ class Connection(ChannelBase):
                 socket_settings=self.socket_settings,
                 ssl=self.ssl,
             )
-            await self.transport.connect()
+            yield from self.transport.connect()
             self.on_inbound_frame = self.frame_handler_cls(
                 self, self.on_inbound_method)
             self.frame_writer = self.frame_writer_cls(self, self.transport)
 
             while not self._handshake_complete:
-                await self.drain_events(timeout=self.connect_timeout)
+                yield from self.drain_events(timeout=self.connect_timeout)
 
     def _warn_force_connect(self, attr: str) -> None:
         warnings.warn(AMQPDeprecationWarning(
@@ -350,18 +356,18 @@ class Connection(ChannelBase):
         return self._transport
 
     @transport.setter
-    def transport(self, transport):
+    def transport(self, transport: Transport) -> None:
         self._transport = transport
 
     @property
-    def on_inbound_frame(self) -> Any:
+    def on_inbound_frame(self) -> Callable:
         if self._on_inbound_frame is None:
             self._warn_force_connect('on_inbound_frame')
             self.connect()
         return self._on_inbound_frame
 
     @on_inbound_frame.setter
-    def on_inbound_frame(self, on_inbound_frame):
+    def on_inbound_frame(self, on_inbound_frame: Callable) -> None:
         self._on_inbound_frame = on_inbound_frame
 
     @property
@@ -372,24 +378,24 @@ class Connection(ChannelBase):
         return self._frame_writer
 
     @frame_writer.setter
-    def frame_writer(self, frame_writer):
+    def frame_writer(self, frame_writer: Callable) -> None:
         self._frame_writer = frame_writer
 
-    async def _on_start(self,
-                        version_major: int,
-                        version_minor: int,
-                        server_properties: Mapping[Any, Any],
-                        mechanisms: str,
-                        locales: str,
-                        argsig: str='FsSs') -> None:
-        # type: (int, int, Mapping[Any, Any], str, str, str) -> None
+    @coroutine
+    def _on_start(self,
+                  version_major: int,
+                  version_minor: int,
+                  server_properties: Mapping,
+                  mechanisms: str,
+                  locales: str,
+                  argsig: str='FsSs') -> None:
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
         self.server_properties = server_properties
         self.mechanisms = mechanisms.split(' ')
         self.locales = locales.split(' ')
-        AMQP_LOGGER.debug(
+        logger.debug(
             START_DEBUG_FMT,
             self.version_major, self.version_minor,
             self.server_properties, self.mechanisms, self.locales,
@@ -408,20 +414,22 @@ class Connection(ChannelBase):
             # this key present in client_properties, so we remove it.
             client_properties.pop('capabilities', None)
 
-        return await self.send_method(
+        yield from self.send_method(
             spec.Connection.StartOk, argsig,
             (client_properties, self.login_method,
              self.login_response, self.locale),
         )
 
-    async def _on_secure(self, challenge: str) -> None:
+    @coroutine
+    def _on_secure(self, challenge: str) -> None:
         ...
 
-    async def _on_tune(self,
-                       channel_max: int,
-                       frame_max: int,
-                       server_heartbeat: float,
-                       argsig: str='BlB'):
+    @coroutine
+    def _on_tune(self,
+                 channel_max: int,
+                 frame_max: int,
+                 server_heartbeat: float,
+                 argsig: str='BlB') -> None:
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -438,20 +446,22 @@ class Connection(ChannelBase):
         if not self.client_heartbeat:
             self.heartbeat = 0
 
-        return await self.send_method(
+        yield from self.send_method(
             spec.Connection.TuneOk, argsig,
             (self.channel_max, self.frame_max, self.heartbeat),
             callback=self._on_tune_sent,
         )
 
-    async def _on_tune_sent(self, argsig: str='ssb'):
-        return await self.send_method(
+    @coroutine
+    def _on_tune_sent(self, argsig: str='ssb') -> None:
+        yield from self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
-    async def _on_open_ok(self) -> None:
+    @coroutine
+    def _on_open_ok(self) -> None:
         self._handshake_complete = True
-        return self.on_open(self)
+        yield from self.on_open(self)
 
     @property
     def connected(self) -> bool:
@@ -477,15 +487,16 @@ class Connection(ChannelBase):
                 'No free channel ids, current={0}, channel_max={1}'.format(
                     len(self.channels), self.channel_max), spec.Channel.Open)
 
-    def _claim_channel_id(self, channel_id) -> None:
+    def _claim_channel_id(self, channel_id: int) -> None:
         try:
             self._avail_channel_ids.remove(channel_id)
         except ValueError:
             raise ConnectionError('Channel %r already open' % (channel_id,))
 
-    async def channel(self,
-                      channel_id: int = None,
-                      callback: Callable = None) -> Channel:
+    @coroutine
+    def channel(self,
+                channel_id: int = None,
+                callback: Callable = None) -> Channel:
         """Create new channel.
 
         Fetch a Channel object identified by the numeric channel_id, or
@@ -493,34 +504,42 @@ class Connection(ChannelBase):
         """
         if self.channels is not None:
             try:
-                return self.channels[channel_id]
+                yield self.channels[channel_id]
             except KeyError:
                 channel = self.Channel(self, channel_id, on_open=callback)
-                await channel.open()
-                return channel
+                yield from channel.open()
+                yield channel
         raise RecoverableConnectionError('Connection already closed.')
 
     def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
-    async def drain_events(self, timeout: float=None) -> None:
-        return await self.blocking_read(timeout)
+    @coroutine
+    def drain_events(self, timeout: float = None) -> None:
+        yield from self.blocking_read(timeout)
 
-    async def blocking_read(self, timeout: float=None) -> Any:
+    @coroutine
+    def blocking_read(self, timeout: float = None) -> None:
         with self.transport.having_timeout(timeout):
-            frame = await self.transport.read_frame()
-        return await self.on_inbound_frame(frame)
+            frame = yield from self.transport.read_frame()
+        yield from self.on_inbound_frame(frame)
 
-    async def on_inbound_method(self, channel_id, method_sig, payload, content):
-        return await self.channels[channel_id].dispatch_method(
+    @coroutine
+    def on_inbound_method(self,
+                          channel_id: int,
+                          method_sig: method_sig_t,
+                          payload: bytes,
+                          content: bytes) -> None:
+        yield from self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
 
-    async def close(self,
-                    reply_code: int = 0,
-                    reply_text: str = '',
-                    method_sig: Tuple[int, int] = (0, 0),
-                    argsig: str = 'BsBB'):
+    @coroutine
+    def close(self,
+              reply_code: int = 0,
+              reply_text: str = '',
+              method_sig: method_sig_t = method_sig_t(0, 0),
+              argsig: str = 'BsBB') -> None:
         """Request a connection close.
 
         This method indicates that the sender wants to close the
@@ -573,17 +592,18 @@ class Connection(ChannelBase):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        if self._transport is None:
-            # already closed
-            return
+        if self._transport is not None:
+            yield from self.send_method(
+                spec.Connection.Close, argsig,
+                (reply_code, reply_text, method_sig[0], method_sig[1]),
+                wait=spec.Connection.CloseOk,
+            )
 
-        return await self.send_method(
-            spec.Connection.Close, argsig,
-            (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=spec.Connection.CloseOk,
-        )
-
-    async def _on_close(self, reply_code, reply_text, class_id, method_id):
+    def _on_close(self,
+                  reply_code: int,
+                  reply_text: str,
+                  class_id: int,
+                  method_id: int) -> None:
         """Request a connection close.
 
         This method indicates that the sender wants to close the
@@ -636,11 +656,12 @@ class Connection(ChannelBase):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        await self._x_close_ok()
+        yield from self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    async def _x_close_ok(self):
+    @coroutine
+    def _x_close_ok(self) -> None:
         """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
@@ -651,10 +672,11 @@ class Connection(ChannelBase):
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
         """
-        return await self.send_method(
+        yield from self.send_method(
             spec.Connection.CloseOk, callback=self._on_close_ok)
 
-    async def _on_close_ok(self):
+    @coroutine
+    def _on_close_ok(self) -> None:
         """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
@@ -668,7 +690,8 @@ class Connection(ChannelBase):
         """
         self.collect()
 
-    async def _on_blocked(self):
+    @coroutine
+    def _on_blocked(self) -> None:
         """Callback called when connection blocked.
 
         Notes:
@@ -676,16 +699,19 @@ class Connection(ChannelBase):
         """
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
-            return await self.on_blocked(reason)
+            yield from self.on_blocked(reason)
 
-    async def _on_unblocked(self):
+    @coroutine
+    def _on_unblocked(self) -> None:
         if self.on_unblocked:
-            return await self.on_unblocked()
+            yield from self.on_unblocked()
 
-    async def send_heartbeat(self):
-        return await self.frame_writer(8, 0, None, None, None)
+    @coroutine
+    def send_heartbeat(self) -> None:
+        yield from self.frame_writer(8, 0, None, None, None)
 
-    async def heartbeat_tick(self, rate=2):
+    @coroutine
+    def heartbeat_tick(self, rate: int = 2) -> None:
         """Send heartbeat packets if necessary.
 
         Raises:
@@ -699,56 +725,53 @@ class Connection(ChannelBase):
         Keyword Arguments:
             rate (int): Previously used, but ignored now.
         """
-        AMQP_LOGGER.debug('heartbeat_tick : for connection %s',
-                          self._connection_id)
-        if not self.heartbeat:
-            return
+        logger.debug('heartbeat_tick : for connection %s', self._connection_id)
+        if self.heartbeat:
+            # treat actual data exchange in either direction as a heartbeat
+            sent_now = self.bytes_sent
+            recv_now = self.bytes_recv
+            if self.prev_sent is None or self.prev_sent != sent_now:
+                self.last_heartbeat_sent = monotonic()
+            if self.prev_recv is None or self.prev_recv != recv_now:
+                self.last_heartbeat_received = monotonic()
 
-        # treat actual data exchange in either direction as a heartbeat
-        sent_now = self.bytes_sent
-        recv_now = self.bytes_recv
-        if self.prev_sent is None or self.prev_sent != sent_now:
-            self.last_heartbeat_sent = monotonic()
-        if self.prev_recv is None or self.prev_recv != recv_now:
-            self.last_heartbeat_received = monotonic()
+            now = monotonic()
+            logger.debug(
+                'heartbeat_tick : Prev sent/recv: %s/%s, '
+                'now - %s/%s, monotonic - %s, '
+                'last_heartbeat_sent - %s, heartbeat int. - %s '
+                'for connection %s',
+                self.prev_sent, self.prev_recv,
+                sent_now, recv_now, now,
+                self.last_heartbeat_sent,
+                self.heartbeat,
+                self._connection_id,
+            )
 
-        now = monotonic()
-        AMQP_LOGGER.debug(
-            'heartbeat_tick : Prev sent/recv: %s/%s, '
-            'now - %s/%s, monotonic - %s, '
-            'last_heartbeat_sent - %s, heartbeat int. - %s '
-            'for connection %s',
-            self.prev_sent, self.prev_recv,
-            sent_now, recv_now, now,
-            self.last_heartbeat_sent,
-            self.heartbeat,
-            self._connection_id,
-        )
+            self.prev_sent, self.prev_recv = sent_now, recv_now
 
-        self.prev_sent, self.prev_recv = sent_now, recv_now
+            # send a heartbeat if it's time to do so
+            if now > self.last_heartbeat_sent + self.heartbeat:
+                logger.debug(
+                    'heartbeat_tick: sending heartbeat for connection %s',
+                    self._connection_id)
+                yield from self.send_heartbeat()
+                self.last_heartbeat_sent = monotonic()
 
-        # send a heartbeat if it's time to do so
-        if now > self.last_heartbeat_sent + self.heartbeat:
-            AMQP_LOGGER.debug(
-                'heartbeat_tick: sending heartbeat for connection %s',
-                self._connection_id)
-            await self.send_heartbeat()
-            self.last_heartbeat_sent = monotonic()
-
-        # if we've missed two intervals' heartbeats, fail; this gives the
-        # server enough time to send heartbeats a little late
-        if (self.last_heartbeat_received and
-                self.last_heartbeat_received + 2 *
-                self.heartbeat < monotonic()):
-            raise ConnectionForced('Too many heartbeats missed')
+            # if we've missed two intervals' heartbeats, fail; this gives the
+            # server enough time to send heartbeats a little late
+            if (self.last_heartbeat_received and
+                    self.last_heartbeat_received + 2 *
+                    self.heartbeat < monotonic()):
+                raise ConnectionForced('Too many heartbeats missed')
 
     @property
-    def sock(self):
+    def sock(self) -> socket.socket:
         return self.transport.sock
 
     @property
-    def server_capabilities(self):
+    def server_capabilities(self) -> Mapping:
         return self.server_properties.get('capabilities') or {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{name} {0.host}>'.format(self, name=type(self).__name__)

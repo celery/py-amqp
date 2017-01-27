@@ -5,7 +5,7 @@ from amqp import Connection
 from amqp import spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
-from amqp.transport import TCPTransport
+from amqp.transport import Transport
 
 
 class test_Connection:
@@ -203,7 +203,7 @@ class test_Connection:
         assert ret is self.conn.on_inbound_frame()
 
     def test_blocking_read__timeout(self):
-        self.conn.transport = TCPTransport('localhost:5672')
+        self.conn.transport = Transport('localhost:5672')
         sock = self.conn.transport.sock = Mock(name='sock')
         sock.gettimeout.return_value = 1
         self.conn.transport.read_frame = Mock(name='read_frame')
@@ -220,7 +220,7 @@ class test_Connection:
 
     def test_blocking_read__SSLError(self):
         self.conn.on_inbound_frame = Mock(name='on_inbound_frame')
-        self.conn.transport = TCPTransport('localhost:5672')
+        self.conn.transport = Transport('localhost:5672')
         sock = self.conn.transport.sock = Mock(name='sock')
         sock.gettimeout.return_value = 1
         self.conn.transport.read_frame = Mock(name='read_frame')
