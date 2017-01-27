@@ -32,7 +32,7 @@ __all__ = ['Message']
 
 
 class Message(GenericContent):
-    """A Message for use with the Channnel.basic_* methods.
+    """A Message for use with the Channel.basic_* methods.
 
     Expected arg types
 
