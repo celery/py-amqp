@@ -54,21 +54,20 @@ class ChannelBase:
     def __exit__(self, *exc_info) -> None:
         self.close()
 
-    @coroutine
-    def send_method(self, sig: method_sig_t,
-                    format: str = None,
-                    args: Sequence = None,
-                    content: bytes = None,
-                    wait: WaitMethodT = None,
-                    callback: Callable = None,
-                    returns_tuple: bool = False) -> Thenable:
+    async def send_method(self, sig: method_sig_t,
+                          format: str = None,
+                          args: Sequence = None,
+                          content: bytes = None,
+                          wait: WaitMethodT = None,
+                          callback: Callable = None,
+                          returns_tuple: bool = False) -> Thenable:
         p = promise()
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
-            yield from conn.frame_writer(
+            await conn.frame_writer(
                 1, self.channel_id, sig, args, content)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
@@ -78,22 +77,20 @@ class ChannelBase:
         if callback:
             cbret = callback()
             if isinstance(cbret, Coroutine):
-                yield from cbret
+                await cbret
         if wait:
-            yield from self.wait(wait, returns_tuple=returns_tuple)
-        yield p
+            return await self.wait(wait, returns_tuple=returns_tuple)
+        return p
 
-    @coroutine
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close this Channel or Connection."""
         raise NotImplementedError('Must be overriden in subclass')
 
-    @coroutine
-    def wait(self,
-             method: WaitMethodT,
-             callback: Callable = None,
-             timeout: float = None,
-             returns_tuple: bool = False) -> Any:
+    async def wait(self,
+                   method: WaitMethodT,
+                   callback: Callable = None,
+                   timeout: float = None,
+                   returns_tuple: bool = False) -> Any:
         p = ensure_promise(callback)
         pending = self._pending
         prev_p = []
@@ -106,11 +103,11 @@ class ChannelBase:
 
         try:
             while not p.ready:
-                yield from self.connection.drain_events(timeout=timeout)
+                await self.connection.drain_events(timeout=timeout)
 
             if p.value:
                 args, kwargs = p.value
-                yield args if returns_tuple else (args and args[0])
+                return args if returns_tuple else (args and args[0])
         finally:
             for i, m in enumerate(method):
                 if prev_p[i] is not None:
@@ -118,11 +115,10 @@ class ChannelBase:
                 else:
                     pending.pop(m, None)
 
-    @coroutine
-    def dispatch_method(self,
-                        method_sig: method_sig_t,
-                        payload: bytes,
-                        content: bytes) -> None:
+    async def dispatch_method(self,
+                              method_sig: method_sig_t,
+                              payload: bytes,
+                              content: bytes) -> None:
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
@@ -161,7 +157,7 @@ class ChannelBase:
         for listener in listeners:
             lisret = listener(*args)
             if isinstance(lisret, Coroutine):
-                yield from lisret
+                await lisret
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

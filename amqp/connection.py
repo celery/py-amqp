@@ -321,14 +321,13 @@ class Connection(ChannelBase):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
-    @coroutine
-    def connect(self, callback: Callable[[], None] = None) -> None:
+    async def connect(self, callback: Callable[[], None] = None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
         if self.connected:
             if callback:
-                yield from callback()
+                await callback()
         else:
             self.transport = self.Transport(
                 self.host, self.connect_timeout,
@@ -336,13 +335,13 @@ class Connection(ChannelBase):
                 socket_settings=self.socket_settings,
                 ssl=self.ssl,
             )
-            yield from self.transport.connect()
+            await self.transport.connect()
             self.on_inbound_frame = self.frame_handler_cls(
                 self, self.on_inbound_method)
             self.frame_writer = self.frame_writer_cls(self, self.transport)
 
             while not self._handshake_complete:
-                yield from self.drain_events(timeout=self.connect_timeout)
+                await self.drain_events(timeout=self.connect_timeout)
 
     def _warn_force_connect(self, attr: str) -> None:
         warnings.warn(AMQPDeprecationWarning(
@@ -381,14 +380,13 @@ class Connection(ChannelBase):
     def frame_writer(self, frame_writer: Callable) -> None:
         self._frame_writer = frame_writer
 
-    @coroutine
-    def _on_start(self,
-                  version_major: int,
-                  version_minor: int,
-                  server_properties: Mapping,
-                  mechanisms: str,
-                  locales: str,
-                  argsig: str='FsSs') -> None:
+    async def _on_start(self,
+                        version_major: int,
+                        version_minor: int,
+                        server_properties: Mapping,
+                        mechanisms: str,
+                        locales: str,
+                        argsig: str='FsSs') -> None:
         client_properties = self.client_properties
         self.version_major = version_major
         self.version_minor = version_minor
@@ -414,22 +412,20 @@ class Connection(ChannelBase):
             # this key present in client_properties, so we remove it.
             client_properties.pop('capabilities', None)
 
-        yield from self.send_method(
+        await self.send_method(
             spec.Connection.StartOk, argsig,
             (client_properties, self.login_method,
              self.login_response, self.locale),
         )
 
-    @coroutine
-    def _on_secure(self, challenge: str) -> None:
+    async def _on_secure(self, challenge: str) -> None:
         ...
 
-    @coroutine
-    def _on_tune(self,
-                 channel_max: int,
-                 frame_max: int,
-                 server_heartbeat: float,
-                 argsig: str='BlB') -> None:
+    async def _on_tune(self,
+                       channel_max: int,
+                       frame_max: int,
+                       server_heartbeat: float,
+                       argsig: str='BlB') -> None:
         client_heartbeat = self.client_heartbeat or 0
         self.channel_max = channel_max or self.channel_max
         self.frame_max = frame_max or self.frame_max
@@ -446,22 +442,20 @@ class Connection(ChannelBase):
         if not self.client_heartbeat:
             self.heartbeat = 0
 
-        yield from self.send_method(
+        await self.send_method(
             spec.Connection.TuneOk, argsig,
             (self.channel_max, self.frame_max, self.heartbeat),
             callback=self._on_tune_sent,
         )
 
-    @coroutine
-    def _on_tune_sent(self, argsig: str='ssb') -> None:
-        yield from self.send_method(
+    async def _on_tune_sent(self, argsig: str='ssb') -> None:
+        await self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
-    @coroutine
-    def _on_open_ok(self) -> None:
+    async def _on_open_ok(self) -> None:
         self._handshake_complete = True
-        yield from self.on_open(self)
+        await self.on_open.maybe_await(self)
 
     @property
     def connected(self) -> bool:
@@ -493,10 +487,9 @@ class Connection(ChannelBase):
         except ValueError:
             raise ConnectionError('Channel %r already open' % (channel_id,))
 
-    @coroutine
-    def channel(self,
-                channel_id: int = None,
-                callback: Callable = None) -> Channel:
+    async def channel(self,
+                      channel_id: int = None,
+                      callback: Callable = None) -> Channel:
         """Create new channel.
 
         Fetch a Channel object identified by the numeric channel_id, or
@@ -504,42 +497,38 @@ class Connection(ChannelBase):
         """
         if self.channels is not None:
             try:
-                yield self.channels[channel_id]
+                return self.channels[channel_id]
             except KeyError:
                 channel = self.Channel(self, channel_id, on_open=callback)
-                yield from channel.open()
-                yield channel
+                await channel.open()
+                return channel
         raise RecoverableConnectionError('Connection already closed.')
 
     def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
-    @coroutine
-    def drain_events(self, timeout: float = None) -> None:
-        yield from self.blocking_read(timeout)
+    async def drain_events(self, timeout: float = None) -> None:
+        await self.blocking_read(timeout)
 
-    @coroutine
-    def blocking_read(self, timeout: float = None) -> None:
+    async def blocking_read(self, timeout: float = None) -> None:
         with self.transport.having_timeout(timeout):
-            frame = yield from self.transport.read_frame()
-        yield from self.on_inbound_frame(frame)
+            frame = await self.transport.read_frame()
+        await self.on_inbound_frame(frame)
 
-    @coroutine
-    def on_inbound_method(self,
-                          channel_id: int,
-                          method_sig: method_sig_t,
-                          payload: bytes,
-                          content: bytes) -> None:
-        yield from self.channels[channel_id].dispatch_method(
+    async def on_inbound_method(self,
+                                channel_id: int,
+                                method_sig: method_sig_t,
+                                payload: bytes,
+                                content: bytes) -> None:
+        await self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
 
-    @coroutine
-    def close(self,
-              reply_code: int = 0,
-              reply_text: str = '',
-              method_sig: method_sig_t = method_sig_t(0, 0),
-              argsig: str = 'BsBB') -> None:
+    async def close(self,
+                    reply_code: int = 0,
+                    reply_text: str = '',
+                    method_sig: method_sig_t = method_sig_t(0, 0),
+                    argsig: str = 'BsBB') -> None:
         """Request a connection close.
 
         This method indicates that the sender wants to close the
@@ -593,17 +582,17 @@ class Connection(ChannelBase):
                 is the ID of the method.
         """
         if self._transport is not None:
-            yield from self.send_method(
+            await self.send_method(
                 spec.Connection.Close, argsig,
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Connection.CloseOk,
             )
 
-    def _on_close(self,
-                  reply_code: int,
-                  reply_text: str,
-                  class_id: int,
-                  method_id: int) -> None:
+    async def _on_close(self,
+                        reply_code: int,
+                        reply_text: str,
+                        class_id: int,
+                        method_id: int) -> None:
         """Request a connection close.
 
         This method indicates that the sender wants to close the
@@ -656,12 +645,11 @@ class Connection(ChannelBase):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        yield from self._x_close_ok()
+        await self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
-    @coroutine
-    def _x_close_ok(self) -> None:
+    async def _x_close_ok(self) -> None:
         """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
@@ -672,11 +660,10 @@ class Connection(ChannelBase):
             A peer that detects a socket closure without having
             received a Close-Ok handshake method SHOULD log the error.
         """
-        yield from self.send_method(
+        await self.send_method(
             spec.Connection.CloseOk, callback=self._on_close_ok)
 
-    @coroutine
-    def _on_close_ok(self) -> None:
+    async def _on_close_ok(self) -> None:
         """Confirm a connection close.
 
         This method confirms a Connection.Close method and tells the
@@ -690,8 +677,7 @@ class Connection(ChannelBase):
         """
         self.collect()
 
-    @coroutine
-    def _on_blocked(self) -> None:
+    async def _on_blocked(self) -> None:
         """Callback called when connection blocked.
 
         Notes:
@@ -699,19 +685,16 @@ class Connection(ChannelBase):
         """
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
-            yield from self.on_blocked(reason)
+            await self.on_blocked(reason)
 
-    @coroutine
-    def _on_unblocked(self) -> None:
+    async def _on_unblocked(self) -> None:
         if self.on_unblocked:
-            yield from self.on_unblocked()
+            await self.on_unblocked()
 
-    @coroutine
-    def send_heartbeat(self) -> None:
-        yield from self.frame_writer(8, 0, None, None, None)
+    async def send_heartbeat(self) -> None:
+        await self.frame_writer(8, 0, None, None, None)
 
-    @coroutine
-    def heartbeat_tick(self, rate: int = 2) -> None:
+    async def heartbeat_tick(self, rate: int = 2) -> None:
         """Send heartbeat packets if necessary.
 
         Raises:
@@ -755,7 +738,7 @@ class Connection(ChannelBase):
                 logger.debug(
                     'heartbeat_tick: sending heartbeat for connection %s',
                     self._connection_id)
-                yield from self.send_heartbeat()
+                await self.send_heartbeat()
                 self.last_heartbeat_sent = monotonic()
 
             # if we've missed two intervals' heartbeats, fail; this gives the

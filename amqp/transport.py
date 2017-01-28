@@ -121,9 +121,8 @@ class Transport:
         self.ssl = ssl                             # type: SSLArg
         self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
 
-    @coroutine
-    def connect(self) -> None:
-        self.rstream, self.wstream = yield from asyncio.open_connection(
+    async def connect(self) -> None:
+        self.rstream, self.wstream = await asyncio.open_connection(
             host=self.host, port=self.port, ssl=self.ssl,
         )
         self.sock = self.wstream.transport._sock
@@ -134,7 +133,7 @@ class Transport:
         self._write = self.wstream.write
         self.flush_write_buffer = self.wstream.drain
         self.wstream.write(AMQP_PROTOCOL_HEADER)
-        yield from self.wstream.drain()
+        await self.wstream.drain()
 
     @contextmanager
     def having_timeout(self, timeout: float) -> Any:
@@ -216,24 +215,23 @@ class Transport:
         self.flush_write_buffer = None
         self.connected = False
 
-    @coroutine
-    def read_frame(self, unpack: Callable = unpack) -> Frame:
+    async def read_frame(self, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
-            frame_header = yield from read(7)
+            frame_header = await read(7)
             read_frame_buffer += frame_header
             frame_type, channel, size = unpack('>BHI', frame_header)
             # >I is an unsigned int, but the argument to sock.recv is signed,
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
-                part1 = yield from read(SIGNED_INT_MAX)
-                part2 = yield from read(size - SIGNED_INT_MAX)
+                part1 = await read(SIGNED_INT_MAX)
+                part2 = await read(size - SIGNED_INT_MAX)
                 payload = ''.join([part1, part2])
             else:
-                payload = yield from read(size)
+                payload = await read(size)
             read_frame_buffer += payload
-            ch = ord(yield from read(1))
+            ch = ord(await read(1))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
@@ -244,15 +242,14 @@ class Transport:
             self.connected = False
             raise
         if ch == 206:  # '\xce'
-            yield Frame(frame_type, channel, payload)
+            return Frame(frame_type, channel, payload)
         else:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
-    @coroutine
-    def write(self, s: bytes) -> None:
+    async def write(self, s: bytes) -> None:
         try:
-            yield from self._write(s)
+            self._write(s)
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error):
@@ -260,13 +257,12 @@ class Transport:
             raise
 
 
-@coroutine
-def connect(host: str,
-            connect_timeout: float = None,
-            ssl: SSLArg = False,
-            **kwargs) -> Transport:
+async def connect(host: str,
+                  connect_timeout: float = None,
+                  ssl: SSLArg = False,
+                  **kwargs) -> Transport:
     """Given a few parameters from the Connection constructor,
     select and create a subclass of Transport."""
     t = Transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
-    yield from t.connect()
-    yield t
+    await t.connect()
+    return t

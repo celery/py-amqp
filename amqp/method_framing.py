@@ -20,6 +20,7 @@ from typing import Any, Callable, Set
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
+from .spec import method_sig_t
 from .transport import Frame
 from .types import ChannelT, ConnectionT, TransportT
 from .utils import coroutine, want_bytes
@@ -52,8 +53,7 @@ def frame_handler(
     expected_types = defaultdict(lambda: 1)
     partial_messages = {}
 
-    @coroutine
-    def on_frame(frame):
+    async def on_frame(frame):
         frame_type, channel, buf = frame
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
@@ -71,7 +71,7 @@ def frame_handler(
                 )
                 expected_types[channel] = 2
             else:
-                yield from callback(channel, method_sig, buf, None)
+                await callback(channel, method_sig, buf, None)
 
         elif frame_type == 2:
             msg = partial_messages[channel]
@@ -81,7 +81,7 @@ def frame_handler(
                 # bodyless message, we're done
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                yield from callback(
+                await callback(
                     channel, msg.frame_method, msg.frame_args, msg)
             else:
                 # wait for the content-body
@@ -92,7 +92,7 @@ def frame_handler(
             if msg.ready:
                 expected_types[channel] = 1
                 partial_messages.pop(channel, None)
-                yield from callback(
+                await callback(
                     channel, msg.frame_method, msg.frame_args, msg)
         elif frame_type == 8:
             # bytes_recv already updated
@@ -119,12 +119,11 @@ def frame_writer(connection: ConnectionT,
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
-    @coroutine
-    def write_frame(type_: int,
-                    channel: int,
-                    method_sig: method_sig_t,
-                    args: bytes,
-                    content: bytes) -> None:
+    async def write_frame(type_: int,
+                          channel: int,
+                          method_sig: method_sig_t,
+                          args: bytes,
+                          content: bytes) -> None:
         chunk_size = connection.frame_max - 8
         offset = 0
         properties = None  # type: bytes
@@ -190,8 +189,8 @@ def frame_writer(connection: ConnectionT,
                           3, channel, framelen, want_bytes(body), 0xce)
                 offset += 8 + framelen
 
-            write(view[:offset])
+            await write(view[:offset])
 
-        yield from flush_write_buffer()
+        await flush_write_buffer()
         connection.bytes_sent += 1
     return write_frame
