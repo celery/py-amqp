@@ -26,7 +26,7 @@ from contextlib import contextmanager
 from .exceptions import UnexpectedFrame
 from .five import items
 from .platform import (
-    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT,
+    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT, LIMITED_TCP_OPTS,
     pack, unpack,
 )
 from .utils import get_errno, set_cloexec
@@ -52,15 +52,21 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
 # available socket options for TCP level
-KNOWN_TCP_OPTS = (
-    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
-    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
-    'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
-    'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
-)
+
+if LIMITED_TCP_OPTS:
+    KNOWN_TCP_OPTS = ('TCP_NODELAY',)
+else:
+    KNOWN_TCP_OPTS = (
+        'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
+        'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
+        'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
+        'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
+    )
+
 TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
 }
+
 DEFAULT_SOCKET_SETTINGS = {
     socket.TCP_NODELAY: 1,
 }
