@@ -41,6 +41,16 @@ except ImportError:  # pragma: no cover
     TCP_USER_TIMEOUT = 18
     HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)
 
+WIN_VERSION = None
+if sys.platform.startswith('win32'):
+    WIN_VERSION = sys.getwindowsversion()
+
+# In Windows TCP_OPTS will include TCP_KEEPIDLE which has a value of 4.
+# Calls to getsockopt and setsockopt with level of IPPROTO_TCP (SOL_TCP)
+# only accept TCP_NODELAY however, and instead interpret TCP_KEEPIDLE as
+# SO_REUSEADDR. Calls to setsockopt with IPPROTO_TCP, SO_REUSEADDR will fail
+# with Windows error 10042 WSAENOPROTOOPT.
+SKIP_KNOWN_TCP_OPTS = WIN_VERSION is not None
 
 if sys.version_info < (2, 7, 6):
     import functools
@@ -63,9 +73,11 @@ else:
 
 __all__ = [
     'LINUX_VERSION',
+    'WIN_VERSION',
     'SOL_TCP',
     'TCP_USER_TIMEOUT',
     'HAS_TCP_USER_TIMEOUT',
+    'SKIP_KNOWN_TCP_OPTS',
     'pack',
     'pack_into',
     'unpack',
