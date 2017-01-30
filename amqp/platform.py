@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover
     HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)
 
 
-if sys.version_info < (2, 7, 6):
+if sys.version_info < (2, 7, 7):
     import functools
 
     def _to_bytes_arg(fun):

@@ -3,6 +3,11 @@ import pytest
 from amqp.platform import _linux_version_to_tuple
 
 
+def test_struct_argument_type():
+    from amqp.exceptions import FrameSyntaxError
+    FrameSyntaxError()
+
+
 @pytest.mark.parametrize('s,expected', [
     ('3.13.0-46-generic', (3, 13, 0)),
     ('3.19.43-1-amd64', (3, 19, 43)),
