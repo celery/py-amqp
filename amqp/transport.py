@@ -28,7 +28,7 @@ from typing import (
 from .exceptions import UnexpectedFrame
 from .types import SSLArg
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
-from .utils import coroutine, set_cloexec
+from .utils import AsyncToggle, coroutine, set_cloexec, toggle_blocking
 
 AMQP_PORT = 5672
 
@@ -95,7 +95,7 @@ def to_host_port(host: str, default: int = AMQP_PORT) -> Tuple[str, int]:
     return host, port
 
 
-class Transport:
+class Transport(AsyncToggle):
     """Common superclass for TCP and SSL transports"""
 
     connected = False
@@ -215,6 +215,7 @@ class Transport:
         self.flush_write_buffer = None
         self.connected = False
 
+    @toggle_blocking
     async def read_frame(self, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
@@ -247,6 +248,7 @@ class Transport:
             raise UnexpectedFrame(
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
+    @toggle_blocking
     async def write(self, s: bytes) -> None:
         try:
             self._write(s)
@@ -257,6 +259,7 @@ class Transport:
             raise
 
 
+@toggle_blocking
 async def connect(host: str,
                   connect_timeout: float = None,
                   ssl: SSLArg = False,

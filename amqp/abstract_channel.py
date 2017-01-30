@@ -20,14 +20,14 @@ from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
 from .types import ConnectionT
 from .spec import method_sig_t
-from .utils import coroutine
+from .utils import AsyncToggle, coroutine, toggle_blocking
 
 WaitMethodT = Union[method_sig_t, Sequence[method_sig_t]]
 
 __all__ = ['ChannelBase']
 
 
-class ChannelBase:
+class ChannelBase(AsyncToggle):
     """Superclass for Connection and Channel.
 
     The connection is treated as channel 0, then comes
@@ -54,6 +54,7 @@ class ChannelBase:
     def __exit__(self, *exc_info) -> None:
         self.close()
 
+    @toggle_blocking
     async def send_method(self, sig: method_sig_t,
                           format: str = None,
                           args: Sequence = None,
@@ -82,10 +83,12 @@ class ChannelBase:
             return await self.wait(wait, returns_tuple=returns_tuple)
         return p
 
+    @toggle_blocking
     async def close(self) -> None:
         """Close this Channel or Connection."""
         raise NotImplementedError('Must be overriden in subclass')
 
+    @toggle_blocking
     async def wait(self,
                    method: WaitMethodT,
                    callback: Callable = None,
@@ -115,6 +118,7 @@ class ChannelBase:
                 else:
                     pending.pop(m, None)
 
+    @toggle_blocking
     async def dispatch_method(self,
                               method_sig: method_sig_t,
                               payload: bytes,

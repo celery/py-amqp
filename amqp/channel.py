@@ -30,7 +30,7 @@ from .exceptions import (
 from .protocol import queue_declare_ok_t
 from .spec import method_sig_t
 from .types import ConnectionT, MessageT
-from .utils import coroutine
+from .utils import coroutine, toggle_blocking
 
 __all__ = ['Channel']
 
@@ -141,6 +141,13 @@ class Channel(ChannelBase):
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
 
+    async def __aenter__(self) -> 'Channel':
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.close()
+
     def then(self, on_success: Thenable,
              on_error: Thenable = None) -> Thenable:
         return self.on_open.then(on_success, on_error)
@@ -175,10 +182,12 @@ class Channel(ChannelBase):
         self.events.clear()
         self.no_ack_consumers.clear()
 
+    @toggle_blocking
     async def _do_revive(self) -> None:
         self.is_open = False
         await self.open()
 
+    @toggle_blocking
     async def close(self,
                     reply_code: int = 0,
                     reply_text: str = '',
@@ -244,6 +253,7 @@ class Channel(ChannelBase):
         finally:
             self.connection = None
 
+    @toggle_blocking
     async def _on_close(self, reply_code: int, reply_text: int,
                         class_id: int, method_id: int) -> None:
         """Request a channel close.
@@ -297,6 +307,7 @@ class Channel(ChannelBase):
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
 
+    @toggle_blocking
     async def _on_close_ok(self) -> None:
         """Confirm a channel close.
 
@@ -312,6 +323,7 @@ class Channel(ChannelBase):
         """
         self.collect()
 
+    @toggle_blocking
     async def flow(self, active: bool) -> None:
         """Enable/disable flow from peer.
 
@@ -361,6 +373,7 @@ class Channel(ChannelBase):
             spec.Channel.Flow, 'b', (active,), wait=spec.Channel.FlowOk,
         )
 
+    @toggle_blocking
     async def _on_flow(self, active: bool) -> None:
         """Enable/disable flow from peer.
 
@@ -409,6 +422,7 @@ class Channel(ChannelBase):
         self.active = active
         await self._x_flow_ok(self.active)
 
+    @toggle_blocking
     async def _x_flow_ok(self, active: bool) -> None:
         """Confirm a flow method.
 
@@ -426,6 +440,7 @@ class Channel(ChannelBase):
         """
         await self.send_method(spec.Channel.FlowOk, 'b', (active,))
 
+    @toggle_blocking
     async def open(self) -> None:
         """Open a channel for use.
 
@@ -450,6 +465,7 @@ class Channel(ChannelBase):
                 spec.Channel.Open, 's', ('',), wait=spec.Channel.OpenOk,
             )
 
+    @toggle_blocking
     async def _on_open_ok(self) -> None:
         """Signal that the channel is ready.
 
@@ -499,6 +515,7 @@ class Channel(ChannelBase):
     #     exception with reply code 507 (not allowed).
     #
 
+    @toggle_blocking
     async def exchange_declare(self, exchange: str, type: str,
                                passive: bool = False,
                                durable: bool = False,
@@ -636,6 +653,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Exchange.DeclareOk,
         )
 
+    @toggle_blocking
     async def exchange_delete(self, exchange: str,
                               if_unused: bool = False,
                               nowait: bool = False,
@@ -686,6 +704,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Exchange.DeleteOk,
         )
 
+    @toggle_blocking
     async def exchange_bind(self, destination: str,
                             source: str = '',
                             routing_key: str = '',
@@ -768,6 +787,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Exchange.BindOk,
         )
 
+    @toggle_blocking
     async def exchange_unbind(self, destination: str,
                               source: str = '',
                               routing_key: str = '',
@@ -855,6 +875,7 @@ class Channel(ChannelBase):
     #     content off queues are specific to a given content class.
     #
 
+    @toggle_blocking
     async def queue_bind(self, queue: str,
                          exchange: str = '',
                          routing_key: str = '',
@@ -964,6 +985,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Queue.BindOk,
         )
 
+    @toggle_blocking
     async def queue_unbind(self, queue: str, exchange: str,
                            routing_key: str = '',
                            nowait: bool = False,
@@ -1024,6 +1046,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Queue.UnbindOk,
         )
 
+    @toggle_blocking
     async def queue_declare(
             self,
             queue: str = '',
@@ -1196,6 +1219,7 @@ class Channel(ChannelBase):
             )
             return queue_declare_ok_t(*ret)
 
+    @toggle_blocking
     async def queue_delete(self,
                            queue: str = '',
                            if_unused: bool = False,
@@ -1272,6 +1296,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Queue.DeleteOk,
         )
 
+    @toggle_blocking
     async def queue_purge(self,
                           queue: str = '',
                           nowait: bool = False,
@@ -1395,6 +1420,7 @@ class Channel(ChannelBase):
     #     acknowledgments on Basic content.
     #
 
+    @toggle_blocking
     async def basic_ack(self, delivery_tag: str,
                         multiple: bool = False,
                         argsig: str = 'Lb') -> None:
@@ -1447,6 +1473,7 @@ class Channel(ChannelBase):
             spec.Basic.Ack, argsig, (delivery_tag, multiple),
         )
 
+    @toggle_blocking
     async def basic_cancel(self, consumer_tag: str,
                            nowait: bool = False,
                            argsig: str = 'sb') -> None:
@@ -1495,6 +1522,7 @@ class Channel(ChannelBase):
                 wait=None if nowait else spec.Basic.CancelOk,
             )
 
+    @toggle_blocking
     async def _on_basic_cancel(self, consumer_tag: str) -> None:
         """Consumer cancelled by server.
 
@@ -1507,6 +1535,7 @@ class Channel(ChannelBase):
         else:
             raise ConsumerCancelled(consumer_tag, spec.Basic.Cancel)
 
+    @toggle_blocking
     async def _on_basic_cancel_ok(self, consumer_tag: str) -> None:
         self._remove_tag(consumer_tag)
 
@@ -1514,6 +1543,7 @@ class Channel(ChannelBase):
         self.callbacks.pop(consumer_tag, None)
         return self.cancel_callbacks.pop(consumer_tag, None)
 
+    @toggle_blocking
     async def basic_consume(self,
                             queue: str = '',
                             consumer_tag: str = '',
@@ -1638,6 +1668,7 @@ class Channel(ChannelBase):
             self.no_ack_consumers.add(consumer_tag)
         return p
 
+    @toggle_blocking
     async def _on_basic_deliver(
             self,
             consumer_tag: str,
@@ -1666,6 +1697,7 @@ class Channel(ChannelBase):
         else:
             await fun(msg)
 
+    @toggle_blocking
     async def basic_get(self,
                         queue: str = '',
                         no_ack: bool = False,
@@ -1713,9 +1745,11 @@ class Channel(ChannelBase):
             await self._on_get_empty(*ret)
         await self._on_get_ok(*ret)
 
+    @toggle_blocking
     async def _on_get_empty(self, cluster_id: str = None) -> None:
         ...
 
+    @toggle_blocking
     async def _on_get_ok(self, delivery_tag: str, redelivered: bool,
                          exchange: str, routing_key: str,
                          message_count: int, msg: MessageT) -> MessageT:
@@ -1729,6 +1763,7 @@ class Channel(ChannelBase):
         }
         return msg
 
+    @toggle_blocking
     async def _basic_publish(self, msg: MessageT,
                              exchange: str = '',
                              routing_key: str = '',
@@ -1813,6 +1848,7 @@ class Channel(ChannelBase):
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
 
+    @toggle_blocking
     async def basic_publish_confirm(self, *args, **kwargs) -> None:
         if not self._confirm_selected:
             self._confirm_selected = True
@@ -1820,6 +1856,7 @@ class Channel(ChannelBase):
         await self._basic_publish(*args, **kwargs)
         await self.wait(spec.Basic.Ack)
 
+    @toggle_blocking
     async def basic_qos(self,
                         prefetch_size: int,
                         prefetch_count: int,
@@ -1892,6 +1929,7 @@ class Channel(ChannelBase):
             wait=spec.Basic.QosOk,
         )
 
+    @toggle_blocking
     async def basic_recover(self, requeue: bool = False) -> None:
         """Redeliver unacknowledged messages.
 
@@ -1923,10 +1961,12 @@ class Channel(ChannelBase):
         """
         await self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
+    @toggle_blocking
     async def basic_recover_async(self, requeue: bool = False) -> None:
         await self.send_method(
             spec.Basic.RecoverAsync, 'b', (requeue,))
 
+    @toggle_blocking
     async def basic_reject(self, delivery_tag: str, requeue: bool,
                            argsig: str = 'Lb') -> None:
         """Reject an incoming message.
@@ -2001,6 +2041,7 @@ class Channel(ChannelBase):
             spec.Basic.Reject, argsig, (delivery_tag, requeue),
         )
 
+    @toggle_blocking
     async def _on_basic_return(self, reply_code: int, reply_text: str,
                                exchange: str, routing_key: str,
                                message: MessageT) -> None:
@@ -2072,6 +2113,7 @@ class Channel(ChannelBase):
     #
     #
 
+    @toggle_blocking
     async def tx_commit(self) -> None:
         """Commit the current transaction.
 
@@ -2081,6 +2123,7 @@ class Channel(ChannelBase):
         """
         await self.send_method(spec.Tx.Commit, wait=spec.Tx.CommitOk)
 
+    @toggle_blocking
     async def tx_rollback(self) -> None:
         """Abandon the current transaction.
 
@@ -2091,6 +2134,7 @@ class Channel(ChannelBase):
         await self.send_method(
             spec.Tx.Rollback, wait=spec.Tx.RollbackOk)
 
+    @toggle_blocking
     async def tx_select(self) -> None:
         """Select standard transaction mode.
 
@@ -2100,6 +2144,7 @@ class Channel(ChannelBase):
         """
         await self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
 
+    @toggle_blocking
     async def confirm_select(self, nowait: bool = False) -> None:
         """Enable publisher confirms for this channel.
 
@@ -2118,6 +2163,7 @@ class Channel(ChannelBase):
             wait=None if nowait else spec.Confirm.SelectOk,
         )
 
+    @toggle_blocking
     async def _on_basic_ack(self, delivery_tag: str, multiple: bool) -> None:
         for callback in self.events['basic_ack']:
             await callback(delivery_tag, multiple)

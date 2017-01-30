@@ -30,7 +30,6 @@ from vine import Thenable, ensure_promise
 
 from . import __version__
 from . import spec
-from . import abstract
 from .abstract_channel import ChannelBase
 from .channel import Channel
 from .exceptions import (
@@ -43,7 +42,7 @@ from .serialization import _write_table
 from .spec import method_sig_t
 from .transport import Transport
 from .types import SSLArg
-from .utils import coroutine
+from .utils import coroutine, toggle_blocking
 
 W_FORCE_CONNECT = """\
 The .{attr} attribute on the connection was accessed before
@@ -304,6 +303,13 @@ class Connection(ChannelBase):
     def __exit__(self, *eargs) -> None:
         self.close()
 
+    async def __aenter__(self) -> 'Connection':
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.close()
+
     def then(self,
              on_success: Thenable,
              on_error: Thenable = None) -> Thenable:
@@ -321,6 +327,7 @@ class Connection(ChannelBase):
             spec.Connection.CloseOk: self._on_close_ok,
         })
 
+    @toggle_blocking
     async def connect(self, callback: Callable[[], None] = None) -> None:
         # Let the transport.py module setup the actual
         # socket connection to the broker.
@@ -380,6 +387,7 @@ class Connection(ChannelBase):
     def frame_writer(self, frame_writer: Callable) -> None:
         self._frame_writer = frame_writer
 
+    @toggle_blocking
     async def _on_start(self,
                         version_major: int,
                         version_minor: int,
@@ -418,9 +426,11 @@ class Connection(ChannelBase):
              self.login_response, self.locale),
         )
 
+    @toggle_blocking
     async def _on_secure(self, challenge: str) -> None:
         ...
 
+    @toggle_blocking
     async def _on_tune(self,
                        channel_max: int,
                        frame_max: int,
@@ -448,11 +458,13 @@ class Connection(ChannelBase):
             callback=self._on_tune_sent,
         )
 
+    @toggle_blocking
     async def _on_tune_sent(self, argsig: str='ssb') -> None:
         await self.send_method(
             spec.Connection.Open, argsig, (self.virtual_host, '', False),
         )
 
+    @toggle_blocking
     async def _on_open_ok(self) -> None:
         self._handshake_complete = True
         await self.on_open.maybe_await(self)
@@ -487,9 +499,9 @@ class Connection(ChannelBase):
         except ValueError:
             raise ConnectionError('Channel %r already open' % (channel_id,))
 
-    async def channel(self,
-                      channel_id: int = None,
-                      callback: Callable = None) -> Channel:
+    def channel(self,
+                channel_id: int = None,
+                callback: Callable = None) -> Channel:
         """Create new channel.
 
         Fetch a Channel object identified by the numeric channel_id, or
@@ -499,22 +511,23 @@ class Connection(ChannelBase):
             try:
                 return self.channels[channel_id]
             except KeyError:
-                channel = self.Channel(self, channel_id, on_open=callback)
-                await channel.open()
-                return channel
+                return self.Channel(self, channel_id, on_open=callback)
         raise RecoverableConnectionError('Connection already closed.')
 
     def is_alive(self) -> bool:
         raise NotImplementedError('Use AMQP heartbeats')
 
+    @toggle_blocking
     async def drain_events(self, timeout: float = None) -> None:
         await self.blocking_read(timeout)
 
+    @toggle_blocking
     async def blocking_read(self, timeout: float = None) -> None:
         with self.transport.having_timeout(timeout):
             frame = await self.transport.read_frame()
         await self.on_inbound_frame(frame)
 
+    @toggle_blocking
     async def on_inbound_method(self,
                                 channel_id: int,
                                 method_sig: method_sig_t,
@@ -524,6 +537,7 @@ class Connection(ChannelBase):
             method_sig, payload, content,
         )
 
+    @toggle_blocking
     async def close(self,
                     reply_code: int = 0,
                     reply_text: str = '',
@@ -588,6 +602,7 @@ class Connection(ChannelBase):
                 wait=spec.Connection.CloseOk,
             )
 
+    @toggle_blocking
     async def _on_close(self,
                         reply_code: int,
                         reply_text: str,
@@ -649,6 +664,7 @@ class Connection(ChannelBase):
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
+    @toggle_blocking
     async def _x_close_ok(self) -> None:
         """Confirm a connection close.
 
@@ -663,6 +679,7 @@ class Connection(ChannelBase):
         await self.send_method(
             spec.Connection.CloseOk, callback=self._on_close_ok)
 
+    @toggle_blocking
     async def _on_close_ok(self) -> None:
         """Confirm a connection close.
 
@@ -677,6 +694,7 @@ class Connection(ChannelBase):
         """
         self.collect()
 
+    @toggle_blocking
     async def _on_blocked(self) -> None:
         """Callback called when connection blocked.
 
@@ -687,13 +705,16 @@ class Connection(ChannelBase):
         if self.on_blocked:
             await self.on_blocked(reason)
 
+    @toggle_blocking
     async def _on_unblocked(self) -> None:
         if self.on_unblocked:
             await self.on_unblocked()
 
+    @toggle_blocking
     async def send_heartbeat(self) -> None:
         await self.frame_writer(8, 0, None, None, None)
 
+    @toggle_blocking
     async def heartbeat_tick(self, rate: int = 2) -> None:
         """Send heartbeat packets if necessary.
 

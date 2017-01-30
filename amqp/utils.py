@@ -2,7 +2,8 @@
 import logging
 import os
 from asyncio import coroutine
-from typing import Any, AnyStr, Optional, Union, cast
+from functools import wraps
+from typing import Any, AnyStr, Callable, Optional, Union, cast
 from .types import Fd
 
 __all__ = [
@@ -54,3 +55,21 @@ def get_logger(logger: Union[logging.Logger, str] = None) -> logging.Logger:
     if not logger.hasHandlers():
         logger.addHandler(logging.NullHandler())
     return logger
+
+
+
+def toggle_blocking(meth: Callable) -> Callable:
+
+    @wraps(meth)
+    def _maybe_block(self, *args, **kwargs) -> Any:
+        p = meth(self, *args, **kwargs)
+        if not self.async:
+            pass
+        return p
+
+    return _maybe_block
+
+
+class AsyncToggle(object):
+    async = True
+
