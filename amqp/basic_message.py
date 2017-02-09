@@ -24,13 +24,17 @@
 #  path."
 # Source:
 #   http://stackoverflow.com/a/14216937/4982251
+from typing import Any, MutableMapping, Sequence, Tuple
+from typing import Mapping  # noqa
+from .types import ChannelT
 from .spec import Basic
 from .serialization import GenericContent
+from .types import MessageT
 
 __all__ = ['Message']
 
 
-class Message(GenericContent):
+class Message(GenericContent, MessageT):
     """A Message for use with the Channnel.basic_* methods.
 
     Expected arg types
@@ -93,7 +97,7 @@ class Message(GenericContent):
                             application_headers={'foo': 7})
     """
 
-    CLASS_ID = Basic.CLASS_ID
+    CLASS_ID: int = Basic.CLASS_ID
 
     #: Instances of this class have these attributes, which
     #: are passed back and forth as message properties between
@@ -115,18 +119,21 @@ class Message(GenericContent):
         ('cluster_id', 's')
     ]
 
-    #: set by basic_consume/basic_get
-    delivery_info = None
-
-    def __init__(self, body='', children=None, channel=None, **properties):
+    def __init__(self,
+                 body: bytes = b'',
+                 children: Any = None,
+                 channel: ChannelT = None,
+                 **properties) -> None:
         super().__init__(**properties)
         self.body = body
         self.channel = channel
+        self.children = children  # unsupported
+        self.delivery_info = {}  # set by basic_consume/_get
 
     @property
-    def headers(self):
+    def headers(self) -> MutableMapping:
         return self.properties.get('application_headers')
 
     @property
-    def delivery_tag(self):
+    def delivery_tag(self) -> str:
         return self.delivery_info.get('delivery_tag')

@@ -17,11 +17,13 @@ __all__ = [
     'HAS_TCP_USER_TIMEOUT',
 ]
 
-RE_NUM = re.compile(r'(\d+).+')  # type: Pattern
+RE_NUM: Pattern = re.compile(r'(\d+).+')
+TCP_USER_TIMEOUT = 18
 
 
 def _linux_version_to_tuple(s: str) -> Tuple[int, int, int]:
-    return tuple(map(_versionatom, s.split('.')[:3]))
+    a, b, c, *_ = tuple(map(_versionatom, s.split('.')))
+    return a, b, c
 
 
 def _versionatom(s: str) -> int:
@@ -31,14 +33,13 @@ def _versionatom(s: str) -> int:
     return int(match.groups()[0]) if match else 0
 
 
-LINUX_VERSION = None
+LINUX_VERSION: Tuple[int, int, int] = None
 if sys.platform.startswith('linux'):
     LINUX_VERSION = _linux_version_to_tuple(platform.release())
 
 try:
-    from socket import TCP_USER_TIMEOUT
+    from socket import TCP_USER_TIMEOUT  # type: ignore
     HAS_TCP_USER_TIMEOUT = True
 except ImportError:  # pragma: no cover
     # should be in Python 3.6+ on Linux.
-    TCP_USER_TIMEOUT = 18
     HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)

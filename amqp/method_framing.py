@@ -16,20 +16,19 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
-from typing import Any, Callable, Set
+from typing import Any, Callable, FrozenSet, MutableMapping, cast
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .spec import method_sig_t
 from .transport import Frame
-from .types import ChannelT, ConnectionT, TransportT
+from .types import AbstractChannelT, ConnectionT, MessageT, TransportT
 from .utils import coroutine, want_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
 #: Set of methods that require both a content frame and a body frame.
-# type: Set[method_sig_t]
-_CONTENT_METHODS = frozenset([
+_CONTENT_METHODS: FrozenSet[method_sig_t] = frozenset([
     spec.Basic.Return,
     spec.Basic.Deliver,
     spec.Basic.GetOk,
@@ -41,16 +40,16 @@ _CONTENT_METHODS = frozenset([
 #: and if it does not the message will fit into the preallocated buffer.
 FRAME_OVERHEAD = 40
 
-FrameHandlerCallback = Callable[[ChannelT, int, str, bytes], None]
+FrameHandlerCallback = Callable[[AbstractChannelT, int, str, bytes], None]
 
 
 def frame_handler(
         connection: ConnectionT,
         callback: FrameHandlerCallback,
-        content_methods: Set[spec.method_sig_t] = _CONTENT_METHODS,
+        content_methods: FrozenSet[spec.method_sig_t] = _CONTENT_METHODS,
         unpack_from: Callable = unpack_from) -> Callable[[Frame], None]:
     """Create closure that reads frames."""
-    expected_types = defaultdict(lambda: 1)
+    expected_types: MutableMapping[int, int] = defaultdict(lambda: 1)
     partial_messages = {}
 
     async def on_frame(frame):
@@ -107,11 +106,9 @@ def frame_writer(connection: ConnectionT,
                  pack_into: Callable = pack_into,
                  range: Callable = range,
                  len: Callable = len,
-                 bytes: Any = bytes,
                  want_bytes: Callable = want_bytes) -> Callable:
     """Create closure that writes frames."""
     write = transport.write
-    flush_write_buffer = transport.flush_write_buffer
 
     # memoryview first supported in Python 2.7
     # Initial support was very shaky, so could be we have to
@@ -121,9 +118,9 @@ def frame_writer(connection: ConnectionT,
 
     async def write_frame(type_: int,
                           channel: int,
-                          method_sig: method_sig_t,
-                          args: bytes,
-                          content: bytes) -> None:
+                          method_sig: method_sig_t = None,
+                          args: bytes = None,
+                          content: MessageT = None) -> None:
         chunk_size = connection.frame_max - 8
         offset = 0
         properties = None  # type: bytes
@@ -189,8 +186,7 @@ def frame_writer(connection: ConnectionT,
                           3, channel, framelen, want_bytes(body), 0xce)
                 offset += 8 + framelen
 
-            await write(view[:offset])
+            await write(cast(bytes, view[:offset]))
 
-        await flush_write_buffer()
         connection.bytes_sent += 1
     return write_frame

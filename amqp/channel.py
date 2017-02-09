@@ -16,11 +16,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 import logging
 import socket
+from asyncio import Queue
 from collections import defaultdict
-from queue import Queue
 from warnings import warn
 from vine import Thenable, ensure_promise
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, MutableMapping, Optional, Set
 from . import spec
 from .abstract_channel import ChannelBase
 from .exceptions import (
@@ -28,9 +28,9 @@ from .exceptions import (
     RecoverableChannelError, RecoverableConnectionError, error_for_code,
 )
 from .protocol import queue_declare_ok_t
-from .spec import method_sig_t
-from .types import ConnectionT, MessageT
-from .utils import coroutine, toggle_blocking
+from .spec import MethodMapT, method_sig_t, to_method_map
+from .types import ChannelT, ConnectionT, MessageT
+from .utils import toggle_blocking
 
 __all__ = ['Channel']
 
@@ -51,7 +51,7 @@ class VDeprecationWarning(DeprecationWarning):
     ...
 
 
-class Channel(ChannelBase):
+class Channel(ChannelBase, ChannelT):
     """AMQP Channel.
 
     The channel class provides methods for a client to establish a
@@ -79,7 +79,7 @@ class Channel(ChannelBase):
     is left as plain bytes.
     """
 
-    _METHODS = {
+    _METHODS: MethodMapT = to_method_map(
         spec.method(spec.Channel.Close, 'BsBB'),
         spec.method(spec.Channel.CloseOk),
         spec.method(spec.Channel.Flow, 'b'),
@@ -108,8 +108,39 @@ class Channel(ChannelBase):
         spec.method(spec.Tx.SelectOk),
         spec.method(spec.Confirm.SelectOk),
         spec.method(spec.Basic.Ack, 'Lb'),
-    }
-    _METHODS = {m.method_sig: m for m in _METHODS}
+    )
+
+    #: Set when channel is open.
+    is_open: bool = False
+
+    #: Flow control.
+    active: bool = True
+
+    #: Callbacks for inbound messages, keys are consumer tags.
+    callbacks: MutableMapping[str, Callable] = None
+
+    #: Callbacks for when a consumer cancellation is received.
+    #: Key is consumer tag.
+    cancel_callbacks: MutableMapping[str, Callable] = None
+
+    #: Generic callbacks for specific methods.
+    #: Key is method name.
+    events: MutableMapping[str, Set[Callable]] = None
+
+    #: Automatically decode inbound frames.
+    auto_decode: bool = False
+
+    #: Set of consumer tags that have no_ack enabled.
+    no_ack_consumers: Set[str] = None
+
+    #: Callback for when the channel is open.
+    on_open: Thenable = None
+
+    #: Queue of returned messages.
+    returned_messages: Queue = None
+
+    #: Set if publisher confirmations are enabled for this channel.
+    _confirm_selected: bool = False
 
     def __init__(self, connection: ConnectionT,
                  channel_id: int = None,
@@ -124,8 +155,6 @@ class Channel(ChannelBase):
 
         super().__init__(connection, channel_id)
 
-        self.is_open = False
-        self.active = True  # Flow control
         self.returned_messages = Queue()
         self.callbacks = {}
         self.cancel_callbacks = {}
@@ -145,7 +174,7 @@ class Channel(ChannelBase):
         await self.open()
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    async def __aexit__(self, *exc_info) -> None:
         await self.close()
 
     def then(self, on_success: Thenable,
@@ -191,7 +220,7 @@ class Channel(ChannelBase):
     async def close(self,
                     reply_code: int = 0,
                     reply_text: str = '',
-                    method_sig: method_sig_t = (0, 0),
+                    method_sig: method_sig_t = method_sig_t(0, 0),
                     argsig: str = 'BsBB') -> None:
         """Request a channel close.
 
@@ -254,7 +283,7 @@ class Channel(ChannelBase):
             self.connection = None
 
     @toggle_blocking
-    async def _on_close(self, reply_code: int, reply_text: int,
+    async def _on_close(self, reply_code: int, reply_text: str,
                         class_id: int, method_id: int) -> None:
         """Request a channel close.
 
@@ -516,13 +545,14 @@ class Channel(ChannelBase):
     #
 
     @toggle_blocking
-    async def exchange_declare(self, exchange: str, type: str,
-                               passive: bool = False,
-                               durable: bool = False,
-                               auto_delete: bool = True,
-                               nowait: bool = False,
-                               arguments: Mapping[str, Any] = None,
-                               argsig: str = 'BssbbbbbF') -> None:
+    async def exchange_declare(
+            self, exchange: str, type: str,
+            passive: bool = False,
+            durable: bool = False,
+            auto_delete: bool = True,
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BssbbbbbF') -> None:
         """Declare exchange, create if needed.
 
         This method creates an exchange if it does not already exist,
@@ -654,10 +684,12 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def exchange_delete(self, exchange: str,
-                              if_unused: bool = False,
-                              nowait: bool = False,
-                              argsig: str = 'Bsbb') -> None:
+    async def exchange_delete(
+            self,
+            exchange: str,
+            if_unused: bool = False,
+            nowait: bool = False,
+            argsig: str = 'Bsbb') -> None:
         """Delete an exchange.
 
         This method deletes an exchange.  When an exchange is deleted
@@ -705,12 +737,13 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def exchange_bind(self, destination: str,
-                            source: str = '',
-                            routing_key: str = '',
-                            nowait: bool = False,
-                            arguments: Mapping[str, Any] = None,
-                            argsig: str = 'BsssbF') -> None:
+    async def exchange_bind(
+            self, destination: str,
+            source: str = '',
+            routing_key: str = '',
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BsssbF') -> None:
         """Bind an exchange to an exchange.
 
         RULE:
@@ -788,12 +821,13 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def exchange_unbind(self, destination: str,
-                              source: str = '',
-                              routing_key: str = '',
-                              nowait: bool = False,
-                              arguments: Mapping[str, Any] = None,
-                              argsig: str = 'BsssbF') -> None:
+    async def exchange_unbind(
+            self, destination: str,
+            source: str = '',
+            routing_key: str = '',
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BsssbF') -> None:
         """Unbind an exchange from an exchange.
 
         RULE:
@@ -876,12 +910,13 @@ class Channel(ChannelBase):
     #
 
     @toggle_blocking
-    async def queue_bind(self, queue: str,
-                         exchange: str = '',
-                         routing_key: str = '',
-                         nowait: bool = False,
-                         arguments: Mapping[str, Any] = None,
-                         argsig: str = 'BsssbF') -> None:
+    async def queue_bind(
+            self, queue: str,
+            exchange: str = '',
+            routing_key: str = '',
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BsssbF') -> None:
         """Bind queue to an exchange.
 
         This method binds a queue to an exchange.  Until a queue is
@@ -986,11 +1021,12 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def queue_unbind(self, queue: str, exchange: str,
-                           routing_key: str = '',
-                           nowait: bool = False,
-                           arguments: Mapping[str, Any] = None,
-                           argsig: str = 'BsssF') -> None:
+    async def queue_unbind(
+            self, queue: str, exchange: str,
+            routing_key: str = '',
+            nowait: bool = False,
+            arguments: Mapping[str, Any] = None,
+            argsig: str = 'BsssF') -> None:
         """Unbind a queue from an exchange.
 
         This method unbinds a queue from an exchange.
@@ -1056,7 +1092,7 @@ class Channel(ChannelBase):
             auto_delete: bool = True,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
-            argsig: str = 'BsbbbbbF') -> Optional[queue_declare_ok_t]:
+            argsig: str = 'BsbbbbbF') -> queue_declare_ok_t:
         """Declare queue, create if needed.
 
         This method creates or checks a queue.  When creating a new
@@ -1218,14 +1254,16 @@ class Channel(ChannelBase):
                 spec.Queue.DeclareOk, returns_tuple=True,
             )
             return queue_declare_ok_t(*ret)
+        return queue_declare_ok_t('', 0, 0)
 
     @toggle_blocking
-    async def queue_delete(self,
-                           queue: str = '',
-                           if_unused: bool = False,
-                           if_empty: bool = False,
-                           nowait: bool = False,
-                           argsig: str = 'Bsbbb') -> None:
+    async def queue_delete(
+            self,
+            queue: str = '',
+            if_unused: bool = False,
+            if_empty: bool = False,
+            nowait: bool = False,
+            argsig: str = 'Bsbbb') -> None:
         """Delete a queue.
 
         This method deletes a queue.  When a queue is deleted any
@@ -1297,10 +1335,11 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def queue_purge(self,
-                          queue: str = '',
-                          nowait: bool = False,
-                          argsig: str = 'Bsb') -> Optional[int]:
+    async def queue_purge(
+            self,
+            queue: str = '',
+            nowait: bool = False,
+            argsig: str = 'Bsb') -> Optional[int]:
         """Purge a queue.
 
         This method removes all messages from a queue.  It does not
@@ -1355,7 +1394,7 @@ class Channel(ChannelBase):
 
         if nowait is False, returns a message_count
         """
-        await self.send_method(
+        return await self.send_method(
             spec.Queue.Purge, argsig, (0, queue, nowait),
             wait=None if nowait else spec.Queue.PurgeOk,
         )
@@ -1421,9 +1460,10 @@ class Channel(ChannelBase):
     #
 
     @toggle_blocking
-    async def basic_ack(self, delivery_tag: str,
-                        multiple: bool = False,
-                        argsig: str = 'Lb') -> None:
+    async def basic_ack(
+            self, delivery_tag: str,
+            multiple: bool = False,
+            argsig: str = 'Lb') -> None:
         """Acknowledge one or more messages.
 
         This method acknowledges one or more messages delivered via
@@ -1474,9 +1514,10 @@ class Channel(ChannelBase):
         )
 
     @toggle_blocking
-    async def basic_cancel(self, consumer_tag: str,
-                           nowait: bool = False,
-                           argsig: str = 'sb') -> None:
+    async def basic_cancel(
+            self, consumer_tag: str,
+            nowait: bool = False,
+            argsig: str = 'sb') -> None:
         """End a queue consumer.
 
         This method cancels a consumer. This does not affect already
@@ -1539,22 +1580,23 @@ class Channel(ChannelBase):
     async def _on_basic_cancel_ok(self, consumer_tag: str) -> None:
         self._remove_tag(consumer_tag)
 
-    def _remove_tag(self, consumer_tag: str) -> None:
+    def _remove_tag(self, consumer_tag: str) -> Optional[Callable]:
         self.callbacks.pop(consumer_tag, None)
         return self.cancel_callbacks.pop(consumer_tag, None)
 
     @toggle_blocking
-    async def basic_consume(self,
-                            queue: str = '',
-                            consumer_tag: str = '',
-                            no_local: bool = False,
-                            no_ack: bool = False,
-                            exclusive: bool = False,
-                            nowait: bool = False,
-                            callback: Callable = None,
-                            arguments: Mapping[str, Any] = None,
-                            on_cancel: Callable = None,
-                            argsig: str = 'BssbbbbF') -> None:
+    async def basic_consume(
+            self,
+            queue: str = '',
+            consumer_tag: str = '',
+            no_local: bool = False,
+            no_ack: bool = False,
+            exclusive: bool = False,
+            nowait: bool = False,
+            callback: Callable = None,
+            arguments: Mapping[str, Any] = None,
+            on_cancel: Callable = None,
+            argsig: str = 'BssbbbbF') -> None:
         """Start a queue consumer.
 
         This method asks the server to start a "consumer", which is a
@@ -1698,10 +1740,11 @@ class Channel(ChannelBase):
             await fun(msg)
 
     @toggle_blocking
-    async def basic_get(self,
-                        queue: str = '',
-                        no_ack: bool = False,
-                        argsig: str = 'Bsb') -> Optional[MessageT]:
+    async def basic_get(
+            self,
+            queue: str = '',
+            no_ack: bool = False,
+            argsig: str = 'Bsb') -> Optional[MessageT]:
         """Direct access to a queue.
 
         This method provides a direct access to the messages in a
@@ -1743,7 +1786,7 @@ class Channel(ChannelBase):
         )
         if not ret or len(ret) < 2:
             await self._on_get_empty(*ret)
-        await self._on_get_ok(*ret)
+        return await self._on_get_ok(*ret)
 
     @toggle_blocking
     async def _on_get_empty(self, cluster_id: str = None) -> None:
@@ -1764,13 +1807,14 @@ class Channel(ChannelBase):
         return msg
 
     @toggle_blocking
-    async def _basic_publish(self, msg: MessageT,
-                             exchange: str = '',
-                             routing_key: str = '',
-                             mandatory: bool = False,
-                             immediate: bool = False,
-                             timeout: float = None,
-                             argsig: str = 'Bssbb') -> None:
+    async def _basic_publish(
+            self, msg: MessageT,
+            exchange: str = '',
+            routing_key: str = '',
+            mandatory: bool = False,
+            immediate: bool = False,
+            timeout: float = None,
+            argsig: str = 'Bssbb') -> None:
         """Publish a message.
 
         This method publishes a message to a specific exchange. The
@@ -1839,11 +1883,11 @@ class Channel(ChannelBase):
             raise RecoverableConnectionError(
                 'basic_publish: connection closed')
         try:
-            with self.connection.transport.having_timeout(timeout):
-                await self.send_method(
-                    spec.Basic.Publish, argsig,
-                    (0, exchange, routing_key, mandatory, immediate), msg
-                )
+            await self.send_method(
+                spec.Basic.Publish, argsig,
+                (0, exchange, routing_key, mandatory, immediate), msg,
+                timeout=timeout,
+            )
         except socket.timeout:
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
@@ -1857,11 +1901,12 @@ class Channel(ChannelBase):
         await self.wait(spec.Basic.Ack)
 
     @toggle_blocking
-    async def basic_qos(self,
-                        prefetch_size: int,
-                        prefetch_count: int,
-                        a_global: bool,
-                        argsig: str = 'lBb') -> None:
+    async def basic_qos(
+            self,
+            prefetch_size: int,
+            prefetch_count: int,
+            a_global: bool,
+            argsig: str = 'lBb') -> None:
         """Specify quality of service.
 
         This method requests a specific quality of service.  The QoS

@@ -32,8 +32,8 @@ def get_errno(exc: Any) -> int:
 
 def set_cloexec(fd: Fd, cloexec: bool) -> None:
     if not isinstance(fd, int):
-        fd = fd.fileno()
-    os.set_inheritable(fd, cloexec)
+        fd = cast(Fd, fd.fileno())
+    os.set_inheritable(fd, cloexec)  # type: ignore
 
 
 def want_bytes(s: AnyStr) -> bytes:

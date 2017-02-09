@@ -23,9 +23,13 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple
+from typing import (
+    Any, Callable, Dict, List, Mapping, MutableMapping, MutableSequence,
+    Sequence, Tuple, cast,
+)
 from .spec import Basic, method_sig_t
 from .exceptions import FrameSyntaxError
+from .types import ContentT, MessageT
 from .utils import want_bytes, want_str
 
 ILLEGAL_TABLE_TYPE = """\
@@ -47,6 +51,8 @@ def _read_item(buf: bytes,
                chr: Callable = chr) -> Tuple[Any, int]:
     ftype = chr(buf[offset])
     offset += 1
+
+    val: Any = None
 
     # 'S': long string
     if ftype == 'S':
@@ -168,11 +174,14 @@ def loads(format: str, buf: bytes, offset: int = 0,
         array = A
         timestamp = T
     """
-    bitcount = bits = 0
+    bitcount: int = 0
+    bits: int = 0
 
-    values = []
+    values: MutableSequence[Any] = []
     append = values.append
     format = want_str(format)
+
+    val: Any = None
 
     for p in format:
         if p == 'b':
@@ -269,11 +278,11 @@ def dumps(format: str, values: Sequence[Any]) -> bytes:
         table = F
         array = A
     """
-    bitcount = 0                   # type: int
-    bits = []                      # type: List[int]
-    out = BytesIO()                # type: BytesIO
-    write = out.write              # type: Callable[[bytes], None]
-    format = want_str(format)      # type: bytes
+    bitcount: int = 0
+    bits: List[int] = []
+    out = BytesIO()
+    write: Callable = out.write
+    format = want_str(format)
 
     for i, val in enumerate(values):
         p = format[i]
@@ -331,10 +340,9 @@ def _write_table(d: Mapping[str, Any], write: Callable, bits: List[int],
     out = BytesIO()
     twrite = out.write
     for k, v in d.items():
-        if isinstance(k, str):
-            k = k.encode('utf-8')
-        twrite(pack('B', len(k)))
-        twrite(k)
+        kb = want_bytes(k)
+        twrite(pack('B', len(kb)))
+        twrite(kb)
         try:
             _write_item(v, twrite, bits)
         except ValueError:
@@ -412,79 +420,78 @@ def _write_item(v: Any,
 
 
 def decode_properties_basic(
+        content: MessageT,
         buf: bytes,
         offset: int = 0,
         unpack_from: Callable = unpack_from,
-        want_str: Callable = want_str) -> Tuple[Dict[str, Any], int]:
+        want_str: Callable = want_str) -> int:
     """Decode basic properties."""
-    properties = {}
-
     flags, = unpack_from('>H', buf, offset)
     offset += 2
 
     if flags & 0x8000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_type'] = want_str(buf[offset:offset + slen])
+        content.content_type = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x4000:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['content_encoding'] = want_str(buf[offset:offset + slen])
+        content.content_encoding = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x2000:
         _f, offset = loads('F', buf, offset)
-        properties['application_headers'], = _f
+        content.application_headers, = _f
     if flags & 0x1000:
-        properties['delivery_mode'], = unpack_from('>B', buf, offset)
+        content.delivery_mode, = unpack_from('>B', buf, offset)
         offset += 1
     if flags & 0x0800:
-        properties['priority'], = unpack_from('>B', buf, offset)
+        content.priority, = unpack_from('>B', buf, offset)
         offset += 1
     if flags & 0x0400:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['correlation_id'] = want_str(buf[offset:offset + slen])
+        content.correlation_id = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0200:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['reply_to'] = want_str(buf[offset:offset + slen])
+        content.reply_to = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0100:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['expiration'] = want_str(buf[offset:offset + slen])
+        content.expiration = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0080:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['message_id'] = want_str(buf[offset:offset + slen])
+        content.message_id = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0040:
-        properties['timestamp'], = unpack_from('>Q', buf, offset)
+        content.timestamp, = unpack_from('>Q', buf, offset)
         offset += 8
     if flags & 0x0020:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['type'] = want_str(buf[offset:offset + slen])
+        content.type = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0010:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['user_id'] = want_str(buf[offset:offset + slen])
+        content.user_id = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0008:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['app_id'] = want_str(buf[offset:offset + slen])
+        content.app_id = want_str(buf[offset:offset + slen])
         offset += slen
     if flags & 0x0004:
         slen, = unpack_from('>B', buf, offset)
         offset += 1
-        properties['cluster_id'] = want_str(buf[offset:offset + slen])
+        content.cluster_id = want_str(buf[offset:offset + slen])
         offset += slen
-    return properties, offset
+    return offset
 
 
 PROPERTY_CLASSES = {
@@ -492,14 +499,14 @@ PROPERTY_CLASSES = {
 }
 
 
-class GenericContent:
+class GenericContent(ContentT):
     """Abstract base class for AMQP content.
 
     Subclasses should override the PROPERTIES attribute.
     """
 
-    CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
+    _pending_chunks: List[bytes] = None
 
     def __init__(self,
                  frame_method: method_sig_t = None,
@@ -507,23 +514,8 @@ class GenericContent:
                  **props) -> None:
         self.frame_method = frame_method
         self.frame_args = frame_args
-
         self.properties = props
         self._pending_chunks = []
-        self.body_received = 0
-        self.body_size = 0
-        self.ready = False
-
-    def __getattr__(self, name: str) -> Any:
-        # Look for additional properties in the 'properties'
-        # dictionary, and if present - the 'delivery_info' dictionary.
-        if name == '__setstate__':
-            # Allows pickling/unpickling to work
-            raise AttributeError('__setstate__')
-
-        if name in self.properties:
-            return self.properties[name]
-        raise AttributeError(name)
 
     def _load_properties(self,
                          class_id: int,
@@ -538,9 +530,7 @@ class GenericContent:
         stored in this object as an attribute named 'properties'.
         """
         # Read 16-bit shorts until we get one with a low bit set to zero
-        props, offset = classes[class_id](buf, offset)
-        self.properties = props
-        return offset
+        return classes[class_id](self, buf, offset)
 
     def _serialize_properties(self) -> bytes:
         """Serialize AMQP properties.
@@ -551,8 +541,9 @@ class GenericContent:
         """
         shift = 15
         flag_bits = 0
-        flags = []
-        sformat, svalues = [], []
+        flags: List[int] = []
+        sformat: List[bytes] = []
+        svalues: List[Any] = []
         props = self.properties
         props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
@@ -574,7 +565,7 @@ class GenericContent:
         write = result.write
         for flag_bits in flags:
             write(pack('>H', flag_bits))
-        write(dumps(b''.join(sformat), svalues))
+        write(dumps(want_str(b''.join(sformat)), svalues))
 
         return result.getvalue()
 
@@ -587,7 +578,7 @@ class GenericContent:
         return offset
 
     def inbound_body(self, buf: bytes):
-        chunks = self._pending_chunks
+        chunks: List[bytes] = self._pending_chunks
         self.body_received += len(buf)
         if self.body_received >= self.body_size:
             if chunks:

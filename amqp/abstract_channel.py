@@ -14,20 +14,19 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from typing import Any, Callable, Coroutine, Sequence, Union
+from typing import Any, Callable, Coroutine, Mapping, Sequence, Union, cast
+from typing import List, MutableMapping  # noqa: F401
 from vine import Thenable, ensure_promise, promise
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
-from .types import ConnectionT
-from .spec import method_sig_t
-from .utils import AsyncToggle, coroutine, toggle_blocking
-
-WaitMethodT = Union[method_sig_t, Sequence[method_sig_t]]
+from .types import AbstractChannelT, ConnectionT, MessageT, WaitMethodT
+from .spec import method_t, method_sig_t
+from .utils import AsyncToggle, toggle_blocking
 
 __all__ = ['ChannelBase']
 
 
-class ChannelBase(AsyncToggle):
+class ChannelBase(AsyncToggle, AbstractChannelT):
     """Superclass for Connection and Channel.
 
     The connection is treated as channel 0, then comes
@@ -37,18 +36,20 @@ class ChannelBase(AsyncToggle):
     between AMQP method signatures and Python methods.
     """
 
-    def __init__(self, connection: ConnectionT, channel_id: int):
+    connection: ConnectionT = None
+    channel_id: int = None
+
+    def __init__(self, connection: ConnectionT, channel_id: int) -> None:
         self.connection = connection
         self.channel_id = channel_id
         connection.channels[channel_id] = self
-        self.method_queue = []  # Higher level queue for methods
         self.auto_decode = False
-        self._pending = {}
-        self._callbacks = {}
+        self._pending: MutableMapping[method_sig_t, Callable] = {}
+        self._callbacks: MutableMapping[method_sig_t, Callable] = {}
 
         self._setup_listeners()
 
-    def __enter__(self) -> 'ChannelBase':
+    def __enter__(self) -> AbstractChannelT:
         return self
 
     def __exit__(self, *exc_info) -> None:
@@ -66,10 +67,10 @@ class ChannelBase(AsyncToggle):
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
-        args = dumps(format, args) if format else ''
+        argsb = dumps(format, args) if format else b''
         try:
             await conn.frame_writer(
-                1, self.channel_id, sig, args, content)
+                1, self.channel_id, sig, argsb, content)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
@@ -84,11 +85,6 @@ class ChannelBase(AsyncToggle):
         return p
 
     @toggle_blocking
-    async def close(self) -> None:
-        """Close this Channel or Connection."""
-        raise NotImplementedError('Must be overriden in subclass')
-
-    @toggle_blocking
     async def wait(self,
                    method: WaitMethodT,
                    callback: Callable = None,
@@ -97,10 +93,13 @@ class ChannelBase(AsyncToggle):
         p = ensure_promise(callback)
         pending = self._pending
         prev_p = []
-        if not isinstance(method, list):
-            method = [method]
+        methods: Sequence[method_sig_t] = None
+        if isinstance(method, method_sig_t):
+            methods = [method]
+        else:
+            methods = method
 
-        for m in method:
+        for m in methods:
             prev_p.append(pending.get(m))
             pending[m] = p
 
@@ -112,7 +111,7 @@ class ChannelBase(AsyncToggle):
                 args, kwargs = p.value
                 return args if returns_tuple else (args and args[0])
         finally:
-            for i, m in enumerate(method):
+            for i, m in enumerate(methods):
                 if prev_p[i] is not None:
                     pending[m] = prev_p[i]
                 else:
@@ -122,12 +121,13 @@ class ChannelBase(AsyncToggle):
     async def dispatch_method(self,
                               method_sig: method_sig_t,
                               payload: bytes,
-                              content: bytes) -> None:
+                              content: MessageT) -> None:
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):
             try:
-                content.body = content.body.decode(content.content_encoding)
+                content.body = content.body.decode(  # type: ignore
+                    content.content_encoding)
             except Exception:
                 pass
 
@@ -146,23 +146,25 @@ class ChannelBase(AsyncToggle):
         except KeyError:
             if not listeners:
                 return
-        else:
-            if listeners is None:
-                listeners = [one_shot]
-            else:
-                listeners.append(one_shot)
 
-        args = []
+        args: Sequence[Any] = None
+        final_args: Sequence[Any] = []
         if amqp_method.args:
             args, _ = loads(amqp_method.args, payload, 4)
         if amqp_method.content:
-            args.append(content)
+            final_args = cast(List, args) + [content]
+        else:
+            final_args = args
 
         for listener in listeners:
-            lisret = listener(*args)
+            lisret = cast(Callable, listener)(*final_args)
             if isinstance(lisret, Coroutine):
                 await lisret
+        if one_shot:
+            osret = one_shot(*final_args)
+            if isinstance(osret, Coroutine):
+                await osret
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP
-    _METHODS = {}
+    _METHODS: Mapping[method_sig_t, method_t] = {}

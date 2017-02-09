@@ -18,17 +18,18 @@ import asyncio
 import re
 import socket
 
-from contextlib import contextmanager, suppress
+from asyncio import wait_for
+from contextlib import suppress
 from ssl import SSLError
 from struct import pack, unpack
 from typing import (
-    Any, Callable, Dict, Mapping, NamedTuple, Tuple, Union,
+    Any, ByteString, Callable, Dict, Mapping, MutableMapping, Set, Tuple,
 )
 
 from .exceptions import UnexpectedFrame
-from .types import SSLArg
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
-from .utils import AsyncToggle, coroutine, set_cloexec, toggle_blocking
+from .types import Frame
+from .utils import AsyncToggle, set_cloexec, toggle_blocking
 
 AMQP_PORT = 5672
 
@@ -42,14 +43,8 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
-Frame = NamedTuple('Frame', [
-    ('type', int),
-    ('channel', int),
-    ('data', bytes),
-])
-
 # available socket options for TCP level
-KNOWN_TCP_OPTS = {  # type: Set[str]
+KNOWN_TCP_OPTS: Set[str] = {
     'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
     'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
     'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
@@ -59,12 +54,12 @@ KNOWN_TCP_OPTS = {  # type: Set[str]
 TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
 }
-DEFAULT_SOCKET_SETTINGS = {
+DEFAULT_SOCKET_SETTINGS: MutableMapping[int, int] = {
     socket.TCP_NODELAY: 1,
 }
 
 if HAS_TCP_USER_TIMEOUT:
-    KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
+    KNOWN_TCP_OPTS.add('TCP_USER_TIMEOUT')
     TCP_OPTS.add(TCP_USER_TIMEOUT)
     DEFAULT_SOCKET_SETTINGS[TCP_USER_TIMEOUT] = 1000
 
@@ -90,73 +85,45 @@ def to_host_port(host: str, default: int = AMQP_PORT) -> Tuple[str, int]:
             port = int(m.group(2))
     else:
         if ':' in host:
-            host, port = host.rsplit(':', 1)
-            port = int(port)
+            host, portstr = host.rsplit(':', 1)
+            port = int(portstr)
     return host, port
 
 
 class Transport(AsyncToggle):
     """Common superclass for TCP and SSL transports"""
 
-    connected = False
-    rstream = None
-    wstream = None
-
     def __init__(self, host: str,
                  connect_timeout: float = None,
                  read_timeout: float = None,
                  write_timeout: float = None,
                  socket_settings: Mapping = None,
-                 raise_on_initial_eintr: bool = True,
-                 ssl: SSLArg = None,
+                 ssl: Any = None,
                  **kwargs) -> None:
-        self.connected = True                      # type: bool
-        self.sock = None                           # type: socket.socket
-        self._read_buffer = EMPTY_BUFFER           # type: bytes
-        self.host, self.port = to_host_port(host)  # type: str, int
-        self.connect_timeout = connect_timeout     # type: float
-        self.read_timeout = read_timeout           # type: float
-        self.write_timeout = write_timeout         # type: float
-        self.socket_settings = socket_settings     # type: Mapping
-        self.ssl = ssl                             # type: SSLArg
-        self.raise_on_initial_eintr = raise_on_initial_eintr  # type: bool
+        self.connected: bool = True
+        self.sock: socket.socket = None
+        self._read_buffer: bytes = EMPTY_BUFFER
+        self.host, self.port = to_host_port(host)
+        self.connect_timeout = connect_timeout
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.socket_settings = socket_settings
+        self.ssl = ssl
+        self._flush_write_buffer: Callable = None
 
     async def connect(self) -> None:
         self.rstream, self.wstream = await asyncio.open_connection(
             host=self.host, port=self.port, ssl=self.ssl,
         )
-        self.sock = self.wstream.transport._sock
+        self.sock = self.wstream.transport._sock  # type: ignore
         self._init_socket(
             self.socket_settings, self.read_timeout, self.write_timeout,
         )
         self._read = self.rstream.readexactly
         self._write = self.wstream.write
-        self.flush_write_buffer = self.wstream.drain
+        self._flush_write_buffer = self.wstream.drain
         self.wstream.write(AMQP_PROTOCOL_HEADER)
         await self.wstream.drain()
-
-    @contextmanager
-    def having_timeout(self, timeout: float) -> Any:
-        if timeout is None:
-            yield self.sock
-        else:
-            sock = self.sock
-            prev = sock.gettimeout()
-            if prev != timeout:
-                sock.settimeout(timeout)
-            try:
-                yield self.sock
-            except SSLError as exc:
-                if 'timed out' in str(exc):
-                    # http://bugs.python.org/issue10272
-                    raise socket.timeout()
-                elif 'The operation did not complete' in str(exc):
-                    # Non-blocking SSL sockets can throw SSLError
-                    raise socket.timeout()
-                raise
-            finally:
-                if timeout != prev:
-                    sock.settimeout(prev)
 
     def _init_socket(self, socket_settings: Mapping,
                      read_timeout: float, write_timeout: float) -> None:
@@ -165,7 +132,7 @@ class Transport(AsyncToggle):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self._set_socket_options(socket_settings)
             with suppress(NotImplementedError):
-                set_cloexec(self.sock, True)
+                set_cloexec(self.sock, True)  # type: ignore
 
             # set socket timeouts
             for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
@@ -195,10 +162,6 @@ class Transport(AsyncToggle):
         for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
-    def _read(self, n: int, initial: bool = False):
-        """Read exactly n bytes from the peer."""
-        raise NotImplementedError('Must be overriden in subclass')
-
     def _setup_transport(self):
         """Do any additional initialization of the class."""
         ...
@@ -212,11 +175,17 @@ class Transport(AsyncToggle):
             self.wstream.close()
         self.wstream = None
         self.rstream = None
-        self.flush_write_buffer = None
+        self._flush_write_buffer = None
         self.connected = False
 
     @toggle_blocking
-    async def read_frame(self, unpack: Callable = unpack) -> Frame:
+    async def read_frame(self, timeout: float = None) -> Frame:
+        if timeout is not None:
+            return await wait_for(self._read_frame(), timeout=timeout)
+        return await self._read_frame()
+
+    @toggle_blocking
+    async def _read_frame(self, *, unpack: Callable = unpack) -> Frame:
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
@@ -228,7 +197,7 @@ class Transport(AsyncToggle):
             if size > SIGNED_INT_MAX:
                 part1 = await read(SIGNED_INT_MAX)
                 part2 = await read(size - SIGNED_INT_MAX)
-                payload = ''.join([part1, part2])
+                payload = b''.join([part1, part2])
             else:
                 payload = await read(size)
             read_frame_buffer += payload
@@ -249,9 +218,17 @@ class Transport(AsyncToggle):
                 'Received {0:#04x} while expecting 0xce'.format(ch))
 
     @toggle_blocking
-    async def write(self, s: bytes) -> None:
+    async def write(self, s: bytes, timeout: float = None) -> None:
+        if timeout is not None:
+            await wait_for(self._write_now(s), timeout=timeout)
+        else:
+            await self._write_now(s)
+
+    @toggle_blocking
+    async def _write_now(self, s: bytes) -> None:
         try:
             self._write(s)
+            await self._flush_write_buffer()
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error):
@@ -262,7 +239,7 @@ class Transport(AsyncToggle):
 @toggle_blocking
 async def connect(host: str,
                   connect_timeout: float = None,
-                  ssl: SSLArg = False,
+                  ssl: Any = False,
                   **kwargs) -> Transport:
     """Given a few parameters from the Connection constructor,
     select and create a subclass of Transport."""

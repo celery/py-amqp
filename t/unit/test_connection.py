@@ -194,7 +194,6 @@ class test_Connection:
 
     def test_blocking_read__no_timeout(self):
         self.conn.on_inbound_frame = Mock(name='on_inbound_frame')
-        self.conn.transport.having_timeout = ContextMock()
         ret = self.conn.blocking_read(None)
         self.conn.transport.read_frame.assert_called_with()
         self.conn.on_inbound_frame.assert_called_with(

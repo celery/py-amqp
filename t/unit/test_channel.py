@@ -314,7 +314,6 @@ class test_Channel:
         assert m is msg
 
     def test_basic_publish(self):
-        self.c.connection.transport.having_timeout = ContextMock()
         self.c._basic_publish('msg', 'ex', 'rkey')
         self.c.send_method.assert_called_with(
             spec.Basic.Publish, 'Bssbb',

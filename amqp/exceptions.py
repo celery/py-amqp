@@ -1,4 +1,5 @@
-"""Exceptions used by amqp.""" # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
+"""Exceptions used by amqp."""
+# Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -13,9 +14,9 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from typing import Any, Mapping
+from typing import Any, Mapping, MutableMapping, Union
 from struct import pack, unpack
-from .spec import method_sig_t
+from . import spec
 
 __all__ = [
     'AMQPError',
@@ -43,7 +44,7 @@ class AMQPError(Exception):
 
     def __init__(self,
                  reply_text: str = None,
-                 method_sig: method_sig_t = None,
+                 method_sig: spec.method_sig_t = None,
                  method_name: str = None,
                  reply_code: int = None) -> None:
         self.message = reply_text
@@ -200,7 +201,7 @@ class InternalError(IrrecoverableConnectionError):
     code = 541
 
 
-ERROR_MAP = {  # type: Mapping[int, type]
+ERROR_MAP: Mapping[int, type] = {
     311: ContentTooLarge,
     313: NoConsumers,
     320: ConnectionForced,
@@ -228,72 +229,82 @@ def error_for_code(code: int, text: str, method: Any, default: type):
         return default(text, method, reply_code=code)
 
 
-METHOD_NAME_MAP = {  # type: Mapping[method_sig_t, str]
-    (10, 10): 'Connection.start',
-    (10, 11): 'Connection.start_ok',
-    (10, 20): 'Connection.secure',
-    (10, 21): 'Connection.secure_ok',
-    (10, 30): 'Connection.tune',
-    (10, 31): 'Connection.tune_ok',
-    (10, 40): 'Connection.open',
-    (10, 41): 'Connection.open_ok',
-    (10, 50): 'Connection.close',
-    (10, 51): 'Connection.close_ok',
-    (20, 10): 'Channel.open',
-    (20, 11): 'Channel.open_ok',
-    (20, 20): 'Channel.flow',
-    (20, 21): 'Channel.flow_ok',
-    (20, 40): 'Channel.close',
-    (20, 41): 'Channel.close_ok',
-    (30, 10): 'Access.request',
-    (30, 11): 'Access.request_ok',
-    (40, 10): 'Exchange.declare',
-    (40, 11): 'Exchange.declare_ok',
-    (40, 20): 'Exchange.delete',
-    (40, 21): 'Exchange.delete_ok',
-    (40, 30): 'Exchange.bind',
-    (40, 31): 'Exchange.bind_ok',
-    (40, 40): 'Exchange.unbind',
-    (40, 41): 'Exchange.unbind_ok',
-    (50, 10): 'Queue.declare',
-    (50, 11): 'Queue.declare_ok',
-    (50, 20): 'Queue.bind',
-    (50, 21): 'Queue.bind_ok',
-    (50, 30): 'Queue.purge',
-    (50, 31): 'Queue.purge_ok',
-    (50, 40): 'Queue.delete',
-    (50, 41): 'Queue.delete_ok',
-    (50, 50): 'Queue.unbind',
-    (50, 51): 'Queue.unbind_ok',
-    (60, 10): 'Basic.qos',
-    (60, 11): 'Basic.qos_ok',
-    (60, 20): 'Basic.consume',
-    (60, 21): 'Basic.consume_ok',
-    (60, 30): 'Basic.cancel',
-    (60, 31): 'Basic.cancel_ok',
-    (60, 40): 'Basic.publish',
-    (60, 50): 'Basic.return',
-    (60, 60): 'Basic.deliver',
-    (60, 70): 'Basic.get',
-    (60, 71): 'Basic.get_ok',
-    (60, 72): 'Basic.get_empty',
-    (60, 80): 'Basic.ack',
-    (60, 90): 'Basic.reject',
-    (60, 100): 'Basic.recover_async',
-    (60, 110): 'Basic.recover',
-    (60, 111): 'Basic.recover_ok',
-    (60, 120): 'Basic.nack',
-    (90, 10): 'Tx.select',
-    (90, 11): 'Tx.select_ok',
-    (90, 20): 'Tx.commit',
-    (90, 21): 'Tx.commit_ok',
-    (90, 30): 'Tx.rollback',
-    (90, 31): 'Tx.rollback_ok',
-    (85, 10): 'Confirm.select',
-    (85, 11): 'Confirm.select_ok',
+_METHOD_NAME_MAP: Mapping[spec.method_sig_t, str] = {
+    spec.Connection.Start: 'Connection.start',
+    spec.Connection.StartOk: 'Connection.start_ok',
+    spec.Connection.Secure: 'Connection.secure',
+    spec.Connection.SecureOk: 'Connection.secure_ok',
+    spec.Connection.Tune: 'Connection.tune',
+    spec.Connection.TuneOk: 'Connection.tune_ok',
+    spec.Connection.Open: 'Connection.open',
+    spec.Connection.OpenOk: 'Connection.open_ok',
+    spec.Connection.Close: 'Connection.close',
+    spec.Connection.CloseOk: 'Connection.close_ok',
+    spec.Channel.Open: 'Channel.open',
+    spec.Channel.OpenOk: 'Channel.open_ok',
+    spec.Channel.Flow: 'Channel.flow',
+    spec.Channel.FlowOk: 'Channel.flow_ok',
+    spec.Channel.Close: 'Channel.close',
+    spec.Channel.CloseOk: 'Channel.close_ok',
+    spec.Access.Request: 'Access.request',
+    spec.Access.RequestOk: 'Access.request_ok',
+    spec.Exchange.Declare: 'Exchange.declare',
+    spec.Exchange.DeclareOk: 'Exchange.declare_ok',
+    spec.Exchange.Delete: 'Exchange.delete',
+    spec.Exchange.DeleteOk: 'Exchange.delete_ok',
+    spec.Exchange.Bind: 'Exchange.bind',
+    spec.Exchange.BindOk: 'Exchange.bind_ok',
+    spec.Exchange.Unbind: 'Exchange.unbind',
+    spec.Exchange.UnbindOk: 'Exchange.unbind_ok',
+    spec.Queue.Declare: 'Queue.declare',
+    spec.Queue.DeclareOk: 'Queue.declare_ok',
+    spec.Queue.Bind: 'Queue.bind',
+    spec.Queue.BindOk: 'Queue.bind_ok',
+    spec.Queue.Purge: 'Queue.purge',
+    spec.Queue.PurgeOk: 'Queue.purge_ok',
+    spec.Queue.Delete: 'Queue.delete',
+    spec.Queue.DeleteOk: 'Queue.delete_ok',
+    spec.Queue.Unbind: 'Queue.unbind',
+    spec.Queue.UnbindOk: 'Queue.unbind_ok',
+    spec.Basic.Qos: 'Basic.qos',
+    spec.Basic.QosOk: 'Basic.qos_ok',
+    spec.Basic.Consume: 'Basic.consume',
+    spec.Basic.ConsumeOk: 'Basic.consume_ok',
+    spec.Basic.Cancel: 'Basic.cancel',
+    spec.Basic.CancelOk: 'Basic.cancel_ok',
+    spec.Basic.Publish: 'Basic.publish',
+    spec.Basic.Return: 'Basic.return',
+    spec.Basic.Deliver: 'Basic.deliver',
+    spec.Basic.Get: 'Basic.get',
+    spec.Basic.GetOk: 'Basic.get_ok',
+    spec.Basic.GetEmpty: 'Basic.get_empty',
+    spec.Basic.Ack: 'Basic.ack',
+    spec.Basic.Nack: 'Basic.nack',
+    spec.Basic.Reject: 'Basic.reject',
+    spec.Basic.RecoverAsync: 'Basic.recover_async',
+    spec.Basic.Recover: 'Basic.recover',
+    spec.Basic.RecoverOk: 'Basic.recover_ok',
+    spec.Tx.Select: 'Tx.select',
+    spec.Tx.SelectOk: 'Tx.select_ok',
+    spec.Tx.Commit: 'Tx.commit',
+    spec.Tx.CommitOk: 'Tx.commit_ok',
+    spec.Tx.Rollback: 'Tx.rollback',
+    spec.Tx.RollbackOk: 'Tx.rollback_ok',
+    spec.Confirm.Select: 'Confirm.select',
+    spec.Confirm.SelectOk: 'Confirm.select_ok',
+}
+
+_BIN_METHOD_NAME_MAP: Mapping[str, str] = {
+    unpack('>I', pack('>HH', *_method_id))[0]: _method_name
+    for _method_id, _method_name in _METHOD_NAME_MAP.items()
 }
 
 
-for _method_id, _method_name in list(METHOD_NAME_MAP.items()):
-    METHOD_NAME_MAP[unpack('>I', pack('>HH', *_method_id))[0]] = \
-        _method_name
+_M: MutableMapping[Any, str] = dict(_METHOD_NAME_MAP)
+_M.update(_BIN_METHOD_NAME_MAP)
+
+METHOD_NAME_MAP: Mapping[Union[spec.method_sig_t, str], str] = dict(_M)
+del(_METHOD_NAME_MAP)
+del(_BIN_METHOD_NAME_MAP)
+del(_M)
+

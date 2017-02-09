@@ -1,5 +1,5 @@
 """AMQP Spec."""
-from typing import ByteString, NamedTuple
+from typing import Mapping, NamedTuple
 
 method_sig_t = NamedTuple('method_sig_t', [
     ('major', int),
@@ -7,16 +7,22 @@ method_sig_t = NamedTuple('method_sig_t', [
 ])
 method_t = NamedTuple('method_t', [
     ('method_sig', method_sig_t),
-    ('args', ByteString),
+    ('args', str),
     ('content', bool),
 ])
 
+MethodMapT = Mapping[method_sig_t, method_t]
+
 
 def method(method_sig: method_sig_t,
-           args: ByteString = None,
+           args: str = None,
            content: bool = False):
     """Create amqp method specification tuple."""
     return method_t(method_sig, args, content)
+
+
+def to_method_map(*methods: method_t) -> MethodMapT:
+    return {m.method_sig: m for m in methods}
 
 
 class Connection:
@@ -49,6 +55,15 @@ class Channel:
     FlowOk = method_sig_t(CLASS_ID, 21)
     Close = method_sig_t(CLASS_ID, 40)
     CloseOk = method_sig_t(CLASS_ID, 41)
+
+
+class Access:
+    """AMQ Access class."""
+
+    CLASS_ID = 30
+
+    Request = method_sig_t(CLASS_ID, 10)
+    RequestOk = method_sig_t(CLASS_ID, 11)
 
 
 class Exchange:
