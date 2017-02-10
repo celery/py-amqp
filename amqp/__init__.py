@@ -99,8 +99,6 @@ __all__ = [
 
 
 class version_info_t(NamedTuple):
-    """Version description tuple."""
-
     major: int
     minor: int
     micro: int

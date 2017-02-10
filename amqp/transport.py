@@ -24,7 +24,7 @@ from struct import pack, unpack
 from typing import Any, Callable, Dict, Mapping, MutableMapping, Set, Tuple
 from .exceptions import UnexpectedFrame
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
-from .types import Frame
+from .types import Frame, TransportT
 from .utils import AsyncToggle, set_cloexec, toggle_blocking
 
 AMQP_PORT = 5672
@@ -86,7 +86,7 @@ def to_host_port(host: str, default: int = AMQP_PORT) -> Tuple[str, int]:
     return host, port
 
 
-class Transport(AsyncToggle):
+class Transport(TransportT, AsyncToggle):
     """Network transport."""
 
     def __init__(self, host: str,

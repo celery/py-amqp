@@ -26,7 +26,7 @@ from .utils import AsyncToggle, toggle_blocking
 __all__ = ['ChannelBase']
 
 
-class ChannelBase(AsyncToggle, AbstractChannelT):
+class ChannelBase(AbstractChannelT, AsyncToggle):
     """Superclass for Connection and Channel.
 
     The connection is treated as channel 0, then comes

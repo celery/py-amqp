@@ -3,15 +3,11 @@ from typing import Mapping, NamedTuple
 
 
 class method_sig_t(NamedTuple):
-    """AMQP Method signature tuple."""
-
     major: int
     minor: int
 
 
 class method_t(NamedTuple):
-    """AMQP Method invocation tuple."""
-
     method_sig: method_sig_t
     args: str
     content: bool

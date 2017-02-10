@@ -18,8 +18,6 @@ Int = TypeVar('Int', SupportsInt, str)
 
 
 class Frame(NamedTuple):
-    """Frame tuple."""
-
     type: int
     channel: int
     data: bytes
@@ -137,6 +135,7 @@ class MessageT(ContentT, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def __init__(self,
                  body: bytes=b'',
+                 *,
                  children: Any = None,
                  channel: 'ChannelT' = None) -> None:
         ...
@@ -185,6 +184,7 @@ class AbstractChannelT(metaclass=abc.ABCMeta):
             self, sig: method_sig_t,
             format: str = None,
             args: Sequence = None,
+            *,
             content: MessageT = None,
             wait: WaitMethodT = None,
             callback: Callable = None,
@@ -194,6 +194,7 @@ class AbstractChannelT(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def close(
             self,
+            *,
             reply_code: int = 0,
             reply_text: str = '',
             method_sig: method_sig_t = method_sig_t(0, 0),
@@ -208,6 +209,7 @@ class AbstractChannelT(metaclass=abc.ABCMeta):
     async def wait(
             self,
             method: WaitMethodT,
+            *,
             callback: Callable = None,
             timeout: float = None,
             returns_tuple: bool = False) -> Any:
@@ -277,6 +279,7 @@ class ConnectionT(AbstractChannelT):
             host: str = 'localhost:5672',
             userid: str = 'guest',
             password: str = 'guest',
+            *,
             login_method: str = 'AMQPLAIN',
             login_response: Any = None,
             virtual_host: str = '/',
@@ -374,6 +377,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def exchange_declare(
             self, exchange: str, type: str,
+            *,
             passive: bool = False,
             durable: bool = False,
             auto_delete: bool = True,
@@ -385,6 +389,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def exchange_delete(
             self, exchange: str,
+            *,
             if_unused: bool = False,
             nowait: bool = False,
             argsig: str = 'Bsbb') -> None:
@@ -395,6 +400,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
             self, destination: str,
             source: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -405,6 +411,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
             self, destination: str,
             source: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -415,6 +422,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
             self, queue: str,
             exchange: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -424,6 +432,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     async def queue_unbind(
             self, queue: str, exchange: str,
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssF') -> None:
@@ -433,6 +442,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     async def queue_declare(
             self,
             queue: str = '',
+            *,
             passive: bool = False,
             durable: bool = False,
             exclusive: bool = False,
@@ -446,6 +456,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     async def queue_delete(
             self,
             queue: str = '',
+            *,
             if_unused: bool = False,
             if_empty: bool = False,
             nowait: bool = False,
@@ -456,6 +467,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     async def queue_purge(
             self,
             queue: str = '',
+            *,
             nowait: bool = False,
             argsig: str = 'Bsb') -> Optional[int]:
         ...
@@ -463,6 +475,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def basic_ack(
             self, delivery_tag: str,
+            *,
             multiple: bool = False,
             argsig: str = 'Lb') -> None:
         ...
@@ -470,6 +483,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def basic_cancel(
             self, consumer_tag: str,
+            *,
             nowait: bool = False,
             argsig: str = 'sb') -> None:
         ...
@@ -479,6 +493,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
             self,
             queue: str = '',
             consumer_tag: str = '',
+            *,
             no_local: bool = False,
             no_ack: bool = False,
             exclusive: bool = False,
@@ -493,6 +508,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
     async def basic_get(
             self,
             queue: str = '',
+            *,
             no_ack: bool = False,
             argsig: str = 'Bsb') -> Optional[MessageT]:
         ...
@@ -502,6 +518,7 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
             self, msg: MessageT,
             exchange: str = '',
             routing_key: str = '',
+            *,
             mandatory: bool = False,
             immediate: bool = False,
             timeout: float = None,
@@ -518,15 +535,17 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    async def basic_recover(self, requeue: bool = False) -> None:
+    async def basic_recover(self, *, requeue: bool = False) -> None:
         ...
 
     @abc.abstractmethod
-    async def basic_recover_async(self, requeue: bool = False) -> None:
+    async def basic_recover_async(self, *, requeue: bool = False) -> None:
         ...
 
     @abc.abstractmethod
-    async def basic_reject(self, delivery_tag: str, requeue: bool,
+    async def basic_reject(self, delivery_tag: str,
+                           *,
+                           requeue: bool = False,
                            argsig: str = 'Lb') -> None:
         ...
 
@@ -543,5 +562,5 @@ class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    async def confirm_select(self, nowait: bool = False) -> None:
+    async def confirm_select(self, *, nowait: bool = False) -> None:
         ...

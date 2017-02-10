@@ -163,9 +163,8 @@ class Channel(ChannelBase, ChannelT):
 
         # set first time basic_publish_confirm is called
         # and publisher confirms are enabled for this channel.
+        self._confirm_publish = self.connection.confirm_publish
         self._confirm_selected = False
-        if self.connection.confirm_publish:
-            self.basic_publish = self.basic_publish_confirm
 
     async def __aenter__(self) -> 'Channel':
         await self.open()
@@ -215,6 +214,7 @@ class Channel(ChannelBase, ChannelT):
 
     @toggle_blocking
     async def close(self,
+                    *,
                     reply_code: int = 0,
                     reply_text: str = '',
                     method_sig: method_sig_t = method_sig_t(0, 0),
@@ -544,6 +544,7 @@ class Channel(ChannelBase, ChannelT):
     @toggle_blocking
     async def exchange_declare(
             self, exchange: str, type: str,
+            *,
             passive: bool = False,
             durable: bool = False,
             auto_delete: bool = True,
@@ -684,6 +685,7 @@ class Channel(ChannelBase, ChannelT):
     async def exchange_delete(
             self,
             exchange: str,
+            *,
             if_unused: bool = False,
             nowait: bool = False,
             argsig: str = 'Bsbb') -> None:
@@ -738,6 +740,7 @@ class Channel(ChannelBase, ChannelT):
             self, destination: str,
             source: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -822,6 +825,7 @@ class Channel(ChannelBase, ChannelT):
             self, destination: str,
             source: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -911,6 +915,7 @@ class Channel(ChannelBase, ChannelT):
             self, queue: str,
             exchange: str = '',
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssbF') -> None:
@@ -1021,6 +1026,7 @@ class Channel(ChannelBase, ChannelT):
     async def queue_unbind(
             self, queue: str, exchange: str,
             routing_key: str = '',
+            *,
             nowait: bool = False,
             arguments: Mapping[str, Any] = None,
             argsig: str = 'BsssF') -> None:
@@ -1083,6 +1089,7 @@ class Channel(ChannelBase, ChannelT):
     async def queue_declare(
             self,
             queue: str = '',
+            *,
             passive: bool = False,
             durable: bool = False,
             exclusive: bool = False,
@@ -1257,6 +1264,7 @@ class Channel(ChannelBase, ChannelT):
     async def queue_delete(
             self,
             queue: str = '',
+            *,
             if_unused: bool = False,
             if_empty: bool = False,
             nowait: bool = False,
@@ -1335,6 +1343,7 @@ class Channel(ChannelBase, ChannelT):
     async def queue_purge(
             self,
             queue: str = '',
+            *,
             nowait: bool = False,
             argsig: str = 'Bsb') -> Optional[int]:
         """Purge a queue.
@@ -1459,6 +1468,7 @@ class Channel(ChannelBase, ChannelT):
     @toggle_blocking
     async def basic_ack(
             self, delivery_tag: str,
+            *,
             multiple: bool = False,
             argsig: str = 'Lb') -> None:
         """Acknowledge one or more messages.
@@ -1513,6 +1523,7 @@ class Channel(ChannelBase, ChannelT):
     @toggle_blocking
     async def basic_cancel(
             self, consumer_tag: str,
+            *,
             nowait: bool = False,
             argsig: str = 'sb') -> None:
         """End a queue consumer.
@@ -1586,6 +1597,7 @@ class Channel(ChannelBase, ChannelT):
             self,
             queue: str = '',
             consumer_tag: str = '',
+            *,
             no_local: bool = False,
             no_ack: bool = False,
             exclusive: bool = False,
@@ -1740,6 +1752,7 @@ class Channel(ChannelBase, ChannelT):
     async def basic_get(
             self,
             queue: str = '',
+            *,
             no_ack: bool = False,
             argsig: str = 'Bsb') -> Optional[MessageT]:
         """Direct access to a queue.
@@ -1804,10 +1817,11 @@ class Channel(ChannelBase, ChannelT):
         return msg
 
     @toggle_blocking
-    async def _basic_publish(
+    async def basic_publish(
             self, msg: MessageT,
             exchange: str = '',
             routing_key: str = '',
+            *,
             mandatory: bool = False,
             immediate: bool = False,
             timeout: float = None,
@@ -1879,6 +1893,9 @@ class Channel(ChannelBase, ChannelT):
         if not self.connection:
             raise RecoverableConnectionError(
                 'basic_publish: connection closed')
+        if self._confirm_publish and not self._confirm_selected:
+            self._confirm_selected = True
+            await self.confirm_select()
         try:
             await self.send_method(
                 spec.Basic.Publish, argsig,
@@ -1887,15 +1904,8 @@ class Channel(ChannelBase, ChannelT):
             )
         except socket.timeout:
             raise RecoverableChannelError('basic_publish: timed out')
-    basic_publish = _basic_publish
-
-    @toggle_blocking
-    async def basic_publish_confirm(self, *args, **kwargs) -> None:
-        if not self._confirm_selected:
-            self._confirm_selected = True
-            await self.confirm_select()
-        await self._basic_publish(*args, **kwargs)
-        await self.wait(spec.Basic.Ack)
+        if self._confirm_publish:
+            await self.wait(spec.Basic.Ack)
 
     @toggle_blocking
     async def basic_qos(
@@ -1972,7 +1982,7 @@ class Channel(ChannelBase, ChannelT):
         )
 
     @toggle_blocking
-    async def basic_recover(self, requeue: bool = False) -> None:
+    async def basic_recover(self, *, requeue: bool = False) -> None:
         """Redeliver unacknowledged messages.
 
         This method asks the broker to redeliver all unacknowledged
@@ -2004,12 +2014,14 @@ class Channel(ChannelBase, ChannelT):
         await self.send_method(spec.Basic.Recover, 'b', (requeue,))
 
     @toggle_blocking
-    async def basic_recover_async(self, requeue: bool = False) -> None:
+    async def basic_recover_async(self, *, requeue: bool = False) -> None:
         await self.send_method(
             spec.Basic.RecoverAsync, 'b', (requeue,))
 
     @toggle_blocking
-    async def basic_reject(self, delivery_tag: str, requeue: bool,
+    async def basic_reject(self, delivery_tag: str,
+                           *,
+                           requeue: bool = False,
                            argsig: str = 'Lb') -> None:
         """Reject an incoming message.
 
@@ -2187,7 +2199,7 @@ class Channel(ChannelBase, ChannelT):
         await self.send_method(spec.Tx.Select, wait=spec.Tx.SelectOk)
 
     @toggle_blocking
-    async def confirm_select(self, nowait: bool = False) -> None:
+    async def confirm_select(self, *, nowait: bool = False) -> None:
         """Enable publisher confirms for this channel.
 
         Note: This is an RabbitMQ extension.
