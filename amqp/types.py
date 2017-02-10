@@ -1,9 +1,11 @@
+"""Abstract types."""
 import abc
 import asyncio
 import socket
+from array import array
 from datetime import datetime
 from typing import (
-    Any, Awaitable, ByteString, Callable, IO, Mapping,
+    Any, Awaitable, Callable, IO, List, Mapping,
     MutableMapping, NamedTuple, Optional, Sequence, SupportsInt,
     TypeVar, Tuple, Union,
 )
@@ -14,43 +16,46 @@ from vine import Thenable
 Fd = TypeVar('Fd', int, IO)
 Int = TypeVar('Int', SupportsInt, str)
 
-ConnectionBlockedCallback = Callable[[str], Optional[Awaitable]]
-ConnectionUnblockedCallback = Callable[[], Optional[Awaitable]]
-ConnectionInboundMethodHandler = Callable[
-    [int, Tuple[Any], ByteString, ByteString], Any,
-]
-ConnectionFrameHandler = Callable[
-    ['ConnectionT', ConnectionInboundMethodHandler],
-    Callable,
-]
-ConnectionFrameWriter = Callable[
-    [int, int, Optional[method_sig_t], Optional[bytes], Optional['MessageT']],
+
+class Frame(NamedTuple):
+    """Frame tuple."""
+
+    type: int
+    channel: int
+    data: bytes
+
+
+ConnectionBlockedCallbackT = Callable[[str], Optional[Awaitable]]
+ConnectionUnblockedCallbackT = Callable[[], Optional[Awaitable]]
+ConnectionFrameHandlerT = Callable[[Frame], Awaitable]
+ConnectionFrameWriterT = Callable[
+    [int,
+     int,
+     Optional[method_sig_t],
+     Optional[bytes],
+     Optional['MessageT'],
+     Optional[float]],
     Awaitable,
 ]
 
 WaitMethodT = Union[method_sig_t, Sequence[method_sig_t]]
 
-Frame = NamedTuple('Frame', [
-    ('type', int),
-    ('channel', int),
-    ('data', bytes),
-])
-
 
 class TransportT(metaclass=abc.ABCMeta):
+    """Transport type."""
 
-    rstream: asyncio.StreamReader = None
-    wstream: asyncio.StreamWriter = None
+    rstream: asyncio.StreamReader
+    wstream: asyncio.StreamWriter
 
     connected: bool = False
-    host: str = None
-    port: int = None
-    ssl: Any = None
-    connect_timeout: float = None
-    read_timeout: float = None
-    write_timeout: float = None
-    socket_settings: Mapping = None
-    sock: socket.socket = None
+    host: str
+    port: int
+    ssl: Any
+    connect_timeout: float
+    read_timeout: float
+    write_timeout: float
+    socket_settings: Mapping
+    sock: socket.socket
 
     @abc.abstractmethod
     async def connect(self) -> None:
@@ -70,17 +75,18 @@ class TransportT(metaclass=abc.ABCMeta):
 
 
 class ContentT(metaclass=abc.ABCMeta):
+    """Generic content type."""
 
-    CLASS_ID: int = None
-    PROPERTIES: Sequence[Tuple[str, str]] = None
+    CLASS_ID: int
+    PROPERTIES: Sequence[Tuple[str, str]]
 
-    properties: MutableMapping = None
+    properties: MutableMapping
     body_received: int = 0
     body_size: int = 0
     ready: bool = False
 
-    frame_method: method_sig_t = None
-    frame_args: str = None
+    frame_method: method_sig_t
+    frame_args: str
 
     @abc.abstractmethod
     def _load_properties(
@@ -106,26 +112,27 @@ class ContentT(metaclass=abc.ABCMeta):
 
 
 class MessageT(ContentT, metaclass=abc.ABCMeta):
+    """Basic message type."""
 
-    body: bytes = None
-    children: Any = None  # unsupported
-    channel: 'ChannelT' = None
-    delivery_info: Mapping[str, Any] = None
+    body: bytes
+    children: Any
+    channel: 'ChannelT'
+    delivery_info: Mapping[str, Any]
 
-    content_type: str = None
-    content_encoding: str = None
-    application_headers: MutableMapping = None
-    delivery_mode: int = None
-    priority: int = None
-    correlation_id: str = None
-    reply_to: str = None
-    expiration: str = None
-    message_id: str = None
-    timestamp: datetime = None
-    type: str = None
-    user_id: str = None
-    app_id: str = None
-    cluster_id: str = None
+    content_type: str
+    content_encoding: str
+    application_headers: MutableMapping
+    delivery_mode: int
+    priority: int
+    correlation_id: str
+    reply_to: str
+    expiration: str
+    message_id: str
+    timestamp: datetime
+    type: str
+    user_id: str
+    app_id: str
+    cluster_id: str
 
     @abc.abstractmethod
     def __init__(self,
@@ -146,10 +153,12 @@ class MessageT(ContentT, metaclass=abc.ABCMeta):
 
 
 class AbstractChannelT(metaclass=abc.ABCMeta):
+    """Abstract channel type."""
 
-    connection: 'ConnectionT' = None
-    channel_id: int = None
-    auto_decode: bool = None
+    connection: 'ConnectionT'
+    channel_id: int
+    auto_decode: bool = False
+    is_open: bool = False
 
     @abc.abstractmethod
     def __enter__(self) -> 'AbstractChannelT':
@@ -172,21 +181,23 @@ class AbstractChannelT(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    async def send_method(self, sig: method_sig_t,
-                          format: str = None,
-                          args: Sequence = None,
-                          content: bytes = None,
-                          wait: WaitMethodT = None,
-                          callback: Callable = None,
-                          returns_tuple: bool = False) -> Thenable:
+    async def send_method(
+            self, sig: method_sig_t,
+            format: str = None,
+            args: Sequence = None,
+            content: MessageT = None,
+            wait: WaitMethodT = None,
+            callback: Callable = None,
+            returns_tuple: bool = False) -> Thenable:
         ...
 
     @abc.abstractmethod
-    async def close(self,
-                    reply_code: int = 0,
-                    reply_text: str = '',
-                    method_sig: method_sig_t = method_sig_t(0, 0),
-                    argsig: str = 'BsBB') -> None:
+    async def close(
+            self,
+            reply_code: int = 0,
+            reply_text: str = '',
+            method_sig: method_sig_t = method_sig_t(0, 0),
+            argsig: str = 'BsBB') -> None:
         ...
 
     @abc.abstractmethod
@@ -194,62 +205,103 @@ class AbstractChannelT(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    async def wait(self,
-                   method: WaitMethodT,
-                   callback: Callable = None,
-                   timeout: float = None,
-                   returns_tuple: bool = False) -> Any:
+    async def wait(
+            self,
+            method: WaitMethodT,
+            callback: Callable = None,
+            timeout: float = None,
+            returns_tuple: bool = False) -> Any:
         ...
 
-    async def dispatch_method(self,
-                              method_sig: method_sig_t,
-                              payload: bytes,
-                              content: MessageT) -> None:
+    async def dispatch_method(
+            self,
+            method_sig: method_sig_t,
+            payload: bytes,
+            content: MessageT) -> None:
         ...
 
 
-class ConnectionT(AbstractChannelT, Thenable):
+class ConnectionT(AbstractChannelT):
+    """Connection channel type."""
 
-    Channel: type = None
-    Transport: type = None
+    Channel: type
+    Transport: type
 
-    host: str = None
-    userid: str = None
-    password: str = None
-    login_method: str = None
-    login_response: Any = None
-    virtual_host: str = None
-    locale: str = None
-    client_properties: MutableMapping = None
-    ssl: Any = None
-    connect_timeout: float = None
-    channel_max: int = None
-    frame_max: int = None
-    on_open: Thenable = None
-    confirm_publish: bool = None
-    read_timeout: float = None
-    write_timeout: float = None
-    socket_settings: Mapping = None
-    loop: Any = None
+    host: str
+    userid: str
+    password: str
+    login_method: str
+    login_response: Any
+    virtual_host: str
+    locale: str
+    client_properties: MutableMapping
+    ssl: Any
+    channel_max: int
+    frame_max: int
+    on_open: Thenable
+    on_tune_ok: Thenable
+    confirm_publish: bool
+    connect_timeout: float
+    read_timeout: float
+    write_timeout: float
+    socket_settings: Mapping
 
-    negotiate_capabilities: Mapping[str, bool] = None
-    library_properties: Mapping[str, Any] = None
-    heartbeat: float = None
-    client_heartbeat: float = None
-    server_heartbeat: float = None
-    last_heartbeat_sent: float = None
-    last_heartbeat_received: float = None
+    negotiate_capabilities: Mapping[str, bool]
+    library_properties: Mapping[str, Any]
+    heartbeat: float
+    client_heartbeat: float
+    server_heartbeat: float
+    last_heartbeat_sent: float
+    last_heartbeat_received: float
     bytes_sent: int = 0
     bytes_recv: int = 0
-    prev_sent: int = None
-    prev_recv: int = None
+    prev_sent: int
+    prev_recv: int
 
-    connection_errors: Tuple[type, ...] = None
-    channel_errors: Tuple[type, ...] = None
-    recoverable_connection_errors: Tuple[type, ...] = None
-    recoverable_channel_errors: Tuple[type, ...] = None
+    connection_errors: Tuple[type, ...]
+    channel_errors: Tuple[type, ...]
+    recoverable_connection_errors: Tuple[type, ...]
+    recoverable_channel_errors: Tuple[type, ...]
 
-    transport: TransportT = None
+    transport: TransportT
+    channels: MutableMapping[int, AbstractChannelT]
+    loop: asyncio.AbstractEventLoop
+
+    mechanisms: List[str]
+    locales: List[str]
+
+    _avail_channel_ids: array
+
+    def __init__(
+            self,
+            host: str = 'localhost:5672',
+            userid: str = 'guest',
+            password: str = 'guest',
+            login_method: str = 'AMQPLAIN',
+            login_response: Any = None,
+            virtual_host: str = '/',
+            locale: str = 'en_US',
+            client_properties: Mapping = None,
+            ssl: Any = False,
+            connect_timeout: float = None,
+            channel_max: int = None,
+            frame_max: int = None,
+            heartbeat: float = 0.0,
+            on_open: Thenable = None,
+            on_blocked: ConnectionBlockedCallbackT = None,
+            on_unblocked: ConnectionUnblockedCallbackT = None,
+            confirm_publish: bool = False,
+            on_tune_ok: Callable = None,
+            read_timeout: float = None,
+            write_timeout: float = None,
+            socket_settings: Mapping = None,
+            frame_handler: ConnectionFrameHandlerT = None,
+            frame_writer: ConnectionFrameWriterT = None,
+            loop: asyncio.AbstractEventLoop = None,
+            transport: TransportT = None,
+            **kwargs) -> None:
+        self.frame_writer = frame_writer
+        self.frame_handler = frame_handler
 
     @property
     @abc.abstractmethod
@@ -284,11 +336,12 @@ class ConnectionT(AbstractChannelT, Thenable):
         ...
 
     @abc.abstractmethod
-    async def on_inbound_method(self,
-                                channel_id: int,
-                                method_sig: method_sig_t,
-                                payload: bytes,
-                                content: MessageT) -> None:
+    async def on_inbound_method(
+            self,
+            channel_id: int,
+            method_sig: method_sig_t,
+            payload: bytes,
+            content: MessageT) -> None:
         ...
 
     @abc.abstractmethod
@@ -299,8 +352,16 @@ class ConnectionT(AbstractChannelT, Thenable):
     async def heartbeat_tick(self, rate: int = 2) -> None:
         ...
 
+    def _get_free_channel_id(self) -> int:
+        ...
 
-class ChannelT(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def _claim_channel_id(self, channel_id: int) -> None:
+        ...
+
+
+class ChannelT(AbstractChannelT, metaclass=abc.ABCMeta):
+    """Channel type."""
 
     @abc.abstractmethod
     async def flow(self, active: bool) -> None:

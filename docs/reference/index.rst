@@ -13,6 +13,7 @@
     amqp.connection
     amqp.channel
     amqp.basic_message
+    amqp.types
     amqp.exceptions
     amqp.abstract_channel
     amqp.transport

@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 import re
 from typing import NamedTuple
+from vine import promise
 
 __version__ = '3.0.0a1'
 __author__ = 'Barry Pederson'
@@ -26,27 +27,10 @@ __docformat__ = 'restructuredtext'
 
 # -eof meta-
 
-version_info_t = NamedTuple('version_info_t', [
-    ('major', int),
-    ('minor', int),
-    ('micro', int),
-    ('releaselevel', str),
-    ('serial', str),
-])
-
-# bumpversion can only search for {current_version}
-# so we have to parse the version here.
-_temp = re.match(
-    r'(\d+)\.(\d+).(\d+)(.+)?', __version__).groups()
-VERSION = version_info = version_info_t(
-    int(_temp[0]), int(_temp[1]), int(_temp[2]), _temp[3] or '', '')
-del(_temp)
-del(re)
-
-from .basic_message import Message  # noqa
-from .channel import Channel        # noqa
-from .connection import Connection  # noqa
-from .exceptions import (           # noqa
+from .basic_message import Message  # noqa: F401
+from .channel import Channel        # noqa: F401
+from .connection import Connection  # noqa: F401
+from .exceptions import (           # noqa: F401
     AMQPError,
     ConnectionError,
     RecoverableConnectionError,
@@ -74,9 +58,7 @@ from .exceptions import (           # noqa
     InternalError,
     error_for_code,
 )
-from .types import ChannelT, ConnectionT, MessageT
-from vine import promise      # noqa
-
+from .types import ChannelT, ConnectionT, MessageT  # noqa: F401
 
 __all__ = [
     'Connection',
@@ -112,4 +94,25 @@ __all__ = [
     'AMQPNotImplementedError',
     'InternalError',
     'error_for_code',
+    'version_info_t',
 ]
+
+
+class version_info_t(NamedTuple):
+    """Version description tuple."""
+
+    major: int
+    minor: int
+    micro: int
+    releaselevel: str
+    serial: str
+
+
+# bumpversion can only search for {current_version}
+# so we have to parse the version here.
+_temp = re.match(
+    r'(\d+)\.(\d+).(\d+)(.+)?', __version__).groups()
+VERSION = version_info = version_info_t(
+    int(_temp[0]), int(_temp[1]), int(_temp[2]), _temp[3] or '', '')
+del(_temp)
+del(re)

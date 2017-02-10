@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
-from typing import Any, Callable, Coroutine, Mapping, Sequence, Union, cast
+from typing import Any, Callable, Coroutine, Mapping, Sequence, cast
 from typing import List, MutableMapping  # noqa: F401
 from vine import Thenable, ensure_promise, promise
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
@@ -59,10 +59,11 @@ class ChannelBase(AsyncToggle, AbstractChannelT):
     async def send_method(self, sig: method_sig_t,
                           format: str = None,
                           args: Sequence = None,
-                          content: bytes = None,
+                          content: MessageT = None,
                           wait: WaitMethodT = None,
                           callback: Callable = None,
-                          returns_tuple: bool = False) -> Thenable:
+                          returns_tuple: bool = False,
+                          timeout: float = None) -> Thenable:
         p = promise()
         conn = self.connection
         if conn is None:
@@ -70,7 +71,7 @@ class ChannelBase(AsyncToggle, AbstractChannelT):
         argsb = dumps(format, args) if format else b''
         try:
             await conn.frame_writer(
-                1, self.channel_id, sig, argsb, content)
+                1, self.channel_id, sig, argsb, content, timeout)
         except StopIteration:
             raise RecoverableConnectionError('connection already closed')
 
@@ -81,7 +82,8 @@ class ChannelBase(AsyncToggle, AbstractChannelT):
             if isinstance(cbret, Coroutine):
                 await cbret
         if wait:
-            return await self.wait(wait, returns_tuple=returns_tuple)
+            return await self.wait(
+                wait, returns_tuple=returns_tuple, timeout=timeout)
         return p
 
     @toggle_blocking
@@ -140,14 +142,15 @@ class ChannelBase(AsyncToggle, AbstractChannelT):
         try:
             listeners = [self._callbacks[method_sig]]
         except KeyError:
-            listeners = None
+            listeners = []
+        one_shot = None
         try:
             one_shot = self._pending.pop(method_sig)
         except KeyError:
             if not listeners:
                 return
 
-        args: Sequence[Any] = None
+        args: Sequence[Any] = []
         final_args: Sequence[Any] = []
         if amqp_method.args:
             args, _ = loads(amqp_method.args, payload, 4)

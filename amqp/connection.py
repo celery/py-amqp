@@ -18,32 +18,31 @@ import asyncio
 import logging
 import socket
 import uuid
-import warnings
 
 from array import array
 from io import BytesIO
 from time import monotonic
-from typing import Any, Callable, Coroutine, Mapping, MutableSequence
+from typing import Any, Callable, Coroutine, Mapping
 
 from vine import Thenable, ensure_promise
 
 from . import __version__
 from . import spec
 from .abstract_channel import ChannelBase
-from .channel import Channel
+from .channel import Channel  # noqa: F401
 from .exceptions import (
-    AMQPDeprecationWarning, ChannelError, ResourceError,
+    ChannelError, ResourceError,
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
 from .method_framing import frame_handler, frame_writer
 from .serialization import _write_table
 from .spec import MethodMapT, method_sig_t, to_method_map
-from .transport import Transport
+from .transport import Transport  # noqa: F401
 from .types import (
-    AbstractChannelT, ChannelT, ConnectionT,
-    ConnectionBlockedCallback, ConnectionUnblockedCallback,
-    ConnectionFrameHandler, ConnectionFrameWriter, MessageT, TransportT,
+    AbstractChannelT, ConnectionT,
+    ConnectionBlockedCallbackT, ConnectionUnblockedCallbackT,
+    ConnectionFrameHandlerT, ConnectionFrameWriterT, MessageT, TransportT,
 )
 from .utils import toggle_blocking
 
@@ -124,8 +123,8 @@ class Connection(ChannelBase, ConnectionT):
         spec.method(spec.Connection.CloseOk),
     )
 
-    Channel: type = Channel
-    Transport: type = Transport
+    Channel: type = Channel      # noqa: F811
+    Transport: type = Transport  # noqa: F811
 
     #: Mapping of protocol extensions to enable.
     #: The server will report these in server_properties[capabilities],
@@ -204,16 +203,17 @@ class Connection(ChannelBase, ConnectionT):
                  frame_max: int = None,
                  heartbeat: float = 0.0,
                  on_open: Thenable = None,
-                 on_blocked: ConnectionBlockedCallback = None,
-                 on_unblocked: ConnectionUnblockedCallback = None,
+                 on_blocked: ConnectionBlockedCallbackT = None,
+                 on_unblocked: ConnectionUnblockedCallbackT = None,
                  confirm_publish: bool = False,
                  on_tune_ok: Callable = None,
                  read_timeout: float = None,
                  write_timeout: float = None,
                  socket_settings: Mapping = None,
-                 frame_handler: Callable = frame_handler,
-                 frame_writer: Callable = frame_writer,
-                 loop: Any = None,
+                 frame_handler: ConnectionFrameHandlerT = None,
+                 frame_writer: ConnectionFrameWriterT = None,
+                 loop: asyncio.AbstractEventLoop = None,
+                 transport: TransportT = None,
                  **kwargs) -> None:
         self.loop = loop or asyncio.get_event_loop()
         self._connection_id: str = uuid.uuid4().hex
@@ -231,43 +231,38 @@ class Connection(ChannelBase, ConnectionT):
         self.client_properties = dict(self.library_properties)
         if client_properties:
             self.client_properties.update(client_properties)
-        self.login_method: str = login_method
-        self.login_response: str = login_response
-        self.locale: str = locale
-        self.host: str = host
-        self.virtual_host: str = virtual_host
-        self.on_tune_ok: Thenable = ensure_promise(on_tune_ok)
+        self.login_method = login_method
+        self.login_response = login_response
+        self.locale = locale
+        self.host = host
+        self.virtual_host = virtual_host
+        self.on_tune_ok = ensure_promise(on_tune_ok)
 
-        self.frame_handler_cls: Callable = frame_handler
-        self.frame_writer_cls: Callable = frame_writer
-
-        self._handshake_complete = False
-
-        self.channels: Mapping[int, AbstractChannelT] = {}
+        self.channels = {}
         # The connection object itself is treated as channel 0
         super().__init__(self, 0)
 
-        self.frame_writer: ConnectionFrameWriter = None
-        self.on_inbound_frame: Callable = None
-        self.transport: TransportT = None
+        self.frame_writer = frame_writer
+        self.on_inbound_frame = frame_handler
+        self.transport = transport
 
         # Properties set in the Tune method
-        self.channel_max: int = channel_max
-        self.frame_max: int = frame_max
-        self.client_heartbeat: float = heartbeat
+        self.channel_max = channel_max
+        self.frame_max = frame_max
+        self.client_heartbeat = heartbeat
 
-        self.confirm_publish: bool = confirm_publish
-        self.ssl: Any = ssl
-        self.read_timeout: float = read_timeout
-        self.write_timeout: float = write_timeout
-        self.socket_settings: Mapping = socket_settings
+        self.confirm_publish = confirm_publish
+        self.ssl = ssl
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.socket_settings = socket_settings
 
         # Callbacks
-        self.on_blocked: ConnectionBlockedCallback = on_blocked
-        self.on_unblocked: ConnectionUnblockedCallback = on_unblocked
-        self.on_open: Thenable = ensure_promise(on_open)
+        self.on_blocked = on_blocked
+        self.on_unblocked = on_unblocked
+        self.on_open = ensure_promise(on_open)
 
-        self._avail_channel_ids: array = array(
+        self._avail_channel_ids = array(
             'H', range(self.channel_max, 0, -1))
 
         # Properties set in the Start method
@@ -321,18 +316,21 @@ class Connection(ChannelBase, ConnectionT):
                 if isinstance(cbret, Coroutine):
                     await cbret
         else:
-            self.transport = self.Transport(
-                self.host, self.connect_timeout,
-                self.read_timeout, self.write_timeout,
-                socket_settings=self.socket_settings,
-                ssl=self.ssl,
-            )
+            if self.transport is None:
+                self.transport = self.Transport(
+                    self.host, self.connect_timeout,
+                    self.read_timeout, self.write_timeout,
+                    socket_settings=self.socket_settings,
+                    ssl=self.ssl,
+                )
             await self.transport.connect()
-            self.on_inbound_frame = self.frame_handler_cls(
-                self, self.on_inbound_method)
-            self.frame_writer = self.frame_writer_cls(self, self.transport)
+            if self.on_inbound_frame is None:
+                self.on_inbound_frame = frame_handler(
+                    self, self.on_inbound_method)
+            if self.frame_writer is None:
+                self.frame_writer = frame_writer(self, self.transport)
 
-            while not self._handshake_complete:
+            while not self.is_open:
                 await self.drain_events(timeout=self.connect_timeout)
 
     @toggle_blocking
@@ -414,7 +412,7 @@ class Connection(ChannelBase, ConnectionT):
 
     @toggle_blocking
     async def _on_open_ok(self) -> None:
-        self._handshake_complete = True
+        self.is_open = True
         await self.on_open.maybe_await(self)
 
     @property
@@ -422,6 +420,7 @@ class Connection(ChannelBase, ConnectionT):
         return bool(self.transport and self.transport.connected)
 
     def collect(self) -> None:
+        self.is_open = False
         try:
             self.transport.close()
 
@@ -659,7 +658,7 @@ class Connection(ChannelBase, ConnectionT):
 
     @toggle_blocking
     async def send_heartbeat(self) -> None:
-        await self.frame_writer(8, 0, None, None, None)
+        await self.frame_writer(8, 0, None, None, None)  # type: ignore
 
     @toggle_blocking
     async def heartbeat_tick(self, rate: int = 2) -> None:

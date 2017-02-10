@@ -24,7 +24,7 @@
 #  path."
 # Source:
 #   http://stackoverflow.com/a/14216937/4982251
-from typing import Any, MutableMapping, Sequence, Tuple
+from typing import Any, MutableMapping
 from typing import Mapping  # noqa
 from .types import ChannelT
 from .spec import Basic

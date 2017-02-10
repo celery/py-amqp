@@ -17,15 +17,11 @@
 import asyncio
 import re
 import socket
-
 from asyncio import wait_for
 from contextlib import suppress
 from ssl import SSLError
 from struct import pack, unpack
-from typing import (
-    Any, ByteString, Callable, Dict, Mapping, MutableMapping, Set, Tuple,
-)
-
+from typing import Any, Callable, Dict, Mapping, MutableMapping, Set, Tuple
 from .exceptions import UnexpectedFrame
 from .platform import SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT
 from .types import Frame
@@ -91,7 +87,7 @@ def to_host_port(host: str, default: int = AMQP_PORT) -> Tuple[str, int]:
 
 
 class Transport(AsyncToggle):
-    """Common superclass for TCP and SSL transports"""
+    """Network transport."""
 
     def __init__(self, host: str,
                  connect_timeout: float = None,
@@ -241,8 +237,11 @@ async def connect(host: str,
                   connect_timeout: float = None,
                   ssl: Any = False,
                   **kwargs) -> Transport:
-    """Given a few parameters from the Connection constructor,
-    select and create a subclass of Transport."""
+    """Connect to socket.
+
+    Given a few parameters from the Connection constructor,
+    select and create a subclass of Transport.
+    """
     t = Transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
     await t.connect()
     return t

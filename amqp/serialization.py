@@ -23,10 +23,8 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
-from typing import (
-    Any, Callable, Dict, List, Mapping, MutableMapping, MutableSequence,
-    Sequence, Tuple, cast,
-)
+from typing import Any, Callable, List, Mapping, Sequence, Tuple
+from typing import MutableSequence  # noqa: F401
 from .spec import Basic, method_sig_t
 from .exceptions import FrameSyntaxError
 from .types import ContentT, MessageT

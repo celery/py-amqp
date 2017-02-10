@@ -16,14 +16,18 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from collections import defaultdict
 from struct import pack, unpack_from, pack_into
-from typing import Any, Callable, FrozenSet, MutableMapping, cast
+from typing import Callable, FrozenSet, cast
+from typing import MutableMapping  # noqa: F401
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .spec import method_sig_t
-from .transport import Frame
-from .types import AbstractChannelT, ConnectionT, MessageT, TransportT
-from .utils import coroutine, want_bytes
+from .types import (
+    AbstractChannelT, ConnectionT,
+    ConnectionFrameHandlerT, ConnectionFrameWriterT,
+    MessageT, TransportT,
+)
+from .utils import want_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
 
@@ -47,7 +51,7 @@ def frame_handler(
         connection: ConnectionT,
         callback: FrameHandlerCallback,
         content_methods: FrozenSet[spec.method_sig_t] = _CONTENT_METHODS,
-        unpack_from: Callable = unpack_from) -> Callable[[Frame], None]:
+        unpack_from: Callable = unpack_from) -> ConnectionFrameHandlerT:
     """Create closure that reads frames."""
     expected_types: MutableMapping[int, int] = defaultdict(lambda: 1)
     partial_messages = {}
@@ -106,7 +110,7 @@ def frame_writer(connection: ConnectionT,
                  pack_into: Callable = pack_into,
                  range: Callable = range,
                  len: Callable = len,
-                 want_bytes: Callable = want_bytes) -> Callable:
+                 want_bytes: Callable = want_bytes) -> ConnectionFrameWriterT:
     """Create closure that writes frames."""
     write = transport.write
 
@@ -120,7 +124,8 @@ def frame_writer(connection: ConnectionT,
                           channel: int,
                           method_sig: method_sig_t = None,
                           args: bytes = None,
-                          content: MessageT = None) -> None:
+                          content: MessageT = None,
+                          timeout: float = None) -> None:
         chunk_size = connection.frame_max - 8
         offset = 0
         properties = None  # type: bytes
@@ -145,7 +150,7 @@ def frame_writer(connection: ConnectionT,
                      if type_ == 1 else b'')  # encode method frame
             framelen = len(frame)
             write(pack('>BHI%dsB' % framelen,
-                       type_, channel, framelen, frame, 0xce))
+                       type_, channel, framelen, frame, 0xce), timeout=timeout)
             if body:
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
@@ -153,14 +158,14 @@ def frame_writer(connection: ConnectionT,
                 ])
                 framelen = len(frame)
                 write(pack('>BHI%dsB' % framelen,
-                           2, channel, framelen, frame, 0xce))
+                           2, channel, framelen, frame, 0xce), timeout=timeout)
 
                 for i in range(0, bodylen, chunk_size):
                     frame = body[i:i + chunk_size]
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
-                               want_bytes(frame), 0xce))
+                               want_bytes(frame), 0xce), timeout=timeout)
 
         else:
             # ## FAST: pack into buffer and single write
@@ -186,7 +191,7 @@ def frame_writer(connection: ConnectionT,
                           3, channel, framelen, want_bytes(body), 0xce)
                 offset += 8 + framelen
 
-            await write(cast(bytes, view[:offset]))
+            await write(cast(bytes, view[:offset]), timeout=timeout)
 
         connection.bytes_sent += 1
     return write_frame

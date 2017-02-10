@@ -1,15 +1,21 @@
 """AMQP Spec."""
 from typing import Mapping, NamedTuple
 
-method_sig_t = NamedTuple('method_sig_t', [
-    ('major', int),
-    ('minor', int),
-])
-method_t = NamedTuple('method_t', [
-    ('method_sig', method_sig_t),
-    ('args', str),
-    ('content', bool),
-])
+
+class method_sig_t(NamedTuple):
+    """AMQP Method signature tuple."""
+
+    major: int
+    minor: int
+
+
+class method_t(NamedTuple):
+    """AMQP Method invocation tuple."""
+
+    method_sig: method_sig_t
+    args: str
+    content: bool
+
 
 MethodMapT = Mapping[method_sig_t, method_t]
 
@@ -22,6 +28,7 @@ def method(method_sig: method_sig_t,
 
 
 def to_method_map(*methods: method_t) -> MethodMapT:
+    """Create method map from list of methods."""
     return {m.method_sig: m for m in methods}
 
 

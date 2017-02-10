@@ -25,7 +25,9 @@ class Driver:
         return self.connection
 
     async def new_channel(self) -> Channel:
-        return await self.connection.channel()
+        channel = self.connection.channel()
+        await channel.open()
+        return channel
 
     async def declare_queues(self, channel: Channel) -> None:
         print('DECLARING FOO')

@@ -1,9 +1,8 @@
 """Compatibility utilities."""
 import logging
 import os
-from asyncio import coroutine
 from functools import wraps
-from typing import Any, AnyStr, Callable, Optional, Union, cast
+from typing import Any, AnyStr, Callable, Union, cast
 from .types import Fd
 
 __all__ = [
@@ -31,18 +30,21 @@ def get_errno(exc: Any) -> int:
 
 
 def set_cloexec(fd: Fd, cloexec: bool) -> None:
+    """Mark fd as inheritable/non-inheritable."""
     if not isinstance(fd, int):
         fd = cast(Fd, fd.fileno())
     os.set_inheritable(fd, cloexec)  # type: ignore
 
 
 def want_bytes(s: AnyStr) -> bytes:
+    """Convert str to bytes."""
     if isinstance(s, str):
         return cast(str, s).encode()
     return s
 
 
 def want_str(s: AnyStr) -> str:
+    """Convert bytes to str."""
     if isinstance(s, bytes):
         return cast(bytes, s).decode()
     return s
@@ -55,7 +57,6 @@ def get_logger(logger: Union[logging.Logger, str] = None) -> logging.Logger:
     if not logger.hasHandlers():
         logger.addHandler(logging.NullHandler())
     return logger
-
 
 
 def toggle_blocking(meth: Callable) -> Callable:
@@ -72,4 +73,3 @@ def toggle_blocking(meth: Callable) -> Callable:
 
 class AsyncToggle(object):
     async = True
-

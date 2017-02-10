@@ -110,9 +110,6 @@ class Channel(ChannelBase, ChannelT):
         spec.method(spec.Basic.Ack, 'Lb'),
     )
 
-    #: Set when channel is open.
-    is_open: bool = False
-
     #: Flow control.
     active: bool = True
 
