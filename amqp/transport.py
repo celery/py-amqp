@@ -72,7 +72,7 @@ if HAS_TCP_USER_TIMEOUT:
 
 
 try:
-    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT # noqa
+    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT  # noqa
 except ImportError:
     pass
 else:
@@ -290,15 +290,34 @@ class SSLTransport(_AbstractTransport):
         self.sock.do_handshake()
         self._quick_recv = self.sock.read
 
-    def _wrap_socket(self, sock, context=None, **sslopts):
-        if context:
-            return self._wrap_context(sock, sslopts, **context)
-        return ssl.wrap_socket(sock, **sslopts)
+    def _wrap_socket(self, sock, **sslopts):
+        context = ssl.SSLContext(sslopts.get(
+            'ssl_version', ssl.PROTOCOL_SSLv23))
+        if 'certfile' in sslopts:
+            context.load_cert_chain(sslopts.get('certfile'),
+                                    keyfile=sslopts.get('keyfile'),
+                                    password=sslopts.get('password'))
+        if 'ca_certs' in sslopts:
+            context.load_verify_locations(cafile=sslopts.get('ca_certs'))
+        elif len(set(['cafile',
+                      'cadata',
+                      'capath']).intersection(set(sslopts.keys()))) > 0:
+            context.load_verify_locations(cafile=sslopts.get('cafile'),
+                                          cadata=sslopts.get('cadata'),
+                                          capath=sslopts.get('capath'))
 
-    def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
-        ctx = ssl.create_default_context(**ctx_options)
-        ctx.check_hostname = check_hostname
-        return ctx.wrap_socket(sock, **sslopts)
+        if 'cert_reqs' in sslopts:
+            context.verify_mode = sslopts.get('cert_reqs')
+        if 'ciphers' in sslopts:
+            context.set_ciphers(sslopts.get('ciphers'))
+        wrap_opts = {}
+        for key in ('server_side',
+                    'do_handshake_on_connect',
+                    'suppress_ragged_eofs',
+                    'server_hostname'):
+            if key in sslopts:
+                wrap_opts[key] = sslopts[key]
+        return context.wrap_socket(sock, **wrap_opts)
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
