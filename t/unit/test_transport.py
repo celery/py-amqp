@@ -323,7 +323,7 @@ class test_SSLTransport:
         self.t.sock.do_handshake.assert_called_with()
         assert self.t._quick_recv is self.t.sock.read
 
-    def test_wrap_socket(self, wrap_socket):
+    def test_wrap_socket(self):
         sock = Mock()
         self.t._wrap_context = Mock()
         self.t._wrap_socket_sni = Mock()
