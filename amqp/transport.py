@@ -293,12 +293,28 @@ class SSLTransport(_AbstractTransport):
     def _wrap_socket(self, sock, context=None, **sslopts):
         if context:
             return self._wrap_context(sock, sslopts, **context)
-        return ssl.wrap_socket(sock, **sslopts)
+        return self._wrap_socket_sni(sock, **sslopts)
 
     def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
         return ctx.wrap_socket(sock, **sslopts)
+
+    def _wrap_socket_sni(sock, keyfile=None, certfile=None,
+                         server_side=False, cert_reqs=ssl.CERT_NONE,
+                         ssl_version=ssl.PROTOCOL_TLS, ca_certs=None,
+                         do_handshake_on_connect=True,
+                         suppress_ragged_eofs=True,
+                         server_hostname=None,
+                         ciphers=None):
+        '''Default `ssl.wrap_socket` method augmented with support for
+        setting the server_hostname field required for SNI hostname header '''
+        return ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
+                             server_side=server_side, cert_reqs=cert_reqs,
+                             ssl_version=ssl_version, ca_certs=ca_certs,
+                             do_handshake_on_connect=do_handshake_on_connect,
+                             suppress_ragged_eofs=suppress_ragged_eofs,
+                             server_hostname=server_hostname, ciphers=ciphers)
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
