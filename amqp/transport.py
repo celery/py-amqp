@@ -315,7 +315,8 @@ class SSLTransport(_AbstractTransport):
                     'do_handshake_on_connect',
                     'suppress_ragged_eofs',
                     'server_hostname'):
-            wrap_opts[key] = sslopts[key]
+            if key in sslopts:
+                wrap_opts[key] = sslopts[key]
         return context.wrap_socket(sock, wrap_opts)
 
     def _shutdown_transport(self):
