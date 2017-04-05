@@ -317,7 +317,7 @@ class SSLTransport(_AbstractTransport):
                     'server_hostname'):
             if key in sslopts:
                 wrap_opts[key] = sslopts[key]
-        return context.wrap_socket(sock, wrap_opts)
+        return context.wrap_socket(sock, **wrap_opts)
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
