@@ -312,12 +312,13 @@ class SSLTransport(_AbstractTransport):
         Default `ssl.wrap_socket` method augmented with support for
         setting the server_hostname field required for SNI hostname header
         """
-        return ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
+        sock = ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
                              server_side=server_side, cert_reqs=cert_reqs,
                              ssl_version=ssl_version, ca_certs=ca_certs,
                              do_handshake_on_connect=do_handshake_on_connect,
                              suppress_ragged_eofs=suppress_ragged_eofs,
                              server_hostname=server_hostname, ciphers=ciphers)
+        return sock
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
