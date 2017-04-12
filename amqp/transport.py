@@ -302,7 +302,7 @@ class SSLTransport(_AbstractTransport):
 
     def _wrap_socket_sni(sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
-                         ssl_version=ssl.PROTOCOL_TLS, ca_certs=None,
+                         ssl_version=ssl.PROTOCOL_SSLv23, ca_certs=None,
                          do_handshake_on_connect=True,
                          suppress_ragged_eofs=True,
                          server_hostname=None,
