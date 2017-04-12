@@ -72,7 +72,7 @@ if HAS_TCP_USER_TIMEOUT:
 
 
 try:
-    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT # noqa
+    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT  # noqa
 except ImportError:
     pass
 else:
@@ -307,10 +307,10 @@ class SSLTransport(_AbstractTransport):
                          suppress_ragged_eofs=True,
                          server_hostname=None,
                          ciphers=None):
-        """Socket wrap with SNI headers
+        """Socket wrap with SNI headers.
 
         Default `ssl.wrap_socket` method augmented with support for
-        setting the server_hostname field required for SNI hostname header 
+        setting the server_hostname field required for SNI hostname header
         """
         return ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
                              server_side=server_side, cert_reqs=cert_reqs,
