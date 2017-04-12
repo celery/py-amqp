@@ -307,8 +307,11 @@ class SSLTransport(_AbstractTransport):
                          suppress_ragged_eofs=True,
                          server_hostname=None,
                          ciphers=None):
-        '''Default `ssl.wrap_socket` method augmented with support for
-        setting the server_hostname field required for SNI hostname header '''
+        """Socket wrap with SNI headers
+
+        Default `ssl.wrap_socket` method augmented with support for
+        setting the server_hostname field required for SNI hostname header 
+        """
         return ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
                              server_side=server_side, cert_reqs=cert_reqs,
                              ssl_version=ssl_version, ca_certs=ca_certs,
