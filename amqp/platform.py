@@ -48,7 +48,7 @@ if sys.platform.startswith('win'):
     HAS_TCP_MAXSEG = False
 
 
-if sys.version_info < (2, 7, 6):
+if sys.version_info < (2, 7, 7):
     import functools
 
     def _to_bytes_arg(fun):
