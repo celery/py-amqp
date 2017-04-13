@@ -232,6 +232,11 @@ class test_Connection:
         self.conn.collect()
         assert not self.conn.connect.called
 
+    def test_collect_again(self):
+        self.conn = Connection()
+        self.conn.collect()
+        self.conn.collect()
+
     def test_get_free_channel_id__raises_IndexError(self):
         self.conn._avail_channel_ids = []
         with pytest.raises(ResourceError):

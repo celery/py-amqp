@@ -437,7 +437,8 @@ class Connection(AbstractChannel):
             if self._transport:
                 self._transport.close()
 
-            temp_list = [x for x in values(self.channels) if x is not self]
+            temp_list = [x for x in values(self.channels or {})
+                         if x is not self]
             for ch in temp_list:
                 ch.collect()
         except socket.error:
