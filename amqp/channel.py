@@ -1604,7 +1604,7 @@ class Channel(AbstractChannel):
         try:
             fun = self.callbacks[consumer_tag]
         except KeyError:
-            AMQP_LOGGER.warn(
+            AMQP_LOGGER.warning(
                 REJECTED_MESSAGE_WITHOUT_CALLBACK,
                 delivery_tag, consumer_tag, exchange, routing_key,
             )
