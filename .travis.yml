@@ -1,23 +1,32 @@
 language: python
 sudo: false
 cache: false
-python:
-    - '3.5'
+
 env:
   global:
     PYTHONUNBUFFERED=yes
-  matrix:
-    - TOXENV=2.7
-    - TOXENV=3.4
-    - TOXENV=pypy
-    - TOXENV=3.5
-    - TOXENV=flake8
-    - TOXENV=flakeplus
-    - TOXENV=pydocstyle
-    - TOXENV=apicheck
 
 matrix:
   fast_finish: true
+  include:
+    - python: 2.7
+      env: TOXENV=2.7
+    - python: pypy
+      env: TOXENV=pypy
+    - python: 3.4
+      env: TOXENV=3.4
+    - python: 3.5
+      env: TOXENV=3.5
+    - python: 3.6
+      env: TOXENV=3.6
+    - python: 2.7
+      env: TOXENV=flake8
+    - python: 2.7
+      env: TOXENV=flakeplus
+    - python: 2.7
+      env: TOXENV=pydocstyle
+    - python: 2.7
+      env: TOXENV=apicheck
 
 install: travis_retry pip install -U tox
 script: tox -v -- -v
