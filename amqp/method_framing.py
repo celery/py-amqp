@@ -64,9 +64,9 @@ def frame_handler(connection, callback,
                     frame_method=method_sig, frame_args=buf,
                 )
                 expected_types[channel] = 2
-            else:
-                callback(channel, method_sig, buf, None)
-            return False
+                return False
+
+            callback(channel, method_sig, buf, None)
 
         elif frame_type == 2:
             msg = partial_messages[channel]
