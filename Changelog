@@ -12,10 +12,10 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-date: TBD
 :release-by: Ask Solem
 
-- Fix random delays in task execusion.
+- Fix random delays in task execution.
 
-  This is a bug that caused performance issues due to polling timeouts that occur when receiving incomplete AMQP frames. (Issues #3978 #3737 #3814) 
-  
+  This is a bug that caused performance issues due to polling timeouts that occur when receiving incomplete AMQP frames. (Issues #3978 #3737 #3814)
+
   Fix contributed by **Robert Kopaczewski**
 
 - Calling ``conn.collect()`` multiple times will no longer raise an ``AttributeError`` when no channels exist.
@@ -29,7 +29,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 - When running in Windows, py-amqp will no longer use the unsupported TCP option TCP_MAXSEG.
 
   Fix contributed by **Tony Breeds**
-  
+
 - Added support for setting the SNI hostname header.
 
   The SSL protocol version is now set to SSLv23
@@ -39,7 +39,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 - Authentication mechanisms were refactored to be more modular. GSSAPI authentication is now supported.
 
   Contributed by **Alexander Dutton**
-  
+
 - Do not reconnect on collect.
 
   Fix contributed by **Gord Chung**
