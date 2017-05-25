@@ -64,21 +64,24 @@ def frame_handler(connection, callback,
                     frame_method=method_sig, frame_args=buf,
                 )
                 expected_types[channel] = 2
-            else:
-                callback(channel, method_sig, buf, None)
+                return False
+
+            callback(channel, method_sig, buf, None)
 
         elif frame_type == 2:
             msg = partial_messages[channel]
             msg.inbound_header(buf)
 
-            if msg.ready:
-                # bodyless message, we're done
-                expected_types[channel] = 1
-                partial_messages.pop(channel, None)
-                callback(channel, msg.frame_method, msg.frame_args, msg)
-            else:
+            if not msg.ready:
                 # wait for the content-body
                 expected_types[channel] = 3
+                return False
+
+            # bodyless message, we're done
+            expected_types[channel] = 1
+            partial_messages.pop(channel, None)
+            callback(channel, msg.frame_method, msg.frame_args, msg)
+
         elif frame_type == 3:
             msg = partial_messages[channel]
             msg.inbound_body(buf)
@@ -89,6 +92,7 @@ def frame_handler(connection, callback,
         elif frame_type == 8:
             # bytes_recv already updated
             pass
+        return True
 
     return on_frame
 

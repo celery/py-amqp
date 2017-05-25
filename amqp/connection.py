@@ -437,7 +437,8 @@ class Connection(AbstractChannel):
             if self._transport:
                 self._transport.close()
 
-            temp_list = [x for x in values(self.channels) if x is not self]
+            temp_list = [x for x in values(self.channels or {})
+                         if x is not self]
             for ch in temp_list:
                 ch.collect()
         except socket.error:
@@ -478,7 +479,9 @@ class Connection(AbstractChannel):
         raise NotImplementedError('Use AMQP heartbeats')
 
     def drain_events(self, timeout=None):
-        return self.blocking_read(timeout)
+        # read until message is ready
+        while not self.blocking_read(timeout):
+            pass
 
     def blocking_read(self, timeout=None):
         with self.transport.having_timeout(timeout):

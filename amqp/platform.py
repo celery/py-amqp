@@ -41,8 +41,14 @@ except ImportError:  # pragma: no cover
     TCP_USER_TIMEOUT = 18
     HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)
 
+HAS_TCP_MAXSEG = True
+# According to MSDN Windows platforms support getsockopt(TCP_MAXSSEG) but not
+# setsockopt(TCP_MAXSEG) on IPPROTO_TCP sockets.
+if sys.platform.startswith('win'):
+    HAS_TCP_MAXSEG = False
 
-if sys.version_info < (2, 7, 6):
+
+if sys.version_info < (2, 7, 7):
     import functools
 
     def _to_bytes_arg(fun):
@@ -66,6 +72,7 @@ __all__ = [
     'SOL_TCP',
     'TCP_USER_TIMEOUT',
     'HAS_TCP_USER_TIMEOUT',
+    'HAS_TCP_MAXSEG',
     'pack',
     'pack_into',
     'unpack',
