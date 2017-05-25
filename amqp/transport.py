@@ -304,7 +304,7 @@ class SSLTransport(_AbstractTransport):
         ctx.check_hostname = check_hostname
         return ctx.wrap_socket(sock, **sslopts)
 
-    def _wrap_socket_sni(sock, keyfile=None, certfile=None,
+    def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
                          ssl_version=ssl.PROTOCOL_SSLv23, ca_certs=None,
                          do_handshake_on_connect=True,
