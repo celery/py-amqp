@@ -326,9 +326,9 @@ class SSLTransport(_AbstractTransport):
             opts['ssl_version'] = ssl_version
         else:
             if hasattr(ssl, 'PROTOCOL_TLS'):
-                opts['ssl_version'] = ssl.PROTOCOL_TLS # newer python 2.7 & 3.x
+                opts['ssl_version'] = ssl.PROTOCOL_TLS
             else:
-                opts['ssl_version'] = ssl.PROTOCOL_SSLv23 #python 2.6 & old 2.7
+                opts['ssl_version'] = ssl.PROTOCOL_SSLv23
         # Set SNI headers if supported
         if hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI:
             opts['server_hostname'] = server_hostname
