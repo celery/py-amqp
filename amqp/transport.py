@@ -325,6 +325,9 @@ class SSLTransport(_AbstractTransport):
         if ssl_version is not None:
             opts['ssl_version'] = ssl_version
         else:
+            # older versions of python 2.7 and python 2.6 do not have the
+            # ssl.PROTOCOL_TLS defined the equivalent is ssl.PROTOCOL_SSLv23
+            # we default to PROTOCOL_TLS and fallback to PROTOCOL_SSLv23
             if hasattr(ssl, 'PROTOCOL_TLS'):
                 opts['ssl_version'] = ssl.PROTOCOL_TLS
             else:
