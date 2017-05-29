@@ -316,17 +316,19 @@ class SSLTransport(_AbstractTransport):
         """
         opts = dict(sock=sock, keyfile=keyfile, certfile=certfile,
                     server_side=server_side, cert_reqs=cert_reqs,
-                    ca_certs=ca_certs, do_handshake_on_connect=do_handshake_on_connect,
+                    ca_certs=ca_certs,
+                    do_handshake_on_connect=do_handshake_on_connect,
                     suppress_ragged_eofs=suppress_ragged_eofs,
                     ciphers=ciphers)
-        # Setup the right SSL version; default to optimal versions across ssl implementations
+        # Setup the right SSL version; default to optimal versions across
+        # ssl implementations
         if ssl_version is not None:
             opts['ssl_version'] = ssl_version
         else:
             if hasattr(ssl, 'PROTOCOL_TLS'):
-                opts['ssl_version'] = ssl.PROTOCOL_TLS # newer python 2.7 and python 3.x
+                opts['ssl_version'] = ssl.PROTOCOL_TLS # newer python 2.7 & 3.x
             else:
-                opts['ssl_version'] = ssl.PROTOCOL_SSLv23 #python 2.6 / older python 2.7
+                opts['ssl_version'] = ssl.PROTOCOL_SSLv23 #python 2.6 & old 2.7
         # Set SNI headers if supported
         if hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI:
             opts['server_hostname'] = server_hostname
