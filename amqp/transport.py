@@ -306,22 +306,31 @@ class SSLTransport(_AbstractTransport):
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
-                         ssl_version=ssl.PROTOCOL_SSLv23, ca_certs=None,
-                         do_handshake_on_connect=True,
-                         suppress_ragged_eofs=True,
-                         server_hostname=None,
-                         ciphers=None):
+                         ca_certs=None, do_handshake_on_connect=True,
+                         suppress_ragged_eofs=True, server_hostname=None,
+                         ciphers=None, ssl_version=None):
         """Socket wrap with SNI headers.
 
         Default `ssl.wrap_socket` method augmented with support for
         setting the server_hostname field required for SNI hostname header
         """
-        sock = ssl.SSLSocket(sock=sock, keyfile=keyfile, certfile=certfile,
-                             server_side=server_side, cert_reqs=cert_reqs,
-                             ssl_version=ssl_version, ca_certs=ca_certs,
-                             do_handshake_on_connect=do_handshake_on_connect,
-                             suppress_ragged_eofs=suppress_ragged_eofs,
-                             server_hostname=server_hostname, ciphers=ciphers)
+        opts = dict(sock=sock, keyfile=keyfile, certfile=certfile,
+                    server_side=server_side, cert_reqs=cert_reqs,
+                    ca_certs=ca_certs, do_handshake_on_connect=do_handshake_on_connect,
+                    suppress_ragged_eofs=suppress_ragged_eofs,
+                    ciphers=ciphers)
+        # Setup the right SSL version; default to optimal versions across ssl implementations
+        if ssl_version is not None:
+            opts['ssl_version'] = ssl_version
+        else:
+            if hasattr(ssl, 'PROTOCOL_TLS'):
+                opts['ssl_version'] = ssl.PROTOCOL_TLS # newer python 2.7 and python 3.x
+            else:
+                opts['ssl_version'] = ssl.PROTOCOL_SSLv23 #python 2.6 / older python 2.7
+        # Set SNI headers if supported
+        if hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI:
+            opts['server_hostname'] = server_hostname
+        sock = ssl.SSLSocket(**opts)
         return sock
 
     def _shutdown_transport(self):
