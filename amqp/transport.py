@@ -60,7 +60,7 @@ KNOWN_TCP_OPTS = (
 )
 
 if HAS_TCP_MAXSEG:
-    KNOWN_TCP_OPTS += ('TCP_MAXSEG', )
+    KNOWN_TCP_OPTS += ('TCP_MAXSEG',)
 
 TCP_OPTS = {
     getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
@@ -73,7 +73,6 @@ if HAS_TCP_USER_TIMEOUT:
     KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
     TCP_OPTS.add(TCP_USER_TIMEOUT)
     DEFAULT_SOCKET_SETTINGS[TCP_USER_TIMEOUT] = 1000
-
 
 try:
     from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT  # noqa
@@ -333,7 +332,8 @@ class SSLTransport(_AbstractTransport):
             else:
                 opts['ssl_version'] = ssl.PROTOCOL_SSLv23
         # Set SNI headers if supported
-        if hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI:
+        if (server_hostname is not None) and (
+                hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI):
             opts['server_hostname'] = server_hostname
         sock = ssl.SSLSocket(**opts)
         return sock
