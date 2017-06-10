@@ -149,26 +149,43 @@ class _AbstractTransport(object):
                     sock.settimeout(prev)
 
     def _connect(self, host, port, timeout):
-        entries = socket.getaddrinfo(
-            host, port, 0, socket.SOCK_STREAM, SOL_TCP,
-        )
-        for i, res in enumerate(entries):
-            af, socktype, proto, canonname, sa = res
+        e = None
+
+        # avoid additional DNS requests for AAAA if A succeeds
+        addr_types = (socket.AF_INET, socket.AF_INET6)
+        for n, family in enumerate(addr_types):
             try:
-                self.sock = socket.socket(af, socktype, proto)
+                entries = socket.getaddrinfo(
+                    host, port, family, socket.SOCK_STREAM, SOL_TCP)
+            except socket.gaierror:
+                # we may have depleted all our options
+                if n + 1 >= len(addr_types):
+                    # if getaddrinfo succeeded before for another address
+                    # family, reraise the previous socket.error since it's more
+                    # relevant to users
+                    raise (e
+                           if e is not None
+                           else socket.error("failed to connect"))
+                continue
+            for i, res in enumerate(entries):
+                af, socktype, proto, canonname, sa = res
                 try:
-                    set_cloexec(self.sock, True)
-                except NotImplementedError:
-                    pass
-                self.sock.settimeout(timeout)
-                self.sock.connect(sa)
-            except socket.error:
-                self.sock.close()
-                self.sock = None
-                if i + 1 >= len(entries):
-                    raise
-            else:
-                break
+                    self.sock = socket.socket(af, socktype, proto)
+                    try:
+                        set_cloexec(self.sock, True)
+                    except NotImplementedError:
+                        pass
+                    self.sock.settimeout(timeout)
+                    self.sock.connect(sa)
+                except socket.error as e:
+                    if self.sock is not None:
+                        self.sock.close()
+                        self.sock = None
+                    # we may have depleted all our options
+                    if i + 1 >= len(entries) and n + 1 >= len(addr_types):
+                        raise
+                else:
+                    return
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:
