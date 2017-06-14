@@ -304,6 +304,31 @@ class test_AbstractTransport:
         with pytest.raises(socket.error):
             self.t.connect()
 
+    @patch('socket.socket.connect')
+    @patch('socket.getaddrinfo',
+           return_value=[
+               (2, 1, 6, '', ('127.0.0.1', 5672)),
+               (2, 1, 6, '', ('127.0.0.2', 5672))
+           ])
+    def test_connect_multiple_addr_entries_fails(self, getaddrinfo, connect):
+        self.t.sock = Mock()
+        self.t.close()
+        connect.side_effect = socket.error
+        with pytest.raises(socket.error):
+            self.t.connect()
+
+    @patch('socket.socket.connect')
+    @patch('socket.getaddrinfo',
+           return_value=[
+               (2, 1, 6, '', ('127.0.0.1', 5672)),
+               (2, 1, 6, '', ('127.0.0.2', 5672))
+           ])
+    def test_connect_multiple_addr_entries_succeed(self, getaddrinfo, connect):
+        self.t.sock = Mock()
+        self.t.close()
+        connect.side_effect = (socket.error, None)
+        self.t.connect()
+
 
 class test_SSLTransport:
 
