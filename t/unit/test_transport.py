@@ -181,14 +181,12 @@ class test_AbstractTransport:
 
     class Transport(transport._AbstractTransport):
 
-        def _connect(self, *args):
-            pass
-
         def _init_socket(self, *args):
             pass
 
     @pytest.fixture(autouse=True)
-    def setup_transport(self):
+    @patch('socket.socket.connect')
+    def setup_transport(self, patching):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
