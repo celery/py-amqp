@@ -404,6 +404,16 @@ class test_AbstractTransport:
     def test_connect_getaddrinfo_raises_gaierror_once_recovers(self, *mocks):
         self.t.connect()
 
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                         '', ('127.0.0.1', 5672))])
+    def test_connect_survives_not_implemented_set_cloexec(self, *mocks):
+        with patch('amqp.transport.set_cloexec',
+                   side_effect=NotImplementedError) as cloexec_mock:
+            self.t.connect()
+        assert cloexec_mock.called
+
 
 class test_SSLTransport:
 
