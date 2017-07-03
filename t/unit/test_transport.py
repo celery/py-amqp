@@ -389,6 +389,21 @@ class test_AbstractTransport:
             [call('localhost', 5672, addr_type, ANY, ANY)
              for addr_type in (socket.AF_INET, socket.AF_INET6)])
 
+    @patch('socket.getaddrinfo', side_effect=socket.gaierror)
+    def test_connect_getaddrinfo_raises_gaierror(self, getaddrinfo):
+        with pytest.raises(socket.error):
+            self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           side_effect=[
+               socket.gaierror,
+               [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                '', ('::1', 5672))]
+           ])
+    def test_connect_getaddrinfo_raises_gaierror_once_recovers(self, *mocks):
+        self.t.connect()
+
 
 class test_SSLTransport:
 
