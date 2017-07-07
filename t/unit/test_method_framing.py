@@ -99,3 +99,9 @@ class test_frame_writer:
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
         self.g(*frame)
         self.write.assert_called()
+
+    def test_write_zero_len_body(self):
+        msg = Message(body=b'', content_type='application/octet-stream')
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        self.write.assert_called()
