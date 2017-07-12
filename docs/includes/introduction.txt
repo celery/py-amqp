@@ -1,4 +1,4 @@
-:Version: 2.1.4
+:Version: 2.2.0
 :Web: https://amqp.readthedocs.io/
 :Download: http://pypi.python.org/pypi/amqp/
 :Source: http://github.com/celery/py-amqp/
