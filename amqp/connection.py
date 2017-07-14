@@ -33,7 +33,7 @@ from .exceptions import (
     ConnectionForced, ConnectionError, error_for_code,
     RecoverableConnectionError, RecoverableChannelError,
 )
-from .five import array, items, monotonic, range, values
+from .five import array, items, monotonic, range, values, string
 from .method_framing import frame_handler, frame_writer
 from .transport import Transport
 
@@ -344,6 +344,8 @@ class Connection(AbstractChannel):
         self.version_major = version_major
         self.version_minor = version_minor
         self.server_properties = server_properties
+        if isinstance(mechanisms, string):
+            mechanisms = mechanisms.encode('utf-8')
         self.mechanisms = mechanisms.split(b' ')
         self.locales = locales.split(' ')
         AMQP_LOGGER.debug(

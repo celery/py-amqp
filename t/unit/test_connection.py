@@ -104,6 +104,23 @@ class test_Connection:
             ),
         )
 
+
+    def test_on_start_string_mechanisms(self):
+        self.conn._on_start(3, 4, {'foo': 'bar'}, 'x y z AMQPLAIN PLAIN',
+                            'en_US en_GB')
+        assert self.conn.version_major == 3
+        assert self.conn.version_minor == 4
+        assert self.conn.server_properties == {'foo': 'bar'}
+        assert self.conn.mechanisms == [b'x', b'y', b'z',
+                                        b'AMQPLAIN', b'PLAIN']
+        assert self.conn.locales == ['en_US', 'en_GB']
+        self.conn.send_method.assert_called_with(
+            spec.Connection.StartOk, 'FsSs', (
+                self.conn.client_properties, b'AMQPLAIN',
+                self.conn.authentication[0].start(self.conn), self.conn.locale,
+            ),
+        )
+
     def test_missing_credentials(self):
         with pytest.raises(ValueError):
             self.conn = Connection(userid=None, password=None)
