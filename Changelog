@@ -9,7 +9,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 2.2.0
 =====
-:release-date: TBD
+:release-date: 2017-07-12 10:00 A.M UTC+2
 :release-by: Ask Solem
 
 - Fix random delays in task execution.
