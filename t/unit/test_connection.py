@@ -104,7 +104,6 @@ class test_Connection:
             ),
         )
 
-
     def test_on_start_string_mechanisms(self):
         self.conn._on_start(3, 4, {'foo': 'bar'}, 'x y z AMQPLAIN PLAIN',
                             'en_US en_GB')
