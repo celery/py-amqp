@@ -159,7 +159,7 @@ def frame_writer(connection, transport,
             pack_into('>BHI%dsB' % framelen, buf, offset,
                       type_, channel, framelen, frame, 0xce)
             offset += 8 + framelen
-            if body:
+            if body is not None:
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,
@@ -170,10 +170,12 @@ def frame_writer(connection, transport,
                           2, channel, framelen, frame, 0xce)
                 offset += 8 + framelen
 
-                framelen = len(body)
-                pack_into('>BHI%dsB' % framelen, buf, offset,
-                          3, channel, framelen, str_to_bytes(body), 0xce)
-                offset += 8 + framelen
+                bodylen = len(body)
+                if bodylen > 0:
+                    framelen = bodylen
+                    pack_into('>BHI%dsB' % framelen, buf, offset,
+                              3, channel, framelen, str_to_bytes(body), 0xce)
+                    offset += 8 + framelen
 
             write(view[:offset])
 
