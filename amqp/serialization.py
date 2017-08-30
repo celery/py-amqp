@@ -290,14 +290,14 @@ def dumps(format, values):
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
-                val = val.encode('utf-8')
+                val = val.encode('utf-8', 'surrogatepass')
             write(pack('B', len(val)))
             write(val)
         elif p == 'S':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
-                val = val.encode('utf-8')
+                val = val.encode('utf-8', 'surrogatepass')
             write(pack('>I', len(val)))
             write(val)
         elif p == 'F':
@@ -318,7 +318,7 @@ def _write_table(d, write, bits, pack=pack):
     twrite = out.write
     for k, v in items(d):
         if isinstance(k, string):
-            k = k.encode('utf-8')
+            k = k.encode('utf-8', 'surrogatepass')
         twrite(pack('B', len(k)))
         twrite(k)
         try:
@@ -352,7 +352,7 @@ def _write_item(v, write, bits, pack=pack,
                 None_t=None):
     if isinstance(v, (string_t, bytes)):
         if isinstance(v, string):
-            v = v.encode('utf-8')
+            v = v.encode('utf-8', 'surrogatepass')
         write(pack('>cI', b'S', len(v)))
         write(v)
     elif isinstance(v, bool):
