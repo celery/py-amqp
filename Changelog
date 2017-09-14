@@ -5,6 +5,21 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.2.2:
+
+2.2.2
+=====
+:release-date: 2017-09-14 09:00 A.M UTC+2
+:release-by: Omer Katz
+
+- Sending empty messages no longer hangs. Instead an empty message is sent correctly.(addresses #151)
+
+  Fix contributed by **Christian Blades**
+
+- Fixed compatibility issues in UTF-8 encoding behavior between Py2/Py3 (#164)
+
+  Fix contributed by **Tyler James Harden**
+
 .. _version-2.2.1:
 
 2.2.1
