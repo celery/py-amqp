@@ -151,9 +151,18 @@ class _AbstractTransport(object):
     def _connect(self, host, port, timeout):
         e = None
 
-        # avoid additional DNS requests for AAAA if A succeeds
+        # Below we are trying to avoid additional DNS requests for AAAA if A
+        # succeeds. This helps a lot in case when a hostname has an IPv4 entry
+        # in /etc/hosts but not IPv6. Without the (arguably somewhat twisted)
+        # logic below, getaddrinfo would attempt to resolve the hostname for
+        # both IP versions, which would make the resolver talk to configured
+        # DNS servers. If those servers are for some reason not available
+        # during resolution attempt (either because of system misconfiguration,
+        # or network connectivity problem), resolution process locks the
+        # _connect call for extended time.
         addr_types = (socket.AF_INET, socket.AF_INET6)
         for n, family in enumerate(addr_types):
+            # first, resolve the address for a single address family
             try:
                 entries = socket.getaddrinfo(
                     host, port, family, socket.SOCK_STREAM, SOL_TCP)
@@ -167,6 +176,8 @@ class _AbstractTransport(object):
                            if e is not None
                            else socket.error("failed to connect"))
                 continue
+
+            # now that we have address(es) for the hostname, connect to broker
             for i, res in enumerate(entries):
                 af, socktype, proto, canonname, sa = res
                 try:
@@ -185,6 +196,7 @@ class _AbstractTransport(object):
                     if i + 1 >= len(entries) and n + 1 >= len(addr_types):
                         raise
                 else:
+                    # hurray, we established connection
                     return
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
