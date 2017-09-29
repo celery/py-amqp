@@ -174,7 +174,8 @@ class _AbstractTransport(object):
                     # relevant to users
                     raise (e
                            if e is not None
-                           else socket.error("failed to connect"))
+                           else socket.error(
+                               "failed to resolve broker hostname"))
                 continue
 
             # now that we have address(es) for the hostname, connect to broker
