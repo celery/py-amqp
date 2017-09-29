@@ -180,7 +180,7 @@ class _AbstractTransport(object):
 
             # now that we have address(es) for the hostname, connect to broker
             for i, res in enumerate(entries):
-                af, socktype, proto, canonname, sa = res
+                af, socktype, proto, _, sa = res
                 try:
                     self.sock = socket.socket(af, socktype, proto)
                     try:
