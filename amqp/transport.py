@@ -161,14 +161,16 @@ class _AbstractTransport(object):
         # or network connectivity problem), resolution process locks the
         # _connect call for extended time.
         addr_types = (socket.AF_INET, socket.AF_INET6)
+        addr_types_num = len(addr_types)
         for n, family in enumerate(addr_types):
             # first, resolve the address for a single address family
             try:
                 entries = socket.getaddrinfo(
                     host, port, family, socket.SOCK_STREAM, SOL_TCP)
+                entries_num = len(entries)
             except socket.gaierror:
                 # we may have depleted all our options
-                if n + 1 >= len(addr_types):
+                if n + 1 >= addr_types_num:
                     # if getaddrinfo succeeded before for another address
                     # family, reraise the previous socket.error since it's more
                     # relevant to users
@@ -194,7 +196,7 @@ class _AbstractTransport(object):
                         self.sock.close()
                         self.sock = None
                     # we may have depleted all our options
-                    if i + 1 >= len(entries) and n + 1 >= len(addr_types):
+                    if i + 1 >= entries_num and n + 1 >= addr_types_num:
                         raise
                 else:
                     # hurray, we established connection
