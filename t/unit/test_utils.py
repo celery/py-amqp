@@ -60,7 +60,7 @@ class test_bytes_to_str:
         assert bytes_to_str(b'foo')
 
     def test_support_surrogates(self):
-        assert bytes_to_str('\ud83d\ude4f'.encode('utf-8', 'surrogatepass')) == '\ud83d\ude4f'
+        assert bytes_to_str(u'\ud83d\ude4f') == u'\ud83d\ude4f'
 
 
 class test_NullHandler:
