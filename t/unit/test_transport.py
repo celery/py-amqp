@@ -9,6 +9,7 @@ from case import Mock, patch
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
 from amqp.platform import pack
+from amqp.transport import _AbstractTransport
 
 
 class MockSocket(object):
@@ -175,6 +176,12 @@ class test_socket_options:
         expected = 0
         result = self.socket.getsockopt(socket.SOL_TCP, socket.TCP_NODELAY)
         assert result == expected
+
+    def test_platform_socket_opts(self):
+        s = socket.socket()
+        opts = _AbstractTransport(self.host)._get_tcp_socket_defaults(s)
+
+        assert opts
 
 
 class test_AbstractTransport:
