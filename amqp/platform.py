@@ -29,24 +29,30 @@ def _versionatom(s):
     return int(match.groups()[0]) if match else 0
 
 
+# available socket options for TCP level
+KNOWN_TCP_OPTS = {
+    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
+    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
+    'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
+    'TCP_SYNCNT', 'TCP_USER_TIMEOUT', 'TCP_WINDOW_CLAMP',
+}
+
 LINUX_VERSION = None
 if sys.platform.startswith('linux'):
     LINUX_VERSION = _linux_version_to_tuple(platform.release())
+    if LINUX_VERSION < (2, 6, 37):
+        KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
-try:
-    from socket import TCP_USER_TIMEOUT
-    HAS_TCP_USER_TIMEOUT = True
-except ImportError:  # pragma: no cover
-    # should be in Python 3.6+ on Linux.
-    TCP_USER_TIMEOUT = 18
-    HAS_TCP_USER_TIMEOUT = LINUX_VERSION and LINUX_VERSION >= (2, 6, 37)
+    # Windows Subsystem for Linux is an edge-case: the Python socket library
+    # returns most TCP_* enums, but they aren't actually supported
+    if platform.release().endswith("Microsoft"):
+        KNOWN_TCP_OPTS = {'TCP_NODELAY', 'TCP_KEEPIDLE', 'TCP_KEEPINTVL',
+                          'TCP_KEEPCNT'}
 
-HAS_TCP_MAXSEG = True
 # According to MSDN Windows platforms support getsockopt(TCP_MAXSSEG) but not
 # setsockopt(TCP_MAXSEG) on IPPROTO_TCP sockets.
-if sys.platform.startswith('win'):
-    HAS_TCP_MAXSEG = False
-
+elif sys.platform.startswith('win'):
+    KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
 if sys.version_info < (2, 7, 7):
     import functools
@@ -70,9 +76,7 @@ else:
 __all__ = [
     'LINUX_VERSION',
     'SOL_TCP',
-    'TCP_USER_TIMEOUT',
-    'HAS_TCP_USER_TIMEOUT',
-    'HAS_TCP_MAXSEG',
+    'KNOWN_TCP_OPTS',
     'pack',
     'pack_into',
     'unpack',

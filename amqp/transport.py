@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from .exceptions import UnexpectedFrame
 from .five import items
 from .platform import (
-    SOL_TCP, TCP_USER_TIMEOUT, HAS_TCP_USER_TIMEOUT, HAS_TCP_MAXSEG,
+    SOL_TCP, KNOWN_TCP_OPTS,
     pack, unpack,
 )
 from .utils import get_errno, set_cloexec
@@ -37,39 +37,13 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
-# available socket options for TCP level
-KNOWN_TCP_OPTS = (
-    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
-    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
-    'TCP_NODELAY', 'TCP_QUICKACK',
-    'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
-)
-
-if HAS_TCP_MAXSEG:
-    KNOWN_TCP_OPTS += ('TCP_MAXSEG',)
-
-TCP_OPTS = {
-    getattr(socket, opt) for opt in KNOWN_TCP_OPTS if hasattr(socket, opt)
-}
 DEFAULT_SOCKET_SETTINGS = {
-    socket.TCP_NODELAY: 1,
+    'TCP_NODELAY': 1,
+    'TCP_USER_TIMEOUT': 1000,
+    'TCP_KEEPIDLE': 60,
+    'TCP_KEEPINTVL': 10,
+    'TCP_KEEPCNT': 9,
 }
-
-if HAS_TCP_USER_TIMEOUT:
-    KNOWN_TCP_OPTS += ('TCP_USER_TIMEOUT',)
-    TCP_OPTS.add(TCP_USER_TIMEOUT)
-    DEFAULT_SOCKET_SETTINGS[TCP_USER_TIMEOUT] = 1000
-
-try:
-    from socket import TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT  # noqa
-except ImportError:
-    pass
-else:
-    DEFAULT_SOCKET_SETTINGS.update({
-        TCP_KEEPIDLE: 60,
-        TCP_KEEPINTVL: 10,
-        TCP_KEEPCNT: 9,
-    })
 
 
 def to_host_port(host, default=AMQP_PORT):
@@ -179,16 +153,29 @@ class _AbstractTransport(object):
             raise
 
     def _get_tcp_socket_defaults(self, sock):
-        return {
-            opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
-        }
+        tcp_opts = {}
+        for opt in KNOWN_TCP_OPTS:
+            enum = None
+            if opt == 'TCP_USER_TIMEOUT':
+                try:
+                    from socket import TCP_USER_TIMEOUT as enum
+                except ImportError:
+                    # should be in Python 3.6+ on Linux.
+                    enum = 18
+            elif hasattr(socket, opt):
+                enum = getattr(socket, opt)
+
+            if enum:
+                if opt in DEFAULT_SOCKET_SETTINGS:
+                    tcp_opts[enum] = DEFAULT_SOCKET_SETTINGS[opt]
+                else:
+                    tcp_opts[enum] = sock.getsockopt(SOL_TCP, opt)
+        return tcp_opts
 
     def _set_socket_options(self, socket_settings):
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
-        final_socket_settings = dict(DEFAULT_SOCKET_SETTINGS)
         if socket_settings:
-            final_socket_settings.update(socket_settings)
-        tcp_opts.update(final_socket_settings)
+            tcp_opts.update(socket_settings)
         for opt, val in items(tcp_opts):
             self.sock.setsockopt(SOL_TCP, opt, val)
 
