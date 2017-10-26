@@ -73,20 +73,20 @@ if is_py3k:  # pragma: no cover
     def str_to_bytes(s):
         """Convert str to bytes."""
         if isinstance(s, str):
-            return s.encode()
+            return s.encode('utf-8', 'surrogatepass')
         return s
 
     def bytes_to_str(s):
         """Convert bytes to str."""
         if isinstance(s, bytes):
-            return s.decode()
+            return s.decode('utf-8', 'surrogatepass')
         return s
 else:
 
     def str_to_bytes(s):                # noqa
         """Convert str to bytes."""
         if isinstance(s, unicode):
-            return s.encode()
+            return s.encode('utf-8')
         return s
 
     def bytes_to_str(s):                # noqa

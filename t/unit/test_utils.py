@@ -47,6 +47,10 @@ class test_str_to_bytes:
     def test_from_bytes(self):
         assert isinstance(str_to_bytes(b'foo'), bytes)
 
+    def test_supports_surrogates(self):
+        bytes_with_surrogates = '\ud83d\ude4f'.encode('utf-8', 'surrogatepass')
+        assert str_to_bytes('\ud83d\ude4f') == bytes_with_surrogates
+
 
 class test_bytes_to_str:
 
@@ -55,6 +59,9 @@ class test_bytes_to_str:
 
     def test_from_bytes(self):
         assert bytes_to_str(b'foo')
+
+    def test_support_surrogates(self):
+        assert bytes_to_str(u'\ud83d\ude4f') == u'\ud83d\ude4f'
 
 
 class test_NullHandler:

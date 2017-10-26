@@ -194,13 +194,13 @@ def loads(format, buf, offset=0,
             bitcount = bits = 0
             slen, = unpack_from('B', buf, offset)
             offset += 1
-            val = buf[offset:offset + slen].decode('utf-8')
+            val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
         elif p == 'S':
             bitcount = bits = 0
             slen, = unpack_from('>I', buf, offset)
             offset += 4
-            val = buf[offset:offset + slen].decode('utf-8')
+            val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
         elif p == 'F':
             bitcount = bits = 0
