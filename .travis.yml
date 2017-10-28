@@ -28,7 +28,9 @@ matrix:
     - python: 2.7
       env: TOXENV=apicheck
 
-install: travis_retry pip install -U tox
+install:
+  - pip install -U pip setuptools wheel
+  - pip install -U tox 
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
