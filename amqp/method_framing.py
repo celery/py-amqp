@@ -8,7 +8,7 @@ from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .five import range
-from .platform import pack, unpack_from, pack_into
+from .platform import pack, pack_into, unpack_from
 from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']

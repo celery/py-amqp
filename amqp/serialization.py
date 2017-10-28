@@ -8,16 +8,16 @@ from __future__ import absolute_import, unicode_literals
 
 import calendar
 import sys
-
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 
-from .spec import Basic
 from .exceptions import FrameSyntaxError
-from .five import int_types, long_t, string, string_t, items
+from .five import int_types, items, long_t, string, string_t
 from .platform import pack, unpack_from
-from .utils import bytes_to_str as pstr_t, str_to_bytes
+from .spec import Basic
+from .utils import bytes_to_str as pstr_t
+from .utils import str_to_bytes
 
 ftype_t = chr if sys.version_info[0] == 3 else None
 

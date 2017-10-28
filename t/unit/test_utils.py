@@ -3,9 +3,8 @@ from __future__ import absolute_import, unicode_literals
 from case import Mock, patch
 
 from amqp.five import text_t
-from amqp.utils import (
-    get_errno, coro, str_to_bytes, bytes_to_str, NullHandler, get_logger,
-)
+from amqp.utils import (NullHandler, bytes_to_str, coro, get_errno, get_logger,
+                        str_to_bytes)
 
 
 class test_get_errno:

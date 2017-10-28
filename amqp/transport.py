@@ -6,15 +6,11 @@ import errno
 import re
 import socket
 import ssl
-
 from contextlib import contextmanager
 
 from .exceptions import UnexpectedFrame
 from .five import items
-from .platform import (
-    SOL_TCP, KNOWN_TCP_OPTS,
-    pack, unpack,
-)
+from .platform import KNOWN_TCP_OPTS, SOL_TCP, pack, unpack
 from .utils import get_errno, set_cloexec
 
 try:

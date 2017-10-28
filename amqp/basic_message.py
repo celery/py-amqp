@@ -2,6 +2,7 @@
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 from __future__ import absolute_import, unicode_literals
 
+from .serialization import GenericContent
 # Intended to fix #85: ImportError: cannot import name spec
 # Encountered on python 2.7.3
 # "The submodules often need to refer to each other. For example, the
@@ -12,7 +13,6 @@ from __future__ import absolute_import, unicode_literals
 # Source:
 #   http://stackoverflow.com/a/14216937/4982251
 from .spec import Basic
-from .serialization import GenericContent
 
 __all__ = ['Message']
 

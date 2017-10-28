@@ -4,7 +4,6 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
-
 from collections import defaultdict
 from warnings import warn
 
@@ -12,10 +11,9 @@ from vine import ensure_promise
 
 from . import spec
 from .abstract_channel import AbstractChannel
-from .exceptions import (
-    ChannelError, ConsumerCancelled,
-    RecoverableChannelError, RecoverableConnectionError, error_for_code,
-)
+from .exceptions import (ChannelError, ConsumerCancelled,
+                         RecoverableChannelError, RecoverableConnectionError,
+                         error_for_code)
 from .five import Queue
 from .protocol import queue_declare_ok_t
 

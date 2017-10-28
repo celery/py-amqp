@@ -1,10 +1,10 @@
 """Platform compatibility."""
 from __future__ import absolute_import, unicode_literals
 
-import struct
-import sys
 import platform
 import re
+import struct
+import sys
 
 # Jython does not have this attribute
 try:

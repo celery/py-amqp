@@ -5,7 +5,7 @@ import logging
 import sys
 
 # enables celery 3.1.23 to start again
-from vine import promise                # noqa
+from vine import promise  # noqa
 from vine.utils import wraps
 
 from .five import string_t

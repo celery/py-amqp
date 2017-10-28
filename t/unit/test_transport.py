@@ -2,8 +2,8 @@ from __future__ import absolute_import, unicode_literals
 
 import errno
 import socket
-import pytest
 
+import pytest
 from case import ANY, Mock, call, patch
 
 from amqp import transport

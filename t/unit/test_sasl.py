@@ -2,11 +2,11 @@ from __future__ import absolute_import, unicode_literals
 
 import contextlib
 import socket
+import sys
 from io import BytesIO
 
-from case import Mock, patch, call
 import pytest
-import sys
+from case import Mock, call, patch
 
 from amqp import sasl
 from amqp.serialization import _write_table

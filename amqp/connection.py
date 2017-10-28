@@ -9,17 +9,14 @@ import warnings
 
 from vine import ensure_promise
 
-from . import __version__
-from . import sasl
-from . import spec
+from . import __version__, sasl, spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import (
-    AMQPDeprecationWarning, ChannelError, ResourceError,
-    ConnectionForced, ConnectionError, error_for_code,
-    RecoverableConnectionError, RecoverableChannelError,
-)
-from .five import array, items, monotonic, range, values, string
+from .exceptions import (AMQPDeprecationWarning, ChannelError, ConnectionError,
+                         ConnectionForced, RecoverableChannelError,
+                         RecoverableConnectionError, ResourceError,
+                         error_for_code)
+from .five import array, items, monotonic, range, string, values
 from .method_framing import frame_handler, frame_writer
 from .transport import Transport
 
