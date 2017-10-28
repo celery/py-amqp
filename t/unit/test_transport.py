@@ -4,7 +4,7 @@ import errno
 import socket
 import pytest
 
-from case import Mock, patch
+from case import ANY, Mock, call, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
@@ -15,6 +15,11 @@ from amqp.transport import _AbstractTransport
 class MockSocket(object):
     options = {}
 
+    def __init__(self, *args, **kwargs):
+        super(MockSocket, self).__init__(*args, **kwargs)
+        self.connected = False
+        self.sa = None
+
     def setsockopt(self, family, key, value):
         if not isinstance(value, int):
             raise socket.error()
@@ -22,6 +27,20 @@ class MockSocket(object):
 
     def getsockopt(self, family, key):
         return self.options.get(key, 0)
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def fileno(self):
+        return 10
+
+    def connect(self, sa):
+        self.connected = True
+        self.sa = sa
+
+    def close(self):
+        self.connected = False
+        self.sa = None
 
 
 TCP_KEEPIDLE = 4
@@ -188,14 +207,13 @@ class test_AbstractTransport:
 
     class Transport(transport._AbstractTransport):
 
-        def _connect(self, *args):
-            pass
-
         def _init_socket(self, *args):
             pass
 
     @pytest.fixture(autouse=True)
-    def setup_transport(self):
+    @patch('socket.socket.connect')
+    def setup_transport(self, patching):
+        self.connect_mock = patching
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
@@ -304,6 +322,104 @@ class test_AbstractTransport:
         with pytest.raises(OSError):
             self.t.write('foo')
         assert not self.t.connected
+
+    def test_connect_socket_fails(self):
+        self.t.sock = Mock()
+        self.t.close()
+        self.connect_mock.side_effect = socket.error
+        with pytest.raises(socket.error):
+            self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           return_value=[
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.1', 5672)),
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.2', 5672))
+           ])
+    def test_connect_multiple_addr_entries_fails(self, getaddrinfo, sock_mock):
+        self.t.sock = Mock()
+        self.t.close()
+        with patch.object(sock_mock.return_value, 'connect',
+                          side_effect=socket.error):
+            with pytest.raises(socket.error):
+                self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           return_value=[
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.1', 5672)),
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.2', 5672))
+           ])
+    def test_connect_multiple_addr_entries_succeed(self, getaddrinfo,
+                                                   sock_mock):
+        self.t.sock = Mock()
+        self.t.close()
+        with patch.object(sock_mock.return_value, 'connect',
+                          side_effect=(socket.error, None)):
+            self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           side_effect=[
+               [(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.1', 5672))],
+               [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                '', ('::1', 5672))]
+           ])
+    def test_connect_short_curcuit_on_INET_succeed(self, getaddrinfo,
+                                                   sock_mock):
+        self.t.sock = Mock()
+        self.t.close()
+        self.t.connect()
+        getaddrinfo.assert_called_with(
+            'localhost', 5672, socket.AF_INET, ANY, ANY)
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           side_effect=[
+               [(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.1', 5672))],
+               [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                '', ('::1', 5672))]
+           ])
+    def test_connect_short_curcuit_on_INET_fails(self, getaddrinfo, sock_mock):
+        self.t.sock = Mock()
+        self.t.close()
+        with patch.object(sock_mock.return_value, 'connect',
+                          side_effect=(socket.error, None)):
+            self.t.connect()
+        getaddrinfo.assert_has_calls(
+            [call('localhost', 5672, addr_type, ANY, ANY)
+             for addr_type in (socket.AF_INET, socket.AF_INET6)])
+
+    @patch('socket.getaddrinfo', side_effect=socket.gaierror)
+    def test_connect_getaddrinfo_raises_gaierror(self, getaddrinfo):
+        with pytest.raises(socket.error):
+            self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           side_effect=[
+               socket.gaierror,
+               [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                '', ('::1', 5672))]
+           ])
+    def test_connect_getaddrinfo_raises_gaierror_once_recovers(self, *mocks):
+        self.t.connect()
+
+    @patch('socket.socket', return_value=MockSocket())
+    @patch('socket.getaddrinfo',
+           return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                         '', ('127.0.0.1', 5672))])
+    def test_connect_survives_not_implemented_set_cloexec(self, *mocks):
+        with patch('amqp.transport.set_cloexec',
+                   side_effect=NotImplementedError) as cloexec_mock:
+            self.t.connect()
+        assert cloexec_mock.called
 
 
 class test_SSLTransport:

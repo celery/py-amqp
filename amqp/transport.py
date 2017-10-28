@@ -109,26 +109,58 @@ class _AbstractTransport(object):
                     sock.settimeout(prev)
 
     def _connect(self, host, port, timeout):
-        entries = socket.getaddrinfo(
-            host, port, 0, socket.SOCK_STREAM, SOL_TCP,
-        )
-        for i, res in enumerate(entries):
-            af, socktype, proto, canonname, sa = res
+        e = None
+
+        # Below we are trying to avoid additional DNS requests for AAAA if A
+        # succeeds. This helps a lot in case when a hostname has an IPv4 entry
+        # in /etc/hosts but not IPv6. Without the (arguably somewhat twisted)
+        # logic below, getaddrinfo would attempt to resolve the hostname for
+        # both IP versions, which would make the resolver talk to configured
+        # DNS servers. If those servers are for some reason not available
+        # during resolution attempt (either because of system misconfiguration,
+        # or network connectivity problem), resolution process locks the
+        # _connect call for extended time.
+        addr_types = (socket.AF_INET, socket.AF_INET6)
+        addr_types_num = len(addr_types)
+        for n, family in enumerate(addr_types):
+            # first, resolve the address for a single address family
             try:
-                self.sock = socket.socket(af, socktype, proto)
+                entries = socket.getaddrinfo(
+                    host, port, family, socket.SOCK_STREAM, SOL_TCP)
+                entries_num = len(entries)
+            except socket.gaierror:
+                # we may have depleted all our options
+                if n + 1 >= addr_types_num:
+                    # if getaddrinfo succeeded before for another address
+                    # family, reraise the previous socket.error since it's more
+                    # relevant to users
+                    raise (e
+                           if e is not None
+                           else socket.error(
+                               "failed to resolve broker hostname"))
+                continue
+
+            # now that we have address(es) for the hostname, connect to broker
+            for i, res in enumerate(entries):
+                af, socktype, proto, _, sa = res
                 try:
-                    set_cloexec(self.sock, True)
-                except NotImplementedError:
-                    pass
-                self.sock.settimeout(timeout)
-                self.sock.connect(sa)
-            except socket.error:
-                self.sock.close()
-                self.sock = None
-                if i + 1 >= len(entries):
-                    raise
-            else:
-                break
+                    self.sock = socket.socket(af, socktype, proto)
+                    try:
+                        set_cloexec(self.sock, True)
+                    except NotImplementedError:
+                        pass
+                    self.sock.settimeout(timeout)
+                    self.sock.connect(sa)
+                except socket.error as e:
+                    if self.sock is not None:
+                        self.sock.close()
+                        self.sock = None
+                    # we may have depleted all our options
+                    if i + 1 >= entries_num and n + 1 >= addr_types_num:
+                        raise
+                else:
+                    # hurray, we established connection
+                    return
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:
