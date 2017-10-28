@@ -54,7 +54,7 @@ if sys.platform.startswith('linux'):
 elif sys.platform.startswith('win'):
     KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
-if sys.version_info < (2, 7, 7):
+if sys.version_info < (2, 7, 7):  # pragma: no cover
     import functools
 
     def _to_bytes_arg(fun):
