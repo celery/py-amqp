@@ -433,6 +433,10 @@ class test_AbstractTransport:
             self.t.connect()
         assert cloexec_mock.called
 
+    def test_having_timeout_none(self):
+        with self.t.having_timeout(None) as actual_sock:
+            assert actual_sock == self.t.sock
+
 
 class test_SSLTransport:
 
