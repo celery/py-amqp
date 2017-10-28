@@ -330,6 +330,18 @@ class test_AbstractTransport:
         with pytest.raises(socket.error):
             self.t.connect()
 
+    @patch('socket.socket', side_effect=socket.error)
+    @patch('socket.getaddrinfo',
+           return_value=[
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.1', 5672)),
+               (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                '', ('127.0.0.2', 5672))
+           ])
+    def test_connect_socket_initialization_fails(self, getaddrinfo, sock_mock):
+        with pytest.raises(socket.error):
+            self.t.connect()
+
     @patch('socket.socket', return_value=MockSocket())
     @patch('socket.getaddrinfo',
            return_value=[
