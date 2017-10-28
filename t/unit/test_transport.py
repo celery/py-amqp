@@ -378,9 +378,9 @@ class test_AbstractTransport:
     @patch('socket.getaddrinfo',
            side_effect=[
                [(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                '', ('127.0.0.1', 5672))],
+                 '', ('127.0.0.1', 5672))],
                [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                '', ('::1', 5672))]
+                 '', ('::1', 5672))]
            ])
     def test_connect_short_curcuit_on_INET_succeed(self, getaddrinfo,
                                                    sock_mock):
@@ -394,9 +394,9 @@ class test_AbstractTransport:
     @patch('socket.getaddrinfo',
            side_effect=[
                [(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                '', ('127.0.0.1', 5672))],
+                 '', ('127.0.0.1', 5672))],
                [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                '', ('::1', 5672))]
+                 '', ('::1', 5672))]
            ])
     def test_connect_short_curcuit_on_INET_fails(self, getaddrinfo, sock_mock):
         self.t.sock = Mock()
@@ -418,7 +418,7 @@ class test_AbstractTransport:
            side_effect=[
                socket.gaierror,
                [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                '', ('::1', 5672))]
+                 '', ('::1', 5672))]
            ])
     def test_connect_getaddrinfo_raises_gaierror_once_recovers(self, *mocks):
         self.t.connect()
@@ -426,7 +426,7 @@ class test_AbstractTransport:
     @patch('socket.socket', return_value=MockSocket())
     @patch('socket.getaddrinfo',
            return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                         '', ('127.0.0.1', 5672))])
+                          '', ('127.0.0.1', 5672))])
     def test_connect_survives_not_implemented_set_cloexec(self, *mocks):
         with patch('amqp.transport.set_cloexec',
                    side_effect=NotImplementedError) as cloexec_mock:
