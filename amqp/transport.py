@@ -138,7 +138,7 @@ class _AbstractTransport(object):
                            if e is not None
                            else socket.error(
                                "failed to resolve broker hostname"))
-                continue
+                continue  # pragma: no cover
 
             # now that we have address(es) for the hostname, connect to broker
             for i, res in enumerate(entries):
