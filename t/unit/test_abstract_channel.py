@@ -55,6 +55,11 @@ class test_AbstractChannel:
         with pytest.raises(RecoverableConnectionError):
             self.c.send_method((50, 60))
 
+    def test_send_method__connection_dropped(self):
+        self.c.connection.frame_writer.side_effect = StopIteration
+        with pytest.raises(RecoverableConnectionError):
+            self.c.send_method((50, 60))
+
     def test_close(self):
         with pytest.raises(NotImplementedError):
             self.c.close()
