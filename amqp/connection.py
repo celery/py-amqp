@@ -190,6 +190,7 @@ class Connection(AbstractChannel):
             self.authentication = (sasl.RAW(login_method, login_response),)
         elif userid is not None and password is not None:
             self.authentication = (sasl.GSSAPI(userid, fail_soft=True),
+                                   sasl.EXTERNAL(),
                                    sasl.AMQPLAIN(userid, password),
                                    sasl.PLAIN(userid, password))
         else:
