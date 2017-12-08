@@ -137,6 +137,19 @@ def _get_gssapi_mechanism():
 GSSAPI = _get_gssapi_mechanism()
 
 
+class EXTERNAL(SASL):
+    """EXTERNAL SASL mechanism.
+
+    Enables external authentication, i.e. not handled through this protocol.
+    Only passes 'EXTERNAL' as authentication mechanism, but no further
+    authentication data.
+    """
+    mechanism = b'EXTERNAL'
+
+    def start(self, connection):
+        return b''
+
+
 class RAW(SASL):
     """A generic custom SASL mechanism.
 
