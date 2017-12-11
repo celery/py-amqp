@@ -196,8 +196,8 @@ class _AbstractTransport(object):
             if enum:
                 if opt in DEFAULT_SOCKET_SETTINGS:
                     tcp_opts[enum] = DEFAULT_SOCKET_SETTINGS[opt]
-                else:
-                    tcp_opts[enum] = sock.getsockopt(SOL_TCP, opt)
+                elif hasattr(socket, opt):
+                    tcp_opts[enum] = sock.getsockopt(SOL_TCP, getattr(socket, opt))
         return tcp_opts
 
     def _set_socket_options(self, socket_settings):
