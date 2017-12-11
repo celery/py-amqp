@@ -10,7 +10,7 @@ from amqp import Connection, spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
-from amqp.sasl import AMQPLAIN, PLAIN, SASL
+from amqp.sasl import AMQPLAIN, PLAIN, SASL, EXTERNAL
 from amqp.transport import TCPTransport
 
 
@@ -41,17 +41,23 @@ class test_Connection:
         self.conn = Connection(authentication=(authentication,))
         assert self.conn.authentication == (authentication,)
 
+    def test_external(self):
+        self.conn = Connection()
+        assert isinstance(self.conn.authentication[1], EXTERNAL)
+
     def test_amqplain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[1], AMQPLAIN)
-        assert self.conn.authentication[1].username == 'foo'
-        assert self.conn.authentication[1].password == 'bar'
+        auth = self.conn.authentication[2]
+        assert isinstance(auth, AMQPLAIN)
+        assert auth.username == 'foo'
+        assert auth.password == 'bar'
 
     def test_plain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[2], PLAIN)
-        assert self.conn.authentication[2].username == 'foo'
-        assert self.conn.authentication[2].password == 'bar'
+        auth = self.conn.authentication[3]
+        assert isinstance(auth, PLAIN)
+        assert auth.username == 'foo'
+        assert auth.password == 'bar'
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
