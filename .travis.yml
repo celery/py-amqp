@@ -11,8 +11,8 @@ matrix:
   include:
     - python: 2.7
       env: TOXENV=2.7
-    - python: pypy
-      env: TOXENV=pypy
+    - python: 3.6
+      env: TOXENV=pypy PYPY_VERSION=pypy2.7-5.8.0
     - python: 3.4
       env: TOXENV=3.4
     - python: 3.5
@@ -27,7 +27,20 @@ matrix:
       env: TOXENV=pydocstyle
     - python: 2.7
       env: TOXENV=apicheck
-
+before_install:
+  - |
+          if [[ "$TOXENV" =~ "pypy" ]]; then
+            export PYENV_ROOT="$HOME/.pyenv"
+            if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
+              cd "$PYENV_ROOT" && git pull
+            else
+              rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+            fi
+            "$PYENV_ROOT/bin/pyenv" install "$PYPY_VERSION"
+            virtualenv --python="$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/virtualenvs/$PYPY_VERSION"
+            source "$HOME/virtualenvs/$PYPY_VERSION/bin/activate"
+            which python
+          fi
 install:
   - pip install -U pip setuptools wheel
   - pip install -U tox 
