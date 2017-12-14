@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import io
 import os
 import re
 import sys
-import codecs
 
 import setuptools
 import setuptools.command.test
@@ -22,9 +22,9 @@ classes = """
     Programming Language :: Python :: 2
     Programming Language :: Python :: 2.7
     Programming Language :: Python :: 3
-    Programming Language :: Python :: 3.3
     Programming Language :: Python :: 3.4
     Programming Language :: Python :: 3.5
+    Programming Language :: Python :: 3.6
     License :: OSI Approved :: BSD License
     Intended Audience :: Developers
     Operating System :: OS Independent
@@ -71,8 +71,8 @@ def strip_comments(l):
 
 
 def reqs(f):
-    req = filter(None, [strip_comments(l) for l in open(
-        os.path.join(os.getcwd(), 'requirements', f)).readlines()])
+    with open(os.path.join(os.getcwd(), 'requirements', f)) as fp:
+        req = filter(None, [strip_comments(l) for l in fp.readlines()])
     # filter returns filter object(iterator) in Python 3,
     # but a list in Python 2.7, so make sure it returns a list.
     return list(req)
@@ -81,7 +81,8 @@ def reqs(f):
 # -*- Long Description -*-
 
 if os.path.exists('README.rst'):
-    long_description = codecs.open('README.rst', 'r', 'utf-8').read()
+    with io.open('README.rst', encoding='utf-8') as fp:
+        long_description = fp.read()
 else:
     long_description = 'See http://pypi.python.org/pypi/amqp'
 

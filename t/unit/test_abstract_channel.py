@@ -1,7 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-
 from case import Mock, patch
 from vine import promise
 
@@ -53,6 +52,11 @@ class test_AbstractChannel:
 
     def test_send_method__no_connection(self):
         self.c.connection = None
+        with pytest.raises(RecoverableConnectionError):
+            self.c.send_method((50, 60))
+
+    def test_send_method__connection_dropped(self):
+        self.c.connection.frame_writer.side_effect = StopIteration
         with pytest.raises(RecoverableConnectionError):
             self.c.send_method((50, 60))
 

@@ -5,6 +5,170 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.2.2:
+
+2.2.2
+=====
+:release-date: 2017-09-14 09:00 A.M UTC+2
+:release-by: Omer Katz
+
+- Sending empty messages no longer hangs. Instead an empty message is sent correctly.(addresses #151)
+
+  Fix contributed by **Christian Blades**
+
+- Fixed compatibility issues in UTF-8 encoding behavior between Py2/Py3 (#164)
+
+  Fix contributed by **Tyler James Harden**
+
+.. _version-2.2.1:
+
+2.2.1
+=====
+:release-date: 2017-07-14 09:00 A.M UTC+2
+:release-by: Omer Katz
+
+- Fix implicit conversion from bytes to string on the connection object. (Issue #155)
+
+  This issue has caused Celery to crash on connection to RabbitMQ.
+
+  Fix contributed by **Omer Katz**
+
+.. _version-2.2.0:
+
+2.2.0
+=====
+:release-date: 2017-07-12 10:00 A.M UTC+2
+:release-by: Ask Solem
+
+- Fix random delays in task execution.
+
+  This is a bug that caused performance issues due to polling timeouts that occur when receiving incomplete AMQP frames. (Issues #3978 #3737 #3814)
+
+  Fix contributed by **Robert Kopaczewski**
+
+- Calling ``conn.collect()`` multiple times will no longer raise an ``AttributeError`` when no channels exist.
+
+  Fix contributed by **Gord Chung**
+
+- Fix compatibility code for Python 2.7.6.
+
+  Fix contributed by **Jonathan Schuff**
+
+- When running in Windows, py-amqp will no longer use the unsupported TCP option TCP_MAXSEG.
+
+  Fix contributed by **Tony Breeds**
+
+- Added support for setting the SNI hostname header.
+
+  The SSL protocol version is now set to SSLv23
+
+  Contributed by **Dhananjay Sathe**
+
+- Authentication mechanisms were refactored to be more modular. GSSAPI authentication is now supported.
+
+  Contributed by **Alexander Dutton**
+
+- Do not reconnect on collect.
+
+  Fix contributed by **Gord Chung**
+
+.. _version-2.1.4:
+
+2.1.4
+=====
+:release-date: 2016-12-14 03:40 P.M PST
+:release-by: Ask Solem
+
+- Removes byte string comparison warnings when running under ``python -b``.
+
+    Fix contributed by **Jon Dufresne**.
+
+- Linux version parsing broke when the version included a '+' character
+  (Issue #119).
+
+- Now sets default TCP settings for platforms that support them (e.g. Linux).
+
+    +----------------------+---------------+
+    |   Constant           |   Value       |
+    +======================+===============+
+    | ``TCP_KEEPIDLE``     | ``60``        |
+    +----------------------+---------------+
+    | ``TCP_KEEPINTVL``    | ``10``        |
+    +----------------------+---------------+
+    | ``TCP_KEEPCNT``      | ``9``         |
+    +----------------------+---------------+
+    | ``TCP_USER_TIMEOUT`` | ``1000`` (1s) |
+    +----------------------+---------------+
+
+    This will help detecting the socket being closed earlier, which is very
+    important in failover and load balancing scenarios.
+
+.. _version-2.1.3:
+
+2.1.3
+=====
+:release-date: 2016-12-07 06:00 P.M PST
+:release-by: Ask Solem
+
+- Fixes compatibility with Python 2.7.5 and below (Issue #107).
+
+.. _version-2.1.2:
+
+2.1.2
+=====
+:release-date: 2016-12-07 02:00 P.M PST
+
+- Linux: Now sets the :data:`~socket.TCP_USER_TIMEOUT` flag if available
+  for better failed connection detection.
+
+    Contributed by **Jelte Fennema**.
+
+    The timeout is set to the ``connect_timeout`` value by default,
+    but can also be specified by using the ``socket_settings`` argument
+    to :class:`~amqp.Connection`:
+
+    .. code-block:: python
+
+        from amqp import Connection
+        from amqp.platform import TCP_USER_TIMEOUT
+
+        conn = Connection(socket_settings={
+            TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+        })
+
+    When using :pypi:`Kombu` this can be specified as part of the
+    ``transport_options``:
+
+    .. code-block:: python
+
+        from amqp.platform import TCP_USER_TIMEOUT
+        from kombu import Connection
+
+        conn = Connection(transport_options={
+            'socket_settings': {
+                TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+            },
+        })
+
+    Or when using :pypi:`Celery` it can be specified using the
+    ``broker_transport_options`` setting:
+
+    .. code-block:: python
+
+        from amqp.platform import TCP_USER_TIMEOUT
+        from celery import Celery
+
+        app = Celery()
+        app.conf.update(
+            broker_transport_options={
+                TCP_USER_TIMEOUT: int(60 * 1000),  # six minutes in ms.
+            }
+        )
+
+- Python compatibility: Fixed compatibility when using the python ``-b`` flag.
+
+    Fix contributed by Jon Dufresne.
+
 .. _version-2.1.1:
 
 2.1.1

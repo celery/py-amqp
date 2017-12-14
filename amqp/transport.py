@@ -1,39 +1,17 @@
 """Transport implementation."""
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
-#
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
-#
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
 import errno
 import re
-import struct
 import socket
 import ssl
-
 from contextlib import contextmanager
-from struct import unpack
 
 from .exceptions import UnexpectedFrame
 from .five import items
+from .platform import KNOWN_TCP_OPTS, SOL_TCP, pack, unpack
 from .utils import get_errno, set_cloexec
-
-# Jython does not have this attribute
-try:
-    from socket import SOL_TCP
-except ImportError:  # pragma: no cover
-    from socket import IPPROTO_TCP as SOL_TCP  # noqa
 
 try:
     from ssl import SSLError
@@ -55,15 +33,13 @@ AMQP_PROTOCOL_HEADER = 'AMQP\x01\x01\x00\x09'.encode('latin_1')
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
 
-# available socket options for TCP level
-KNOWN_TCP_OPTS = (
-    'TCP_CORK', 'TCP_DEFER_ACCEPT', 'TCP_KEEPCNT',
-    'TCP_KEEPIDLE', 'TCP_KEEPINTVL', 'TCP_LINGER2',
-    'TCP_MAXSEG', 'TCP_NODELAY', 'TCP_QUICKACK',
-    'TCP_SYNCNT', 'TCP_WINDOW_CLAMP',
-)
-TCP_OPTS = [getattr(socket, opt) for opt in KNOWN_TCP_OPTS
-            if hasattr(socket, opt)]
+DEFAULT_SOCKET_SETTINGS = {
+    'TCP_NODELAY': 1,
+    'TCP_USER_TIMEOUT': 1000,
+    'TCP_KEEPIDLE': 60,
+    'TCP_KEEPINTVL': 10,
+    'TCP_KEEPCNT': 9,
+}
 
 
 def to_host_port(host, default=AMQP_PORT):
@@ -129,26 +105,58 @@ class _AbstractTransport(object):
                     sock.settimeout(prev)
 
     def _connect(self, host, port, timeout):
-        entries = socket.getaddrinfo(
-            host, port, 0, socket.SOCK_STREAM, SOL_TCP,
-        )
-        for i, res in enumerate(entries):
-            af, socktype, proto, canonname, sa = res
+        e = None
+
+        # Below we are trying to avoid additional DNS requests for AAAA if A
+        # succeeds. This helps a lot in case when a hostname has an IPv4 entry
+        # in /etc/hosts but not IPv6. Without the (arguably somewhat twisted)
+        # logic below, getaddrinfo would attempt to resolve the hostname for
+        # both IP versions, which would make the resolver talk to configured
+        # DNS servers. If those servers are for some reason not available
+        # during resolution attempt (either because of system misconfiguration,
+        # or network connectivity problem), resolution process locks the
+        # _connect call for extended time.
+        addr_types = (socket.AF_INET, socket.AF_INET6)
+        addr_types_num = len(addr_types)
+        for n, family in enumerate(addr_types):
+            # first, resolve the address for a single address family
             try:
-                self.sock = socket.socket(af, socktype, proto)
+                entries = socket.getaddrinfo(
+                    host, port, family, socket.SOCK_STREAM, SOL_TCP)
+                entries_num = len(entries)
+            except socket.gaierror:
+                # we may have depleted all our options
+                if n + 1 >= addr_types_num:
+                    # if getaddrinfo succeeded before for another address
+                    # family, reraise the previous socket.error since it's more
+                    # relevant to users
+                    raise (e
+                           if e is not None
+                           else socket.error(
+                               "failed to resolve broker hostname"))
+                continue  # pragma: no cover
+
+            # now that we have address(es) for the hostname, connect to broker
+            for i, res in enumerate(entries):
+                af, socktype, proto, _, sa = res
                 try:
-                    set_cloexec(self.sock, True)
-                except NotImplementedError:
-                    pass
-                self.sock.settimeout(timeout)
-                self.sock.connect(sa)
-            except socket.error:
-                self.sock.close()
-                self.sock = None
-                if i + 1 >= len(entries):
-                    raise
-            else:
-                break
+                    self.sock = socket.socket(af, socktype, proto)
+                    try:
+                        set_cloexec(self.sock, True)
+                    except NotImplementedError:
+                        pass
+                    self.sock.settimeout(timeout)
+                    self.sock.connect(sa)
+                except socket.error as e:
+                    if self.sock is not None:
+                        self.sock.close()
+                        self.sock = None
+                    # we may have depleted all our options
+                    if i + 1 >= entries_num and n + 1 >= addr_types_num:
+                        raise
+                else:
+                    # hurray, we established connection
+                    return
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         try:
@@ -162,7 +170,7 @@ class _AbstractTransport(object):
                 if interval is not None:
                     self.sock.setsockopt(
                         socket.SOL_SOCKET, timeout,
-                        struct.pack('ll', interval, 0),
+                        pack('ll', interval, 0),
                     )
             self._setup_transport()
 
@@ -173,19 +181,29 @@ class _AbstractTransport(object):
             raise
 
     def _get_tcp_socket_defaults(self, sock):
-        return {
-            opt: sock.getsockopt(SOL_TCP, opt) for opt in TCP_OPTS
-        }
+        tcp_opts = {}
+        for opt in KNOWN_TCP_OPTS:
+            enum = None
+            if opt == 'TCP_USER_TIMEOUT':
+                try:
+                    from socket import TCP_USER_TIMEOUT as enum
+                except ImportError:
+                    # should be in Python 3.6+ on Linux.
+                    enum = 18
+            elif hasattr(socket, opt):
+                enum = getattr(socket, opt)
+
+            if enum:
+                if opt in DEFAULT_SOCKET_SETTINGS:
+                    tcp_opts[enum] = DEFAULT_SOCKET_SETTINGS[opt]
+                elif hasattr(socket, opt):
+                    tcp_opts[enum] = sock.getsockopt(SOL_TCP, getattr(socket, opt))
+        return tcp_opts
 
     def _set_socket_options(self, socket_settings):
-        if not socket_settings:
-            self.sock.setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            return
-
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
-        tcp_opts.setdefault(socket.TCP_NODELAY, 1)
-        tcp_opts.update(socket_settings)
-
+        if socket_settings:
+            tcp_opts.update(socket_settings)
         for opt, val in items(tcp_opts):
             self.sock.setsockopt(SOL_TCP, opt, val)
 
@@ -272,19 +290,54 @@ class SSLTransport(_AbstractTransport):
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
-        self.sock = self._wrap_socket(self.sock, **self.sslopts or {})
+        self.sock = self._wrap_socket(self.sock, **self.sslopts)
         self.sock.do_handshake()
         self._quick_recv = self.sock.read
 
     def _wrap_socket(self, sock, context=None, **sslopts):
         if context:
             return self._wrap_context(sock, sslopts, **context)
-        return ssl.wrap_socket(sock, **sslopts)
+        return self._wrap_socket_sni(sock, **sslopts)
 
     def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
         return ctx.wrap_socket(sock, **sslopts)
+
+    def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
+                         server_side=False, cert_reqs=ssl.CERT_NONE,
+                         ca_certs=None, do_handshake_on_connect=True,
+                         suppress_ragged_eofs=True, server_hostname=None,
+                         ciphers=None, ssl_version=None):
+        """Socket wrap with SNI headers.
+
+        Default `ssl.wrap_socket` method augmented with support for
+        setting the server_hostname field required for SNI hostname header
+        """
+        opts = dict(sock=sock, keyfile=keyfile, certfile=certfile,
+                    server_side=server_side, cert_reqs=cert_reqs,
+                    ca_certs=ca_certs,
+                    do_handshake_on_connect=do_handshake_on_connect,
+                    suppress_ragged_eofs=suppress_ragged_eofs,
+                    ciphers=ciphers)
+        # Setup the right SSL version; default to optimal versions across
+        # ssl implementations
+        if ssl_version is not None:
+            opts['ssl_version'] = ssl_version
+        else:
+            # older versions of python 2.7 and python 2.6 do not have the
+            # ssl.PROTOCOL_TLS defined the equivalent is ssl.PROTOCOL_SSLv23
+            # we default to PROTOCOL_TLS and fallback to PROTOCOL_SSLv23
+            if hasattr(ssl, 'PROTOCOL_TLS'):
+                opts['ssl_version'] = ssl.PROTOCOL_TLS
+            else:
+                opts['ssl_version'] = ssl.PROTOCOL_SSLv23
+        # Set SNI headers if supported
+        if (server_hostname is not None) and (
+                hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI):
+            opts['server_hostname'] = server_hostname
+        sock = ssl.SSLSocket(**opts)
+        return sock
 
     def _shutdown_transport(self):
         """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""

@@ -1,11 +1,11 @@
 =====================================================
- ``amqp.exceptions``
+ amqp.spec
 =====================================================
 
 .. contents::
     :local:
-.. currentmodule:: amqp.exceptions
+.. currentmodule:: amqp.sasl
 
-.. automodule:: amqp.exceptions
+.. automodule:: amqp.sasl
     :members:
     :undoc-members:

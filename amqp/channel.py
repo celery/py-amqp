@@ -1,25 +1,10 @@
 """AMQP Channels."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-#
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
-#
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
 import errno
-
 from collections import defaultdict
 from warnings import warn
 
@@ -27,10 +12,9 @@ from vine import ensure_promise
 
 from . import spec
 from .abstract_channel import AbstractChannel
-from .exceptions import (
-    ChannelError, ConsumerCancelled,
-    RecoverableChannelError, RecoverableConnectionError, error_for_code,
-)
+from .exceptions import (ChannelError, ConsumerCancelled,
+                         RecoverableChannelError, RecoverableConnectionError,
+                         error_for_code)
 from .five import Queue
 from .protocol import queue_declare_ok_t
 
@@ -1605,7 +1589,7 @@ class Channel(AbstractChannel):
         try:
             fun = self.callbacks[consumer_tag]
         except KeyError:
-            AMQP_LOGGER.warn(
+            AMQP_LOGGER.warning(
                 REJECTED_MESSAGE_WITHOUT_CALLBACK,
                 delivery_tag, consumer_tag, exchange, routing_key,
             )

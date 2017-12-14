@@ -1,15 +1,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-
-from struct import pack
-
 from case import Mock
 
 from amqp import spec
 from amqp.basic_message import Message
 from amqp.exceptions import UnexpectedFrame
 from amqp.method_framing import frame_handler, frame_writer
+from amqp.platform import pack
 
 
 class test_frame_handler:
@@ -97,6 +95,12 @@ class test_frame_writer:
 
     def test_write_slow_content(self):
         msg = Message(body=b'y' * 2048, content_type='utf-8')
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        self.write.assert_called()
+
+    def test_write_zero_len_body(self):
+        msg = Message(body=b'', content_type='application/octet-stream')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
         self.g(*frame)
         self.write.assert_called()

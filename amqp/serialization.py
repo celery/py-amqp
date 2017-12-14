@@ -4,34 +4,20 @@
 
 """
 # Copyright (C) 2007 Barry Pederson <bp@barryp.org>
-#
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
-#
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 from __future__ import absolute_import, unicode_literals
 
 import calendar
 import sys
-
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from struct import pack, unpack_from
 
-from .spec import Basic
 from .exceptions import FrameSyntaxError
-from .five import int_types, long_t, string, string_t, items
-from .utils import bytes_to_str as pstr_t, str_to_bytes
+from .five import int_types, items, long_t, string, string_t
+from .platform import pack, unpack_from
+from .spec import Basic
+from .utils import bytes_to_str as pstr_t
+from .utils import str_to_bytes
 
 ftype_t = chr if sys.version_info[0] == 3 else None
 
@@ -208,13 +194,13 @@ def loads(format, buf, offset=0,
             bitcount = bits = 0
             slen, = unpack_from('B', buf, offset)
             offset += 1
-            val = buf[offset:offset + slen].decode('utf-8')
+            val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
         elif p == 'S':
             bitcount = bits = 0
             slen, = unpack_from('>I', buf, offset)
             offset += 4
-            val = buf[offset:offset + slen].decode('utf-8')
+            val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
         elif p == 'F':
             bitcount = bits = 0
@@ -304,14 +290,14 @@ def dumps(format, values):
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
-                val = val.encode('utf-8')
+                val = val.encode('utf-8', 'surrogatepass')
             write(pack('B', len(val)))
             write(val)
         elif p == 'S':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
-                val = val.encode('utf-8')
+                val = val.encode('utf-8', 'surrogatepass')
             write(pack('>I', len(val)))
             write(val)
         elif p == 'F':
@@ -332,7 +318,7 @@ def _write_table(d, write, bits, pack=pack):
     twrite = out.write
     for k, v in items(d):
         if isinstance(k, string):
-            k = k.encode('utf-8')
+            k = k.encode('utf-8', 'surrogatepass')
         twrite(pack('B', len(k)))
         twrite(k)
         try:
@@ -366,7 +352,7 @@ def _write_item(v, write, bits, pack=pack,
                 None_t=None):
     if isinstance(v, (string_t, bytes)):
         if isinstance(v, string):
-            v = v.encode('utf-8')
+            v = v.encode('utf-8', 'surrogatepass')
         write(pack('>cI', b'S', len(v)))
         write(v)
     elif isinstance(v, bool):
@@ -387,7 +373,8 @@ def _write_item(v, write, bits, pack=pack,
             v = -v
         write(pack('>cBi', b'D', -exponent, v))
     elif isinstance(v, datetime):
-        write(pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
+        write(
+            pack('>cQ', b'T', long_t(calendar.timegm(v.utctimetuple()))))
     elif isinstance(v, dict):
         write(b'F')
         _write_table(v, write, bits)
