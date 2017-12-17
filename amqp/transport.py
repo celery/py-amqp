@@ -371,7 +371,7 @@ class SSLTransport(_AbstractTransport):
                 if not s:
                     raise IOError('Socket closed')
                 rbuf += s
-        except:
+        except:  # noqa
             self._read_buffer = rbuf
             raise
         result, self._read_buffer = rbuf[:n], rbuf[n:]
@@ -424,7 +424,7 @@ class TCPTransport(_AbstractTransport):
                 if not s:
                     raise IOError('Socket closed')
                 rbuf += s
-        except:
+        except:  # noqa
             self._read_buffer = rbuf
             raise
 
