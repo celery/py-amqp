@@ -13,6 +13,7 @@ matrix:
       env: TOXENV=2.7
     - python: pypy
       env: TOXENV=pypy
+      sudo: required
     - python: 3.4
       env: TOXENV=3.4
     - python: 3.5
@@ -30,7 +31,7 @@ matrix:
 
 install:
   - pip install -U pip setuptools wheel
-  - pip install -U tox 
+  - pip install -U tox
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
