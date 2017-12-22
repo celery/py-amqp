@@ -148,6 +148,7 @@ class EXTERNAL(SASL):
     Only passes 'EXTERNAL' as authentication mechanism, but no further
     authentication data.
     """
+
     mechanism = b'EXTERNAL'
 
     def start(self, connection):

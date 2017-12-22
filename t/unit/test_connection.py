@@ -133,7 +133,8 @@ class test_Connection:
 
     def test_missing_credentials(self):
         with pytest.raises(ValueError):
-            self.conn = Connection(userid=None, password=None, login_method='AMPQPLAIN')
+            self.conn = Connection(userid=None, password=None,
+                                   login_method='AMPQPLAIN')
         with pytest.raises(ValueError):
             self.conn = Connection(password=None, login_method='PLAIN')
 

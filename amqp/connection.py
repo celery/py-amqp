@@ -199,11 +199,13 @@ class Connection(AbstractChannel):
                 auth = sasl.EXTERNAL()
             elif login_method == 'AMQPLAIN':
                 if userid is None or password is None:
-                    raise ValueError("Must supply authentication or userid/password")
+                    raise ValueError(
+                        "Must supply authentication or userid/password")
                 auth = sasl.AMQPLAIN(userid, password)
             elif login_method == 'PLAIN':
                 if userid is None or password is None:
-                    raise ValueError("Must supply authentication or userid/password")
+                    raise ValueError(
+                        "Must supply authentication or userid/password")
                 auth = sasl.PLAIN(userid, password)
             elif login_response is not None:
                 auth = sasl.RAW(login_method, login_response)
