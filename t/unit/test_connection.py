@@ -59,6 +59,12 @@ class test_Connection:
         assert auth.username == 'foo'
         assert auth.password == 'bar'
 
+    def test_login_method(self):
+        self.conn = Connection(login_method='AMQPLAIN')
+        auths = self.conn.authentication
+        assert len(auths) == 1
+        assert isinstance(auths[0], AMQPLAIN)
+
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
         self.conn.close = Mock(name='close')
