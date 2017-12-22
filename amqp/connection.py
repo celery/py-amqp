@@ -83,7 +83,13 @@ class Connection(AbstractChannel):
 
     Authentication can be controlled by passing one or more
     `amqp.sasl.SASL` instances as the `authentication` parameter, or
-    by using the userid and password parameters (for AMQPLAIN and PLAIN).
+    setting the `login_method` string to one of the supported methods:
+    'GSSAPI', 'EXTERNAL', 'AMQPLAIN', or 'PLAIN'.
+    Otherwise authentication will be performed using any supported method
+    preferred by the server. Userid and passwords apply to AMQPLAIN and
+    PLAIN authentication, whereas on GSSAPI only userid will be used as
+    client name. For EXTERNAL authentication both userid and password are
+    ignored.
 
     The 'ssl' parameter may be simply True/False, or for Python >= 2.6
     a dictionary of options to pass to ssl.wrap_socket() such as
@@ -186,15 +192,29 @@ class Connection(AbstractChannel):
             if isinstance(authentication, sasl.SASL):
                 authentication = (authentication,)
             self.authentication = authentication
-        elif login_method is not None and login_response is not None:
-            self.authentication = (sasl.RAW(login_method, login_response),)
-        elif userid is not None and password is not None:
+        elif login_method is not None:
+            if login_method == 'GSSAPI':
+                auth = sasl.GSSAPI(userid)
+            elif login_method == 'EXTERNAL':
+                auth = sasl.EXTERNAL()
+            elif login_method == 'AMQPLAIN':
+                if userid is None or password is None:
+                    raise ValueError("Must supply authentication or userid/password")
+                auth = sasl.AMQPLAIN(userid, password)
+            elif login_method == 'PLAIN':
+                if userid is None or password is None:
+                    raise ValueError("Must supply authentication or userid/password")
+                auth = sasl.PLAIN(userid, password)
+            elif login_response is not None:
+                auth = sasl.RAW(login_method, login_response)
+            else:
+                raise ValueError("Invalid login method", login_method)
+            self.authentication = (auth,)
+        else:
             self.authentication = (sasl.GSSAPI(userid, fail_soft=True),
                                    sasl.EXTERNAL(),
                                    sasl.AMQPLAIN(userid, password),
                                    sasl.PLAIN(userid, password))
-        else:
-            raise ValueError("Must supply authentication or userid/password")
 
         self.client_properties = dict(
             self.library_properties, **client_properties or {}
