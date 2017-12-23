@@ -28,6 +28,12 @@ class test_SASL:
         assert response.split(b'\0') == \
             [b'', username.encode('utf-8'), password.encode('utf-8')]
 
+    def test_plain_no_password(self):
+        username, password = 'foo', None
+        mech = sasl.PLAIN(username, password)
+        response = mech.start(None)
+        assert response == NotImplemented
+
     def test_amqplain(self):
         username, password = 'foo', 'bar'
         mech = sasl.AMQPLAIN(username, password)
@@ -38,6 +44,12 @@ class test_SASL:
                      login_response.write, [])
         expected_response = login_response.getvalue()[4:]
         assert response == expected_response
+
+    def test_amqplain_no_password(self):
+        username, password = 'foo', None
+        mech = sasl.AMQPLAIN(username, password)
+        response = mech.start(None)
+        assert response == NotImplemented
 
     def test_gssapi_missing(self):
         gssapi = sys.modules.pop('gssapi', None)
@@ -147,3 +159,9 @@ class test_SASL:
                                                       creds=credentials)
             context.step.assert_called_with(None)
             assert response == b'secrets'
+
+    def test_external(self):
+        mech = sasl.EXTERNAL()
+        response = mech.start(None)
+        assert isinstance(response, bytes)
+        assert response == b''
