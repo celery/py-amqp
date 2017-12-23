@@ -162,9 +162,13 @@ class test_Connection:
     def test_missing_credentials(self):
         with pytest.raises(ValueError):
             self.conn = Connection(userid=None, password=None,
-                                   login_method='AMPQPLAIN')
+                                   login_method='AMQPLAIN')
         with pytest.raises(ValueError):
             self.conn = Connection(password=None, login_method='PLAIN')
+
+    def test_invalid_method(self):
+        with pytest.raises(ValueError):
+            self.conn = Connection(login_method='any')
 
     def test_mechanism_mismatch(self):
         with pytest.raises(ConnectionError):
