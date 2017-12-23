@@ -65,7 +65,8 @@ class test_Connection:
 
     def test_login_method_gssapi(self):
         try:
-            self.conn = Connection(userid=None, password=None, login_method='GSSAPI')
+            self.conn = Connection(userid=None, password=None,
+                                   login_method='GSSAPI')
         except NotImplementedError:
             pass
         else:
@@ -74,7 +75,8 @@ class test_Connection:
             assert isinstance(auths[0], GSSAPI)
 
     def test_login_method_external(self):
-        self.conn = Connection(userid=None, password=None, login_method='EXTERNAL')
+        self.conn = Connection(userid=None, password=None,
+                               login_method='EXTERNAL')
         auths = self.conn.authentication
         assert len(auths) == 1
         assert isinstance(auths[0], EXTERNAL)
