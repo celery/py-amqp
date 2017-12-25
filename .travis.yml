@@ -21,6 +21,8 @@ matrix:
       env: TOXENV=3.6
     - python: 2.7
       env: TOXENV=flake8
+    - python: 3.6
+      env: TOXENV=flake8
     - python: 2.7
       env: TOXENV=flakeplus
     - python: 2.7
