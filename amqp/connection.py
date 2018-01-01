@@ -87,7 +87,7 @@ class Connection(AbstractChannel):
     'GSSAPI', 'EXTERNAL', 'AMQPLAIN', or 'PLAIN'.
     Otherwise authentication will be performed using any supported method
     preferred by the server. Userid and passwords apply to AMQPLAIN and
-    PLAIN authentication, whereas on GSSAPI only userid will be used as
+    PLAIN authentication, whereas on GSSAPI only userid will be used as the
     client name. For EXTERNAL authentication both userid and password are
     ignored.
 
