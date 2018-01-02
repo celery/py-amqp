@@ -36,6 +36,8 @@ class PLAIN(SASL):
         self.username, self.password = username, password
 
     def start(self, connection):
+        if self.username is None or self.password is None:
+            return NotImplemented
         login_response = BytesIO()
         login_response.write(b'\0')
         login_response.write(self.username.encode('utf-8'))
@@ -56,6 +58,8 @@ class AMQPLAIN(SASL):
         self.username, self.password = username, password
 
     def start(self, connection):
+        if self.username is None or self.password is None:
+            return NotImplemented
         login_response = BytesIO()
         _write_table({b'LOGIN': self.username, b'PASSWORD': self.password},
                      login_response.write, [])
@@ -135,6 +139,20 @@ def _get_gssapi_mechanism():
 
 
 GSSAPI = _get_gssapi_mechanism()
+
+
+class EXTERNAL(SASL):
+    """EXTERNAL SASL mechanism.
+
+    Enables external authentication, i.e. not handled through this protocol.
+    Only passes 'EXTERNAL' as authentication mechanism, but no further
+    authentication data.
+    """
+
+    mechanism = b'EXTERNAL'
+
+    def start(self, connection):
+        return b''
 
 
 class RAW(SASL):

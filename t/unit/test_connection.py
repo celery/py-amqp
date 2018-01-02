@@ -10,7 +10,7 @@ from amqp import Connection, spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
-from amqp.sasl import AMQPLAIN, PLAIN, SASL
+from amqp.sasl import AMQPLAIN, PLAIN, SASL, EXTERNAL, GSSAPI
 from amqp.transport import TCPTransport
 
 
@@ -41,17 +41,57 @@ class test_Connection:
         self.conn = Connection(authentication=(authentication,))
         assert self.conn.authentication == (authentication,)
 
+    def test_gssapi(self):
+        self.conn = Connection()
+        assert isinstance(self.conn.authentication[0], GSSAPI)
+
+    def test_external(self):
+        self.conn = Connection()
+        assert isinstance(self.conn.authentication[1], EXTERNAL)
+
     def test_amqplain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[1], AMQPLAIN)
-        assert self.conn.authentication[1].username == 'foo'
-        assert self.conn.authentication[1].password == 'bar'
+        auth = self.conn.authentication[2]
+        assert isinstance(auth, AMQPLAIN)
+        assert auth.username == 'foo'
+        assert auth.password == 'bar'
 
     def test_plain(self):
         self.conn = Connection(userid='foo', password='bar')
-        assert isinstance(self.conn.authentication[2], PLAIN)
-        assert self.conn.authentication[2].username == 'foo'
-        assert self.conn.authentication[2].password == 'bar'
+        auth = self.conn.authentication[3]
+        assert isinstance(auth, PLAIN)
+        assert auth.username == 'foo'
+        assert auth.password == 'bar'
+
+    def test_login_method_gssapi(self):
+        try:
+            self.conn = Connection(userid=None, password=None,
+                                   login_method='GSSAPI')
+        except NotImplementedError:
+            pass
+        else:
+            auths = self.conn.authentication
+            assert len(auths) == 1
+            assert isinstance(auths[0], GSSAPI)
+
+    def test_login_method_external(self):
+        self.conn = Connection(userid=None, password=None,
+                               login_method='EXTERNAL')
+        auths = self.conn.authentication
+        assert len(auths) == 1
+        assert isinstance(auths[0], EXTERNAL)
+
+    def test_login_method_amqplain(self):
+        self.conn = Connection(login_method='AMQPLAIN')
+        auths = self.conn.authentication
+        assert len(auths) == 1
+        assert isinstance(auths[0], AMQPLAIN)
+
+    def test_login_method_plain(self):
+        self.conn = Connection(login_method='PLAIN')
+        auths = self.conn.authentication
+        assert len(auths) == 1
+        assert isinstance(auths[0], PLAIN)
 
     def test_enter_exit(self):
         self.conn.connect = Mock(name='connect')
@@ -121,9 +161,14 @@ class test_Connection:
 
     def test_missing_credentials(self):
         with pytest.raises(ValueError):
-            self.conn = Connection(userid=None, password=None)
+            self.conn = Connection(userid=None, password=None,
+                                   login_method='AMQPLAIN')
         with pytest.raises(ValueError):
-            self.conn = Connection(password=None)
+            self.conn = Connection(password=None, login_method='PLAIN')
+
+    def test_invalid_method(self):
+        with pytest.raises(ValueError):
+            self.conn = Connection(login_method='any')
 
     def test_mechanism_mismatch(self):
         with pytest.raises(ConnectionError):
