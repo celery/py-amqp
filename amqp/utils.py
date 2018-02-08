@@ -85,7 +85,7 @@ else:
 
     def str_to_bytes(s):                # noqa
         """Convert str to bytes."""
-        if isinstance(s, unicode):
+        if isinstance(s, string_t):
             return s.encode('utf-8')
         return s
 

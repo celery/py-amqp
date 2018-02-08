@@ -242,7 +242,7 @@ def _flushbits(bits, write, pack=pack):
 
 
 def dumps(format, values):
-    """"Serialize AMQP arguments.
+    """Serialize AMQP arguments.
 
     Notes:
         bit = b
