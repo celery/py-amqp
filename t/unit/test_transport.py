@@ -211,9 +211,7 @@ class test_AbstractTransport:
             pass
 
     @pytest.fixture(autouse=True)
-    @patch('socket.socket.connect')
-    def setup_transport(self, patching):
-        self.connect_mock = patching
+    def setup_transport(self):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
@@ -323,10 +321,8 @@ class test_AbstractTransport:
             self.t.write('foo')
         assert not self.t.connected
 
-    def test_connect_socket_fails(self):
-        self.t.sock = Mock()
-        self.t.close()
-        self.connect_mock.side_effect = socket.error
+    @patch('socket.socket', side_effect=socket.error)
+    def test_connect_socket_fails(self, sock_mock):
         with pytest.raises(socket.error):
             self.t.connect()
 
