@@ -138,13 +138,13 @@ class test_Channel:
             wait=spec.Exchange.DeclareOk,
         )
 
-    @patch('amqp.channel.warn')
-    def test_exchange_declare__auto_delete(self, warn):
-        self.c.exchange_declare(
-            'foo', 'direct', False, True,
-            auto_delete=True, nowait=False, arguments={'x': 1},
-        )
-        warn.assert_called()
+    def test_exchange_declare__auto_delete(self):
+        with patch('amqp.channel.warn') as warn:
+            self.c.exchange_declare(
+                'foo', 'direct', False, True,
+                auto_delete=True, nowait=False, arguments={'x': 1},
+            )
+            warn.assert_called()
 
     def test_exchange_delete(self):
         self.c.exchange_delete('foo')
@@ -366,14 +366,14 @@ class test_Channel:
         with pytest.raises(NotFound):
             self.c._on_basic_return(404, 'text', 'ex', 'rkey', 'msg')
 
-    @patch('amqp.channel.error_for_code')
-    def test_on_basic_return__handled(self, error_for_code):
-        callback = Mock(name='callback')
-        self.c.events['basic_return'].add(callback)
-        self.c._on_basic_return(404, 'text', 'ex', 'rkey', 'msg')
-        callback.assert_called_with(
-            error_for_code(), 'ex', 'rkey', 'msg',
-        )
+    def test_on_basic_return__handled(self):
+        with patch('amqp.channel.error_for_code') as error_for_code:
+            callback = Mock(name='callback')
+            self.c.events['basic_return'].add(callback)
+            self.c._on_basic_return(404, 'text', 'ex', 'rkey', 'msg')
+            callback.assert_called_with(
+                error_for_code(), 'ex', 'rkey', 'msg',
+            )
 
     def test_tx_commit(self):
         self.c.tx_commit()

@@ -64,23 +64,23 @@ class test_AbstractChannel:
         with pytest.raises(NotImplementedError):
             self.c.close()
 
-    @patch('amqp.abstract_channel.ensure_promise')
-    def test_wait(self, ensure_promise):
-        p = ensure_promise.return_value
-        p.ready = False
+    def test_wait(self):
+        with patch('amqp.abstract_channel.ensure_promise') as ensure_promise:
+            p = ensure_promise.return_value
+            p.ready = False
 
-        def on_drain(*args, **kwargs):
-            p.ready = True
-        self.conn.drain_events.side_effect = on_drain
+            def on_drain(*args, **kwargs):
+                p.ready = True
+            self.conn.drain_events.side_effect = on_drain
 
-        p.value = (1,), {'arg': 2}
-        self.c.wait((50, 61), timeout=1)
-        self.conn.drain_events.assert_called_with(timeout=1)
+            p.value = (1,), {'arg': 2}
+            self.c.wait((50, 61), timeout=1)
+            self.conn.drain_events.assert_called_with(timeout=1)
 
-        prev = self.c._pending[(50, 61)] = Mock(name='p2')
-        p.value = None
-        self.c.wait([(50, 61)])
-        assert self.c._pending[(50, 61)] is prev
+            prev = self.c._pending[(50, 61)] = Mock(name='p2')
+            p.value = None
+            self.c.wait([(50, 61)])
+            assert self.c._pending[(50, 61)] is prev
 
     def test_dispatch_method__content_encoding(self):
         self.c.auto_decode = True
@@ -107,20 +107,20 @@ class test_AbstractChannel:
         p.assert_called_with()
         assert not self.c._pending
 
-    @patch('amqp.abstract_channel.loads')
-    def test_dispatch_method__listeners(self, loads):
-        loads.return_value = [1, 2, 3], 'foo'
-        p = self.c._callbacks[(50, 61)] = Mock(name='p')
-        self.c.dispatch_method((50, 61), 'payload', self.content)
-        p.assert_called_with(1, 2, 3, self.content)
+    def test_dispatch_method__listeners(self):
+        with patch('amqp.abstract_channel.loads') as loads:
+            loads.return_value = [1, 2, 3], 'foo'
+            p = self.c._callbacks[(50, 61)] = Mock(name='p')
+            self.c.dispatch_method((50, 61), 'payload', self.content)
+            p.assert_called_with(1, 2, 3, self.content)
 
-    @patch('amqp.abstract_channel.loads')
-    def test_dispatch_method__listeners_and_one_shot(self, loads):
-        loads.return_value = [1, 2, 3], 'foo'
-        p1 = self.c._callbacks[(50, 61)] = Mock(name='p')
-        p2 = self.c._pending[(50, 61)] = Mock(name='oneshot')
-        self.c.dispatch_method((50, 61), 'payload', self.content)
-        p1.assert_called_with(1, 2, 3, self.content)
-        p2.assert_called_with(1, 2, 3, self.content)
-        assert not self.c._pending
-        assert self.c._callbacks[(50, 61)]
+    def test_dispatch_method__listeners_and_one_shot(self):
+        with patch('amqp.abstract_channel.loads') as loads:
+            loads.return_value = [1, 2, 3], 'foo'
+            p1 = self.c._callbacks[(50, 61)] = Mock(name='p')
+            p2 = self.c._pending[(50, 61)] = Mock(name='oneshot')
+            self.c.dispatch_method((50, 61), 'payload', self.content)
+            p1.assert_called_with(1, 2, 3, self.content)
+            p2.assert_called_with(1, 2, 3, self.content)
+            assert not self.c._pending
+            assert self.c._callbacks[(50, 61)]

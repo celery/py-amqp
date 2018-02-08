@@ -88,9 +88,8 @@ class test_SASL:
             else:
                 sys.modules['gssapi.raw.misc'] = orig_gssapi_raw_misc
 
-    @patch('socket.gethostbyaddr')
-    def test_gssapi_rdns(self, gethostbyaddr):
-        with self.fake_gssapi() as gssapi:
+    def test_gssapi_rdns(self):
+        with self.fake_gssapi() as gssapi, patch('socket.gethostbyaddr') as gethostbyaddr:
             connection = Mock()
             connection.transport.sock.getpeername.return_value = ('192.0.2.0',
                                                                   5672)
