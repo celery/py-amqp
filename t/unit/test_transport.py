@@ -207,6 +207,9 @@ class test_AbstractTransport:
 
     class Transport(transport._AbstractTransport):
 
+        def _connect(self, *args):
+            pass
+
         def _init_socket(self, *args):
             pass
 
@@ -321,6 +324,28 @@ class test_AbstractTransport:
             self.t.write('foo')
         assert not self.t.connected
 
+    def test_having_timeout_none(self):
+        with self.t.having_timeout(None) as actual_sock:
+            assert actual_sock == self.t.sock
+
+
+class test_AbstractTransport_connect:
+
+    class Transport(transport._AbstractTransport):
+
+        def _init_socket(self, *args):
+            pass
+
+    @pytest.fixture(autouse=True)
+    def setup_transport(self, patching):
+        self.t = self.Transport('localhost:5672', 10)
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None
+        if fcntl is not None:
+            patching('fcntl.fcntl')
+
     @patch('socket.socket', side_effect=socket.error)
     def test_connect_socket_fails(self, sock_mock):
         with pytest.raises(socket.error):
@@ -428,10 +453,6 @@ class test_AbstractTransport:
                    side_effect=NotImplementedError) as cloexec_mock:
             self.t.connect()
         assert cloexec_mock.called
-
-    def test_having_timeout_none(self):
-        with self.t.having_timeout(None) as actual_sock:
-            assert actual_sock == self.t.sock
 
 
 class test_SSLTransport:
