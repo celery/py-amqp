@@ -147,7 +147,8 @@ class _AbstractTransport(object):
                         pass
                     self.sock.settimeout(timeout)
                     self.sock.connect(sa)
-                except socket.error as e:
+                except socket.error as ex:
+                    e = ex
                     if self.sock is not None:
                         self.sock.close()
                         self.sock = None
