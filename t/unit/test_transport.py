@@ -207,13 +207,14 @@ class test_AbstractTransport:
 
     class Transport(transport._AbstractTransport):
 
+        def _connect(self, *args):
+            pass
+
         def _init_socket(self, *args):
             pass
 
     @pytest.fixture(autouse=True)
-    @patch('socket.socket.connect')
-    def setup_transport(self, *a, **k):
-        self.connect_mock = a[0] if a else k['patching']
+    def setup_transport(self):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
 
@@ -323,12 +324,32 @@ class test_AbstractTransport:
             self.t.write('foo')
         assert not self.t.connected
 
+    def test_having_timeout_none(self):
+        with self.t.having_timeout(None) as actual_sock:
+            assert actual_sock == self.t.sock
+
+
+class test_AbstractTransport_connect:
+
+    class Transport(transport._AbstractTransport):
+
+        def _init_socket(self, *args):
+            pass
+
+    @pytest.fixture(autouse=True)
+    def setup_transport(self, patching):
+        self.t = self.Transport('localhost:5672', 10)
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None
+        if fcntl is not None:
+            patching('fcntl.fcntl')
+
     def test_connect_socket_fails(self):
-        self.t.sock = Mock()
-        self.t.close()
-        self.connect_mock.side_effect = socket.error
-        with pytest.raises(socket.error):
-            self.t.connect()
+        with patch('socket.socket', side_effect=socket.error):
+            with pytest.raises(socket.error):
+                self.t.connect()
 
     def test_connect_socket_initialization_fails(self):
         with patch('socket.socket', side_effect=socket.error), \
@@ -430,10 +451,6 @@ class test_AbstractTransport:
                        side_effect=NotImplementedError) as cloexec_mock:
                 self.t.connect()
             assert cloexec_mock.called
-
-    def test_having_timeout_none(self):
-        with self.t.having_timeout(None) as actual_sock:
-            assert actual_sock == self.t.sock
 
 
 class test_SSLTransport:
