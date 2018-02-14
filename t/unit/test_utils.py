@@ -71,16 +71,16 @@ class test_NullHandler:
 
 class test_get_logger:
 
-    @patch('logging.getLogger')
-    def test_as_str(self, getLogger):
-        x = get_logger('foo.bar')
-        getLogger.assert_called_with('foo.bar')
-        assert x is getLogger()
+    def test_as_str(self):
+        with patch('logging.getLogger') as getLogger:
+            x = get_logger('foo.bar')
+            getLogger.assert_called_with('foo.bar')
+            assert x is getLogger()
 
-    @patch('amqp.utils.NullHandler')
-    def test_as_logger(self, _NullHandler):
-        m = Mock(name='logger')
-        m.handlers = None
-        x = get_logger(m)
-        assert x is m
-        x.addHandler.assert_called_with(_NullHandler())
+    def test_as_logger(self):
+        with patch('amqp.utils.NullHandler') as _NullHandler:
+            m = Mock(name='logger')
+            m.handlers = None
+            x = get_logger(m)
+            assert x is m
+            x.addHandler.assert_called_with(_NullHandler())
