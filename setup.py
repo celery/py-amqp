@@ -114,6 +114,7 @@ setuptools.setup(
     platforms=['any'],
     license='BSD',
     classifiers=classifiers,
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
     install_requires=reqs('default.txt'),
     tests_require=reqs('test.txt'),
     cmdclass={'test': pytest},
