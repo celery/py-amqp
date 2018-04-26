@@ -19,12 +19,12 @@
 
 .. |wheel| image:: https://img.shields.io/pypi/wheel/amqp.svg
     :alt: Python AMQP can be installed via wheel
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/
 
 .. |pyversion| image:: https://img.shields.io/pypi/pyversions/amqp.svg
     :alt: Supported Python versions.
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/
 
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/

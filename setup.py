@@ -84,7 +84,7 @@ if os.path.exists('README.rst'):
     with io.open('README.rst', encoding='utf-8') as fp:
         long_description = fp.read()
 else:
-    long_description = 'See http://pypi.python.org/pypi/amqp'
+    long_description = 'See https://pypi.org/project/amqp/'
 
 # -*- %%% -*-
 

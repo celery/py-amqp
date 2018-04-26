@@ -6,7 +6,7 @@
 
 :Version: 2.2.2
 :Web: https://amqp.readthedocs.io/
-:Download: http://pypi.python.org/pypi/amqp/
+:Download: https://pypi.org/project/amqp/
 :Source: http://github.com/celery/py-amqp/
 :Keywords: amqp, rabbitmq
 
@@ -19,10 +19,10 @@ alternative when `librabbitmq`_ is not available.
 
 This library should be API compatible with `librabbitmq`_.
 
-.. _amqplib: http://pypi.python.org/pypi/amqplib
+.. _amqplib: https://pypi.org/project/amqplib/
 .. _Celery: http://celeryproject.org/
 .. _kombu: https://kombu.readthedocs.io/
-.. _librabbitmq: http://pypi.python.org/pypi/librabbitmq
+.. _librabbitmq: https://pypi.org/project/librabbitmq/
 
 Differences from `amqplib`_
 ===========================
@@ -118,13 +118,13 @@ Further
 
 .. |wheel| image:: https://img.shields.io/pypi/wheel/amqp.svg
     :alt: Python AMQP can be installed via wheel
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/
 
 .. |pyversion| image:: https://img.shields.io/pypi/pyversions/amqp.svg
     :alt: Supported Python versions.
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/
 
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
-    :target: http://pypi.python.org/pypi/amqp/
+    :target: https://pypi.org/project/amqp/
 
