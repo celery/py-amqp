@@ -70,6 +70,7 @@ class AMQPLAIN(SASL):
 def _get_gssapi_mechanism():
     try:
         import gssapi
+        import gssapi.raw.misc
     except ImportError:
         class FakeGSSAPI(SASL):
             """A no-op SASL mechanism for when gssapi isn't available."""
@@ -87,8 +88,6 @@ def _get_gssapi_mechanism():
                 return NotImplemented
         return FakeGSSAPI
     else:
-        import gssapi.raw.misc
-
         class GSSAPI(SASL):
             """GSSAPI SASL authentication mechanism.
 
