@@ -70,7 +70,7 @@ class AMQPLAIN(SASL):
 def _get_gssapi_mechanism():
     try:
         import gssapi
-        import gssapi.raw.misc
+        import gssapi.raw.misc  # Fail if the old python-gssapi is installed
     except ImportError:
         class FakeGSSAPI(SASL):
             """A no-op SASL mechanism for when gssapi isn't available."""
