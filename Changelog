@@ -5,6 +5,46 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.3.0:
+
+2.3.0
+=====
+:release-date: 2018-05-27 16:30 P.M UTC+3
+:release-by: Omer Katz
+
+- Cleanup TCP configurations across platforms and unified defaults.
+
+  Fix contributed by **Dan Chowdhury**
+
+- Fix for TypeError when setting socket options.
+
+  Fix contributed by **Matthias Erll**
+
+- Ensure that all call sites for decoding bytes to str allow surrogates,
+  as the encoding mechanism now supports.
+
+  Fix contributed by **Stephen Hatch**
+
+- Don't send AAAA DNS request when domain resolved to IPv4 address.
+
+  Fix contributed by **Ihar Hrachyshka & Omer Katz**
+
+- Support for EXTERNAL authentication and specific login_method.
+
+  Fix contributed by **Matthias Erll**
+
+- If the old python-gssapi library is installed the gssapi module will be available.
+  We now ensure that we only use the new gssapi library.
+
+  Fix contributed by **Jacopo Notarstefano**
+
+Code Cleanups & Test Coverage:
+
+- :github_user:`eric-eric-eric`
+- **Omer Katz**
+- **Jon Dufresne**
+- **Matthias Urlichs**
+
 .. _version-2.2.2:
 
 2.2.2
