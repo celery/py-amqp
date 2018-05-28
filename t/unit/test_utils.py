@@ -41,7 +41,7 @@ class test_coro:
 class test_str_to_bytes:
 
     def test_from_unicode(self):
-        assert isinstance(str_to_bytes('foo'), bytes)
+        assert isinstance(str_to_bytes(u'foo'), bytes)
 
     def test_from_bytes(self):
         assert isinstance(str_to_bytes(b'foo'), bytes)
