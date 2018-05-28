@@ -13,7 +13,7 @@ def reload_module(module):
         import importlib
         importlib.reload(module)
     except Exception:
-        reload(module) # noqa -- does not exist on Python3
+        reload(module)  # noqa -- does not exist on Python3
 
 
 def test_struct_argument_type():
