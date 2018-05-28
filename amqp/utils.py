@@ -8,7 +8,7 @@ import sys
 from vine import promise  # noqa
 from vine.utils import wraps
 
-from .five import string_t, PY3
+from .five import PY3, string_t, text_t
 
 try:
     import fcntl
@@ -83,7 +83,7 @@ else:
 
     def str_to_bytes(s):                # noqa
         """Convert str to bytes."""
-        if isinstance(s, unicode):
+        if isinstance(s, text_t):
             return s.encode('utf-8')
         return s
 
