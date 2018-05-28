@@ -48,13 +48,13 @@ class test_str_to_bytes:
 
     def test_supports_surrogates(self):
         bytes_with_surrogates = '\ud83d\ude4f'.encode('utf-8', 'surrogatepass')
-        assert str_to_bytes('\ud83d\ude4f') == bytes_with_surrogates
+        assert str_to_bytes(u'\ud83d\ude4f') == bytes_with_surrogates
 
 
 class test_bytes_to_str:
 
     def test_from_unicode(self):
-        assert isinstance(bytes_to_str('foo'), text_t)
+        assert isinstance(bytes_to_str(u'foo'), text_t)
 
     def test_from_bytes(self):
         assert bytes_to_str(b'foo')
