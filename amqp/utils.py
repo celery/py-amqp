@@ -8,9 +8,7 @@ import sys
 from vine import promise  # noqa
 from vine.utils import wraps
 
-from .five import string_t
-
-is_py3k = sys.version_info[0] == 3
+from .five import string_t, PY3
 
 try:
     import fcntl
@@ -68,7 +66,7 @@ def coro(gen):
     return _boot
 
 
-if is_py3k:  # pragma: no cover
+if PY3:  # pragma: no cover
 
     def str_to_bytes(s):
         """Convert str to bytes."""
@@ -85,7 +83,7 @@ else:
 
     def str_to_bytes(s):                # noqa
         """Convert str to bytes."""
-        if isinstance(s, string_t):
+        if isinstance(s, unicode):
             return s.encode('utf-8')
         return s
 
