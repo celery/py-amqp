@@ -10,7 +10,7 @@ from amqp import Connection, spec
 from amqp.connection import SSLError
 from amqp.exceptions import ConnectionError, NotFound, ResourceError
 from amqp.five import items
-from amqp.sasl import AMQPLAIN, PLAIN, SASL, EXTERNAL, GSSAPI
+from amqp.sasl import AMQPLAIN, EXTERNAL, GSSAPI, PLAIN, SASL
 from amqp.transport import TCPTransport
 
 
