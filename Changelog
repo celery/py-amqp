@@ -21,6 +21,20 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
   Fix contributed by **Omer Katz**
 
+.. _version-2.3.2:
+
+2.3.2
+=====
+:release-date: 2018-05-29 15:30 P.M UTC+3
+:release-by: Omer Katz
+
+- Fix a regression that occurs when running amqp under Python 2.7 on OSX.
+
+  TCP_USER_TIMEOUT is not available when running on OSX.
+  We now remove it from the set of known TCP options.
+
+  Fix contributed by **Ofer Horowitz**
+
 .. _version-2.3.0:
 
 2.3.0
