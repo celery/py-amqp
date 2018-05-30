@@ -48,6 +48,8 @@ if sys.platform.startswith('linux'):
     if platform.release().endswith("Microsoft"):
         KNOWN_TCP_OPTS = {'TCP_NODELAY', 'TCP_KEEPIDLE', 'TCP_KEEPINTVL',
                           'TCP_KEEPCNT'}
+elif sys.platform.startswith('darwin'):
+    KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
 # According to MSDN Windows platforms support getsockopt(TCP_MAXSSEG) but not
 # setsockopt(TCP_MAXSEG) on IPPROTO_TCP sockets.
