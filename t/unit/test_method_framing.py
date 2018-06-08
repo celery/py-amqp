@@ -21,12 +21,12 @@ class test_frame_handler:
 
     def test_header(self):
         buf = pack('>HH', 60, 51)
-        self.g((1, 1, buf))
+        assert self.g((1, 1, buf))
         self.callback.assert_called_with(1, (60, 51), buf, None)
         assert self.conn.bytes_recv
 
     def test_header_message_empty_body(self):
-        self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
+        assert not self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
         self.callback.assert_not_called()
 
         with pytest.raises(UnexpectedFrame):
@@ -36,7 +36,7 @@ class test_frame_handler:
         m.properties = {}
         buf = pack('>HxxQ', m.CLASS_ID, 0)
         buf += m._serialize_properties()
-        self.g((2, 1, buf))
+        assert self.g((2, 1, buf))
 
         self.callback.assert_called()
         msg = self.callback.call_args[0][3]
@@ -45,20 +45,20 @@ class test_frame_handler:
         )
 
     def test_header_message_content(self):
-        self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
+        assert not self.g((1, 1, pack('>HH', *spec.Basic.Deliver)))
         self.callback.assert_not_called()
 
         m = Message()
         m.properties = {}
         buf = pack('>HxxQ', m.CLASS_ID, 16)
         buf += m._serialize_properties()
-        self.g((2, 1, buf))
+        assert not self.g((2, 1, buf))
         self.callback.assert_not_called()
 
-        self.g((3, 1, b'thequick'))
+        assert not self.g((3, 1, b'thequick'))
         self.callback.assert_not_called()
 
-        self.g((3, 1, b'brownfox'))
+        assert self.g((3, 1, b'brownfox'))
         self.callback.assert_called()
         msg = self.callback.call_args[0][3]
         self.callback.assert_called_with(
@@ -67,7 +67,8 @@ class test_frame_handler:
         assert msg.body == b'thequickbrownfox'
 
     def test_heartbeat_frame(self):
-        self.g((8, 1, ''))
+        assert not self.g((8, 1, ''))
+        self.callback.assert_not_called()
         assert self.conn.bytes_recv
 
 

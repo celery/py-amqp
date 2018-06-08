@@ -71,13 +71,15 @@ def frame_handler(connection, callback,
         elif frame_type == 3:
             msg = partial_messages[channel]
             msg.inbound_body(buf)
-            if msg.ready:
-                expected_types[channel] = 1
-                partial_messages.pop(channel, None)
-                callback(channel, msg.frame_method, msg.frame_args, msg)
+            if not msg.ready:
+                # wait for the rest of the content-body
+                return False
+            expected_types[channel] = 1
+            partial_messages.pop(channel, None)
+            callback(channel, msg.frame_method, msg.frame_args, msg)
         elif frame_type == 8:
             # bytes_recv already updated
-            pass
+            return False
         return True
 
     return on_frame
