@@ -7,7 +7,7 @@ from collections import defaultdict
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .five import range
+from .five import range, text_t
 from .platform import pack, pack_into, unpack_from
 from .utils import str_to_bytes
 
@@ -85,7 +85,7 @@ def frame_handler(connection, callback,
 
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
-                 bytes=bytes, str_to_bytes=str_to_bytes):
+                 bytes=bytes, str_to_bytes=str_to_bytes, text_t=text_t):
     """Create closure that writes frames."""
     write = transport.write
 
@@ -101,8 +101,10 @@ def frame_writer(connection, transport,
         properties = None
         args = str_to_bytes(args)
         if content:
-            properties = content._serialize_properties()
             body = content.body
+            if isinstance(body, text_t):
+                content.properties.setdefault('content_encoding', 'utf-8')
+            properties = content._serialize_properties()
             bodylen = len(body)
             framelen = (
                 len(args) +
