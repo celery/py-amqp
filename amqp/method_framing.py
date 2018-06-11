@@ -103,8 +103,9 @@ def frame_writer(connection, transport,
         if content:
             body = content.body
             if isinstance(body, text_t):
-                content.properties.setdefault('content_encoding', 'utf-8')
-            body = str_to_bytes(body)
+                encoding = content.properties.setdefault(
+                    'content_encoding', 'utf-8')
+                body = body.encode(encoding)
             properties = content._serialize_properties()
             bodylen = len(body)
             framelen = (

@@ -127,3 +127,13 @@ class test_frame_writer:
         assert isinstance(memory, bytes)
         assert '\N{CHECK MARK}'.encode('utf-8') in memory
         assert msg.properties['content_encoding'] == 'utf-8'
+
+    def test_write_non_utf8(self):
+        msg = Message(body='body', content_encoding='utf-16')
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        self.write.assert_called()
+        memory = self.write.call_args[0][0]
+        assert isinstance(memory, memoryview)
+        assert 'body'.encode('utf-16') in memory.tobytes()
+        assert msg.properties['content_encoding'] == 'utf-16'
