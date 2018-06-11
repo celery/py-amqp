@@ -104,6 +104,7 @@ def frame_writer(connection, transport,
             body = content.body
             if isinstance(body, text_t):
                 content.properties.setdefault('content_encoding', 'utf-8')
+            body = str_to_bytes(body)
             properties = content._serialize_properties()
             bodylen = len(body)
             framelen = (
@@ -137,7 +138,7 @@ def frame_writer(connection, transport,
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
-                               str_to_bytes(frame), 0xce))
+                               frame, 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
@@ -162,7 +163,7 @@ def frame_writer(connection, transport,
                 if bodylen > 0:
                     framelen = bodylen
                     pack_into('>BHI%dsB' % framelen, buf, offset,
-                              3, channel, framelen, str_to_bytes(body), 0xce)
+                              3, channel, framelen, body, 0xce)
                     offset += 8 + framelen
 
             write(view[:offset])

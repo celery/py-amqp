@@ -107,3 +107,23 @@ class test_frame_writer:
         self.g(*frame)
         self.write.assert_called()
         assert 'content_encoding' not in msg.properties
+
+    def test_write_fast_unicode(self):
+        msg = Message(body='\N{CHECK MARK}')
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        self.write.assert_called()
+        memory = self.write.call_args[0][0]
+        assert isinstance(memory, memoryview)
+        assert '\N{CHECK MARK}'.encode('utf-8') in memory.tobytes()
+        assert msg.properties['content_encoding'] == 'utf-8'
+
+    def test_write_slow_unicode(self):
+        msg = Message(body='y' * 2048 + '\N{CHECK MARK}')
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        self.write.assert_called()
+        memory = self.write.call_args[0][0]
+        assert isinstance(memory, bytes)
+        assert '\N{CHECK MARK}'.encode('utf-8') in memory
+        assert msg.properties['content_encoding'] == 'utf-8'
