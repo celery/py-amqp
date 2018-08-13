@@ -520,7 +520,6 @@ class GenericContent(object):
         flags = []
         sformat, svalues = [], []
         props = self.properties
-        props.setdefault('content_encoding', 'utf-8')
         for key, proptype in self.PROPERTIES:
             val = props.get(key, None)
             if val is not None:

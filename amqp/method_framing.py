@@ -7,7 +7,7 @@ from collections import defaultdict
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .five import range
+from .five import range, text_t
 from .platform import pack, pack_into, unpack_from
 from .utils import str_to_bytes
 
@@ -87,7 +87,7 @@ def frame_handler(connection, callback,
 
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
-                 bytes=bytes, str_to_bytes=str_to_bytes):
+                 bytes=bytes, str_to_bytes=str_to_bytes, text_t=text_t):
     """Create closure that writes frames."""
     write = transport.write
 
@@ -103,8 +103,12 @@ def frame_writer(connection, transport,
         properties = None
         args = str_to_bytes(args)
         if content:
-            properties = content._serialize_properties()
             body = content.body
+            if isinstance(body, text_t):
+                encoding = content.properties.setdefault(
+                    'content_encoding', 'utf-8')
+                body = body.encode(encoding)
+            properties = content._serialize_properties()
             bodylen = len(body)
             framelen = (
                 len(args) +
@@ -137,7 +141,7 @@ def frame_writer(connection, transport,
                     framelen = len(frame)
                     write(pack('>BHI%dsB' % framelen,
                                3, channel, framelen,
-                               str_to_bytes(frame), 0xce))
+                               frame, 0xce))
 
         else:
             # ## FAST: pack into buffer and single write
@@ -162,7 +166,7 @@ def frame_writer(connection, transport,
                 if bodylen > 0:
                     framelen = bodylen
                     pack_into('>BHI%dsB' % framelen, buf, offset,
-                              3, channel, framelen, str_to_bytes(body), 0xce)
+                              3, channel, framelen, body, 0xce)
                     offset += 8 + framelen
 
             write(view[:offset])
