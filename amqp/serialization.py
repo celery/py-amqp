@@ -50,6 +50,12 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
         offset += 1
         val = pstr_t(buf[offset:offset + slen])
         offset += slen
+    # 'x': Bytes Array
+    elif ftype == 'x':
+        blen, = unpack_from('>I', buf, offset)
+        offset += 4
+        val = buf[offset:offset + blen]
+        offset += blen
     # 'b': short-short int
     elif ftype == 'b':
         val, = unpack_from('>B', buf, offset)
@@ -202,6 +208,11 @@ def loads(format, buf, offset=0,
             offset += 4
             val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
+        elif p == 'x':
+            blen, = unpack_from('>I', buf, offset)
+            offset += 4
+            val = buf[offset:offset + blen]
+            offset += blen
         elif p == 'F':
             bitcount = bits = 0
             tlen, = unpack_from('>I', buf, offset)
@@ -252,6 +263,7 @@ def dumps(format, values):
         long long = L
         shortstr = s
         longstr = S
+        byte array = x
         table = F
         array = A
     """
@@ -293,7 +305,7 @@ def dumps(format, values):
                 val = val.encode('utf-8', 'surrogatepass')
             write(pack('B', len(val)))
             write(val)
-        elif p == 'S':
+        elif p == 'S' or p == 'x':
             val = val or ''
             bitcount = _flushbits(bits, write)
             if isinstance(val, string):
