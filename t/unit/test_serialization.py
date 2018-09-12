@@ -25,6 +25,7 @@ class test_serialization:
 
     @pytest.mark.parametrize('descr,frame,expected,cast', [
         ('S', b's8thequick', 'thequick', None),
+        ('x', b'x\x00\x00\x00\x09thequick\xffIGNORED', b'thequick\xff', None),
         ('b', b'b' + pack('>B', True), True, None),
         ('B', b'B' + pack('>b', 123), 123, None),
         ('U', b'U' + pack('>h', -321), -321, None),
@@ -43,17 +44,18 @@ class test_serialization:
         assert _read_item(b'V')[0] is None
 
     def test_roundtrip(self):
-        format = b'bobBlLbsbST'
+        format = b'bobBlLbsbSTx'
         x = dumps(format, [
             True, 32, False, 3415, 4513134, 13241923419,
             True, b'thequickbrownfox', False, 'jumpsoverthelazydog',
             datetime(2015, 3, 13, 10, 23),
+            b'thequick\xff'
         ])
         y = loads(format, x)
         assert [
             True, 32, False, 3415, 4513134, 13241923419,
             True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
-            datetime(2015, 3, 13, 10, 23),
+            datetime(2015, 3, 13, 10, 23), b'thequick\xff'
         ] == y[0]
 
     def test_int_boundaries(self):
@@ -68,7 +70,7 @@ class test_serialization:
 
     def test_loads_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
-            loads('x', 'asdsad')
+            loads('y', 'asdsad')
 
     def test_float(self):
         assert (int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100) ==
