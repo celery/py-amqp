@@ -31,6 +31,9 @@ Rejecting message with delivery tag %r for reason of having no callbacks.
 consumer_tag=%r exchange=%r routing_key=%r.\
 """
 
+class MessageNacked(Exception):
+    pass
+
 
 class VDeprecationWarning(DeprecationWarning):
     pass
@@ -93,6 +96,7 @@ class Channel(AbstractChannel):
         spec.method(spec.Tx.SelectOk),
         spec.method(spec.Confirm.SelectOk),
         spec.method(spec.Basic.Ack, 'Lb'),
+        spec.method(spec.Basic.Nack, 'Lb'),
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
@@ -138,6 +142,7 @@ class Channel(AbstractChannel):
             spec.Basic.Deliver: self._on_basic_deliver,
             spec.Basic.Return: self._on_basic_return,
             spec.Basic.Ack: self._on_basic_ack,
+            spec.Basic.Nack: self._on_basic_nack,
         })
 
     def collect(self):
@@ -1735,12 +1740,20 @@ class Channel(AbstractChannel):
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
 
+
     def basic_publish_confirm(self, *args, **kwargs):
+
+        def confirm_handler(method, *args):
+            # When RMQ nacks message we are raising MessageNacked exception
+            if method == spec.Basic.Nack:
+                raise MessageNacked()
+
         if not self._confirm_selected:
             self._confirm_selected = True
             self.confirm_select()
         ret = self._basic_publish(*args, **kwargs)
-        self.wait(spec.Basic.Ack)
+        # Waiting for confirmation of message.
+        self.wait([spec.Basic.Ack, spec.Basic.Nack], callback=confirm_handler)
         return ret
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
@@ -2037,3 +2050,7 @@ class Channel(AbstractChannel):
     def _on_basic_ack(self, delivery_tag, multiple):
         for callback in self.events['basic_ack']:
             callback(delivery_tag, multiple)
+
+    def _on_basic_nack(self, delivery_tag, multiple):
+        for callback in self.events['basic_nack']:
+            callback(delivery_tag, multiple, spec.basic.Nack)

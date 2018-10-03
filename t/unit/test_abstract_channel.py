@@ -97,14 +97,14 @@ class test_AbstractChannel:
         self.method.args = None
         p = self.c._pending[(50, 61)] = Mock(name='oneshot')
         self.c.dispatch_method((50, 61), 'payload', self.content)
-        p.assert_called_with(self.content)
+        p.assert_called_with((50, 61), self.content)
 
     def test_dispatch_method__one_shot_no_content(self):
         self.method.args = None
         self.method.content = None
         p = self.c._pending[(50, 61)] = Mock(name='oneshot')
         self.c.dispatch_method((50, 61), 'payload', self.content)
-        p.assert_called_with()
+        p.assert_called_with((50, 61))
         assert not self.c._pending
 
     def test_dispatch_method__listeners(self):
@@ -121,6 +121,6 @@ class test_AbstractChannel:
             p2 = self.c._pending[(50, 61)] = Mock(name='oneshot')
             self.c.dispatch_method((50, 61), 'payload', self.content)
             p1.assert_called_with(1, 2, 3, self.content)
-            p2.assert_called_with(1, 2, 3, self.content)
+            p2.assert_called_with((50, 61), 1, 2, 3, self.content)
             assert not self.c._pending
             assert self.c._callbacks[(50, 61)]
