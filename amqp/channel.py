@@ -1671,6 +1671,11 @@ class Channel(AbstractChannel):
         configuration and distributed to any active consumers when the
         transaction, if any, is committed.
 
+        When channel is in confirm mode (when Connection parameter
+        confirm_publish is set to True), each message is confirmed. When
+        broker rejects published message (e.g. due internal broker
+        constrains), MessageNacked exception is raised.
+
         PARAMETERS:
             exchange: shortstr
 
