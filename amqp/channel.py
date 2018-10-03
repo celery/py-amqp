@@ -31,6 +31,7 @@ Rejecting message with delivery tag %r for reason of having no callbacks.
 consumer_tag=%r exchange=%r routing_key=%r.\
 """
 
+
 class MessageNacked(Exception):
     pass
 
@@ -1739,7 +1740,6 @@ class Channel(AbstractChannel):
         except socket.timeout:
             raise RecoverableChannelError('basic_publish: timed out')
     basic_publish = _basic_publish
-
 
     def basic_publish_confirm(self, *args, **kwargs):
 

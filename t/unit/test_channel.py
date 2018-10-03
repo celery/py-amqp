@@ -336,7 +336,9 @@ class test_Channel:
         assert self.c._confirm_selected
         self.c._basic_publish.assert_called_with(1, 2, arg=1)
         assert ret is self.c._basic_publish()
-        self.c.wait.assert_called_with([spec.Basic.Ack, spec.Basic.Nack], callback=ANY)
+        self.c.wait.assert_called_with(
+            [spec.Basic.Ack, spec.Basic.Nack], callback=ANY
+        )
         self.c.basic_publish_confirm(1, 2, arg=1)
 
     def test_basic_publish_confirm_nack(self):
