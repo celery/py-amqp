@@ -366,6 +366,28 @@ class test_Channel:
                 spec.Basic.Nack, frame, None
             )
 
+    def test_basic_publsh_confirm_callback(self):
+
+        def wait_nack(method, *args, **kwargs):
+            kwargs['callback'](spec.Basic.Nack)
+
+        def wait_ack(method, *args, **kwargs):
+            kwargs['callback'](spec.Basic.Ack)
+
+        self.c._basic_publish = Mock(name='_basic_publish')
+        self.c.wait = Mock(name='wait_nack', side_effect=wait_nack)
+
+        with pytest.raises(MessageNacked):
+            # when callback is called with spec.Basic.Nack it must raise
+            # MessageNacked exception
+            self.c.basic_publish_confirm(1, 2, arg=1)
+
+        self.c.wait = Mock(name='wait_ack', side_effect=wait_ack)
+
+        # when callback is called with spec.Basic.Ack
+        # it must nost raise exception
+        self.c.basic_publish_confirm(1, 2, arg=1)
+
     def test_basic_qos(self):
         self.c.basic_qos(0, 123, False)
         self.c.send_method.assert_called_with(
