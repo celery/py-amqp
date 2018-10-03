@@ -434,3 +434,9 @@ class test_Channel:
         self.c.events['basic_ack'].add(callback)
         self.c._on_basic_ack(123, True)
         callback.assert_called_with(123, True)
+
+    def test_on_basic_nack(self):
+        callback = Mock(name='callback')
+        self.c.events['basic_nack'].add(callback)
+        self.c._on_basic_nack(123, True)
+        callback.assert_called_with(123, True)

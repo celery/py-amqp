@@ -2058,4 +2058,4 @@ class Channel(AbstractChannel):
 
     def _on_basic_nack(self, delivery_tag, multiple):
         for callback in self.events['basic_nack']:
-            callback(delivery_tag, multiple, spec.basic.Nack)
+            callback(delivery_tag, multiple)
