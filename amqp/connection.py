@@ -294,18 +294,24 @@ class Connection(AbstractChannel):
         #
         if self.connected:
             return callback() if callback else None
-        self.transport = self.Transport(
-            self.host, self.connect_timeout, self.ssl,
-            self.read_timeout, self.write_timeout,
-            socket_settings=self.socket_settings,
-        )
-        self.transport.connect()
-        self.on_inbound_frame = self.frame_handler_cls(
-            self, self.on_inbound_method)
-        self.frame_writer = self.frame_writer_cls(self, self.transport)
+        try:
+            self.transport = self.Transport(
+                self.host, self.connect_timeout, self.ssl,
+                self.read_timeout, self.write_timeout,
+                socket_settings=self.socket_settings,
+            )
+            self.transport.connect()
+            self.on_inbound_frame = self.frame_handler_cls(
+                self, self.on_inbound_method)
+            self.frame_writer = self.frame_writer_cls(self, self.transport)
 
-        while not self._handshake_complete:
-            self.drain_events(timeout=self.connect_timeout)
+            while not self._handshake_complete:
+                self.drain_events(timeout=self.connect_timeout)
+
+            return callback() if callback else None
+        except (OSError, IOError, SSLError) as e:
+            self.collect ()
+            raise
 
     def _warn_force_connect(self, attr):
         warnings.warn(AMQPDeprecationWarning(
@@ -559,11 +565,16 @@ class Connection(AbstractChannel):
             # already closed
             return
 
-        return self.send_method(
-            spec.Connection.Close, argsig,
-            (reply_code, reply_text, method_sig[0], method_sig[1]),
-            wait=spec.Connection.CloseOk,
-        )
+        try:
+            return self.send_method(
+                spec.Connection.Close, argsig,
+                (reply_code, reply_text, method_sig[0], method_sig[1]),
+                wait=spec.Connection.CloseOk,
+            )
+        except (OSError, IOError, SSLError) as e:
+          ### close connection
+          self.collect ()
+          raise
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close.
