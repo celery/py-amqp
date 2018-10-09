@@ -242,8 +242,9 @@ class test_AbstractTransport:
         self.t.close()
         sock.shutdown.assert_called_with(socket.SHUT_RDWR)
         sock.close.assert_called_with()
-        assert self.t.sock is None
+        assert self.t.sock is None and self.t.connected is False
         self.t.close()
+        assert self.t.sock is None and self.t.connected is False
 
     def test_read_frame__timeout(self):
         self.t._read = Mock()
@@ -350,6 +351,7 @@ class test_AbstractTransport_connect:
         with patch('socket.socket', side_effect=socket.error):
             with pytest.raises(socket.error):
                 self.t.connect()
+        assert self.t.sock is None and self.t.connected is False
 
     def test_connect_socket_initialization_fails(self):
         with patch('socket.socket', side_effect=socket.error), \
@@ -362,6 +364,7 @@ class test_AbstractTransport_connect:
                   ]):
             with pytest.raises(socket.error):
                 self.t.connect()
+            assert self.t.sock is None and self.t.connected is False
 
     def test_connect_multiple_addr_entries_fails(self):
         with patch('socket.socket', return_value=MockSocket()) as sock_mock, \
