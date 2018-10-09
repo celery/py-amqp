@@ -309,8 +309,8 @@ class Connection(AbstractChannel):
                 self.drain_events(timeout=self.connect_timeout)
 
             return callback() if callback else None
-        except (OSError, IOError, SSLError) as e:
-            self.collect ()
+        except (OSError, IOError, SSLError):
+            self.collect()
             raise
 
     def _warn_force_connect(self, attr):
@@ -571,10 +571,10 @@ class Connection(AbstractChannel):
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Connection.CloseOk,
             )
-        except (OSError, IOError, SSLError) as e:
-          ### close connection
-          self.collect ()
-          raise
+        except (OSError, IOError, SSLError):
+            # close connection
+            self.collect()
+            raise
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close.

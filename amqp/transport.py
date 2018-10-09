@@ -75,9 +75,9 @@ class _AbstractTransport(object):
 
     def connect(self):
         try:
-            ### are we already connected?
+            # are we already connected?
             if self.connected:
-              return
+                return
             self._connect(self.host, self.port, self.connect_timeout)
             self._init_socket(
                 self.socket_settings, self.read_timeout, self.write_timeout,
@@ -86,10 +86,10 @@ class _AbstractTransport(object):
             # EINTR, EAGAIN, EWOULDBLOCK would signal that the banner
             # has _not_ been sent
             self.connected = True
-        except (OSError, IOError, SSLError) as e:
+        except (OSError, IOError, SSLError):
             # if not fully connected, close socket, and reraise error
             if self.sock and not self.connected:
-                self.sock.close ()
+                self.sock.close()
                 self.sock = None
             raise
 
