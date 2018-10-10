@@ -128,12 +128,12 @@ class test_Connection:
         callback.assert_called_with()
 
     def test_connect__socket_error(self):
-        self.conn = Connection ()
-        self.conn.collect=Mock(name='collect')
-        with patch('socket.socket', side_effect=socket.error): 
-            with pytest.raises(socket.error):   
-                self.conn.connect ()
-        self.conn.collect.assert_called_with ()
+        self.conn = Connection()
+        self.conn.collect = Mock(name='collect')
+        with patch('socket.socket', side_effect=socket.error):
+            with pytest.raises(socket.error):
+                self.conn.connect()
+        self.conn.collect.assert_called_with()
 
     def test_on_start(self):
         self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN',
@@ -385,14 +385,14 @@ class test_Connection:
         )
 
     def test_close(self):
-        self.conn.collect=Mock(name='collect')
+        self.conn.collect = Mock(name='collect')
         self.conn.close(reply_text='foo', method_sig=spec.Channel.Open)
         self.conn.send_method.assert_called_with(
             spec.Connection.Close, 'BsBB',
             (0, 'foo', spec.Channel.Open[0], spec.Channel.Open[1]),
             wait=spec.Connection.CloseOk,
         )
-        self.conn.collect.assert_called_with
+        self.conn.collect.assert_called_with()
 
     def test_close__already_closed(self):
         self.conn.transport = None
@@ -402,8 +402,8 @@ class test_Connection:
         self.conn.send_method = Mock(name='send_method',
                                      side_effect=socket.error)
         self.conn.collect = Mock(name='collect')
-        with pytest.raises(socket.error):   
-          self.conn.close()
+        with pytest.raises(socket.error):
+            self.conn.close()
         self.conn.send_method.assert_called()
         self.conn.collect.assert_called_with()
 
