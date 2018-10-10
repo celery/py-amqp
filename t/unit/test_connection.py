@@ -392,7 +392,6 @@ class test_Connection:
             (0, 'foo', spec.Channel.Open[0], spec.Channel.Open[1]),
             wait=spec.Connection.CloseOk,
         )
-        self.conn.collect.assert_called_with()
 
     def test_close__already_closed(self):
         self.conn.transport = None
