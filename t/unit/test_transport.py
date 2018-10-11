@@ -21,8 +21,8 @@ class MockSocket(object):
         self.sa = None
 
     def setsockopt(self, family, key, value):
-        if family == socket.SOL_SOCKET and
-               key in (socket.SO_RCVTIMEO, socket.SO_SNDTIMEO):
+        if (family == socket.SOL_SOCKET and
+                key in (socket.SO_RCVTIMEO, socket.SO_SNDTIMEO)):
             self.options[key] = value
         elif not isinstance(value, int):
             raise socket.error()
@@ -215,12 +215,8 @@ class test_socket_options:
         self.transp.read_timeout = 0xdead
         self.transp.write_timeout = 0xbeef
         with patch('socket.socket', return_value=MockSocket()):
-<<<<<<< HEAD
             self.transp.connect()
 
-=======
-          self.transp.connect()
->>>>>>> 9c23527645a8c0bf734cf418d46037fc36fdfb44
 
 class test_AbstractTransport:
 
@@ -322,21 +318,12 @@ class test_AbstractTransport:
     def transport_read_EOF(self):
         for host, ssl in (('localhost:5672', False),
                           ('localhost:5671', True),):
-<<<<<<< HEAD
             self.t = transport.Transport(host, ssl)
             self.t.sock = Mock(name='socket')
             self.t.connected = True
             self.t._quick_recv = Mock(name='recv', return_value='')
             with pytest.raises(IOError,
                      match=r'.*Server unexpectedly closed connection.*'):
-=======
-            self.t = transport.Transport (host, ssl)
-            self.t.sock = Mock (name='socket')
-            self.t.connected = True
-            self.t._quick_recv = Mock(name='recv', return_value='')
-            with pytest.raises(IOError,
-                match=r'.*Server unexpectedly closed connection.*'):
->>>>>>> 9c23527645a8c0bf734cf418d46037fc36fdfb44
                 self.t.read_frame()
 
     def test_write__success(self):
