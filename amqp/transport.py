@@ -430,7 +430,7 @@ class TCPTransport(_AbstractTransport):
                         continue
                     raise
                 if not s:
-                    raise IOError('Socket closed')
+                    raise IOError('Server unexpectedly closed connection')
                 rbuf += s
         except:  # noqa
             self._read_buffer = rbuf
