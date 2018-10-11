@@ -308,7 +308,6 @@ class Connection(AbstractChannel):
             while not self._handshake_complete:
                 self.drain_events(timeout=self.connect_timeout)
 
-            return callback() if callback else None
         except (OSError, IOError, SSLError):
             self.collect()
             raise
