@@ -21,7 +21,9 @@ class MockSocket(object):
         self.sa = None
 
     def setsockopt(self, family, key, value):
-        if not isinstance(value, int):
+        if (not isinstance(value, int) and 
+               (not (family == socket.SOL_SOCKET and 
+                     key in (socket.SO_RCVTIMEO, socket.SO_SNDTIMEO,)))):
             raise socket.error()
         self.options[key] = value
 
@@ -202,6 +204,23 @@ class test_socket_options:
 
         assert opts
 
+    def test_set_sockopt_opts_timeout(self):
+        # tests socket options SO_RCVTIMEO and SO_SNDTIMEO
+        # this test is soley for coverage as socket.settimeout
+        # is pythonic way to have timeouts
+        self.transp = transport.Transport(
+            self.host, self.connect_timeout,
+        )
+        set_read_timeout = self.transp.read_timeout = 0xdead
+        set_write_timeout = self.transp.write_timeout = 0xbeef
+        with patch('socket.socket', return_value=MockSocket()):
+          self.transp.connect()
+        get_read_timeout = self.transp.sock.getsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVTIMEO
+        )
+        get_write_timeout = self.transp.sock.getsockopt(
+            socket.SOL_SOCKET, socket.SO_SNDTIMEO
+        )
 
 class test_AbstractTransport:
 
@@ -298,6 +317,15 @@ class test_AbstractTransport:
         self.t._read.side_effect = on_read1
         checksum[0] = b'\x13'
         with pytest.raises(UnexpectedFrame):
+            self.t.read_frame()
+
+    def transport_read_EOF(self):
+        for host, ssl in (('localhost:5672', False), ('localhost:5671', True),):
+          self.t = transport.Transport (host, ssl)
+          self.t.sock = Mock (name='socket')
+          self.t.connected = True
+          self.t._quick_recv = Mock(name='recv', return_value='')
+          with pytest.raises (IOError, match=r'.*Server unexpectedly closed connection.*'):
             self.t.read_frame()
 
     def test_write__success(self):
