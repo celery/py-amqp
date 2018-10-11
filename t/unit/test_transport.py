@@ -322,8 +322,10 @@ class test_AbstractTransport:
             self.t.sock = Mock(name='socket')
             self.t.connected = True
             self.t._quick_recv = Mock(name='recv', return_value='')
-            with pytest.raises(IOError,
-                     match=r'.*Server unexpectedly closed connection.*'):
+            with pytest.raises(
+                IOError,
+                match=r'.*Server unexpectedly closed connection.*'
+            ):
                 self.t.read_frame()
 
     def test_write__success(self):
