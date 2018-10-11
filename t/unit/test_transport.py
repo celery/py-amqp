@@ -483,6 +483,15 @@ class test_AbstractTransport_connect:
                 self.t.connect()
             assert cloexec_mock.called
 
+    def test_connect_already_connected(self):
+        assert not self.t.connected
+        with patch('socket.socket', return_value=MockSocket()):
+            self.t.connect()
+        assert self.t.connected
+        sock_obj = self.t.sock
+        self.t.connect()
+        assert self.t.connected and self.t.sock is sock_obj
+
 
 class test_SSLTransport:
 
@@ -537,6 +546,14 @@ class test_SSLTransport:
         self.t._shutdown_transport()
         assert self.t.sock is sock.unwrap()
 
+    def test_read_EOF(self):
+        self.t.sock = Mock(name='SSLSocket')
+        self.t.connected = True
+        self.t._quick_recv = Mock(name='recv', return_value='')
+        with pytest.raises(IOError,
+                           match=r'.*Server unexpectedly closed connection.*'):
+            self.t._read(64)
+
 
 class test_TCPTransport:
 
@@ -558,3 +575,11 @@ class test_TCPTransport:
         assert self.t._write is self.t.sock.sendall
         assert self.t._read_buffer is not None
         assert self.t._quick_recv is self.t.sock.recv
+
+    def test_read_EOF(self):
+        self.t.sock = Mock(name='socket')
+        self.t.connected = True
+        self.t._quick_recv = Mock(name='recv', return_value='')
+        with pytest.raises(IOError,
+                           match=r'.*Server unexpectedly closed connection.*'):
+            self.t._read(64)
