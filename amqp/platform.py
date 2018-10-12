@@ -51,6 +51,9 @@ if sys.platform.startswith('linux'):
 elif sys.platform.startswith('darwin'):
     KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
+elif 'bsd' in sys.platform:
+    KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
+
 # According to MSDN Windows platforms support getsockopt(TCP_MAXSSEG) but not
 # setsockopt(TCP_MAXSEG) on IPPROTO_TCP sockets.
 elif sys.platform.startswith('win'):
