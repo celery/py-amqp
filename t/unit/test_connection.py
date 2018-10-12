@@ -100,6 +100,33 @@ class test_Connection:
             self.conn.connect.assert_called_with()
         self.conn.close.assert_called_with()
 
+    def test__enter__socket_error(self):
+        # test when entering
+        self.conn = Connection()
+        self.conn.close = Mock(name='close')
+        reached = False
+        with patch('socket.socket', side_effect=socket.error):
+            with pytest.raises(socket.error):
+                with self.conn:
+                    reached = True
+        assert not reached and not self.conn.close.called
+        assert self.conn._transport is None and not self.conn.connected
+
+    def test__exit__socket_error(self):
+        # test when exiting
+        connection = self.conn
+        transport = connection._transport
+        transport.connected = True
+        connection.send_method = Mock(name='send_method',
+                                      side_effect=socket.error)
+        reached = False
+        with pytest.raises(socket.error):
+            with connection:
+                reached = True
+        assert reached
+        assert connection.send_method.called and transport.close.called
+        assert self.conn._transport is None and not self.conn.connected
+
     def test_then(self):
         self.conn.on_open = Mock(name='on_open')
         on_success = Mock(name='on_success')
@@ -128,12 +155,16 @@ class test_Connection:
         callback.assert_called_with()
 
     def test_connect__socket_error(self):
-        self.conn = Connection()
-        self.conn.collect = Mock(name='collect')
-        with patch('socket.socket', side_effect=socket.error):
-            with pytest.raises(socket.error):
+        # check Transport.Connect error
+        # socket.error derives from IOError
+        # ssl.SSLError derives from socket.error
+        with patch.object(TCPTransport, 'connect') as mock_method:
+            mock_method.side_effect = IOError
+            self.conn = Connection()
+            assert self.conn._transport is None and not self.conn.connected
+            with pytest.raises(IOError):
                 self.conn.connect()
-        self.conn.collect.assert_called_with()
+            assert self.conn._transport is None and not self.conn.connected
 
     def test_on_start(self):
         self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN',
@@ -400,11 +431,10 @@ class test_Connection:
     def test_close__socket_error(self):
         self.conn.send_method = Mock(name='send_method',
                                      side_effect=socket.error)
-        self.conn.collect = Mock(name='collect')
         with pytest.raises(socket.error):
             self.conn.close()
         self.conn.send_method.assert_called()
-        self.conn.collect.assert_called_with()
+        assert self.conn._transport is None and not self.conn.connected
 
     def test_on_close(self):
         self.conn._x_close_ok = Mock(name='_x_close_ok')
