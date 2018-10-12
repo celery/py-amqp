@@ -60,12 +60,10 @@ def to_host_port(host, default=AMQP_PORT):
 class _AbstractTransport(object):
     """Common superclass for TCP and SSL transports."""
 
-    connected = False
-
     def __init__(self, host, connect_timeout=None,
                  read_timeout=None, write_timeout=None,
                  socket_settings=None, raise_on_initial_eintr=True, **kwargs):
-        self.connected = True
+        self.connected = False
         self.sock = None
         self.raise_on_initial_eintr = raise_on_initial_eintr
         self._read_buffer = EMPTY_BUFFER
@@ -76,10 +74,24 @@ class _AbstractTransport(object):
         self.socket_settings = socket_settings
 
     def connect(self):
-        self._connect(self.host, self.port, self.connect_timeout)
-        self._init_socket(
-            self.socket_settings, self.read_timeout, self.write_timeout,
-        )
+        try:
+            # are we already connected?
+            if self.connected:
+                return
+            self._connect(self.host, self.port, self.connect_timeout)
+            self._init_socket(
+                self.socket_settings, self.read_timeout, self.write_timeout,
+            )
+            # we've sent the banner; signal connect
+            # EINTR, EAGAIN, EWOULDBLOCK would signal that the banner
+            # has _not_ been sent
+            self.connected = True
+        except (OSError, IOError, SSLError):
+            # if not fully connected, close socket, and reraise error
+            if self.sock and not self.connected:
+                self.sock.close()
+                self.sock = None
+            raise
 
     @contextmanager
     def having_timeout(self, timeout):
@@ -160,26 +172,21 @@ class _AbstractTransport(object):
                     return
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
-        try:
-            self.sock.settimeout(None)  # set socket back to blocking mode
-            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            self._set_socket_options(socket_settings)
+        self.sock.settimeout(None)  # set socket back to blocking mode
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self._set_socket_options(socket_settings)
 
-            # set socket timeouts
-            for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
-                                      (socket.SO_RCVTIMEO, read_timeout)):
-                if interval is not None:
-                    self.sock.setsockopt(
-                        socket.SOL_SOCKET, timeout,
-                        pack('ll', interval, 0),
-                    )
-            self._setup_transport()
+        # set socket timeouts
+        for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
+                                  (socket.SO_RCVTIMEO, read_timeout)):
+            if interval is not None:
+                self.sock.setsockopt(
+                    socket.SOL_SOCKET, timeout,
+                    pack('ll', interval, 0),
+                )
+        self._setup_transport()
 
-            self._write(AMQP_PROTOCOL_HEADER)
-        except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
-                self.connected = False
-            raise
+        self._write(AMQP_PROTOCOL_HEADER)
 
     def _get_tcp_socket_defaults(self, sock):
         tcp_opts = {}
@@ -370,7 +377,7 @@ class SSLTransport(_AbstractTransport):
                         continue
                     raise
                 if not s:
-                    raise IOError('Socket closed')
+                    raise IOError('Server unexpectedly closed connection')
                 rbuf += s
         except:  # noqa
             self._read_buffer = rbuf
@@ -423,7 +430,7 @@ class TCPTransport(_AbstractTransport):
                         continue
                     raise
                 if not s:
-                    raise IOError('Socket closed')
+                    raise IOError('Server unexpectedly closed connection')
                 rbuf += s
         except:  # noqa
             self._read_buffer = rbuf

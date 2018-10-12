@@ -21,7 +21,10 @@ class MockSocket(object):
         self.sa = None
 
     def setsockopt(self, family, key, value):
-        if not isinstance(value, int):
+        if (family == socket.SOL_SOCKET and
+                key in (socket.SO_RCVTIMEO, socket.SO_SNDTIMEO)):
+            self.options[key] = value
+        elif not isinstance(value, int):
             raise socket.error()
         self.options[key] = value
 
@@ -202,6 +205,18 @@ class test_socket_options:
 
         assert opts
 
+    def test_set_sockopt_opts_timeout(self):
+        # tests socket options SO_RCVTIMEO and SO_SNDTIMEO
+        # this test is soley for coverage as socket.settimeout
+        # is pythonic way to have timeouts
+        self.transp = transport.Transport(
+            self.host, self.connect_timeout,
+        )
+        self.transp.read_timeout = 0xdead
+        self.transp.write_timeout = 0xbeef
+        with patch('socket.socket', return_value=MockSocket()):
+            self.transp.connect()
+
 
 class test_AbstractTransport:
 
@@ -242,8 +257,9 @@ class test_AbstractTransport:
         self.t.close()
         sock.shutdown.assert_called_with(socket.SHUT_RDWR)
         sock.close.assert_called_with()
-        assert self.t.sock is None
+        assert self.t.sock is None and self.t.connected is False
         self.t.close()
+        assert self.t.sock is None and self.t.connected is False
 
     def test_read_frame__timeout(self):
         self.t._read = Mock()
@@ -299,6 +315,19 @@ class test_AbstractTransport:
         with pytest.raises(UnexpectedFrame):
             self.t.read_frame()
 
+    def transport_read_EOF(self):
+        for host, ssl in (('localhost:5672', False),
+                          ('localhost:5671', True),):
+            self.t = transport.Transport(host, ssl)
+            self.t.sock = Mock(name='socket')
+            self.t.connected = True
+            self.t._quick_recv = Mock(name='recv', return_value='')
+            with pytest.raises(
+                IOError,
+                match=r'.*Server unexpectedly closed connection.*'
+            ):
+                self.t.read_frame()
+
     def test_write__success(self):
         self.t._write = Mock()
         self.t.write('foo')
@@ -350,6 +379,7 @@ class test_AbstractTransport_connect:
         with patch('socket.socket', side_effect=socket.error):
             with pytest.raises(socket.error):
                 self.t.connect()
+        assert self.t.sock is None and self.t.connected is False
 
     def test_connect_socket_initialization_fails(self):
         with patch('socket.socket', side_effect=socket.error), \
@@ -362,6 +392,7 @@ class test_AbstractTransport_connect:
                   ]):
             with pytest.raises(socket.error):
                 self.t.connect()
+            assert self.t.sock is None and self.t.connected is False
 
     def test_connect_multiple_addr_entries_fails(self):
         with patch('socket.socket', return_value=MockSocket()) as sock_mock, \
@@ -452,6 +483,15 @@ class test_AbstractTransport_connect:
                 self.t.connect()
             assert cloexec_mock.called
 
+    def test_connect_already_connected(self):
+        assert not self.t.connected
+        with patch('socket.socket', return_value=MockSocket()):
+            self.t.connect()
+        assert self.t.connected
+        sock_obj = self.t.sock
+        self.t.connect()
+        assert self.t.connected and self.t.sock is sock_obj
+
 
 class test_SSLTransport:
 
@@ -506,6 +546,14 @@ class test_SSLTransport:
         self.t._shutdown_transport()
         assert self.t.sock is sock.unwrap()
 
+    def test_read_EOF(self):
+        self.t.sock = Mock(name='SSLSocket')
+        self.t.connected = True
+        self.t._quick_recv = Mock(name='recv', return_value='')
+        with pytest.raises(IOError,
+                           match=r'.*Server unexpectedly closed connection.*'):
+            self.t._read(64)
+
 
 class test_TCPTransport:
 
@@ -527,3 +575,11 @@ class test_TCPTransport:
         assert self.t._write is self.t.sock.sendall
         assert self.t._read_buffer is not None
         assert self.t._quick_recv is self.t.sock.recv
+
+    def test_read_EOF(self):
+        self.t.sock = Mock(name='socket')
+        self.t.connected = True
+        self.t._quick_recv = Mock(name='recv', return_value='')
+        with pytest.raises(IOError,
+                           match=r'.*Server unexpectedly closed connection.*'):
+            self.t._read(64)

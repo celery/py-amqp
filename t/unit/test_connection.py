@@ -4,7 +4,7 @@ import socket
 import warnings
 
 import pytest
-from case import ContextMock, Mock, call
+from case import ContextMock, Mock, call, patch
 
 from amqp import Connection, spec
 from amqp.connection import SSLError
@@ -126,6 +126,14 @@ class test_Connection:
         self.conn.transport.connected = True
         assert self.conn.connect(callback) == callback.return_value
         callback.assert_called_with()
+
+    def test_connect__socket_error(self):
+        self.conn = Connection()
+        self.conn.collect = Mock(name='collect')
+        with patch('socket.socket', side_effect=socket.error):
+            with pytest.raises(socket.error):
+                self.conn.connect()
+        self.conn.collect.assert_called_with()
 
     def test_on_start(self):
         self.conn._on_start(3, 4, {'foo': 'bar'}, b'x y z AMQPLAIN PLAIN',
@@ -279,6 +287,7 @@ class test_Connection:
         for i, channel in items(channels):
             if i:
                 channel.collect.assert_called_with()
+        assert self.conn._transport is None
 
     def test_collect__channel_raises_socket_error(self):
         self.conn.channels = self.conn.channels = {1: Mock(name='c1')}
@@ -376,6 +385,7 @@ class test_Connection:
         )
 
     def test_close(self):
+        self.conn.collect = Mock(name='collect')
         self.conn.close(reply_text='foo', method_sig=spec.Channel.Open)
         self.conn.send_method.assert_called_with(
             spec.Connection.Close, 'BsBB',
@@ -386,6 +396,15 @@ class test_Connection:
     def test_close__already_closed(self):
         self.conn.transport = None
         self.conn.close()
+
+    def test_close__socket_error(self):
+        self.conn.send_method = Mock(name='send_method',
+                                     side_effect=socket.error)
+        self.conn.collect = Mock(name='collect')
+        with pytest.raises(socket.error):
+            self.conn.close()
+        self.conn.send_method.assert_called()
+        self.conn.collect.assert_called_with()
 
     def test_on_close(self):
         self.conn._x_close_ok = Mock(name='_x_close_ok')
