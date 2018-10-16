@@ -158,13 +158,14 @@ class test_Connection:
         # check Transport.Connect error
         # socket.error derives from IOError
         # ssl.SSLError derives from socket.error
-        transport = Mock(name='Transport')
-        with patch('amqp.transport.Transport', return_value=transport):
-            self.conn = Connection()
-            assert self.conn._transport is None and not self.conn.connected
-            with pytest.raises(IOError):
-                self.conn.connect()
-        assert transport.connect.called
+        self.conn = Connection()
+        self.conn.Transport = Mock(name='Transport')
+        transport = self.conn.Transport.return_value
+        transport.connect.side_effect = IOError
+        assert self.conn._transport is None and not self.conn.connected
+        with pytest.raises(IOError):
+            self.conn.connect()
+        transport.connect.assert_called
         assert self.conn._transport is None and not self.conn.connected
 
     def test_on_start(self):
