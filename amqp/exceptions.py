@@ -26,7 +26,6 @@ class AMQPDeprecationWarning(UserWarning):
 
 class MessageNacked(Exception):
     """Message was nacked by broker."""
-    pass
 
 
 @python_2_unicode_compatible
