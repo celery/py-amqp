@@ -13,7 +13,7 @@ from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import (ChannelError, ConsumerCancelled,
                          RecoverableChannelError, RecoverableConnectionError,
-                         error_for_code)
+                         error_for_code, MessageNacked)
 from .five import Queue
 from .protocol import queue_declare_ok_t
 
@@ -30,10 +30,6 @@ REJECTED_MESSAGE_WITHOUT_CALLBACK = """\
 Rejecting message with delivery tag %r for reason of having no callbacks.
 consumer_tag=%r exchange=%r routing_key=%r.\
 """
-
-
-class MessageNacked(Exception):
-    pass
 
 
 class VDeprecationWarning(DeprecationWarning):

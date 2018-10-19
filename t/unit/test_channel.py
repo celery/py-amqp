@@ -6,8 +6,8 @@ from case import ContextMock, Mock, patch, ANY
 from amqp import spec
 from amqp.platform import pack
 from amqp.serialization import dumps
-from amqp.channel import Channel, MessageNacked
-from amqp.exceptions import ConsumerCancelled, NotFound
+from amqp.channel import Channel
+from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked
 
 
 class test_Channel:
