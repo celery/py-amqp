@@ -15,13 +15,17 @@ __all__ = [
     'ResourceLocked', 'PreconditionFailed', 'FrameError', 'FrameSyntaxError',
     'InvalidCommand', 'ChannelNotOpen', 'UnexpectedFrame', 'ResourceError',
     'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
-
+    'MessageNacked',
     'AMQPDeprecationWarning',
 ]
 
 
 class AMQPDeprecationWarning(UserWarning):
     """Warning for deprecated things."""
+
+
+class MessageNacked(Exception):
+    """Message was nacked by broker."""
 
 
 @python_2_unicode_compatible

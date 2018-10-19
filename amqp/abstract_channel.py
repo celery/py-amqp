@@ -106,17 +106,13 @@ class AbstractChannel(object):
         try:
             listeners = [self._callbacks[method_sig]]
         except KeyError:
-            listeners = None
+            listeners = []
+        one_shot = None
         try:
             one_shot = self._pending.pop(method_sig)
         except KeyError:
             if not listeners:
                 return
-        else:
-            if listeners is None:
-                listeners = [one_shot]
-            else:
-                listeners.append(one_shot)
 
         args = []
         if amqp_method.args:
@@ -126,6 +122,9 @@ class AbstractChannel(object):
 
         for listener in listeners:
             listener(*args)
+
+        if one_shot:
+            one_shot(method_sig, *args)
 
     #: Placeholder, the concrete implementations will have to
     #: supply their own versions of _METHOD_MAP

@@ -1,11 +1,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-from case import ContextMock, Mock, patch
+from case import ContextMock, Mock, patch, ANY
 
 from amqp import spec
+from amqp.platform import pack
+from amqp.serialization import dumps
 from amqp.channel import Channel
-from amqp.exceptions import ConsumerCancelled, NotFound
+from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked
 
 
 class test_Channel:
@@ -334,7 +336,56 @@ class test_Channel:
         assert self.c._confirm_selected
         self.c._basic_publish.assert_called_with(1, 2, arg=1)
         assert ret is self.c._basic_publish()
-        self.c.wait.assert_called_with(spec.Basic.Ack)
+        self.c.wait.assert_called_with(
+            [spec.Basic.Ack, spec.Basic.Nack], callback=ANY
+        )
+        self.c.basic_publish_confirm(1, 2, arg=1)
+
+    def test_basic_publish_confirm_nack(self):
+        # test checking whether library is handling correctly Nack confirms
+        # sent from RabbitMQ. Library must raise MessageNacked when server
+        # sent Nack message.
+
+        # Nack frame construction
+        args = dumps('Lb', (1, False))
+        frame = (b''.join([pack('>HH', *spec.Basic.Nack), args]))
+
+        def wait(method, *args, **kwargs):
+            # Simple mock simulating registering callbacks of real wait method
+            for m in method:
+                self.c._pending[m] = kwargs['callback']
+
+        self.c._basic_publish = Mock(name='_basic_publish')
+        self.c.wait = Mock(name='wait', side_effect=wait)
+
+        self.c.basic_publish_confirm(1, 2, arg=1)
+
+        with pytest.raises(MessageNacked):
+            # Inject Nack to message handler
+            self.c.dispatch_method(
+                spec.Basic.Nack, frame, None
+            )
+
+    def test_basic_publsh_confirm_callback(self):
+
+        def wait_nack(method, *args, **kwargs):
+            kwargs['callback'](spec.Basic.Nack)
+
+        def wait_ack(method, *args, **kwargs):
+            kwargs['callback'](spec.Basic.Ack)
+
+        self.c._basic_publish = Mock(name='_basic_publish')
+        self.c.wait = Mock(name='wait_nack', side_effect=wait_nack)
+
+        with pytest.raises(MessageNacked):
+            # when callback is called with spec.Basic.Nack it must raise
+            # MessageNacked exception
+            self.c.basic_publish_confirm(1, 2, arg=1)
+
+        self.c.wait = Mock(name='wait_ack', side_effect=wait_ack)
+
+        # when callback is called with spec.Basic.Ack
+        # it must nost raise exception
         self.c.basic_publish_confirm(1, 2, arg=1)
 
     def test_basic_qos(self):
@@ -404,4 +455,10 @@ class test_Channel:
         callback = Mock(name='callback')
         self.c.events['basic_ack'].add(callback)
         self.c._on_basic_ack(123, True)
+        callback.assert_called_with(123, True)
+
+    def test_on_basic_nack(self):
+        callback = Mock(name='callback')
+        self.c.events['basic_nack'].add(callback)
+        self.c._on_basic_nack(123, True)
         callback.assert_called_with(123, True)

@@ -97,6 +97,10 @@ class Connection(AbstractChannel):
 
     The "socket_settings" parameter is a dictionary defining tcp
     settings which will be applied as socket options.
+
+    When "confirm_publish" is set to True, the channel is put to
+    confirm mode. In this mode, each published message is
+    confirmed using Publisher confirms RabbitMQ extention.
     """
 
     Channel = Channel
