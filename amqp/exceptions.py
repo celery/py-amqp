@@ -23,6 +23,7 @@ __all__ = [
 class AMQPDeprecationWarning(UserWarning):
     """Warning for deprecated things."""
 
+
 class MessageNacked(Exception):
     """Message was nacked by broker."""
     pass
