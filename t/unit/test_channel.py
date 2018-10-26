@@ -1,7 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-from case import ContextMock, Mock, patch, ANY
+import socket
+from case import ContextMock, Mock, patch, ANY, MagicMock
 
 from amqp import spec
 from amqp.platform import pack
@@ -14,7 +15,7 @@ class test_Channel:
 
     @pytest.fixture(autouse=True)
     def setup_conn(self):
-        self.conn = Mock(name='connection')
+        self.conn = MagicMock(name='connection')
         self.conn.channels = {}
         self.conn._get_free_channel_id.return_value = 2
         self.c = Channel(self.conn, 1)
@@ -365,6 +366,23 @@ class test_Channel:
             self.c.dispatch_method(
                 spec.Basic.Nack, frame, None
             )
+
+    def test_connection_blocked(self):
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_called_with(timeout=0)
+        self.c.send_method.assert_called_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+        self.c.send_method.reset_mock()
+
+        self.conn.drain_events.side_effect = socket.timeout
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.c.send_method.assert_called_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
 
     def test_basic_publsh_confirm_callback(self):
 
