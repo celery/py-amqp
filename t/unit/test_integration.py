@@ -1,9 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-from struct import pack_into
-from case import patch
-from amqp import spec, Connection, Channel
+from case import patch, call, Mock
+from amqp import spec, Connection, Channel, sasl
 from amqp.platform import pack
 from amqp.serialization import dumps
 
@@ -33,8 +32,92 @@ channel_testdata = (
     (spec.Basic.CancelOk, '_on_basic_cancel_ok'),
 )
 
+CLIENT_CAPABILITIES = {
+    'product': 'py-amqp',
+    'product_version': '2.3.2',
+    'capabilities': {
+        'consumer_cancel_notify': True,
+        'connection.blocked': True,
+        'authentication_failure_close': True
+    }
+}
+
+SERVER_CAPABILITIES = {
+    'capabilities': {
+        'publisher_confirms': True,
+        'exchange_exchange_bindings': True,
+        'basic.nack': True,
+        'consumer_cancel_notify': True,
+        'connection.blocked': True,
+        'consumer_priorities': True,
+        'authentication_failure_close': True,
+        'per_consumer_qos': True,
+        'direct_reply_to': True
+    },
+    'cluster_name': 'rabbit@t3dredis01.solar.cat.com',
+    'copyright': 'Copyright (C) 2007-2018 Pivotal Software, Inc.',
+    'information': 'Licensed under the MPL.  See http://www.rabbitmq.com/',
+    'platform': 'Erlang/OTP 20.3.8.9',
+    'product': 'RabbitMQ',
+    'version': '3.7.8'
+}
+
 
 class test_integration:
+
+    def test_connect(self):
+        # Test checking connection handshake
+        frame_writer_cls_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            # Mocked responses from Server
+            transport_mock().read_frame.side_effect = [
+                ret_factory(
+                    spec.Connection.Start, channel=0,
+                    args=(
+                        0, 9, SERVER_CAPABILITIES, 'AMQPLAIN PLAIN', 'en_US'
+                    ),
+                    arg_format='ooFSS'
+                ),
+                ret_factory(
+                    spec.Connection.Tune, channel=0,
+                    args=(2047, 131072, 60), arg_format='BlB'
+                ),
+                ret_factory(
+                    spec.Connection.OpenOk, channel=0
+                )
+            ]
+            conn.connect()
+            # Expected responses from client
+            frame_writer_mock.assert_has_calls(
+                [
+                    call(
+                        1, 0, spec.Connection.StartOk, dumps(
+                            'FsSs',
+                            (
+                                CLIENT_CAPABILITIES, b'AMQPLAIN',
+                                sasl.AMQPLAIN('guest', 'guest').start(conn),
+                                'en_US'
+                            )
+                        ), None
+                    ),
+                    call(
+                        1, 0, spec.Connection.TuneOk,
+                        dumps(
+                            'BlB',
+                            (conn.channel_max, conn.frame_max, conn.heartbeat)
+                        ),
+                        None
+                    ),
+                    call(
+                        1, 0, spec.Connection.Open,
+                        dumps('ssb', (conn.virtual_host, '', False)),
+                        None
+                    )
+                ]
+            )
 
     @pytest.mark.parametrize("method, callback", connection_testdata)
     def test_connection_methods(self, method, callback):
