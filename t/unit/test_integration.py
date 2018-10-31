@@ -13,14 +13,7 @@ def ret_factory(method, channel=0, args=b'', arg_format=None):
         args = dumps(arg_format, args)
     else:
         args = b''
-    frame_max = 131072
-    offset = 0
-    buf = bytearray(frame_max - 8)
     frame = (b''.join([pack('>HH', *method), args]))
-    framelen = len(frame)
-    pack_into('>BHI%dsB' % framelen, buf, offset,
-              1, channel, framelen, frame, 0xce)
-    offset += 8 + framelen
     return 1, channel, frame
 
 
