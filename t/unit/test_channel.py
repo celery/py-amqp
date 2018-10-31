@@ -369,8 +369,8 @@ class test_Channel:
 
     def test_connection_blocked(self):
         self.c._basic_publish('msg', 'ex', 'rkey')
-        self.conn.drain_events.assert_called_with(timeout=0)
-        self.c.send_method.assert_called_with(
+        self.conn.drain_events.assert_called_once_with(timeout=0)
+        self.c.send_method.assert_called_once_with(
             spec.Basic.Publish, 'Bssbb',
             (0, 'ex', 'rkey', False, False), 'msg',
         )
@@ -379,7 +379,7 @@ class test_Channel:
 
         self.conn.drain_events.side_effect = socket.timeout
         self.c._basic_publish('msg', 'ex', 'rkey')
-        self.c.send_method.assert_called_with(
+        self.c.send_method.assert_called_once_with(
             spec.Basic.Publish, 'Bssbb',
             (0, 'ex', 'rkey', False, False), 'msg',
         )
