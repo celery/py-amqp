@@ -80,7 +80,7 @@ def handshake(conn, transport_mock):
         )
     ]
     conn.connect()
-    transport_mock().read_frame.reset_mock(return_value=True, side_effect=True)
+    transport_mock().read_frame.side_effect=None
 
 
 class test_integration:
