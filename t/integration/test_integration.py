@@ -80,10 +80,16 @@ def handshake(conn, transport_mock):
         )
     ]
     conn.connect()
-    transport_mock().read_frame.side_effect=None
+    transport_mock().read_frame.side_effect = None
 
 
 class test_integration:
+    # Integration tests. Tests verify the correctness of communication between
+    # library and broker.
+    # * tests mocks broker responses mocking return values of
+    #   amqp.transport.Transport.read_frame() method
+    # * tests asserts expected library responses to broker via calls of
+    #   amqp.method_framing.frame_writer() function
 
     def test_connect(self):
         # Test checking connection handshake
