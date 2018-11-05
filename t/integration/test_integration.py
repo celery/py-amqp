@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import pytest
 from case import patch, call, Mock
-from amqp import spec, Connection, Channel, sasl
+from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
 from amqp.serialization import dumps
 
@@ -245,3 +245,29 @@ class test_integration:
                 )
                 conn.drain_events(0)
                 callback_mock.assert_called_once()
+
+    def test_basic_publish(self):
+        # Test verifing publishing message.
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+
+            channel_id = 1
+            # Inject Open Handshake
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Channel.OpenOk,
+                channel=channel_id,
+                args=(1, False),
+                arg_format='Lb'
+            )
+
+            ch = conn.channel(channel_id=channel_id)
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            msg = Message('test')
+            ch.basic_publish(msg)
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Publish,
+                dumps('Bssbb', (0, '', '', False, False)), msg
+            )
