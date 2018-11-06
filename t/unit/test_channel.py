@@ -8,7 +8,8 @@ from amqp import spec
 from amqp.platform import pack
 from amqp.serialization import dumps
 from amqp.channel import Channel
-from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked
+from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked, \
+    RecoverableConnectionError
 
 
 class test_Channel:
@@ -424,6 +425,13 @@ class test_Channel:
         # when callback is called with spec.Basic.Ack
         # it must nost raise exception
         self.c.basic_publish_confirm(1, 2, arg=1)
+
+    def test_basic_publish_connection_closed(self):
+        self.c.collect()
+        with pytest.raises(RecoverableConnectionError) as excinfo:
+            self.c._basic_publish('msg', 'ex', 'rkey')
+        assert 'basic_publish: connection closed' in str(excinfo.value)
+        self.c.send_method.assert_not_called()
 
     def test_basic_qos(self):
         self.c.basic_qos(0, 123, False)
