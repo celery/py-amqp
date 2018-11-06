@@ -12,6 +12,10 @@ from amqp.platform import pack
 from amqp.transport import _AbstractTransport
 
 
+class DummyException(Exception):
+    pass
+
+
 class MockSocket(object):
     options = {}
 
@@ -356,6 +360,42 @@ class test_AbstractTransport:
     def test_having_timeout_none(self):
         with self.t.having_timeout(None) as actual_sock:
             assert actual_sock == self.t.sock
+
+    def test_set_timeout(self):
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 3
+            with self.t.having_timeout(5) as actual_sock:
+                assert actual_sock == self.t.sock
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_has_calls(
+                [
+                    call(5),
+                    call(3),
+                ]
+            )
+
+    def test_set_timeout_exception_raised(self):
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 3
+            with pytest.raises(DummyException):
+                with self.t.having_timeout(5) as actual_sock:
+                    assert actual_sock == self.t.sock
+                    raise DummyException()
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_has_calls(
+                [
+                    call(5),
+                    call(3),
+                ]
+            )
+
+    def test_set_same_timeout(self):
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 5
+            with self.t.having_timeout(5) as actual_sock:
+                assert actual_sock == self.t.sock
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_not_called()
 
 
 class test_AbstractTransport_connect:
