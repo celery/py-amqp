@@ -368,6 +368,8 @@ class test_Channel:
             )
 
     def test_connection_blocked(self):
+        # Basic test checking that drain_events() is called
+        # before publishing message and send_method() is called
         self.c._basic_publish('msg', 'ex', 'rkey')
         self.conn.drain_events.assert_called_once_with(timeout=0)
         self.c.send_method.assert_called_once_with(
@@ -377,8 +379,25 @@ class test_Channel:
 
         self.c.send_method.reset_mock()
 
+        # Basic test checking that socket.timeout exception
+        # is ignored and send_method() is called.
         self.conn.drain_events.side_effect = socket.timeout
         self.c._basic_publish('msg', 'ex', 'rkey')
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+    def test_connection_blocked_not_supported(self):
+        # Test veryfying that when server does not have
+        # connection.blocked capability, drain_events() are not called
+        self.conn.client_properties = {
+            'capabilities': {
+                'connection.blocked': False
+            }
+        }
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_not_called()
         self.c.send_method.assert_called_once_with(
             spec.Basic.Publish, 'Bssbb',
             (0, 'ex', 'rkey', False, False), 'msg',
