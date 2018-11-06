@@ -367,7 +367,7 @@ class test_Channel:
                 spec.Basic.Nack, frame, None
             )
 
-    def test_connection_blocked(self):
+    def test_basic_publish_connection_blocked(self):
         # Basic test checking that drain_events() is called
         # before publishing message and send_method() is called
         self.c._basic_publish('msg', 'ex', 'rkey')
@@ -388,7 +388,7 @@ class test_Channel:
             (0, 'ex', 'rkey', False, False), 'msg',
         )
 
-    def test_connection_blocked_not_supported(self):
+    def test_basic_publish_connection_blocked_not_supported(self):
         # Test veryfying that when server does not have
         # connection.blocked capability, drain_events() are not called
         self.conn.client_properties = {
@@ -403,7 +403,7 @@ class test_Channel:
             (0, 'ex', 'rkey', False, False), 'msg',
         )
 
-    def test_basic_publsh_confirm_callback(self):
+    def test_basic_publish_confirm_callback(self):
 
         def wait_nack(method, *args, **kwargs):
             kwargs['callback'](spec.Basic.Nack)
