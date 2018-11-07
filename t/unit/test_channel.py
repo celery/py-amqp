@@ -1,20 +1,22 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-from case import ContextMock, Mock, patch, ANY
+import socket
+from case import ContextMock, Mock, patch, ANY, MagicMock
 
 from amqp import spec
 from amqp.platform import pack
 from amqp.serialization import dumps
 from amqp.channel import Channel
-from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked
+from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked, \
+    RecoverableConnectionError
 
 
 class test_Channel:
 
     @pytest.fixture(autouse=True)
     def setup_conn(self):
-        self.conn = Mock(name='connection')
+        self.conn = MagicMock(name='connection')
         self.conn.channels = {}
         self.conn._get_free_channel_id.return_value = 2
         self.c = Channel(self.conn, 1)
@@ -366,7 +368,43 @@ class test_Channel:
                 spec.Basic.Nack, frame, None
             )
 
-    def test_basic_publsh_confirm_callback(self):
+    def test_basic_publish_connection_blocked(self):
+        # Basic test checking that drain_events() is called
+        # before publishing message and send_method() is called
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_called_once_with(timeout=0)
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+        self.c.send_method.reset_mock()
+
+        # Basic test checking that socket.timeout exception
+        # is ignored and send_method() is called.
+        self.conn.drain_events.side_effect = socket.timeout
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+    def test_basic_publish_connection_blocked_not_supported(self):
+        # Test veryfying that when server does not have
+        # connection.blocked capability, drain_events() are not called
+        self.conn.client_properties = {
+            'capabilities': {
+                'connection.blocked': False
+            }
+        }
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_not_called()
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+    def test_basic_publish_confirm_callback(self):
 
         def wait_nack(method, *args, **kwargs):
             kwargs['callback'](spec.Basic.Nack)
@@ -387,6 +425,13 @@ class test_Channel:
         # when callback is called with spec.Basic.Ack
         # it must nost raise exception
         self.c.basic_publish_confirm(1, 2, arg=1)
+
+    def test_basic_publish_connection_closed(self):
+        self.c.collect()
+        with pytest.raises(RecoverableConnectionError) as excinfo:
+            self.c._basic_publish('msg', 'ex', 'rkey')
+        assert 'basic_publish: connection closed' in str(excinfo.value)
+        self.c.send_method.assert_not_called()
 
     def test_basic_qos(self):
         self.c.basic_qos(0, 123, False)
