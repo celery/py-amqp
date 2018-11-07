@@ -12,6 +12,10 @@ from amqp.platform import pack
 from amqp.transport import _AbstractTransport
 
 
+class DummyException(Exception):
+    pass
+
+
 class MockSocket(object):
     options = {}
 
@@ -354,8 +358,50 @@ class test_AbstractTransport:
         assert not self.t.connected
 
     def test_having_timeout_none(self):
+        # Checks that context manager does nothing when no timeout is provided
         with self.t.having_timeout(None) as actual_sock:
             assert actual_sock == self.t.sock
+
+    def test_set_timeout(self):
+        # Checks that context manager sets and reverts timeout properly
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 3
+            with self.t.having_timeout(5) as actual_sock:
+                assert actual_sock == self.t.sock
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_has_calls(
+                [
+                    call(5),
+                    call(3),
+                ]
+            )
+
+    def test_set_timeout_exception_raised(self):
+        # Checks that context manager sets and reverts timeout properly
+        # when exception is raised.
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 3
+            with pytest.raises(DummyException):
+                with self.t.having_timeout(5) as actual_sock:
+                    assert actual_sock == self.t.sock
+                    raise DummyException()
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_has_calls(
+                [
+                    call(5),
+                    call(3),
+                ]
+            )
+
+    def test_set_same_timeout(self):
+        # Checks that context manager does not set timeout when
+        # it is same as currently set.
+        with patch.object(self.t, 'sock') as sock_mock:
+            sock_mock.gettimeout.return_value = 5
+            with self.t.having_timeout(5) as actual_sock:
+                assert actual_sock == self.t.sock
+            sock_mock.gettimeout.assert_called()
+            sock_mock.settimeout.assert_not_called()
 
 
 class test_AbstractTransport_connect:
