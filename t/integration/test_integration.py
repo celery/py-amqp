@@ -4,7 +4,7 @@ import pytest
 from case import patch, call, Mock
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
-from amqp.serialization import dumps
+from amqp.serialization import dumps, loads
 
 
 def ret_factory(method, channel=0, args=b'', arg_format=None):
@@ -61,6 +61,19 @@ SERVER_CAPABILITIES = {
 }
 
 
+class DataComparator(object):
+    # Comparator used for asserting serialized data. It can be used
+    # in cases when direct comparision of bytestream cannot be used
+    # (mainly cases of Table type where order of items can vary)
+    def __init__(self, argsig, items):
+        self.argsig = argsig
+        self.items = items
+
+    def __eq__(self, other):
+        values, offset = loads(self.argsig, other)
+        return tuple(values) == tuple(self.items)
+
+
 def handshake(conn, transport_mock):
     # Helper function simulating connection handshake with server
     transport_mock().read_frame.side_effect = [
@@ -103,18 +116,25 @@ class test_integration:
         with patch.object(conn, 'Transport') as transport_mock:
             handshake(conn, transport_mock)
             on_open_mock.assert_called_once_with(conn)
+            security_mechanism = sasl.AMQPLAIN(
+                'guest', 'guest'
+            ).start(conn).decode('utf-8', 'surrogatepass')
+
             # Expected responses from client
             frame_writer_mock.assert_has_calls(
                 [
                     call(
-                        1, 0, spec.Connection.StartOk, dumps(
+                        1, 0, spec.Connection.StartOk,
+                        # Due Table type, we cannot compare bytestream directly
+                        DataComparator(
                             'FsSs',
                             (
-                                CLIENT_CAPABILITIES, b'AMQPLAIN',
-                                sasl.AMQPLAIN('guest', 'guest').start(conn),
+                                CLIENT_CAPABILITIES, 'AMQPLAIN',
+                                security_mechanism,
                                 'en_US'
                             )
-                        ), None
+                        ),
+                        None
                     ),
                     call(
                         1, 0, spec.Connection.TuneOk,
