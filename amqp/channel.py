@@ -219,12 +219,14 @@ class Channel(AbstractChannel):
             if is_closed:
                 return
 
+            self.is_closing = True
             return self.send_method(
                 spec.Channel.Close, argsig,
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Channel.CloseOk,
             )
         finally:
+            self.is_closing = False
             self.connection = None
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
@@ -274,7 +276,8 @@ class Channel(AbstractChannel):
                 is the ID of the method.
         """
         self.send_method(spec.Channel.CloseOk)
-        self._do_revive()
+        if not self.connection.is_closing:
+            self._do_revive()
         raise error_for_code(
             reply_code, reply_text, (class_id, method_id), ChannelError,
         )
