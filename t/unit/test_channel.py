@@ -266,6 +266,7 @@ class test_Channel:
     def test_basic_consume(self):
         callback = Mock()
         on_cancel = Mock()
+        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
         self.c.basic_consume(
             'q', 123, arguments={'x': 1},
             callback=callback,
@@ -275,11 +276,13 @@ class test_Channel:
             spec.Basic.Consume, 'BssbbbbF',
             (0, 'q', 123, False, False, False, False, {'x': 1}),
             wait=spec.Basic.ConsumeOk,
+            returns_tuple=True
         )
         assert self.c.callbacks[123] is callback
         assert self.c.cancel_callbacks[123] is on_cancel
 
     def test_basic_consume__no_ack(self):
+        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
         self.c.basic_consume(
             'q', 123, arguments={'x': 1}, no_ack=True,
         )

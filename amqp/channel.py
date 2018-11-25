@@ -1557,16 +1557,23 @@ class Channel(AbstractChannel):
                 messages are quietly discarded, no_ack should probably
                 be set to True in that case.
         """
-        p = self.send_method(
-            spec.Basic.Consume, argsig,
-            (0, queue, consumer_tag, no_local, no_ack, exclusive,
-             nowait, arguments),
+        p = self.send_method(spec.Basic.Consume, argsig,
+            (
+                0, queue, consumer_tag, no_local, no_ack, exclusive,
+                nowait, arguments
+            ),
             wait=None if nowait else spec.Basic.ConsumeOk,
+            returns_tuple=True
         )
 
-        # XXX Fix this hack
-        if not nowait and not consumer_tag:
-            consumer_tag = p
+        if not nowait:
+            # send_method() returns (spec.Basic.ConsumeOk, consumer_tag) tuple.
+            # consumer_tag is returned by broker using following rules:
+            # * consumer_tag is not specified by client, random one is generetad by Broker
+            # * consumer_tag is provided by client, the same one is returned by broker
+            consumer_tag = p[1]
+        elif nowait and not consumer_tag:
+            raise ValueError('Consumer tag must be specified when nowait is True')
 
         self.callbacks[consumer_tag] = callback
 
