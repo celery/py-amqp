@@ -317,3 +317,67 @@ class test_channel:
                 1, 1, spec.Basic.Publish,
                 dumps('Bssbb', (0, '', '', False, False)), msg
             )
+
+    def test_consume_no_consumer_tag(self):
+        # Test verifing starting consuming without specified consumer_tag
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        consumer_tag = 'amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            # Inject ConcumeOk response from Broker
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Basic.ConsumeOk,
+                channel=1,
+                args=(consumer_tag,),
+                arg_format='s'
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ch.basic_consume('my_queue', callback=callback_mock)
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Consume,
+                dumps(
+                    'BssbbbbF',
+                    (0, 'my_queue', '', False, False, False, False, None)
+                ),
+                None
+            )
+            assert ch.callbacks[consumer_tag] == callback_mock
+
+    def test_consume_with_consumer_tag(self):
+        # Test verifing starting consuming with specified consumer_tag
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            # Inject ConcumeOk response from Broker
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Basic.ConsumeOk,
+                channel=1,
+                args=('my_tag',),
+                arg_format='s'
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ch.basic_consume(
+                'my_queue', callback=callback_mock, consumer_tag='my_tag'
+            )
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Consume,
+                dumps(
+                    'BssbbbbF',
+                    (
+                        0, 'my_queue', 'my_tag',
+                        False, False, False, False, None
+                    )
+                ),
+                None
+            )
+            assert ch.callbacks['my_tag'] == callback_mock
