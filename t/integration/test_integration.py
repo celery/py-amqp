@@ -4,6 +4,7 @@ import pytest
 from case import patch, call, Mock
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
+from amqp.exceptions import ConnectionError
 from amqp.serialization import dumps, loads
 
 
@@ -184,6 +185,29 @@ class test_connection:
                 1, 0, spec.Connection.Close, dumps('BsBB', (0, '', 0, 0)), None
             )
             t.close.assert_called_once_with()
+
+    def test_connection_closed_by_broker(self):
+        # Test that library response correctly CloseOk when
+        # close method is received and _on_close_ok() method is called.
+        frame_writer_cls_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        with patch.object(Connection, '_on_close_ok') as callback_mock:
+            conn = Connection(frame_writer=frame_writer_cls_mock)
+            with patch.object(conn, 'Transport') as transport_mock:
+                handshake(conn, transport_mock)
+                frame_writer_mock.reset_mock()
+                # Inject Close response from broker
+                transport_mock().read_frame.return_value = ret_factory(
+                    spec.Connection.Close,
+                    args=(1, False),
+                    arg_format='Lb'
+                )
+                with pytest.raises(ConnectionError):
+                    conn.drain_events(0)
+                frame_writer_mock.assert_called_once_with(
+                    1, 0, spec.Connection.CloseOk, '', None
+                )
+                callback_mock.assert_called_once_with()
 
 
 class test_channel:
