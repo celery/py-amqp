@@ -288,6 +288,46 @@ class test_Channel:
         )
         assert 123 in self.c.no_ack_consumers
 
+    def test_basic_consume_no_consumer_tag(self):
+        callback = Mock()
+        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
+        self.c.basic_consume(
+            'q', arguments={'x': 1},
+            callback=callback,
+        )
+        self.c.send_method.assert_called_with(
+            spec.Basic.Consume, 'BssbbbbF',
+            (0, 'q', '', False, False, False, False, {'x': 1}),
+            wait=spec.Basic.ConsumeOk,
+            returns_tuple=True
+        )
+        assert self.c.callbacks[123] is callback
+
+
+    def test_basic_consume_no_wait(self):
+        callback = Mock()
+        self.c.basic_consume(
+            'q', 123, arguments={'x': 1},
+            callback=callback, nowait=True
+        )
+        self.c.send_method.assert_called_with(
+            spec.Basic.Consume, 'BssbbbbF',
+            (0, 'q', 123, False, False, False, True, {'x': 1}),
+            wait=None,
+            returns_tuple=True
+        )
+        assert self.c.callbacks[123] is callback
+
+    def test_basic_consume_no_wait_no_consumer_tag(self):
+        callback = Mock()
+        with pytest.raises(ValueError):
+            self.c.basic_consume(
+                'q', arguments={'x': 1},
+                callback=callback, nowait=True
+            )
+        assert 123 not in self.c.callbacks
+
+
     def test_on_basic_deliver(self):
         msg = Mock()
         self.c._on_basic_deliver(123, '321', False, 'ex', 'rkey', msg)
