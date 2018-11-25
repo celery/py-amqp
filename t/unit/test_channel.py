@@ -303,7 +303,6 @@ class test_Channel:
         )
         assert self.c.callbacks[123] is callback
 
-
     def test_basic_consume_no_wait(self):
         callback = Mock()
         self.c.basic_consume(
@@ -326,7 +325,6 @@ class test_Channel:
                 callback=callback, nowait=True
             )
         assert 123 not in self.c.callbacks
-
 
     def test_on_basic_deliver(self):
         msg = Mock()
