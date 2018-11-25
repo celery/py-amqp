@@ -96,7 +96,19 @@ def handshake(conn, transport_mock):
     transport_mock().read_frame.side_effect = None
 
 
-class test_integration:
+def create_channel(channel_id, conn, transport_mock):
+    transport_mock().read_frame.return_value = ret_factory(
+        spec.Channel.OpenOk,
+        channel=channel_id,
+        args=(1, False),
+        arg_format='Lb'
+    )
+    ch = conn.channel(channel_id=channel_id)
+    transport_mock().read_frame.side_effect = None
+    return ch
+
+
+class test_connection:
     # Integration tests. Tests verify the correctness of communication between
     # library and broker.
     # * tests mocks broker responses mocking return values of
@@ -173,6 +185,15 @@ class test_integration:
             )
             t.close.assert_called_once_with()
 
+
+class test_channel:
+    # Integration tests. Tests verify the correctness of communication between
+    # library and broker.
+    # * tests mocks broker responses mocking return values of
+    #   amqp.transport.Transport.read_frame() method
+    # * tests asserts expected library responses to broker via calls of
+    #   amqp.method_framing.frame_writer() function
+
     @pytest.mark.parametrize("method, callback", connection_testdata)
     def test_connection_methods(self, method, callback):
         # Test verifying that proper Connection callback is called when
@@ -244,22 +265,12 @@ class test_integration:
             conn = Connection()
             with patch.object(conn, 'Transport') as transport_mock:
                 handshake(conn, transport_mock)
-
-                channel_id = 1
-                # Inject Open Handshake
-                transport_mock().read_frame.return_value = ret_factory(
-                    spec.Channel.OpenOk,
-                    channel=channel_id,
-                    args=(1, False),
-                    arg_format='Lb'
-                )
-
-                conn.channel(channel_id=channel_id)
+                create_channel(1, conn, transport_mock)
 
                 # Inject desired method
                 transport_mock().read_frame.return_value = ret_factory(
                     method,
-                    channel=channel_id,
+                    channel=1,
                     args=(1, False),
                     arg_format='Lb'
                 )
@@ -272,17 +283,8 @@ class test_integration:
         conn = Connection(frame_writer=frame_writer_cls_mock)
         with patch.object(conn, 'Transport') as transport_mock:
             handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
 
-            channel_id = 1
-            # Inject Open Handshake
-            transport_mock().read_frame.return_value = ret_factory(
-                spec.Channel.OpenOk,
-                channel=channel_id,
-                args=(1, False),
-                arg_format='Lb'
-            )
-
-            ch = conn.channel(channel_id=channel_id)
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
             msg = Message('test')
