@@ -4,6 +4,7 @@ import pytest
 from case import patch, call, Mock
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
+from amqp.exceptions import ConnectionError
 from amqp.serialization import dumps, loads
 
 
@@ -96,7 +97,19 @@ def handshake(conn, transport_mock):
     transport_mock().read_frame.side_effect = None
 
 
-class test_integration:
+def create_channel(channel_id, conn, transport_mock):
+    transport_mock().read_frame.return_value = ret_factory(
+        spec.Channel.OpenOk,
+        channel=channel_id,
+        args=(1, False),
+        arg_format='Lb'
+    )
+    ch = conn.channel(channel_id=channel_id)
+    transport_mock().read_frame.side_effect = None
+    return ch
+
+
+class test_connection:
     # Integration tests. Tests verify the correctness of communication between
     # library and broker.
     # * tests mocks broker responses mocking return values of
@@ -173,6 +186,38 @@ class test_integration:
             )
             t.close.assert_called_once_with()
 
+    def test_connection_closed_by_broker(self):
+        # Test that library response correctly CloseOk when
+        # close method is received and _on_close_ok() method is called.
+        frame_writer_cls_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        with patch.object(Connection, '_on_close_ok') as callback_mock:
+            conn = Connection(frame_writer=frame_writer_cls_mock)
+            with patch.object(conn, 'Transport') as transport_mock:
+                handshake(conn, transport_mock)
+                frame_writer_mock.reset_mock()
+                # Inject Close response from broker
+                transport_mock().read_frame.return_value = ret_factory(
+                    spec.Connection.Close,
+                    args=(1, False),
+                    arg_format='Lb'
+                )
+                with pytest.raises(ConnectionError):
+                    conn.drain_events(0)
+                frame_writer_mock.assert_called_once_with(
+                    1, 0, spec.Connection.CloseOk, '', None
+                )
+                callback_mock.assert_called_once_with()
+
+
+class test_channel:
+    # Integration tests. Tests verify the correctness of communication between
+    # library and broker.
+    # * tests mocks broker responses mocking return values of
+    #   amqp.transport.Transport.read_frame() method
+    # * tests asserts expected library responses to broker via calls of
+    #   amqp.method_framing.frame_writer() function
+
     @pytest.mark.parametrize("method, callback", connection_testdata)
     def test_connection_methods(self, method, callback):
         # Test verifying that proper Connection callback is called when
@@ -244,22 +289,12 @@ class test_integration:
             conn = Connection()
             with patch.object(conn, 'Transport') as transport_mock:
                 handshake(conn, transport_mock)
-
-                channel_id = 1
-                # Inject Open Handshake
-                transport_mock().read_frame.return_value = ret_factory(
-                    spec.Channel.OpenOk,
-                    channel=channel_id,
-                    args=(1, False),
-                    arg_format='Lb'
-                )
-
-                conn.channel(channel_id=channel_id)
+                create_channel(1, conn, transport_mock)
 
                 # Inject desired method
                 transport_mock().read_frame.return_value = ret_factory(
                     method,
-                    channel=channel_id,
+                    channel=1,
                     args=(1, False),
                     arg_format='Lb'
                 )
@@ -272,17 +307,8 @@ class test_integration:
         conn = Connection(frame_writer=frame_writer_cls_mock)
         with patch.object(conn, 'Transport') as transport_mock:
             handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
 
-            channel_id = 1
-            # Inject Open Handshake
-            transport_mock().read_frame.return_value = ret_factory(
-                spec.Channel.OpenOk,
-                channel=channel_id,
-                args=(1, False),
-                arg_format='Lb'
-            )
-
-            ch = conn.channel(channel_id=channel_id)
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
             msg = Message('test')
@@ -291,3 +317,67 @@ class test_integration:
                 1, 1, spec.Basic.Publish,
                 dumps('Bssbb', (0, '', '', False, False)), msg
             )
+
+    def test_consume_no_consumer_tag(self):
+        # Test verifing starting consuming without specified consumer_tag
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        consumer_tag = 'amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            # Inject ConsumeOk response from Broker
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Basic.ConsumeOk,
+                channel=1,
+                args=(consumer_tag,),
+                arg_format='s'
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ch.basic_consume('my_queue', callback=callback_mock)
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Consume,
+                dumps(
+                    'BssbbbbF',
+                    (0, 'my_queue', '', False, False, False, False, None)
+                ),
+                None
+            )
+            assert ch.callbacks[consumer_tag] == callback_mock
+
+    def test_consume_with_consumer_tag(self):
+        # Test verifing starting consuming with specified consumer_tag
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            # Inject ConcumeOk response from Broker
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Basic.ConsumeOk,
+                channel=1,
+                args=('my_tag',),
+                arg_format='s'
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ch.basic_consume(
+                'my_queue', callback=callback_mock, consumer_tag='my_tag'
+            )
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Consume,
+                dumps(
+                    'BssbbbbF',
+                    (
+                        0, 'my_queue', 'my_tag',
+                        False, False, False, False, None
+                    )
+                ),
+                None
+            )
+            assert ch.callbacks['my_tag'] == callback_mock
