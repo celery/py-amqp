@@ -328,7 +328,7 @@ class test_channel:
             handshake(conn, transport_mock)
             ch = create_channel(1, conn, transport_mock)
 
-            # Inject ConcumeOk response from Broker
+            # Inject ConsumeOk response from Broker
             transport_mock().read_frame.return_value = ret_factory(
                 spec.Basic.ConsumeOk,
                 channel=1,
