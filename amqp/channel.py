@@ -278,9 +278,9 @@ class Channel(AbstractChannel):
         self.send_method(spec.Channel.CloseOk)
         if not self.connection.is_closing:
             self._do_revive()
-        raise error_for_code(
-            reply_code, reply_text, (class_id, method_id), ChannelError,
-        )
+            raise error_for_code(
+                reply_code, reply_text, (class_id, method_id), ChannelError,
+            )
 
     def _on_close_ok(self):
         """Confirm a channel close.
