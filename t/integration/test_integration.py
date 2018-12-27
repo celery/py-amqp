@@ -210,7 +210,6 @@ class test_connection:
                 callback_mock.assert_called_once_with()
 
 
-
 class test_channel:
     # Integration tests. Tests verify the correctness of communication between
     # library and broker.
