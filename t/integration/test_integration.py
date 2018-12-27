@@ -281,7 +281,7 @@ class test_channel:
             )
             assert ch.is_open is False
 
-    def test_recieved_channel_Close_during_connection_close(self):
+    def test_received_channel_Close_during_connection_close(self):
         # This test verifies that library handles correctly closing channel
         # during closing of connection:
         # 1. User requests closing connection - client sends Connection.Close
