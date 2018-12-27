@@ -210,6 +210,7 @@ class test_connection:
                 callback_mock.assert_called_once_with()
 
 
+
 class test_channel:
     # Integration tests. Tests verify the correctness of communication between
     # library and broker.
@@ -280,6 +281,35 @@ class test_channel:
                 ]
             )
             assert ch.is_open is False
+
+    def test_recieved_channel_Close_during_connection_close(self):
+        # This test verifies that library handles correctly closing channel
+        # during closing of connection:
+        # 1. User requests closing connection - client sends Connection.Close
+        # 2. Broker requests closing Channel - client receives Channel.Close
+        # 3. Broker sends Connection.CloseOk
+        # see GitHub issue #218
+        conn = Connection()
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            channel_id = 1
+            create_channel(channel_id, conn, transport_mock)
+            # Replies sent by broker
+            transport_mock().read_frame.side_effect = [
+                # Inject close methods
+                ret_factory(
+                    spec.Channel.Close,
+                    channel=channel_id,
+                    args=(1, False),
+                    arg_format='Lb'
+                ),
+                ret_factory(
+                    spec.Connection.CloseOk,
+                    args=(1, False),
+                    arg_format='Lb'
+                )
+            ]
+            conn.close()
 
     @pytest.mark.parametrize("method, callback", channel_testdata)
     def test_channel_methods(self, method, callback):
