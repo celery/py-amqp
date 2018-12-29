@@ -17,6 +17,7 @@ class test_Channel:
     @pytest.fixture(autouse=True)
     def setup_conn(self):
         self.conn = MagicMock(name='connection')
+        self.conn.is_closing = False
         self.conn.channels = {}
         self.conn._get_free_channel_id.return_value = 2
         self.c = Channel(self.conn, 1)

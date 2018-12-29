@@ -22,6 +22,7 @@ class AbstractChannel(object):
     """
 
     def __init__(self, connection, channel_id):
+        self.is_closing = False
         self.connection = connection
         self.channel_id = channel_id
         connection.channels[channel_id] = self

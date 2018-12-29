@@ -569,12 +569,14 @@ class Connection(AbstractChannel):
             return
 
         try:
+            self.is_closing = True
             return self.send_method(
                 spec.Connection.Close, argsig,
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Connection.CloseOk,
             )
         except (OSError, IOError, SSLError):
+            self.is_closing = False
             # close connection
             self.collect()
             raise
