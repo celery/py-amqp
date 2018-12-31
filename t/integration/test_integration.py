@@ -1,5 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
+import socket
 import pytest
 from case import patch, call, Mock
 from amqp import spec, Connection, Channel, sasl, Message
@@ -99,12 +100,14 @@ def handshake(conn, transport_mock):
 
 
 def create_channel(channel_id, conn, transport_mock):
-    transport_mock().read_frame.return_value = ret_factory(
-        spec.Channel.OpenOk,
-        channel=channel_id,
-        args=(1, False),
-        arg_format='Lb'
-    )
+    transport_mock().read_frame.side_effect = [
+        ret_factory(
+            spec.Channel.OpenOk,
+            channel=channel_id,
+            args=(1, False),
+            arg_format='Lb'
+        )
+    ]
     ch = conn.channel(channel_id=channel_id)
     transport_mock().read_frame.side_effect = None
     return ch
@@ -342,6 +345,9 @@ class test_channel:
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
             msg = Message('test')
+            # we need to mock socket timeout due checks in
+            # Channel._basic_publish
+            transport_mock().read_frame.side_effect = socket.timeout
             ch.basic_publish(msg)
             frame_writer_mock.assert_called_once_with(
                 1, 1, spec.Basic.Publish,
