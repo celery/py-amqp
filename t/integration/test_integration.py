@@ -6,6 +6,7 @@ from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
 from amqp.exceptions import ConnectionError
 from amqp.serialization import dumps, loads
+from amqp.protocol import queue_declare_ok_t
 
 
 def ret_factory(method, channel=0, args=b'', arg_format=None):
@@ -410,3 +411,37 @@ class test_channel:
                 None
             )
             assert ch.callbacks['my_tag'] == callback_mock
+
+    def test_queue_declare(self):
+        # Test verifying declaring queue
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Queue.DeclareOk,
+                channel=1,
+                arg_format='sll',
+                args=('foo', 1, 2)
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ret = ch.queue_declare('foo')
+            assert ret == queue_declare_ok_t(
+                queue='foo', message_count=1, consumer_count=2
+            )
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Queue.Declare,
+                dumps(
+                    'BsbbbbbF',
+                    (
+                        0,
+                        # queue, passive, durable, exclusive,
+                        'foo', False, False, False,
+                        # auto_delete, nowait, arguments
+                        True, False, None
+                    )
+                ),
+                None
+            )

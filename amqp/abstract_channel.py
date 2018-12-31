@@ -81,6 +81,7 @@ class AbstractChannel(object):
 
             if p.value:
                 args, kwargs = p.value
+                args = args[1:]  # We are not returning method back
                 return args if returns_tuple else (args and args[0])
         finally:
             for i, m in enumerate(method):

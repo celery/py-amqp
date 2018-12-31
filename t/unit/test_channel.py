@@ -267,7 +267,7 @@ class test_Channel:
     def test_basic_consume(self):
         callback = Mock()
         on_cancel = Mock()
-        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
+        self.c.send_method.return_value = (123, )
         self.c.basic_consume(
             'q', 123, arguments={'x': 1},
             callback=callback,
@@ -283,7 +283,7 @@ class test_Channel:
         assert self.c.cancel_callbacks[123] is on_cancel
 
     def test_basic_consume__no_ack(self):
-        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
+        self.c.send_method.return_value = (123,)
         self.c.basic_consume(
             'q', 123, arguments={'x': 1}, no_ack=True,
         )
@@ -291,7 +291,7 @@ class test_Channel:
 
     def test_basic_consume_no_consumer_tag(self):
         callback = Mock()
-        self.c.send_method.return_value = (spec.Basic.ConsumeOk, 123)
+        self.c.send_method.return_value = (123,)
         self.c.basic_consume(
             'q', arguments={'x': 1},
             callback=callback,
