@@ -1,11 +1,13 @@
 from __future__ import absolute_import, unicode_literals
 
+import socket
 import pytest
 from case import patch, call, Mock
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
 from amqp.exceptions import ConnectionError
 from amqp.serialization import dumps, loads
+from amqp.protocol import queue_declare_ok_t
 
 
 def ret_factory(method, channel=0, args=b'', arg_format=None):
@@ -98,12 +100,14 @@ def handshake(conn, transport_mock):
 
 
 def create_channel(channel_id, conn, transport_mock):
-    transport_mock().read_frame.return_value = ret_factory(
-        spec.Channel.OpenOk,
-        channel=channel_id,
-        args=(1, False),
-        arg_format='Lb'
-    )
+    transport_mock().read_frame.side_effect = [
+        ret_factory(
+            spec.Channel.OpenOk,
+            channel=channel_id,
+            args=(1, False),
+            arg_format='Lb'
+        )
+    ]
     ch = conn.channel(channel_id=channel_id)
     transport_mock().read_frame.side_effect = None
     return ch
@@ -341,6 +345,9 @@ class test_channel:
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
             msg = Message('test')
+            # we need to mock socket timeout due checks in
+            # Channel._basic_publish
+            transport_mock().read_frame.side_effect = socket.timeout
             ch.basic_publish(msg)
             frame_writer_mock.assert_called_once_with(
                 1, 1, spec.Basic.Publish,
@@ -410,3 +417,37 @@ class test_channel:
                 None
             )
             assert ch.callbacks['my_tag'] == callback_mock
+
+    def test_queue_declare(self):
+        # Test verifying declaring queue
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+            transport_mock().read_frame.return_value = ret_factory(
+                spec.Queue.DeclareOk,
+                channel=1,
+                arg_format='sll',
+                args=('foo', 1, 2)
+            )
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ret = ch.queue_declare('foo')
+            assert ret == queue_declare_ok_t(
+                queue='foo', message_count=1, consumer_count=2
+            )
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Queue.Declare,
+                dumps(
+                    'BsbbbbbF',
+                    (
+                        0,
+                        # queue, passive, durable, exclusive,
+                        'foo', False, False, False,
+                        # auto_delete, nowait, arguments
+                        True, False, None
+                    )
+                ),
+                None
+            )
