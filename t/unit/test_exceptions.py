@@ -6,7 +6,7 @@ import pytest
 import amqp.exceptions
 from amqp.exceptions import AMQPError, error_for_code
 
-AMQP_EXCEPTIONS = [
+AMQP_EXCEPTIONS = (
     'ConnectionError', 'ChannelError',
     'RecoverableConnectionError', 'IrrecoverableConnectionError',
     'RecoverableChannelError', 'IrrecoverableChannelError',
@@ -15,7 +15,7 @@ AMQP_EXCEPTIONS = [
     'ResourceLocked', 'PreconditionFailed', 'FrameError', 'FrameSyntaxError',
     'InvalidCommand', 'ChannelNotOpen', 'UnexpectedFrame', 'ResourceError',
     'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
-]
+)
 
 
 class test_AMQPError:
