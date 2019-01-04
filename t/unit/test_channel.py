@@ -5,6 +5,7 @@ import socket
 from case import ContextMock, Mock, patch, ANY, MagicMock
 
 from amqp import spec
+from amqp.basic_message import Message
 from amqp.platform import pack
 from amqp.serialization import dumps
 from amqp.channel import Channel
@@ -328,11 +329,20 @@ class test_Channel:
         assert 123 not in self.c.callbacks
 
     def test_on_basic_deliver(self):
-        msg = Mock()
+        msg = Message()
         self.c._on_basic_deliver(123, '321', False, 'ex', 'rkey', msg)
         callback = self.c.callbacks[123] = Mock(name='cb')
+
         self.c._on_basic_deliver(123, '321', False, 'ex', 'rkey', msg)
         callback.assert_called_with(msg)
+        assert msg.channel == self.c
+        assert msg.delivery_info == {
+            'consumer_tag': 123,
+            'delivery_tag': '321',
+            'redelivered': False,
+            'exchange': 'ex',
+            'routing_key': 'rkey',
+        }
 
     def test_basic_get(self):
         self.c._on_get_empty = Mock()
@@ -356,11 +366,19 @@ class test_Channel:
         self.c._on_get_empty(1)
 
     def test_on_get_ok(self):
-        msg = Mock()
+        msg = Message()
         m = self.c._on_get_ok(
             'dtag', 'redelivered', 'ex', 'rkey', 'mcount', msg,
         )
         assert m is msg
+        assert m.channel == self.c
+        assert m.delivery_info == {
+            'delivery_tag': 'dtag',
+            'redelivered': 'redelivered',
+            'exchange': 'ex',
+            'routing_key': 'rkey',
+            'message_count': 'mcount',
+        }
 
     def test_basic_publish(self):
         self.c.connection.transport.having_timeout = ContextMock()
