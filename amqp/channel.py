@@ -1140,8 +1140,8 @@ class Channel(AbstractChannel):
                 True.
 
         Returns a tuple containing 3 items:
-            the name of the queue (essential for automatically-named queues)
-            message count
+            the name of the queue (essential for automatically-named queues),
+            message count and
             consumer count
         """
         self.send_method(
@@ -1220,6 +1220,8 @@ class Channel(AbstractChannel):
                 client should not wait for a reply method.  If the
                 server could not complete the method it will raise a
                 channel or connection exception.
+
+        If nowait is False, returns the number of deleted messages.
         """
         return self.send_method(
             spec.Queue.Delete, argsig,
@@ -1280,7 +1282,7 @@ class Channel(AbstractChannel):
                 server could not complete the method it will raise a
                 channel or connection exception.
 
-        if nowait is False, returns a message_count
+        If nowait is False, returns a number of purged messages.
         """
         return self.send_method(
             spec.Queue.Purge, argsig, (0, queue, nowait),
@@ -1647,7 +1649,8 @@ class Channel(AbstractChannel):
                 reliability.  Messages can get lost if a client dies
                 before it can deliver them to the application.
 
-        Non-blocking, returns a message object, or None.
+        Non-blocking, returns a amqp.basic_message.Message object,
+        or None if queue is empty.
         """
         ret = self.send_method(
             spec.Basic.Get, argsig, (0, queue, no_ack),
