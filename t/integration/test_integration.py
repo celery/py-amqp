@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import socket
 import pytest
-from case import patch, call, Mock
+from case import patch, call, Mock, ANY
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
 from amqp.exceptions import ConnectionError, \
@@ -595,6 +595,70 @@ class test_channel:
                 ),
                 None
             )
+
+    def test_basic_deliver(self):
+        # Test checking delivering single message
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        consumer_tag = 'amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            # Inject ConsumeOk response from Broker
+            transport_mock().read_frame.side_effect = [
+                # Inject Consume-ok response
+                build_frame_type_1(
+                    spec.Basic.ConsumeOk,
+                    channel=1,
+                    args=(consumer_tag,),
+                    arg_format='s'
+                ),
+                # Inject basic-deliver response
+                build_frame_type_1(
+                    spec.Basic.Deliver,
+                    channel=1,
+                    arg_format='sLbss',
+                    args=(
+                        # consumer-tag, delivery-tag, redelivered,
+                        consumer_tag, 1, False,
+                        # exchange-name, routing-key
+                        'foo_exchange', 'routing-key'
+                    )
+                ),
+                build_frame_type_2(
+                    channel=1,
+                    body_len=12,
+                    properties=b'0\x00\x00\x00\x00\x00\x01'
+                ),
+                build_frame_type_3(
+                    channel=1,
+                    body=b'Hello World!'
+                ),
+            ]
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ch.basic_consume('my_queue', callback=callback_mock)
+            conn.drain_events()
+            callback_mock.assert_called_once_with(ANY)
+            msg = callback_mock.call_args[0][0]
+            assert isinstance(msg, Message)
+            assert msg.body_size == 12
+            assert msg.body == b'Hello World!'
+            assert msg.frame_method == spec.Basic.Deliver
+            assert msg.delivery_tag == 1
+            assert msg.ready is True
+            assert msg.delivery_info == {
+                'consumer_tag': 'amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg',
+                'delivery_tag': 1,
+                'redelivered': False,
+                'exchange': 'foo_exchange',
+                'routing_key': 'routing-key'
+            }
+            assert msg.properties == {
+                'application_headers': {}, 'delivery_mode': 1
+            }
 
     def test_queue_get(self):
         # Test verifying getting message from queue

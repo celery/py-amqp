@@ -102,11 +102,10 @@ class Message(GenericContent):
         ('cluster_id', 's')
     ]
 
-    #: set by basic_consume/basic_get
-    delivery_info = None
-
     def __init__(self, body='', children=None, channel=None, **properties):
         super(Message, self).__init__(**properties)
+        #: set by basic_consume/basic_get
+        self.delivery_info = None
         self.body = body
         self.channel = channel
 
