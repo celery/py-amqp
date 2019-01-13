@@ -5,6 +5,107 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.4.0:
+
+2.4.0
+=====
+:release-date: 2018-13-01 1:00 P.M UTC+2
+:release-by: Omer Katz
+
+- Fix inconsistent frame_handler return value.
+
+  The function returned by frame_handler is meant to return True
+  once the complete message is received and the callback is called,
+  False otherwise.
+
+  This fixes the return value for messages with a body split across
+  multiple frames, and heartbeat frames.
+
+  Fix contributed by **:github_user:`evanunderscore`**
+
+- Don't default content_encoding to utf-8 for bytes.
+
+  This is not an acceptable default as the content may not be
+  valid utf-8, and even if it is, the producer likely does not
+  expect the message to be decoded by the consumer.
+
+  Fix contributed by **:github_user:`evanunderscore`**
+
+- Fix encoding of messages with multibyte characters.
+
+  Body length was previously calculated using string length,
+  which may be less than the length of the encoded body when
+  it contains multibyte sequences. This caused the body of
+  the frame to be truncated.
+
+  Fix contributed by **:github_user:`evanunderscore`**
+
+- Respect content_encoding when encoding messages.
+
+  Previously the content_encoding was ignored and messages
+  were always encoded as utf-8. This caused messages to be
+  incorrectly decoded if content_encoding is properly respected
+  when decoding.
+
+  Fix contributed by **:github_user:`evanunderscore`**
+
+- Fix AMQP protocol header for AMQP 0-9-1.
+
+  Previously it was set to a different value for unknown reasons.
+
+  Fix contributed by **Carl Hörberg**
+
+- Add support for Python 3.7.
+
+  Change direct SSLSocket instantiation with wrap_socket.
+  Added Python 3.7 to CI.
+
+  Fix contributed by **Omer Katz** and **:github_user:`avborhanian`**
+
+- Add support for field type "x" (byte array).
+
+  Fix contributed by **Davis Kirkendall**
+
+- If there is an exception raised on Connection.connect or Connection.close,
+  ensure that the underlying transport socket is closed.
+
+  Adjust exception message on connection errors as well.
+
+  Fix contributed by **:github_user:`tomc797`**
+
+- TCP_USER_TIMEOUT has to be excluded from KNOWN_TCP_OPTS in BSD platforms.
+
+  Fix contributed by **George Tantiras**
+
+- Handle negative acknowledgments.
+
+  Fix contributed by **Matus Valo**
+
+- Added integration tests.
+
+  Fix contributed by **Matus Valo**
+
+- Fix basic_consume() with no consumer_tag provided.
+
+  Fix contributed by **Matus Valo**
+
+- Improved empty AMQPError string representation.
+
+  Fix contributed by **Matus Valo**
+
+- Drain events before publish.
+
+  This is needed to capture out of memory messages for clients that only
+  publish. Otherwise on_blocked is never called.
+
+  Fix contributed by **Jelte Fennema** and **Matus Valo**
+
+- Don't revive channel when connection is closing.
+
+  When connection is closing don't raise error when Channel.Close method is received.
+
+  Fix contributed by **Matus Valo**
+
 .. _version-2.3.2:
 
 2.3.2
@@ -28,7 +129,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 - Fix a regression that occurs when running amqp under Python 2.7.
 
-  #182 mistakingly replaced a type check with unicode to string_t which is str
+  #182 mistakenly replaced a type check with unicode to string_t which is str
   in Python 2.7. text_t should have been used instead.
   This is now fixed and the tests have been adjusted to ensure this never regresses
   again.
