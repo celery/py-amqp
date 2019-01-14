@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import socket
 import pytest
 from case import patch, call, Mock, ANY
+import amqp
 from amqp import spec, Connection, Channel, sasl, Message
 from amqp.platform import pack
 from amqp.exceptions import ConnectionError, \
@@ -62,7 +63,7 @@ queue_declare_error_testdata = (
 
 CLIENT_CAPABILITIES = {
     'product': 'py-amqp',
-    'product_version': '2.3.2',
+    'product_version': amqp.__version__,
     'capabilities': {
         'consumer_cancel_notify': True,
         'connection.blocked': True,
