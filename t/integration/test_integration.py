@@ -415,7 +415,7 @@ class test_channel:
             )
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
-            ch.basic_consume('my_queue', callback=callback_mock)
+            ret = ch.basic_consume('my_queue', callback=callback_mock)
             frame_writer_mock.assert_called_once_with(
                 1, 1, spec.Basic.Consume,
                 dumps(
@@ -425,6 +425,7 @@ class test_channel:
                 None
             )
             assert ch.callbacks[consumer_tag] == callback_mock
+            assert ret == 'amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
 
     def test_consume_with_consumer_tag(self):
         # Test verifing starting consuming with specified consumer_tag
@@ -444,7 +445,7 @@ class test_channel:
             )
             frame_writer_mock = frame_writer_cls_mock()
             frame_writer_mock.reset_mock()
-            ch.basic_consume(
+            ret = ch.basic_consume(
                 'my_queue', callback=callback_mock, consumer_tag='my_tag'
             )
             frame_writer_mock.assert_called_once_with(
@@ -459,6 +460,7 @@ class test_channel:
                 None
             )
             assert ch.callbacks['my_tag'] == callback_mock
+            assert ret == 'my_tag'
 
     def test_queue_declare(self):
         # Test verifying declaring queue

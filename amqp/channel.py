@@ -1591,7 +1591,11 @@ class Channel(AbstractChannel):
             self.cancel_callbacks[consumer_tag] = on_cancel
         if no_ack:
             self.no_ack_consumers.add(consumer_tag)
-        return p
+
+        if not nowait:
+            return consumer_tag
+        else:
+            return p
 
     def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
                           exchange, routing_key, msg):

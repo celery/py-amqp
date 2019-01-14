@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import socket
 from case import ContextMock, Mock, patch, ANY, MagicMock
+from vine import promise
 
 from amqp import spec
 from amqp.basic_message import Message
@@ -293,7 +294,7 @@ class test_Channel:
     def test_basic_consume_no_consumer_tag(self):
         callback = Mock()
         self.c.send_method.return_value = (123,)
-        self.c.basic_consume(
+        ret = self.c.basic_consume(
             'q', arguments={'x': 1},
             callback=callback,
         )
@@ -304,10 +305,13 @@ class test_Channel:
             returns_tuple=True
         )
         assert self.c.callbacks[123] is callback
+        assert ret == 123
 
     def test_basic_consume_no_wait(self):
         callback = Mock()
-        self.c.basic_consume(
+        ret_promise = promise()
+        self.c.send_method.return_value = ret_promise
+        ret = self.c.basic_consume(
             'q', 123, arguments={'x': 1},
             callback=callback, nowait=True
         )
@@ -318,6 +322,7 @@ class test_Channel:
             returns_tuple=True
         )
         assert self.c.callbacks[123] is callback
+        assert ret == ret_promise
 
     def test_basic_consume_no_wait_no_consumer_tag(self):
         callback = Mock()
