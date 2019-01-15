@@ -469,6 +469,31 @@ class test_Channel:
             (0, 'ex', 'rkey', False, False), 'msg',
         )
 
+    def test_basic_publish_connection_blocked_not_supported_missing(self):
+        # Test veryfying that when server does not have
+        # connection.blocked capability, drain_events() are not called
+        self.conn.client_properties = {
+            'capabilities': {}
+        }
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_not_called()
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
+    def test_basic_publish_connection_blocked_no_capabilities(self):
+        # Test veryfying that when server does not have
+        # support of capabilities, drain_events() are not called
+        self.conn.client_properties = {
+        }
+        self.c._basic_publish('msg', 'ex', 'rkey')
+        self.conn.drain_events.assert_not_called()
+        self.c.send_method.assert_called_once_with(
+            spec.Basic.Publish, 'Bssbb',
+            (0, 'ex', 'rkey', False, False), 'msg',
+        )
+
     def test_basic_publish_confirm_callback(self):
 
         def wait_nack(method, *args, **kwargs):

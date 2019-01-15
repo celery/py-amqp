@@ -1755,8 +1755,9 @@ class Channel(AbstractChannel):
             raise RecoverableConnectionError(
                 'basic_publish: connection closed')
 
-        client_properties = self.connection.client_properties
-        if client_properties['capabilities']['connection.blocked']:
+        capabilities = self.connection.\
+            client_properties.get('capabilities', {})
+        if capabilities.get('connection.blocked', False):
             try:
                 # Check if an event was sent, such as the out of memory message
                 self.connection.drain_events(timeout=0)
