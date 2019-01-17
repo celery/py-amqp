@@ -61,17 +61,17 @@ queue_declare_error_testdata = (
     ),
 )
 
-CLIENT_CAPABILITIES = {
+CLIENT_PROPERTIES = {
     'product': 'py-amqp',
     'product_version': amqp.__version__,
     'capabilities': {
         'consumer_cancel_notify': True,
         'connection.blocked': True,
         'authentication_failure_close': True
-    }
+    },
 }
 
-SERVER_CAPABILITIES = {
+SERVER_PROPERTIES = {
     'capabilities': {
         'publisher_confirms': True,
         'exchange_exchange_bindings': True,
@@ -125,13 +125,16 @@ class DataComparator(object):
         return tuple(values) == tuple(self.items)
 
 
-def handshake(conn, transport_mock):
+def handshake(conn, transport_mock, server_properties=None):
     # Helper function simulating connection handshake with server
+    if server_properties is None:
+        server_properties = SERVER_PROPERTIES
+
     transport_mock().read_frame.side_effect = [
         build_frame_type_1(
             spec.Connection.Start, channel=0,
             args=(
-                0, 9, SERVER_CAPABILITIES, 'AMQPLAIN PLAIN', 'en_US'
+                0, 9, server_properties, 'AMQPLAIN PLAIN', 'en_US'
             ),
             arg_format='ooFSS'
         ),
@@ -194,7 +197,7 @@ class test_connection:
                         DataComparator(
                             'FsSs',
                             (
-                                CLIENT_CAPABILITIES, 'AMQPLAIN',
+                                CLIENT_PROPERTIES, 'AMQPLAIN',
                                 security_mechanism,
                                 'en_US'
                             )
@@ -216,6 +219,131 @@ class test_connection:
                     )
                 ]
             )
+            assert conn.client_properties == CLIENT_PROPERTIES
+
+    def test_connect_no_capabilities(self):
+        # Test checking connection handshake with broker
+        # not supporting capabilities
+        frame_writer_cls_mock = Mock()
+        on_open_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        conn = Connection(
+            frame_writer=frame_writer_cls_mock, on_open=on_open_mock
+        )
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            server_properties = dict(SERVER_PROPERTIES)
+            del server_properties['capabilities']
+            client_properties = dict(CLIENT_PROPERTIES)
+            del client_properties['capabilities']
+
+            handshake(
+                conn, transport_mock, server_properties=server_properties
+            )
+            on_open_mock.assert_called_once_with(conn)
+            security_mechanism = sasl.AMQPLAIN(
+                'guest', 'guest'
+            ).start(conn).decode('utf-8', 'surrogatepass')
+
+            # Expected responses from client
+            frame_writer_mock.assert_has_calls(
+                [
+                    call(
+                        1, 0, spec.Connection.StartOk,
+                        # Due Table type, we cannot compare bytestream directly
+                        DataComparator(
+                            'FsSs',
+                            (
+                                client_properties, 'AMQPLAIN',
+                                security_mechanism,
+                                'en_US'
+                            )
+                        ),
+                        None
+                    ),
+                    call(
+                        1, 0, spec.Connection.TuneOk,
+                        dumps(
+                            'BlB',
+                            (conn.channel_max, conn.frame_max, conn.heartbeat)
+                        ),
+                        None
+                    ),
+                    call(
+                        1, 0, spec.Connection.Open,
+                        dumps('ssb', (conn.virtual_host, '', False)),
+                        None
+                    )
+                ]
+            )
+            assert conn.client_properties == client_properties
+
+    def test_connect_missing_capabilities(self):
+        # Test checking connection handshake with broker
+        # supporting subset of capabilities
+        frame_writer_cls_mock = Mock()
+        on_open_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        conn = Connection(
+            frame_writer=frame_writer_cls_mock, on_open=on_open_mock
+        )
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            server_properties = dict(SERVER_PROPERTIES)
+            server_properties['capabilities'] = {
+                # This capability is not supported by client
+                'basic.nack': True,
+                'consumer_cancel_notify': True,
+                'connection.blocked': False,
+                # server does not support 'authentication_failure_close'
+                # which is supported by client
+            }
+
+            client_properties = dict(CLIENT_PROPERTIES)
+            client_properties['capabilities'] = {
+                'consumer_cancel_notify': True,
+            }
+
+            handshake(
+                conn, transport_mock, server_properties=server_properties
+            )
+            on_open_mock.assert_called_once_with(conn)
+            security_mechanism = sasl.AMQPLAIN(
+                'guest', 'guest'
+            ).start(conn).decode('utf-8', 'surrogatepass')
+
+            # Expected responses from client
+            frame_writer_mock.assert_has_calls(
+                [
+                    call(
+                        1, 0, spec.Connection.StartOk,
+                        # Due Table type, we cannot compare bytestream directly
+                        DataComparator(
+                            'FsSs',
+                            (
+                                client_properties, 'AMQPLAIN',
+                                security_mechanism,
+                                'en_US'
+                            )
+                        ),
+                        None
+                    ),
+                    call(
+                        1, 0, spec.Connection.TuneOk,
+                        dumps(
+                            'BlB',
+                            (conn.channel_max, conn.frame_max, conn.heartbeat)
+                        ),
+                        None
+                    ),
+                    call(
+                        1, 0, spec.Connection.Open,
+                        dumps('ssb', (conn.virtual_host, '', False)),
+                        None
+                    )
+                ]
+            )
+            assert conn.client_properties == client_properties
 
     def test_connection_close(self):
         # Test checking closing connection
