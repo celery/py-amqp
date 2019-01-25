@@ -583,6 +583,17 @@ class test_SSLTransport:
             assert ctx.check_hostname
             ctx.wrap_socket.assert_called_with(sock, f=1)
 
+    def test_wrap_socket_sni(self):
+        sock = Mock()
+        with patch('ssl.wrap_socket') as mock_ssl_wrap:
+            self.t._wrap_socket_sni(sock)
+            mock_ssl_wrap.assert_called_with(cert_reqs=0, certfile=None,
+                                             keyfile=None, sock=sock,
+                                             ca_certs=None, server_side=False,
+                                             ciphers=None, ssl_version=2,
+                                             suppress_ragged_eofs=True,
+                                             do_handshake_on_connect=True)
+
     def test_shutdown_transport(self):
         self.t.sock = None
         self.t._shutdown_transport()
