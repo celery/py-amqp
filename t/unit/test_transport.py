@@ -11,6 +11,8 @@ from amqp.exceptions import UnexpectedFrame
 from amqp.platform import pack
 from amqp.transport import _AbstractTransport
 
+SIGNED_INT_MAX = 0x7FFFFFFF
+
 
 class DummyException(Exception):
     pass
@@ -318,6 +320,15 @@ class test_AbstractTransport:
         checksum[0] = b'\x13'
         with pytest.raises(UnexpectedFrame):
             self.t.read_frame()
+
+    def test_read_frame__long(self):
+        self.t._read = Mock()
+        self.t._read.side_effect = [pack('>BHI', 1, 1, SIGNED_INT_MAX + 16),
+                                    b'read1', b'read2', b'\xce']
+        frame_type, channel, payload = self.t.read_frame()
+        assert frame_type == 1
+        assert channel == 1
+        assert payload == b'read1read2'
 
     def transport_read_EOF(self):
         for host, ssl in (('localhost:5672', False),
