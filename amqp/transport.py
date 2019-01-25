@@ -255,7 +255,7 @@ class _AbstractTransport(object):
             if size > SIGNED_INT_MAX:
                 part1 = read(SIGNED_INT_MAX)
                 part2 = read(size - SIGNED_INT_MAX)
-                payload = ''.join([part1, part2])
+                payload = b''.join([part1, part2])
             else:
                 payload = read(size)
             read_frame_buffer += payload
