@@ -622,6 +622,27 @@ class test_SSLTransport:
                            match=r'.*Server unexpectedly closed connection.*'):
             self.t._read(64)
 
+    def test_write_success(self):
+        self.t.sock = Mock(name='SSLSocket')
+        self.t.sock.write.return_value = 2
+        self.t._write('foo')
+        self.t.sock.write.assert_called()
+
+    def test_write_socket_closed(self):
+        self.t.sock = Mock(name='SSLSocket')
+        self.t.sock.write.return_value = ''
+        with pytest.raises(IOError,
+                           match=r'.*Socket closed.*'):
+            self.t._write('foo')
+
+    def test_write_ValueError(self):
+        self.t.sock = Mock(name='SSLSocket')
+        self.t.sock.write.return_value = 2
+        self.t.sock.write.side_effect = ValueError("Some error")
+        with pytest.raises(IOError,
+                           match=r'.*Socket closed.*'):
+            self.t._write('foo')
+
 
 class test_TCPTransport:
 
