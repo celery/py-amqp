@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import errno
 import socket
+import struct
 
 import pytest
 from case import ANY, Mock, call, patch
@@ -211,15 +212,20 @@ class test_socket_options:
 
     def test_set_sockopt_opts_timeout(self):
         # tests socket options SO_RCVTIMEO and SO_SNDTIMEO
-        # this test is soley for coverage as socket.settimeout
-        # is pythonic way to have timeouts
         self.transp = transport.Transport(
             self.host, self.connect_timeout,
         )
-        self.transp.read_timeout = 0xdead
-        self.transp.write_timeout = 0xbeef
-        with patch('socket.socket', return_value=MockSocket()):
-            self.transp.connect()
+        read_timeout_sec, read_timeout_usec = 0xdead, 0xbeef
+        write_timeout_sec = 0x42
+
+        self.transp.read_timeout = read_timeout_sec + read_timeout_usec * 0.000001
+        self.transp.write_timeout = write_timeout_sec
+        self.transp.connect()
+
+        expected_rcvtimeo = struct.pack('ll', read_timeout_sec, read_timeout_usec)
+        expected_sndtimeo = struct.pack('ll', write_timeout_sec, 0)
+        assert expected_rcvtimeo == self.socket.getsockopt(socket.SOL_TCP, socket.SO_RCVTIMEO)
+        assert expected_sndtimeo == self.socket.getsockopt(socket.SOL_TCP, socket.SO_SNDTIMEO)
 
 
 class test_AbstractTransport:
