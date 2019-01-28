@@ -180,9 +180,11 @@ class _AbstractTransport(object):
         for timeout, interval in ((socket.SO_SNDTIMEO, write_timeout),
                                   (socket.SO_RCVTIMEO, read_timeout)):
             if interval is not None:
+                sec = int(interval)
+                usec = int((interval - sec) * 1000000)
                 self.sock.setsockopt(
                     socket.SOL_SOCKET, timeout,
-                    pack('ll', interval, 0),
+                    pack('ll', sec, usec),
                 )
         self._setup_transport()
 
