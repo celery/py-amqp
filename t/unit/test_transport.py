@@ -218,14 +218,18 @@ class test_socket_options:
         read_timeout_sec, read_timeout_usec = 0xdead, 0xbeef
         write_timeout_sec = 0x42
 
-        self.transp.read_timeout = read_timeout_sec + read_timeout_usec * 0.000001
+        self.transp.read_timeout = read_timeout_sec + \
+            read_timeout_usec * 0.000001
         self.transp.write_timeout = write_timeout_sec
         self.transp.connect()
 
-        expected_rcvtimeo = struct.pack('ll', read_timeout_sec, read_timeout_usec)
+        expected_rcvtimeo = struct.pack('ll', read_timeout_sec,
+                                        read_timeout_usec)
         expected_sndtimeo = struct.pack('ll', write_timeout_sec, 0)
-        assert expected_rcvtimeo == self.socket.getsockopt(socket.SOL_TCP, socket.SO_RCVTIMEO)
-        assert expected_sndtimeo == self.socket.getsockopt(socket.SOL_TCP, socket.SO_SNDTIMEO)
+        assert expected_rcvtimeo == self.socket.getsockopt(socket.SOL_TCP,
+                                                           socket.SO_RCVTIMEO)
+        assert expected_sndtimeo == self.socket.getsockopt(socket.SOL_TCP,
+                                                           socket.SO_SNDTIMEO)
 
 
 class test_AbstractTransport:
