@@ -112,6 +112,10 @@ class _AbstractTransport(object):
                     # Non-blocking SSL sockets can throw SSLError
                     raise socket.timeout()
                 raise
+            except socket.error as exc:
+                if get_errno(exc) == errno.EWOULDBLOCK:
+                    raise socket.timeout()
+                raise
             finally:
                 if timeout != prev:
                     sock.settimeout(prev)
