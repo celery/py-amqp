@@ -5,6 +5,46 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.4.1:
+
+2.4.1
+=====
+:release-date: 2018-04-02 9:00 A.M UTC+2
+:release-by: Omer Katz
+
+- To avoid breaking the API basic_consume() now returns the consumer tag
+  instead of a tuple when nowait is True.
+
+  Fix contributed by **Matus Valo**
+
+- Fix crash in basic_publish when broker does not support connection.blocked
+  capability.
+
+  Fix contributed by **Matus Valo**
+
+- read_frame() is now Python 3 compatible for large payloads.
+
+  Fix contributed by **Antonio Ojea**
+
+- Support float read_timeout/write_timeout.
+
+  Fix contributed by **:github_user:`cadl`**
+
+- Always treat SSLError timeouts as socket timeouts.
+
+  Fix contributed by **Dirk Mueller** and **Antonio Ojea**
+
+- Treat EWOULDBLOCK as timeout.
+
+  This fixes a regression on Windows from 2.4.0.
+
+  Fix contributed by **Lucian Petrut**
+
+Test Coverage & CI Improvements:
+
+- **Matus Valo**
+- **Antonio Ojea**
+
 .. _version-2.4.0:
 
 2.4.0
