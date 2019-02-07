@@ -347,7 +347,6 @@ class SSLTransport(_AbstractTransport):
                 opts['ssl_version'] = ssl.PROTOCOL_TLS
             else:
                 opts['ssl_version'] = ssl.PROTOCOL_SSLv23
-        sock = ssl.wrap_socket(**opts)
         # Set SNI headers if supported
         if (server_hostname is not None) and (
                 hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI) and (
@@ -359,6 +358,8 @@ class SSLTransport(_AbstractTransport):
             context.check_hostname = True
             context.load_cert_chain(certfile, keyfile)
             sock = context.wrap_socket(sock, server_hostname=server_hostname)
+        else:
+            sock = ssl.wrap_socket(**opts)
         return sock
 
     def _shutdown_transport(self):
