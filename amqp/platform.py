@@ -60,7 +60,7 @@ elif sys.platform.startswith('win'):
     KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
 elif sys.platform.startswith('cygwin'):
-        KNOWN_TCP_OPTS = {'TCP_NODELAY'}
+    KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
 if sys.version_info < (2, 7, 7):  # pragma: no cover
     import functools
