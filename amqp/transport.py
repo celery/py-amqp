@@ -353,6 +353,8 @@ class SSLTransport(_AbstractTransport):
                 hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI) and (
                 hasattr(ssl, 'SSLContext')):
             context = ssl.SSLContext(opts['ssl_version'])
+            if ca_certs:
+                context.load_verify_locations(cafile=ca_certs)
             context.verify_mode = cert_reqs
             context.check_hostname = True
             context.load_cert_chain(certfile, keyfile)
