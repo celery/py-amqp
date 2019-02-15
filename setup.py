@@ -94,11 +94,12 @@ class pytest(setuptools.command.test.test):
 
     def initialize_options(self):
         setuptools.command.test.test.initialize_options(self)
-        self.pytest_args = []
+        self.pytest_args = ''
 
     def run_tests(self):
         import pytest
-        sys.exit(pytest.main(self.pytest_args))
+        pytest_args = self.pytest_args.split(' ')
+        sys.exit(pytest.main(pytest_args))
 
 setuptools.setup(
     name=NAME,
