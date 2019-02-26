@@ -117,6 +117,18 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
                 )?)?;
                 current_offset += 8
             },
+            'F' => {
+                bitcount = 0;
+                bits = 0;
+                let tlen = (&buf[current_offset..]).read_u32::<BigEndian>().unwrap() as usize;
+                current_offset += 4;
+                let limit = current_offset + tlen;
+                let val = PyDict::new(py);
+                while current_offset < limit {
+                    current_offset += 1; // TODO: Actually parse tables
+                }
+                values.append(val)?;
+            },
             'A' => {
                 bitcount = 0;
                 bits = 0;
