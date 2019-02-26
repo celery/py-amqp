@@ -164,7 +164,7 @@ def loads(format, buf, offset=0,
     """
     format = pstr_t(format)
 
-    if os.environ.get("PYAMQP_DUMPS_SKIP_SPEEDUPS", False):
+    if os.environ.get("PYAMQP_DUMPS_SKIP_SPEEDUPS", False) is False:
         try:
             import amqp_serialization
         except ImportError:

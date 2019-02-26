@@ -116,7 +116,19 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
                     Some(&locals),
                 )?)?;
                 current_offset += 8
-            }
+            },
+            'A' => {
+                bitcount = 0;
+                bits = 0;
+                let alen = (&buf[current_offset..]).read_u32::<BigEndian>().unwrap() as usize;
+                current_offset += 4;
+                let limit = current_offset + alen;
+                let val = PyList::empty(py);
+                while current_offset < limit {
+                    current_offset += 1; // TODO: Actually parse arrays
+                }
+                values.append(val)?;
+            },
             // TODO: Handle complex objects
             _ => {
                 // TODO: Once the exception type moves to rust, rewrite this
