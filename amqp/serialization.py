@@ -8,6 +8,7 @@ from __future__ import absolute_import, unicode_literals
 
 import calendar
 import sys
+import os
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
@@ -163,13 +164,14 @@ def loads(format, buf, offset=0,
     """
     format = pstr_t(format)
 
-    try:
-        import amqp_serialization
-    except ImportError:
-        pass
-    else:
-        buf = str_to_bytes(buf)
-        return amqp_serialization.loads(format, buf, offset)
+    if os.environ.get("PYAMQP_DUMPS_SKIP_SPEEDUPS", False):
+        try:
+            import amqp_serialization
+        except ImportError:
+            pass
+        else:
+            buf = str_to_bytes(buf)
+            return amqp_serialization.loads(format, buf, offset)
 
     bitcount = bits = 0
 
