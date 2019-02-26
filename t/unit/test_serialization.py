@@ -96,6 +96,10 @@ class test_serialization:
         with pytest.raises(FrameSyntaxError):
             dumps('A', [[object()]])
 
+    def test_bit_offset_adjusted_correctly(self):
+        buf = dumps('BssbbbbbF', [50, "quick", "fox", True, False, False, True, True, {"prop1": True}])
+        loads('BssbbbbbF', buf)
+
 
 class test_GenericContent:
 
