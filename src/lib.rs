@@ -92,9 +92,9 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
                 let blen = (&buf[current_offset..]).read_u32::<BigEndian>().unwrap() as usize;
                 current_offset += 4;
                 if current_offset + blen > buf.len() {
-                    values.append(&buf[current_offset..])?;
+                    values.append(PyBytes::new(py, &buf[current_offset..]))?;
                 } else {
-                    values.append(&buf[current_offset..current_offset + blen])?;
+                    values.append(PyBytes::new(py, &buf[current_offset..current_offset + blen]))?;
                 }
                 current_offset += blen;
             }
