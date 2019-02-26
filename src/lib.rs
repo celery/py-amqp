@@ -20,13 +20,13 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
             'b' => {
                 if bitcount == 0 {
                     bits = buf.get(current_offset..current_offset + 1).unwrap()[0];
+                    current_offset += 1;
                 }
 
                 bitcount = 8;
                 values.append((bits & 1) == 1)?;
                 bits >>= 1;
                 bitcount -= 1;
-                current_offset += 1;
             }
             'o' => {
                 bitcount = 0;
