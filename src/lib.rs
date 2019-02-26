@@ -15,6 +15,12 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
     let values = PyList::empty(py);
     let buf = buf.as_bytes();
 
+    let datetime = py.import("datetime")?;
+    let locals = PyDict::new(py);
+    locals
+        .set_item("datetime", datetime.get("datetime")?)
+        .unwrap();
+
     for p in format.chars() {
         match p {
             'b' => {
@@ -105,16 +111,13 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
                 bitcount = 0;
                 bits = 0;
                 let timestamp = (&buf[current_offset..]).read_u64::<BigEndian>().unwrap();
-                let datetime = py.import("datetime")?;
-                let locals = PyDict::new(py);
-                locals
-                    .set_item("datetime", datetime.get("datetime")?)
-                    .unwrap();
+                // TODO: Replace this with the code below once I figure out how to use timezones
                 values.append(py.eval(
                     &format!("datetime.utcfromtimestamp({})", timestamp),
                     None,
                     Some(&locals),
                 )?)?;
+                // values.append(PyDateTime::from_timestamp(py, timestamp as f64, None)?)?;
                 current_offset += 8
             },
             'F' => {
