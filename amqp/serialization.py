@@ -161,11 +161,20 @@ def loads(format, buf, offset=0,
     array = A
     timestamp = T
     """
+    format = pstr_t(format)
+
+    try:
+        import amqp_serialization
+    except ImportError:
+        pass
+    else:
+        buf = str_to_bytes(buf)
+        return amqp_serialization.loads(format, buf, offset)
+
     bitcount = bits = 0
 
     values = []
     append = values.append
-    format = pstr_t(format)
 
     for p in format:
         if p == 'b':
