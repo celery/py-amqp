@@ -36,12 +36,12 @@ class test_serialization:
         ('f', b'f' + pack('>f', 33.3), 34.0, ceil),
     ])
     def test_read_item(self, descr, frame, expected, cast):
-        actual = _read_item(frame)[0]
+        actual = _read_item(frame, 0)[0]
         actual = cast(actual) if cast else actual
         assert actual == expected
 
     def test_read_item_V(self):
-        assert _read_item(b'V')[0] is None
+        assert _read_item(b'V', 0)[0] is None
 
     def test_roundtrip(self):
         format = b'bobBlLbsbSTx'
@@ -51,7 +51,7 @@ class test_serialization:
             datetime(2015, 3, 13, 10, 23),
             b'thequick\xff'
         ])
-        y = loads(format, x)
+        y = loads(format, x, 0)
         assert [
             True, 32, False, 3415, 4513134, 13241923419,
             True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
@@ -63,22 +63,22 @@ class test_serialization:
         x = dumps(format, [
             {'a': -2147483649, 'b': 2147483648},  # celery/celery#3121
         ])
-        y = loads(format, x)
+        y = loads(format, x, 0)
         assert y[0] == [{
             'a': -2147483649, 'b': 2147483648,  # celery/celery#3121
         }]
 
     def test_loads_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
-            loads('y', 'asdsad')
+            loads('y', 'asdsad', 0)
 
     def test_float(self):
-        assert (int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100) ==
+        assert (int(loads(b'fb', dumps(b'fb', [32.31, False]), 0)[0][0] * 100) ==
                 3231)
 
     def test_table(self):
         table = {'foo': 32, 'bar': 'baz', 'nil': None}
-        assert loads(b'F', dumps(b'F', [table]))[0][0] == table
+        assert loads(b'F', dumps(b'F', [table]), 0)[0][0] == table
 
     def test_array(self):
         array = [
@@ -92,7 +92,7 @@ class test_serialization:
         expected = list(array)
         expected[6] = _ANY()
 
-        assert expected == loads('A', dumps('A', [array]))[0][0]
+        assert expected == loads('A', dumps('A', [array]), 0)[0][0]
 
     def test_array_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
@@ -102,7 +102,7 @@ class test_serialization:
         expected = [50, "quick", "fox", True,
                     False, False, True, True, {"prop1": True}]
         buf = dumps('BssbbbbbF', expected)
-        actual, _ = loads('BssbbbbbF', buf)
+        actual, _ = loads('BssbbbbbF', buf, 0)
         assert actual == expected
 
 
