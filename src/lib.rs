@@ -65,31 +65,29 @@ fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<P
                 current_offset += 4;
             }
             's' => {
-                // TODO: Handle Unicode
                 bitcount = 0;
                 bits = 0;
                 let slen = (&buf[current_offset..]).read_u8().unwrap() as usize;
                 current_offset += 1;
                 if current_offset + slen > buf.len() {
-                    values.append(std::str::from_utf8(&buf[current_offset..]).unwrap())?;
+                    values.append(String::from_utf8_lossy(&buf[current_offset..]))?;
                 } else {
                     values.append(
-                        std::str::from_utf8(&buf[current_offset..current_offset + slen]).unwrap(),
+                        String::from_utf8_lossy(&buf[current_offset..current_offset + slen]),
                     )?;
                 }
                 current_offset += slen;
             }
             'S' => {
-                // TODO: Handle Unicode
                 bitcount = 0;
                 bits = 0;
                 let slen = (&buf[current_offset..]).read_u32::<BigEndian>().unwrap() as usize;
                 current_offset += 4;
                 if current_offset + slen > buf.len() {
-                    values.append(std::str::from_utf8(&buf[current_offset..]).unwrap())?;
+                    values.append(String::from_utf8_lossy(&buf[current_offset..]))?;
                 } else {
                     values.append(
-                        std::str::from_utf8(&buf[current_offset..current_offset + slen]).unwrap(),
+                        String::from_utf8_lossy(&buf[current_offset..current_offset + slen]),
                     )?;
                 }
                 current_offset += slen;
