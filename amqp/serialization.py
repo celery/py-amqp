@@ -34,7 +34,7 @@ ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
 """
 
 
-def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
+def _read_item(buf, offset):
     ftype = ftype_t(buf[offset]) if ftype_t else buf[offset]
     offset += 1
 
@@ -144,9 +144,7 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
     return val, offset
 
 
-def loads(format, buf, offset=0,
-          ord=ord, unpack_from=unpack_from,
-          _read_item=_read_item, pstr_t=pstr_t):
+def loads(format, buf, offset):
     """Deserialize amqp format.
 
     bit = b
@@ -246,7 +244,7 @@ def loads(format, buf, offset=0,
     return values, offset
 
 
-def _flushbits(bits, write, pack=pack):
+def _flushbits(bits, write):
     if bits:
         write(pack('B' * len(bits), *bits))
         bits[:] = []
@@ -326,7 +324,7 @@ def dumps(format, values):
     return out.getvalue()
 
 
-def _write_table(d, write, bits, pack=pack):
+def _write_table(d, write, bits):
     out = BytesIO()
     twrite = out.write
     for k, v in items(d):
@@ -344,7 +342,7 @@ def _write_table(d, write, bits, pack=pack):
     write(table_data)
 
 
-def _write_array(l, write, bits, pack=pack):
+def _write_array(l, write, bits):
     out = BytesIO()
     awrite = out.write
     for v in l:
@@ -400,8 +398,7 @@ def _write_item(v, write, bits, pack=pack,
         raise ValueError()
 
 
-def decode_properties_basic(buf, offset=0,
-                            unpack_from=unpack_from, pstr_t=pstr_t):
+def decode_properties_basic(buf, offset):
     """Decode basic properties."""
     properties = {}
 
