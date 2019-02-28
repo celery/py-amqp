@@ -147,23 +147,10 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
         let _d = self.cursor.read_u8()?;
         let _n = self.cursor.read_i32::<BigEndian>()?;
 
-        let n = DECIMAL_CLASS.call(
-            *self.py,
-            (_n,),
-            None
-        )?;
-        let d = DECIMAL_CLASS.call(
-            *self.py,
-            (10_i32.pow(_d.into()),),
-            None
-        )?;
+        let n = DECIMAL_CLASS.call(*self.py, (_n,), None)?;
+        let d = DECIMAL_CLASS.call(*self.py, (10_i32.pow(_d.into()),), None)?;
 
-        let val = n.call_method(
-            *self.py,
-            "__div__",
-            (d,),
-            None
-        )?;
+        let val = n.call_method(*self.py, "__div__", (d,), None)?;
 
         Ok(val)
     }
