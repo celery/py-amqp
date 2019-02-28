@@ -1600,11 +1600,13 @@ class Channel(AbstractChannel):
     def _on_basic_deliver(self, consumer_tag, delivery_tag, redelivered,
                           exchange, routing_key, msg):
         msg.channel = self
-        msg.delivery_info['consumer_tag'] = consumer_tag
-        msg.delivery_info['delivery_tag'] = delivery_tag
-        msg.delivery_info['redelivered'] = redelivered
-        msg.delivery_info['exchange'] = exchange
-        msg.delivery_info['routing_key'] = routing_key
+        msg.delivery_info = {
+            'consumer_tag': consumer_tag,
+            'delivery_tag': delivery_tag,
+            'redelivered': redelivered,
+            'exchange': exchange,
+            'routing_key': routing_key,
+        }
 
         try:
             fun = self.callbacks[consumer_tag]
@@ -1668,11 +1670,13 @@ class Channel(AbstractChannel):
     def _on_get_ok(self, delivery_tag, redelivered, exchange, routing_key,
                    message_count, msg):
         msg.channel = self
-        msg.delivery_info['delivery_tag'] = delivery_tag
-        msg.delivery_info['redelivered'] = redelivered
-        msg.delivery_info['exchange'] = exchange
-        msg.delivery_info['routing_key'] = routing_key
-        msg.delivery_info['message_count'] = message_count
+        msg.delivery_info = {
+            'delivery_tag': delivery_tag,
+            'redelivered': redelivered,
+            'exchange': exchange,
+            'routing_key': routing_key,
+            'message_count': message_count
+        }
         return msg
 
     def _basic_publish(self, msg, exchange='', routing_key='',
