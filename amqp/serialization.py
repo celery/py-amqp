@@ -172,11 +172,10 @@ def loads(format, buf, offset=0,
             if not bitcount:
                 bits = ord(buf[offset:offset + 1])
                 offset += 1
-            bitcount = 8
+                bitcount = 8
             val = (bits & 1) == 1
             bits >>= 1
             bitcount -= 1
-
         elif p == 'o':
             bitcount = bits = 0
             val, = unpack_from('>B', buf, offset)
