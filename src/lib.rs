@@ -9,20 +9,31 @@ use pyo3::types::*;
 use pyo3::wrap_pyfunction;
 use pyo3::{IntoPy, Py};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
-use std::str::Chars;
 
+// Since this module is being currently imported we assume the GIL is acquired.
+// If it isn't, this module is the least of our problems
 lazy_static! {
-    static ref DATETIME_MODULE: &'static PyModule = {
-        unsafe { Python::assume_gil_acquired().import("datetime").unwrap() }
-    };
+    static ref DATETIME_MODULE: &'static PyModule =
+        { unsafe { Python::assume_gil_acquired().import("datetime").unwrap() } };
     static ref DATETIME_CLASS: PyObject = {
-        DATETIME_MODULE.get("datetime").unwrap().to_object(Python::acquire_gil().python())
+        DATETIME_MODULE
+            .get("datetime")
+            .unwrap()
+            .to_object(unsafe { Python::assume_gil_acquired() })
+    };
+    static ref DECIMAL_MODULE: &'static PyModule =
+        { unsafe { Python::assume_gil_acquired().import("decimal").unwrap() } };
+    static ref DECIMAL_CLASS: PyObject = {
+        DATETIME_MODULE
+            .get("Decimal")
+            .unwrap()
+            .to_object(unsafe { Python::assume_gil_acquired() })
     };
 }
 
 struct AMQPDeserializer<'deserializer_l> {
     py: &'deserializer_l Python<'deserializer_l>,
-    format: Chars<'deserializer_l>,
+    format: &'deserializer_l str,
     cursor: Cursor<&'deserializer_l [u8]>,
     bitcount: u8,
     bits: u8,
@@ -32,7 +43,7 @@ struct AMQPDeserializer<'deserializer_l> {
 impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     fn new(
         py: &'deserializer_l Python<'deserializer_l>,
-        format: &'deserializer_l String,
+        format: &'deserializer_l str,
         buf: &'deserializer_l [u8],
         offset: u64,
     ) -> io::Result<AMQPDeserializer<'deserializer_l>> {
@@ -41,14 +52,14 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
 
         Ok(AMQPDeserializer {
             py: &py,
-            format: format.chars(),
+            format: format,
             cursor,
             bitcount: 0,
             bits: 0,
             buffer_length: buf.len() as u64,
         })
     }
-    
+
     #[inline]
     fn read_bitmap(&mut self, values: &PyList) -> io::Result<()> {
         if self.bitcount == 0 {
@@ -61,18 +72,17 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
         self.bitcount -= 1;
         Ok(())
     }
-    
+
     #[inline(always)]
     fn reset_bitmap(&mut self) {
         self.bitcount = 0;
         self.bits = 0;
     }
-    
+
     #[inline]
     fn read_short_string(&mut self) -> io::Result<String> {
         // TODO: According to 4.2.5.3 in AMQP 0.9 specification small strings are
         // limited to 255 octets, which is something we can use to optimize allocation
-        self.reset_bitmap();
 
         let length = self.cursor.read_u8()?;
         let expected_position = self.cursor.position() + length as u64;
@@ -80,65 +90,136 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
             let length = (expected_position - self.buffer_length) as usize;
             let mut buffer = vec![0; length];
             self.cursor.read_to_end(&mut buffer)?;
-            
+
             Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
         } else {
             let mut buffer = vec![0; length as usize];
             self.cursor.read_exact(&mut buffer)?;
-            
+
             Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
-        }
+        };
     }
-    
+
     #[inline]
     fn read_long_string(&mut self) -> io::Result<String> {
-        self.reset_bitmap();
-
         let length = self.cursor.read_u32::<BigEndian>()?;
         let expected_position = self.cursor.position() + length as u64;
         return if expected_position > self.buffer_length {
             let length = (expected_position - self.buffer_length) as usize;
             let mut buffer = vec![0; length];
             self.cursor.read_to_end(&mut buffer)?;
-            
+
             Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
         } else {
             let mut buffer = vec![0; length as usize];
             self.cursor.read_exact(&mut buffer)?;
-            
+
             Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
-        }
+        };
     }
-    
+
+    #[inline]
+    fn read_bytes_array(&mut self) -> io::Result<Py<PyBytes>> {
+        let length = self.cursor.read_u32::<BigEndian>()?;
+        let expected_position = self.cursor.position() + length as u64;
+        return if expected_position > self.buffer_length {
+            let length = (expected_position - self.buffer_length) as usize;
+            let mut buffer = vec![0; length];
+            self.cursor.read_to_end(&mut buffer)?;
+
+            Ok(PyBytes::new(*self.py, buffer.as_slice()))
+        } else {
+            let mut buffer = vec![0; length as usize];
+            self.cursor.read_exact(&mut buffer)?;
+
+            Ok(PyBytes::new(*self.py, buffer.as_slice()))
+        };
+    }
+
     #[inline]
     fn read_timestamp(&mut self) -> io::Result<PyObject> {
-        self.reset_bitmap();
         let timestamp = self.cursor.read_u64::<BigEndian>()?;;
-        Ok(DATETIME_CLASS.call_method(
-            *self.py,
-            "utcfromtimestamp",
-            (timestamp,),
-            None
-        )?)
+        Ok(DATETIME_CLASS.call_method(*self.py, "utcfromtimestamp", (timestamp,), None)?)
     }
-    
+
+    #[inline]
+    fn read_decimal(&mut self) -> io::Result<PyObject> {
+        let _d = self.cursor.read_u8()?;
+        let _n = self.cursor.read_i32::<BigEndian>()?;
+
+        // TODO: Find out why this segfaults
+        // let n = DECIMAL_CLASS.call(
+        //     *self.py,
+        //     (n,),
+        //     None
+        // )?;
+        // let d = DECIMAL_CLASS.call(
+        //     *self.py,
+        //     (10_i32.pow(d.into()),),
+        //     None
+        // )?;
+        //
+        // let val = n.call_method(
+        //     *self.py,
+        //     "__div__",
+        //     (d,),
+        //     None
+        // )?;
+        //
+        // Ok(val)
+        Ok(self.py.None())
+    }
+
     #[inline]
     fn read_item(&mut self) -> io::Result<PyObject> {
         let ftype = self.cursor.read_u8()? as char;
         match ftype {
-            _ => Ok(self.py.None()) // TODO: Return error
+            'S' => {
+                let pystring = self.read_long_string()?.into_py(*self.py);
+                Ok(pystring.into())
+            }
+            's' => {
+                let pystring = self.read_short_string()?.into_py(*self.py);
+                Ok(pystring.into())
+            }
+            'x' => {
+                let pybytes = self.read_bytes_array()?;
+                Ok(pybytes.into())
+            }
+            'b' => Ok(self.cursor.read_u8()?.to_object(*self.py)),
+            'B' => Ok(self.cursor.read_i8()?.to_object(*self.py)),
+            'U' => Ok(self.cursor.read_i16::<BigEndian>()?.to_object(*self.py)),
+            'u' => Ok(self.cursor.read_u16::<BigEndian>()?.to_object(*self.py)),
+            'I' => Ok(self.cursor.read_i32::<BigEndian>()?.to_object(*self.py)),
+            'i' => Ok(self.cursor.read_u32::<BigEndian>()?.to_object(*self.py)),
+            'L' => Ok(self.cursor.read_i64::<BigEndian>()?.to_object(*self.py)),
+            'l' => Ok(self.cursor.read_u64::<BigEndian>()?.to_object(*self.py)),
+            'f' => Ok(self.cursor.read_f32::<BigEndian>()?.to_object(*self.py)),
+            'd' => Ok(self.cursor.read_f64::<BigEndian>()?.to_object(*self.py)),
+            'D' => Ok(self.read_decimal()?),
+            'F' => Ok(self.read_frame()?.into()),
+            // 'A' => Ok(self.read_array()?.into()),
+            't' => Ok((self.cursor.read_u8()? == 1).to_object(*self.py)),
+            'T' => Ok(self.read_timestamp()?.into()),
+            'V' => Ok(self.py.None()),
+            _ => Ok(self.py.None()), // TODO: Return error
         }
     }
-    
+
     #[inline]
     fn read_frame(&mut self) -> io::Result<&PyDict> {
-        self.reset_bitmap();
-        Ok(PyDict::new(*self.py))
+        let table = PyDict::new(*self.py);
+        let table_length = self.cursor.read_u32::<BigEndian>()? as u64;
+        let limit = self.cursor.position() + table_length;
+        while self.cursor.position() < limit {
+            let key = self.read_short_string()?;
+            table.set_item(key, self.read_item()?)?
+        }
+        Ok(table)
     }
-    
+
     #[inline]
     fn read_array(&mut self) -> io::Result<&PyList> {
-        self.reset_bitmap();
         let array = PyList::empty(*self.py);
         let array_length = self.cursor.read_u32::<BigEndian>()? as u64;
         let limit = self.cursor.position() + array_length;
@@ -150,9 +231,8 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
 
     fn deserialize(&mut self) -> io::Result<(&'deserializer_l PyList, u64)> {
         let values = PyList::empty(*self.py);
-        
-        // TODO: Figure out why the borrow checker complains when we don't clone self.format
-        for p in self.format.clone() {
+
+        for p in self.format.chars() {
             match p {
                 'b' => {
                     self.read_bitmap(values)?;
@@ -178,32 +258,26 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
                     values.append(self.cursor.read_f32::<BigEndian>()?)?;
                 }
                 's' => {
+                    self.reset_bitmap();
                     values.append(self.read_short_string()?)?;
                 }
                 'S' => {
+                    self.reset_bitmap();
                     values.append(self.read_long_string()?)?;
                 }
                 'x' => {
-                    let length = self.cursor.read_u32::<BigEndian>()?;
-                    let expected_position = self.cursor.position() + length as u64;
-                    if expected_position > self.buffer_length {
-                        let length = (expected_position - self.buffer_length) as usize;
-                        let mut buffer = vec![0; length];
-                        self.cursor.read_to_end(&mut buffer)?;
-                        values.append(PyBytes::new(*self.py, buffer.as_slice()))?;
-                    } else {
-                        let mut buffer = vec![0; length as usize];
-                        self.cursor.read_exact(&mut buffer)?;
-                        values.append(PyBytes::new(*self.py, buffer.as_slice()))?
-                    }
-                },
+                    values.append(self.read_bytes_array()?)?;
+                }
                 'T' => {
+                    self.reset_bitmap();
                     values.append(self.read_timestamp()?)?;
-                },
+                }
                 'F' => {
+                    self.reset_bitmap();
                     values.append(self.read_frame()?)?;
-                },
+                }
                 'A' => {
+                    self.reset_bitmap();
                     values.append(self.read_array()?)?;
                 }
                 _ => {
@@ -219,7 +293,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
 #[pyfunction]
 fn loads<'deserializer_l>(
     py: pyo3::Python<'deserializer_l>,
-    format: String,
+    format: &str,
     buf: &PyBytes,
     offset: u64,
 ) -> PyResult<Py<PyTuple>> {
