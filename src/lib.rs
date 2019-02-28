@@ -111,6 +111,26 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     }
     
     #[inline]
+    fn read_timestamp(&mut self) -> io::Result<PyObject> {
+        self.reset_bitmap();
+        let timestamp = self.cursor.read_u64::<BigEndian>()?;;
+        Ok(DATETIME_CLASS.call_method(
+            *self.py,
+            "utcfromtimestamp",
+            (timestamp,),
+            None
+        )?)
+    }
+    
+    #[inline]
+    fn read_item(&mut self) -> io::Result<PyObject> {
+        let ftype = self.cursor.read_u8()? as char;
+        match ftype {
+            _ => Ok(self.py.None()) // TODO: Return error
+        }
+    }
+    
+    #[inline]
     fn read_frame(&mut self) -> io::Result<&PyDict> {
         self.reset_bitmap();
         Ok(PyDict::new(*self.py))
@@ -119,7 +139,13 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     #[inline]
     fn read_array(&mut self) -> io::Result<&PyList> {
         self.reset_bitmap();
-        Ok(PyList::empty(*self.py))
+        let array = PyList::empty(*self.py);
+        let array_length = self.cursor.read_u32::<BigEndian>()? as u64;
+        let limit = self.cursor.position() + array_length;
+        while self.cursor.position() < limit {
+            array.append(self.read_item()?)?;
+        }
+        Ok(array)
     }
 
     fn deserialize(&mut self) -> io::Result<(&'deserializer_l PyList, u64)> {
@@ -172,15 +198,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
                     }
                 },
                 'T' => {
-                    self.reset_bitmap();
-                    let timestamp = self.cursor.read_u64::<BigEndian>()?;;
-                    let val = DATETIME_CLASS.call_method(
-                        *self.py,
-                        "utcfromtimestamp",
-                        (timestamp,),
-                        None
-                    )?;
-                    values.append(val)?;
+                    values.append(self.read_timestamp()?)?;
                 },
                 'F' => {
                     values.append(self.read_frame()?)?;
