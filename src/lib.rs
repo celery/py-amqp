@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate lazy_static;
 extern crate byteorder;
 extern crate pyo3;
 
@@ -6,325 +8,205 @@ use pyo3::prelude::*;
 use pyo3::types::*;
 use pyo3::wrap_pyfunction;
 use pyo3::{IntoPy, Py};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::str::Chars;
 
-#[inline]
-fn _read_large_string(buf: &[u8], offset: & mut usize, values: &PyList) {
-    let slen = (&buf[*offset..]).read_u32::<BigEndian>().unwrap() as usize;
-    *offset += 4;
-    if *offset + slen > buf.len() {
-        values.append(String::from_utf8_lossy(&buf[(*offset)..])).unwrap();
-    } else {
-        values.append(
-            String::from_utf8_lossy(&buf[*offset..*offset + slen]),
-        ).unwrap();
+lazy_static! {
+    static ref DATETIME_MODULE: &'static PyModule = {
+        unsafe { Python::assume_gil_acquired().import("datetime").unwrap() }
+    };
+    static ref DATETIME_CLASS: PyObject = {
+        DATETIME_MODULE.get("datetime").unwrap().to_object(Python::acquire_gil().python())
+    };
+}
+
+struct AMQPDeserializer<'deserializer_l> {
+    py: &'deserializer_l Python<'deserializer_l>,
+    format: Chars<'deserializer_l>,
+    cursor: Cursor<&'deserializer_l [u8]>,
+    bitcount: u8,
+    bits: u8,
+    buffer_length: u64,
+}
+
+impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
+    fn new(
+        py: &'deserializer_l Python<'deserializer_l>,
+        format: &'deserializer_l String,
+        buf: &'deserializer_l [u8],
+        offset: u64,
+    ) -> io::Result<AMQPDeserializer<'deserializer_l>> {
+        let mut cursor = Cursor::new(buf);
+        cursor.seek(SeekFrom::Start(offset))?;
+
+        Ok(AMQPDeserializer {
+            py: &py,
+            format: format.chars(),
+            cursor,
+            bitcount: 0,
+            bits: 0,
+            buffer_length: buf.len() as u64,
+        })
     }
-    *offset += slen;
-}
-
-#[inline]
-fn _read_small_string(buf: &[u8], offset: & mut usize, values: &PyList) {
-    let slen = (&buf[*offset..]).read_u8().unwrap() as usize;
-    *offset += 1;
-    if *offset + slen > buf.len() {
-        values.append(String::from_utf8_lossy(&buf[*offset..])).unwrap();
-    } else {
-        values.append(
-            String::from_utf8_lossy(&buf[*offset..*offset + slen]),
-        ).unwrap();
-    }
-    *offset += slen;
-}
-
-#[inline]
-fn _read_bytes_array(py: Python, buf: &[u8], offset: & mut usize, values: &PyList) {
-    let blen = (&buf[*offset..]).read_u32::<BigEndian>().unwrap() as usize;
-    *offset += 4;
-    if *offset + blen > buf.len() {
-        values.append(PyBytes::new(py, &buf[*offset..])).unwrap();
-    } else {
-        values.append(PyBytes::new(
-            py,
-            &buf[*offset..*offset + blen],
-        )).unwrap();
-    }
-    *offset += blen;
-}
-
-#[inline]
-fn _read_float(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_f32::<BigEndian>().unwrap()).unwrap();
-    *offset += 4;
-}
-
-#[inline]
-fn _read_double(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_f64::<BigEndian>().unwrap()).unwrap();
-    *offset += 8;
-}
-
-#[inline]
-fn _read_timestamp(py: Python, buf: &[u8], offset: & mut usize, values: &PyList) {
-    let datetime = py.import("datetime").unwrap();
-    let locals = PyDict::new(py);
-    locals
-        .set_item("datetime", datetime.get("datetime").unwrap())
-        .unwrap();
-    let timestamp = (&buf[*offset..]).read_u64::<BigEndian>().unwrap();
-    // TODO: Replace this with the code below once I figure out how to use timezones
-    values.append(py.eval(
-        &format!("datetime.utcfromtimestamp({})", timestamp),
-        None,
-        Some(&locals),
-    ).unwrap()).unwrap();
-    // values.append(PyDateTime::from_timestamp(py, timestamp as f64, None)?)?;
-    *offset += 8
-}
-
-#[inline]
-fn _read_boolean(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append(buf[*offset] != 0).unwrap();
-    *offset += 1;
-}
-
-#[inline]
-fn _read_short_short_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append(buf[*offset]).unwrap();
-    *offset += 1;
-}
-
-#[inline]
-fn _read_short_short_unsigned_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_i8().unwrap()).unwrap();
-    *offset += 1;
-}
-
-#[inline]
-fn _read_short_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_i16::<BigEndian>().unwrap()).unwrap();
-    *offset += 2;
-}
-
-#[inline]
-fn _read_unsigned_short_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_u16::<BigEndian>().unwrap()).unwrap();
-    *offset += 2;
-}
-
-#[inline]
-fn _read_long_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_i32::<BigEndian>().unwrap()).unwrap();
-    *offset += 4;
-}
-
-#[inline]
-fn _read_unsigned_long_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_u32::<BigEndian>().unwrap()).unwrap();
-    *offset += 4;
-}
-
-#[inline]
-fn _read_long_long_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_i64::<BigEndian>().unwrap()).unwrap();
-    *offset += 8;
-}
-
-#[inline]
-fn _read_unsigned_long_long_int(buf: &[u8], offset: & mut usize, values: &PyList) {
-    values.append((&buf[*offset..]).read_u64::<BigEndian>().unwrap()).unwrap();
-    *offset += 8;
-}
-
-#[inline]
-fn _read_void(py: Python, values: &PyList) {
-    values.append(py.None()).unwrap();
-}
-
-#[inline]
-fn _read_item_list(py: Python, buf: &[u8], offset: & mut usize, values: &PyList) {
-    let ftype = buf[*offset] as char;
-    *offset += 1;
-
-    match ftype {
-        'S' => {
-            _read_large_string(buf, offset, values);
-        },
-        's' => {
-            _read_small_string(buf, offset, values);
-        },
-        'x' => {
-            _read_bytes_array(py, buf, offset, values);
-        },
-        'b' => {
-            _read_short_short_int(buf, offset, values);
-        },
-        'B' => {
-            _read_short_short_unsigned_int(buf, offset, values);
-        },
-        'U' => {
-            _read_short_int(buf, offset, values);
-        },
-        'u' => {
-            _read_unsigned_short_int(buf, offset, values);
-        },
-        'I' => {
-            _read_long_int(buf, offset, values);
-        },
-        'i' => {
-            _read_unsigned_long_int(buf, offset, values);
-        },
-        'L' => {
-            _read_long_long_int(buf, offset, values);
-        },
-        'l' => {
-            _read_unsigned_long_long_int(buf, offset, values);
-        },
-        'f' => {
-            _read_float(buf, offset, values);
-        },
-        'd' => {
-            _read_double(buf, offset, values);
-        },
-        'D' => {
-            // TODO: Implement decimal support
-        },
-        'F' => {
-            _read_frame(py, buf, offset, values);
-        },
-        'A' => {
-            _read_array(py, buf, offset, values);
-        },
-        't' => {
-            _read_boolean(buf, offset, values);
+    
+    #[inline]
+    fn read_bitmap(&mut self, values: &PyList) -> io::Result<()> {
+        if self.bitcount == 0 {
+            self.bits = self.cursor.read_u8()?;
+            self.bitcount = 8;
         }
-        'T' => {
-            _read_timestamp(py, buf, offset, values);
-        },
-        'V' => {
-            _read_void(py, values);
-        }
-        _ => {
-            // TODO: Raising an exception from here segfaults.
-            // Create an API that reports errors
+
+        values.append((self.bits & 1) == 1)?;
+        self.bits >>= 1;
+        self.bitcount -= 1;
+        Ok(())
+    }
+    
+    #[inline(always)]
+    fn reset_bitmap(&mut self) {
+        self.bitcount = 0;
+        self.bits = 0;
+    }
+    
+    #[inline]
+    fn read_short_string(&mut self) -> io::Result<String> {
+        // TODO: According to 4.2.5.3 in AMQP 0.9 specification small strings are
+        // limited to 255 octets, which is something we can use to optimize allocation
+        self.reset_bitmap();
+
+        let length = self.cursor.read_u8()?;
+        let expected_position = self.cursor.position() + length as u64;
+        return if expected_position > self.buffer_length {
+            let length = (expected_position - self.buffer_length) as usize;
+            let mut buffer = vec![0; length];
+            self.cursor.read_to_end(&mut buffer)?;
+            
+            Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
+        } else {
+            let mut buffer = vec![0; length as usize];
+            self.cursor.read_exact(&mut buffer)?;
+            
+            Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
         }
     }
-}
+    
+    #[inline]
+    fn read_long_string(&mut self) -> io::Result<String> {
+        self.reset_bitmap();
 
-#[inline]
-fn _read_item_dict(py: Python, buf: &[u8], offset: & mut usize, values: &PyDict) {
-    *offset += 1;
-}
-
-#[inline]
-fn _read_array(py: Python, buf: &[u8], offset: & mut usize, values: &PyList) {
-    let alen = (&buf[*offset..]).read_u32::<BigEndian>().unwrap() as usize;
-    *offset += 4;
-    let limit = *offset + alen;
-    let val = PyList::empty(py);
-    while *offset < limit {
-        _read_item_list(py, buf, & mut *offset, val);
+        let length = self.cursor.read_u32::<BigEndian>()?;
+        let expected_position = self.cursor.position() + length as u64;
+        return if expected_position > self.buffer_length {
+            let length = (expected_position - self.buffer_length) as usize;
+            let mut buffer = vec![0; length];
+            self.cursor.read_to_end(&mut buffer)?;
+            
+            Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
+        } else {
+            let mut buffer = vec![0; length as usize];
+            self.cursor.read_exact(&mut buffer)?;
+            
+            Ok(String::from(String::from_utf8_lossy(buffer.as_slice())))
+        }
     }
-    values.append(val).unwrap();
-}
-
-#[inline]
-fn _read_frame(py: Python, buf: &[u8], offset: & mut usize, values: &PyList) {
-    let tlen = (&buf[*offset..]).read_u32::<BigEndian>().unwrap() as usize;
-    *offset += 4;
-    let limit = *offset + tlen;
-    let val = PyDict::new(py);
-    while *offset < limit {
-        _read_item_dict(py, buf, & mut *offset, val);
+    
+    #[inline]
+    fn read_frame(&mut self) -> io::Result<&PyDict> {
+        self.reset_bitmap();
+        Ok(PyDict::new(*self.py))
     }
-    values.append(val).unwrap();
+    
+    #[inline]
+    fn read_array(&mut self) -> io::Result<&PyList> {
+        self.reset_bitmap();
+        Ok(PyList::empty(*self.py))
+    }
+
+    fn deserialize(&mut self) -> io::Result<(&'deserializer_l PyList, u64)> {
+        let values = PyList::empty(*self.py);
+        
+        // TODO: Figure out why the borrow checker complains when we don't clone self.format
+        for p in self.format.clone() {
+            match p {
+                'b' => {
+                    self.read_bitmap(values)?;
+                }
+                'o' => {
+                    self.reset_bitmap();
+                    values.append(self.cursor.read_u8()?)?;
+                }
+                'B' => {
+                    self.reset_bitmap();
+                    values.append(self.cursor.read_u16::<BigEndian>()?)?;
+                }
+                'l' => {
+                    self.reset_bitmap();
+                    values.append(self.cursor.read_u32::<BigEndian>()?)?;
+                }
+                'L' => {
+                    self.reset_bitmap();
+                    values.append(self.cursor.read_u64::<BigEndian>()?)?;
+                }
+                'f' => {
+                    self.reset_bitmap();
+                    values.append(self.cursor.read_f32::<BigEndian>()?)?;
+                }
+                's' => {
+                    values.append(self.read_short_string()?)?;
+                }
+                'S' => {
+                    values.append(self.read_long_string()?)?;
+                }
+                'x' => {
+                    let length = self.cursor.read_u32::<BigEndian>()?;
+                    let expected_position = self.cursor.position() + length as u64;
+                    if expected_position > self.buffer_length {
+                        let length = (expected_position - self.buffer_length) as usize;
+                        let mut buffer = vec![0; length];
+                        self.cursor.read_to_end(&mut buffer)?;
+                        values.append(PyBytes::new(*self.py, buffer.as_slice()))?;
+                    } else {
+                        let mut buffer = vec![0; length as usize];
+                        self.cursor.read_exact(&mut buffer)?;
+                        values.append(PyBytes::new(*self.py, buffer.as_slice()))?
+                    }
+                },
+                'T' => {
+                    self.reset_bitmap();
+                    let timestamp = self.cursor.read_u64::<BigEndian>()?;;
+                    let val = DATETIME_CLASS.call_method(
+                        *self.py,
+                        "utcfromtimestamp",
+                        (timestamp,),
+                        None
+                    )?;
+                    values.append(val)?;
+                },
+                'F' => {
+                    values.append(self.read_frame()?)?;
+                },
+                'A' => {
+                    values.append(self.read_array()?)?;
+                }
+                _ => {
+                    // TODO: Handle errors correctly
+                }
+            }
+        }
+
+        Ok((values, self.cursor.position()))
+    }
 }
 
 #[pyfunction]
-fn loads(py: Python, format: String, buf: &PyBytes, offset: usize) -> PyResult<Py<PyTuple>> {
-    let mut bitcount = 0;
-    let mut bits = 0;
-    let mut current_offset = offset;
-    let values = PyList::empty(py);
-    let buf = buf.as_bytes();
-
-    for p in format.chars() {
-        match p {
-            'b' => {
-                if bitcount == 0 {
-                    bits = buf.get(current_offset..current_offset + 1).unwrap()[0];
-                    current_offset += 1;
-                }
-
-                bitcount = 8;
-                values.append((bits & 1) == 1)?;
-                bits >>= 1;
-                bitcount -= 1;
-            }
-            'o' => {
-                bitcount = 0;
-                bits = 0;
-                values.append((&buf[current_offset..]).read_u8().unwrap())?;
-                current_offset += 1;
-            }
-            'B' => {
-                bitcount = 0;
-                bits = 0;
-                values.append((&buf[current_offset..]).read_u16::<BigEndian>().unwrap())?;
-                current_offset += 2;
-            }
-            'l' => {
-                bitcount = 0;
-                bits = 0;
-                values.append((&buf[current_offset..]).read_u32::<BigEndian>().unwrap())?;
-                current_offset += 4;
-            }
-            'L' => {
-                bitcount = 0;
-                bits = 0;
-                values.append((&buf[current_offset..]).read_u64::<BigEndian>().unwrap())?;
-                current_offset += 8;
-            }
-            'f' => {
-                bitcount = 0;
-                bits = 0;
-                _read_float(buf, & mut current_offset, values);
-            }
-            's' => {
-                bitcount = 0;
-                bits = 0;
-                _read_small_string(buf, & mut current_offset, values);
-            }
-            'S' => {
-                bitcount = 0;
-                bits = 0;
-                _read_large_string(buf, & mut current_offset, values);
-            }
-            'x' => {
-                _read_bytes_array(py, buf, & mut current_offset, values);
-            }
-            'T' => {
-                bitcount = 0;
-                bits = 0;
-                _read_timestamp(py, buf, & mut current_offset, values);
-            },
-            'F' => {
-                bitcount = 0;
-                bits = 0;
-                _read_frame(py, buf, & mut current_offset, values);
-            },
-            'A' => {
-                bitcount = 0;
-                bits = 0;
-                _read_array(py, buf, & mut current_offset, values);
-            },
-            _ => {
-                // TODO: Once the exception type moves to rust, rewrite this
-                // Or find out how to use the import_exception! macro
-                let pycode = &format!("from amqp.exceptions import FrameSyntaxError;raise FrameSyntaxError('Table type {} not handled by amqp.')", p);
-                py.run(pycode, None, None)?;
-            }
-        }
-    }
-    Ok((values, current_offset).into_py(py))
+fn loads<'deserializer_l>(
+    py: pyo3::Python<'deserializer_l>,
+    format: String,
+    buf: &PyBytes,
+    offset: u64,
+) -> PyResult<Py<PyTuple>> {
+    let mut deserializer = AMQPDeserializer::new(&py, &format, buf.as_bytes(), offset)?;
+    Ok(deserializer.deserialize()?.into_py(py))
 }
 
 #[pymodule]
