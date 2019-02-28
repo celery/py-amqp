@@ -77,7 +77,14 @@ class test_serialization:
                 3231)
 
     def test_table(self):
-        table = {'foo': 32, 'bar': 'baz', 'nil': None}
+        table = {
+            'foo': 32,
+            'bar': 'baz',
+            'nil': None,
+            'array': [
+                1, True, 'bar'
+            ]
+        }
         assert loads(b'F', dumps(b'F', [table]), 0)[0][0] == table
 
     def test_array(self):
