@@ -9,7 +9,6 @@ import sys
 import setuptools
 import setuptools.command.test
 
-from Cython.Build import cythonize
 
 if sys.version_info < (2, 7):
     raise Exception('amqp requires Python 2.7 or higher.')
@@ -119,12 +118,24 @@ setuptools.setup(
     classifiers=classifiers,
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
     install_requires=reqs('default.txt'),
+    setup_requires=['Cython'],
     tests_require=reqs('test.txt'),
-    cmdclass={'test': pytest},
+    cmdclass={
+        'test': pytest,
+    },
     zip_safe=False,
-    ext_modules = cythonize(["amqp/basic_message.py", "amqp/method_framing.py", "amqp/serialization.py"], compiler_directives={
-    # ext_modules = cythonize(["amqp/serialization.py"], compiler_directives={
-              'embedsignature': True,
-              'boundscheck' : True,
-              'wraparound' : True}),
+    ext_modules = [
+        setuptools.Extension(
+            'amqp.serialization',
+            ["amqp/serialization.py"],
+        ),
+        setuptools.Extension(
+            'amqp.basic_message',
+            ["amqp/basic_message.py"],
+        ),
+        setuptools.Extension(
+            'amqp.method_framing',
+            ["amqp/method_framing.py"],
+        ),
+    ]
 )
