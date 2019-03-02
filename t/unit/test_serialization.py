@@ -112,6 +112,13 @@ class test_serialization:
         actual, _ = loads('BssbbbbbF', buf)
         assert actual == expected
 
+    def test_sixteen_bitflags(self):
+        expected = [True, False] * 8
+        format = 'b' * len(expected)
+        buf = dumps(format, expected)
+        actual, _ = loads(format, buf)
+        assert actual == expected
+
 
 class test_GenericContent:
 
