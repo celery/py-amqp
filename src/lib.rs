@@ -183,7 +183,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
             'd' => Ok(self.cursor.read_f64::<BigEndian>()?.to_object(*self.py)),
             'D' => Ok(self.read_decimal()?),
             'F' => Ok(self.read_frame()?.into()),
-            // 'A' => Ok(self.read_array()?.into()),
+            'A' => Ok(self.read_array()?.into()),
             't' => Ok((self.cursor.read_u8()? == 1).to_object(*self.py)),
             'T' => Ok(self.read_timestamp()?.into()),
             'V' => Ok(self.py.None()),
