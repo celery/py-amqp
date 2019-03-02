@@ -57,6 +57,7 @@ def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
     x = dumps(format, [datetime.utcnow()] * size_multipler)
     benchmark(loads, format, x)
 
+
 @pytest.mark.benchmark(group='mixed')
 @pytest.mark.parametrize("size_multipler,pure_python", [
     (1, False),
