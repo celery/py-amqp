@@ -1,7 +1,11 @@
 language: python
 sudo: required
 dist: xenial
-cache: pip
+cache:
+  - pip: true
+  directories:
+    - $HOME/.cargo
+    - $TRAVIS_BUILD_DIR/target/debug/incremental
 python:
   - '2.7'
   - '3.4'
@@ -57,7 +61,7 @@ before_install:
 
 install:
   - pip --disable-pip-version-check install -U pip setuptools wheel | cat
-  - pip --disable-pip-version-check install -U tox pyo3-pack tox-pyo3 | cat
+  - pip --disable-pip-version-check install -U tox pyo3-pack tox-pyo3>=0.1.1 | cat
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
