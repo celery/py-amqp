@@ -3,7 +3,7 @@ sudo: required
 dist: xenial
 cache:
   - pip: true
-  directories:
+  - directories:
     - $HOME/.cargo
     - $TRAVIS_BUILD_DIR/target/debug/incremental
 python:
