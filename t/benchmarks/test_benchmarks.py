@@ -1,9 +1,11 @@
-from datetime import datetime
+from __future__ import absolute_import, unicode_literals
+
 import os
+from datetime import datetime
 
 import pytest
 
-from amqp.serialization import loads, dumps
+from amqp.serialization import dumps, loads
 
 
 @pytest.mark.benchmark(group='bitmaps')
