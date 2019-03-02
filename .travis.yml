@@ -56,8 +56,8 @@ before_install:
           fi
 
 install:
-  - pip install -U pip setuptools wheel | cat
-  - pip install -U tox | cat
+  - pip --disable-pip-version-check install -U pip setuptools wheel | cat
+  - pip --disable-pip-version-check install -U tox | cat
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
