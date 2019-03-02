@@ -26,6 +26,15 @@ env:
     - MATRIX_TOXENV=integration-rabbitmq
     - MATRIX_TOXENV=unit-pyo3
     - MATRIX_TOXENV=integration-pyo3-rabbitmq
+  exclude:
+    - python: 'pypy2.7-6.0'
+      env: MATRIX_TOXENV=unit-pyo3
+    - python: 'pypy2.7-6.0'
+      env: MATRIX_TOXENV=integration-pyo3-rabbitmq
+    - python: 'pypy3.5-6.0'
+      env: MATRIX_TOXENV=unit-pyo3
+    - python: 'pypy3.5-6.0'
+      env: MATRIX_TOXENV=integration-pyo3-rabbitmq
 
 stages:
   - lint
