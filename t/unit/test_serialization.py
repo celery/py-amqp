@@ -9,7 +9,8 @@ import pytest
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
-from amqp.serialization import GenericContent, _read_item, dumps, loads
+from amqp.serialization import (ILLEGAL_TABLE_TYPE, GenericContent, _read_item,
+                                dumps, loads)
 
 
 class _ANY(object):
@@ -69,7 +70,10 @@ class test_serialization:
         }]
 
     def test_loads_unknown_type(self):
-        with pytest.raises(FrameSyntaxError):
+        with pytest.raises(
+            FrameSyntaxError,
+            match=ILLEGAL_TABLE_TYPE.format('y')
+        ):
             loads('y', 'asdsad')
 
     def test_float(self):

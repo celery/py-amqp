@@ -9,6 +9,7 @@ use pyo3::types::*;
 use pyo3::wrap_pyfunction;
 use pyo3::{IntoPy, Py};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use pyo3::import_exception;
 
 // Since this module is being currently imported we assume the GIL is acquired.
 // If it isn't, this module is the least of our problems
@@ -30,6 +31,8 @@ lazy_static! {
             .to_object(unsafe { Python::assume_gil_acquired() })
     };
 }
+
+import_exception!(amqp, FrameSyntaxError);
 
 struct AMQPDeserializer<'deserializer_l> {
     py: &'deserializer_l Python<'deserializer_l>,
@@ -156,7 +159,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     }
 
     #[inline]
-    fn read_item(&mut self) -> io::Result<PyObject> {
+    fn read_item(&mut self) -> PyResult<PyObject> {
         let ftype = self.cursor.read_u8()? as char;
         match ftype {
             'S' => {
@@ -187,7 +190,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
             't' => Ok((self.cursor.read_u8()? == 1).to_object(*self.py)),
             'T' => Ok(self.read_timestamp()?.into()),
             'V' => Ok(self.py.None()),
-            _ => Ok(self.py.None()), // TODO: Return error
+            _ => Err(FrameSyntaxError::py_err(format!("Unknown value in table: '{}'", ftype)).into()),
         }
     }
 
@@ -214,7 +217,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
         Ok(array)
     }
 
-    fn deserialize(&mut self) -> io::Result<(&'deserializer_l PyList, u64)> {
+    fn deserialize(&mut self) -> PyResult<(&'deserializer_l PyList, u64)> {
         let values = PyList::empty(*self.py);
 
         for p in self.format.chars() {
@@ -266,7 +269,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
                     values.append(self.read_array()?)?;
                 }
                 _ => {
-                    // TODO: Handle errors correctly
+                    return Err(FrameSyntaxError::py_err(format!("Table type '{}' not handled by amqp.", p)).into());
                 }
             }
         }

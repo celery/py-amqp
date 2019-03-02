@@ -7,8 +7,8 @@
 from __future__ import absolute_import, unicode_literals
 
 import calendar
-import sys
 import os
+import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
@@ -22,17 +22,11 @@ from .utils import str_to_bytes
 
 ftype_t = chr if sys.version_info[0] == 3 else None
 
-ILLEGAL_TABLE_TYPE = """\
-    Table type {0!r} not handled by amqp.
-"""
+ILLEGAL_TABLE_TYPE = "Table type {0!r} not handled by amqp."
 
-ILLEGAL_TABLE_TYPE_WITH_KEY = """\
-Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
-"""
+ILLEGAL_TABLE_TYPE_WITH_KEY = "Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]"
 
-ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
-    Table type {0!r} not handled by amqp. [value: {1!r}]
-"""
+ILLEGAL_TABLE_TYPE_WITH_VALUE = "Table type {0!r} not handled by amqp. [value: {1!r}]"
 
 
 def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
