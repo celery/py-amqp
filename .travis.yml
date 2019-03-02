@@ -24,6 +24,8 @@ env:
   matrix:
     - MATRIX_TOXENV=unit
     - MATRIX_TOXENV=integration-rabbitmq
+    - MATRIX_TOXENV=unit-pyo3
+    - MATRIX_TOXENV=integration-pyo3-rabbitmq
 
 stages:
   - lint
@@ -57,6 +59,12 @@ before_install:
               sudo apt install rabbitmq-server -y
               sudo systemctl enable rabbitmq-server
               sudo systemctl start rabbitmq-server
+          fi
+    - |
+          if if [[ "$TOXENV" == *pyo3* ]]; then
+            curl https://sh.rustup.rs -sSf | sh
+            rustup toolchain install nightly
+            rustup default nightly
           fi
 
 install:

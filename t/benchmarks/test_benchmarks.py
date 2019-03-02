@@ -27,6 +27,8 @@ from amqp.serialization import dumps, loads
 ]
 )
 def test_deserialize_bitmap(benchmark, bits, pure_python):
+    pytest.importorskip("amqp_serialization")
+
     if pure_python:
         os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
     format = 'b' * bits
@@ -53,6 +55,8 @@ def test_deserialize_bitmap(benchmark, bits, pure_python):
 ]
 )
 def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
+    pytest.importorskip("amqp_serialization")
+
     if pure_python:
         os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
     format = b'T' * size_multipler
@@ -79,6 +83,8 @@ def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
 ]
 )
 def test_deserialize(benchmark, size_multipler, pure_python):
+    pytest.importorskip("amqp_serialization")
+
     if pure_python:
         os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
     format = b'bobBlLbsbSx' * size_multipler
