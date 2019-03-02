@@ -6,10 +6,10 @@ import sys
 from io import BytesIO
 
 import pytest
-from case import Mock, call, patch
 
 from amqp import sasl
 from amqp.serialization import _write_table
+from case import Mock, call, patch
 
 
 class test_SASL:

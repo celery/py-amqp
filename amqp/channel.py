@@ -11,9 +11,9 @@ from vine import ensure_promise
 
 from . import spec
 from .abstract_channel import AbstractChannel
-from .exceptions import (ChannelError, ConsumerCancelled,
+from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
                          RecoverableChannelError, RecoverableConnectionError,
-                         error_for_code, MessageNacked)
+                         error_for_code)
 from .five import Queue
 from .protocol import queue_declare_ok_t
 

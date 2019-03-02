@@ -1,8 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 
-from case import Mock, ANY
 import pytest
+
 import amqp
+from case import ANY, Mock
 
 
 @pytest.mark.env('rabbitmq')

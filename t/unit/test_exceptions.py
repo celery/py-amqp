@@ -1,10 +1,10 @@
 from __future__ import absolute_import, unicode_literals
 
-from case import Mock
 import pytest
 
 import amqp.exceptions
 from amqp.exceptions import AMQPError, error_for_code
+from case import Mock
 
 AMQP_EXCEPTIONS = (
     'ConnectionError', 'ChannelError',

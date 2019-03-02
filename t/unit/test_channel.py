@@ -1,17 +1,18 @@
 from __future__ import absolute_import, unicode_literals
 
-import pytest
 import socket
-from case import ContextMock, Mock, patch, ANY, MagicMock
+
+import pytest
 from vine import promise
 
 from amqp import spec
 from amqp.basic_message import Message
+from amqp.channel import Channel
+from amqp.exceptions import (ConsumerCancelled, MessageNacked, NotFound,
+                             RecoverableConnectionError)
 from amqp.platform import pack
 from amqp.serialization import dumps
-from amqp.channel import Channel
-from amqp.exceptions import ConsumerCancelled, NotFound, MessageNacked, \
-    RecoverableConnectionError
+from case import ANY, ContextMock, MagicMock, Mock, patch
 
 
 class test_Channel:

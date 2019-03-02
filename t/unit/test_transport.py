@@ -5,12 +5,12 @@ import socket
 import struct
 
 import pytest
-from case import ANY, Mock, MagicMock, call, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
 from amqp.platform import pack
 from amqp.transport import _AbstractTransport
+from case import ANY, MagicMock, Mock, call, patch
 
 SIGNED_INT_MAX = 0x7FFFFFFF
 
