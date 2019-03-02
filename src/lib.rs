@@ -190,7 +190,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
             't' => Ok((self.cursor.read_u8()? == 1).to_object(*self.py)),
             'T' => Ok(self.read_timestamp()?.into()),
             'V' => Ok(self.py.None()),
-            _ => Err(FrameSyntaxError::py_err(format!("Unknown value in table: '{}'", ftype)).into()),
+            _ => Err(FrameSyntaxError::py_err(format!("Unknown value in table: '{}'", ftype as u8)).into()),
         }
     }
 
