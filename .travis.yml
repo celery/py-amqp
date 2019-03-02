@@ -74,6 +74,7 @@ before_install:
             wget -O rustup.sh https://sh.rustup.rs
             chmod +x rustup.sh
             ./rustup.sh -y
+            source $HOME/.cargo/env
             rustup toolchain install nightly
             rustup default nightly
           fi
