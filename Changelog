@@ -5,6 +5,42 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.4.2:
+
+2.4.2
+=====
+:release-date: 2019-03-03 10:45 P.M UTC+2:00
+:release-by: Omer Katz
+
+- Added support for the Cygwin platform
+
+  Contributed by **Matus Valo**
+
+- Correct offset incrementation when parsing bitmaps.
+
+  Contributed by **Allan Simon** & **Omer Katz**
+
+- Consequent bitmaps are now parsed correctly.
+
+  Previously the bit counter was reset with every bit.
+  We now reset it once per 8 bits, when we consume the next byte.
+
+  Contributed by **Omer Katz**
+
+Code Cleanups & Improvements:
+
+  - **Patrick Cloke**
+  - **Matus Valo**
+  - **Jeremiah Cooper**
+  - **Omer Katz**
+
+Test Coverage & CI Improvements:
+
+  - **Matus Valo**
+  - **Omer Katz**
+  - **Jeremiah Cooper**
+  - **Omer Katz**
+
 .. _version-2.4.1:
 
 2.4.1
