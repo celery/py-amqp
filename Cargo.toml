@@ -8,6 +8,7 @@ name = "amqp_serialization"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.6.0-alpha.4", features = ["extension-module"] }
+# pyo3 = { version = "0.6.0-alpha.4", features = ["extension-module"] }
+pyo3 = { git = "https://github.com/thedrow/pyo3", branch = "list-with-capacity", features = ["extension-module"] }
 byteorder = "1.3.1"
 lazy_static = "1.3.0"

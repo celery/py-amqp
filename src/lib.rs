@@ -153,7 +153,7 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
         let n = DECIMAL_CLASS.call(*self.py, (_n,), None)?;
         let d = DECIMAL_CLASS.call(*self.py, (10_i32.pow(_d.into()),), None)?;
 
-        let val = n.call_method(*self.py, "__div__", (d,), None)?;
+        let val = n.call_method(*self.py, "__truediv__", (d,), None)?;
 
         Ok(val)
     }
@@ -163,12 +163,12 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
         let ftype = self.cursor.read_u8()? as char;
         match ftype {
             'S' => {
-                let pystring = self.read_long_string()?.into_py(*self.py);
-                Ok(pystring.into())
+                let pystring = self.read_long_string()?;
+                Ok(PyUnicode::new(*self.py, &pystring).into())
             }
             's' => {
-                let pystring = self.read_short_string()?.into_py(*self.py);
-                Ok(pystring.into())
+                let pystring = self.read_short_string()?;
+                Ok(PyUnicode::new(*self.py, &pystring).into())
             }
             'x' => {
                 let pybytes = self.read_bytes_array()?;
@@ -218,6 +218,9 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     }
 
     fn deserialize(&mut self) -> PyResult<(&'deserializer_l PyList, u64)> {
+        // TODO: Figure out why
+        // let values = PyList::with_capacity(*self.py, self.format.len());
+        // crashes
         let values = PyList::empty(*self.py);
 
         for p in self.format.chars() {

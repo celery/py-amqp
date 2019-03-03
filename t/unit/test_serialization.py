@@ -46,18 +46,23 @@ class test_serialization:
 
     def test_roundtrip(self):
         format = b'bobBlLbsbSTx'
-        x = dumps(format, [
-            True, 32, False, 3415, 4513134, 13241923419,
-            True, b'thequickbrownfox', False, 'jumpsoverthelazydog',
+        expected = [
+            True,
+            32,
+            False,
+            3415,
+            4513134,
+            13241923419,
+            True,
+            b'thequickbrownfox',
+            False,
+            'jumpsoverthelazydog',
             datetime(2015, 3, 13, 10, 23),
             b'thequick\xff'
-        ])
+        ]
+        x = dumps(format, expected)
         y = loads(format, x)
-        assert [
-            True, 32, False, 3415, 4513134, 13241923419,
-            True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
-            datetime(2015, 3, 13, 10, 23), b'thequick\xff'
-        ] == y[0]
+        assert expected == y[0]
 
     def test_int_boundaries(self):
         format = b'F'
@@ -94,14 +99,18 @@ class test_serialization:
     def test_array(self):
         array = [
             'A', 1, True, 33.3,
+            9223372036854775807,
             Decimal('55.5'), Decimal('-3.4'),
             datetime(2015, 3, 13, 10, 23),
-            {'quick': 'fox', 'amount': 1},
+            {
+                'quick': 'fox',
+                'amount': 1,
+                'array': [3, 'hens']
+            },
             [3, 'hens'],
             None,
         ]
         expected = list(array)
-        expected[6] = _ANY()
 
         assert expected == loads('A', dumps('A', [array]))[0][0]
 
