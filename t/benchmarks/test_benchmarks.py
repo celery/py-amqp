@@ -71,6 +71,37 @@ def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
     benchmark(loads_, bytes_to_str(format), x, 0)
 
 
+@pytest.mark.benchmark(group='long longs')
+@pytest.mark.parametrize("size_multipler,pure_python", [
+    (1, False),
+    (1, True),
+    (2, False),
+    (2, True),
+    (4, False),
+    (4, True),
+    (128, False),
+    (128, True),
+],
+    ids=[
+    '1 elements | Rust Extension',
+    '1 elements | Pure Python',
+    '2 elements | Rust Extension',
+    '2 elements | Pure Python',
+    '4 elements | Rust Extension',
+    '4 elements | Pure Python',
+    '128 elements | Rust Extension',
+    '128 elements | Pure Python',
+]
+)
+def test_deserialize_long_longs(benchmark, size_multipler, pure_python):
+    pytest.importorskip("amqp_serialization")
+
+    loads_ = loads if pure_python else faster_loads
+    format = b'L' * size_multipler
+    x = str_to_bytes(dumps(format, [13241923419] * size_multipler))
+    benchmark(loads_, bytes_to_str(format), x, 0)
+
+
 @pytest.mark.benchmark(group='mixed')
 @pytest.mark.parametrize("size_multipler,pure_python", [
     (1, False),
