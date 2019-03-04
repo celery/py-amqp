@@ -9,7 +9,9 @@ import pytest
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
-from amqp.serialization import GenericContent, _read_item, dumps, loads
+from amqp.serialization import (ILLEGAL_TABLE_TYPE, GenericContent, _read_item,
+                                dumps, loads)
+from amqp.utils import bytes_to_str
 
 
 class _ANY(object):
@@ -45,18 +47,25 @@ class test_serialization:
 
     def test_roundtrip(self):
         format = b'bobBlLbsbSTx'
-        x = dumps(format, [
-            True, 32, False, 3415, 4513134, 13241923419,
-            True, b'thequickbrownfox', False, 'jumpsoverthelazydog',
+        payload = [
+            True,
+            32,
+            False,
+            3415,
+            4513134,
+            13241923419,
+            True,
+            b'thequickbrownfox',
+            False,
+            'jumpsoverthelazydog',
             datetime(2015, 3, 13, 10, 23),
             b'thequick\xff'
-        ])
+        ]
+        x = dumps(format, payload)
         y = loads(format, x)
-        assert [
-            True, 32, False, 3415, 4513134, 13241923419,
-            True, 'thequickbrownfox', False, 'jumpsoverthelazydog',
-            datetime(2015, 3, 13, 10, 23), b'thequick\xff'
-        ] == y[0]
+        expected = payload
+        expected[7] = bytes_to_str(expected[7])
+        assert expected == y[0]
 
     def test_int_boundaries(self):
         format = b'F'
@@ -69,7 +78,10 @@ class test_serialization:
         }]
 
     def test_loads_unknown_type(self):
-        with pytest.raises(FrameSyntaxError):
+        with pytest.raises(
+            FrameSyntaxError,
+            match=ILLEGAL_TABLE_TYPE.format('y')
+        ):
             loads('y', 'asdsad')
 
     def test_float(self):
@@ -90,14 +102,18 @@ class test_serialization:
     def test_array(self):
         array = [
             'A', 1, True, 33.3,
+            9223372036854775807,
             Decimal('55.5'), Decimal('-3.4'),
             datetime(2015, 3, 13, 10, 23),
-            {'quick': 'fox', 'amount': 1},
+            {
+                'quick': 'fox',
+                'amount': 1,
+                'array': [3, 'hens']
+            },
             [3, 'hens'],
             None,
         ]
         expected = list(array)
-        expected[6] = _ANY()
 
         assert expected == loads('A', dumps('A', [array]))[0][0]
 

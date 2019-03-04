@@ -1,7 +1,11 @@
 language: python
 sudo: required
 dist: xenial
-cache: pip
+cache:
+  - pip: true
+  - directories:
+    - $HOME/.cargo
+    - $TRAVIS_BUILD_DIR/target/debug/incremental
 python:
   - '2.7'
   - '3.4'
@@ -20,6 +24,8 @@ env:
   matrix:
     - MATRIX_TOXENV=unit
     - MATRIX_TOXENV=integration-rabbitmq
+    - MATRIX_TOXENV=unit-pyo3
+    - MATRIX_TOXENV=integration-pyo3-rabbitmq
 
 stages:
   - lint
@@ -40,6 +46,15 @@ matrix:
     - python: 2.7
       env: TOXENV=apicheck
       stage: lint
+  exclude:
+    - python: 'pypy2.7-6.0'
+      env: MATRIX_TOXENV=unit-pyo3
+    - python: 'pypy2.7-6.0'
+      env: MATRIX_TOXENV=integration-pyo3-rabbitmq
+    - python: 'pypy3.5-6.0'
+      env: MATRIX_TOXENV=unit-pyo3
+    - python: 'pypy3.5-6.0'
+      env: MATRIX_TOXENV=integration-pyo3-rabbitmq
 
 before_install:
     # - sudo apt install libcurl4-openssl-dev libssl-dev gnutls-dev
@@ -54,10 +69,24 @@ before_install:
               sudo systemctl enable rabbitmq-server
               sudo systemctl start rabbitmq-server
           fi
+    - |
+          if [[ "$TOXENV" == *pyo3* ]]; then
+            wget -O rustup.sh https://sh.rustup.rs
+            chmod +x rustup.sh
+            ./rustup.sh -y
+            source $HOME/.cargo/env
+            rustup toolchain install nightly
+            rustup default nightly
+          fi
 
 install:
   - pip --disable-pip-version-check install -U pip setuptools wheel | cat
-  - pip --disable-pip-version-check install -U tox | cat
+  - |
+          if [[ "$TOXENV" == *pyo3* ]]; then
+            pip --disable-pip-version-check install -U tox pyo3-pack 'tox-pyo3>=0.1.4' | cat
+          else
+            pip --disable-pip-version-check install -U tox | cat
+          fi
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
