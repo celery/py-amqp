@@ -10,7 +10,7 @@ use pyo3::wrap_pyfunction;
 use pyo3::{IntoPy, Py};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use pyo3::import_exception;
-
+#[macro_use] extern crate debug_here;
 // Since this module is being currently imported we assume the GIL is acquired.
 // If it isn't, this module is the least of our problems
 lazy_static! {
@@ -219,9 +219,11 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
 
     fn deserialize(&mut self) -> PyResult<(&'deserializer_l PyList, u64)> {
         // TODO: Figure out why
-        // let values = PyList::with_capacity(*self.py, self.format.len());
+        debug_here!();
+        let values = PyList::with_capacity(*self.py, self.format.len());
         // crashes
-        let values = PyList::empty(*self.py);
+        // let values = PyList::empty(*self.py);
+        let mut i = 0;
 
         for p in self.format.chars() {
             match p {
@@ -230,51 +232,52 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
                 }
                 'o' => {
                     self.reset_bitmap();
-                    values.append(self.cursor.read_u8()?)?;
+                    values.set_item(i, self.cursor.read_u8()?)?;
                 }
                 'B' => {
                     self.reset_bitmap();
-                    values.append(self.cursor.read_u16::<BigEndian>()?)?;
+                    values.set_item(i, self.cursor.read_u16::<BigEndian>()?)?;
                 }
                 'l' => {
                     self.reset_bitmap();
-                    values.append(self.cursor.read_u32::<BigEndian>()?)?;
+                    values.set_item(i, self.cursor.read_u32::<BigEndian>()?)?;
                 }
                 'L' => {
                     self.reset_bitmap();
-                    values.append(self.cursor.read_u64::<BigEndian>()?)?;
+                    values.set_item(i, self.cursor.read_u64::<BigEndian>()?)?;
                 }
                 'f' => {
                     self.reset_bitmap();
-                    values.append(self.cursor.read_f32::<BigEndian>()?)?;
+                    values.set_item(i, self.cursor.read_f32::<BigEndian>()?)?;
                 }
                 's' => {
                     self.reset_bitmap();
-                    values.append(self.read_short_string()?)?;
+                    values.set_item(i, self.read_short_string()?)?;
                 }
                 'S' => {
                     self.reset_bitmap();
-                    values.append(self.read_long_string()?)?;
+                    values.set_item(i, self.read_long_string()?)?;
                 }
                 'x' => {
-                    values.append(self.read_bytes_array()?)?;
+                    values.set_item(i, self.read_bytes_array()?)?;
                 }
                 'T' => {
                     self.reset_bitmap();
-                    values.append(self.read_timestamp()?)?;
+                    values.set_item(i, self.read_timestamp()?)?;
                 }
                 'F' => {
                     self.reset_bitmap();
-                    values.append(self.read_frame()?)?;
+                    values.set_item(i, self.read_frame()?)?;
                 }
                 'A' => {
                     self.reset_bitmap();
-                    values.append(self.read_array()?)?;
+                    values.set_item(i, self.read_array()?)?;
                 }
                 _ => {
                     return Err(FrameSyntaxError::py_err(format!("Table type '{}' not handled by amqp.", p)).into());
                 }
             }
+            i += 1;
         }
 
         Ok((values, self.cursor.position()))
