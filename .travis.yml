@@ -83,7 +83,7 @@ install:
   - pip --disable-pip-version-check install -U pip setuptools wheel | cat
   - |
           if [[ "$TOXENV" == *pyo3* ]]; then
-            pip --disable-pip-version-check install -U tox pyo3-pack 'tox-pyo3>=0.1.4' | cat
+            pip --disable-pip-version-check install -U tox pyo3-pack 'tox-pyo3>=0.1.5' | cat
           else
             pip --disable-pip-version-check install -U tox | cat
           fi
