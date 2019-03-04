@@ -62,6 +62,16 @@ matrix:
       services:
         - docker
       stage: integration
+    - python: pypy2.7-6.0
+      env: MATRIX_TOXENV=integration-rabbitmq
+      services:
+        - docker
+      stage: integration
+    - python: pypy3.5-6.0
+      env: MATRIX_TOXENV=integration-rabbitmq
+      services:
+        - docker
+      stage: integration
 
 before_install:
     # - sudo apt install libcurl4-openssl-dev libssl-dev gnutls-dev
