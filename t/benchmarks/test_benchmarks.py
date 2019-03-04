@@ -21,6 +21,8 @@ except ImportError:
     (8, True),
     (16, False),
     (16, True),
+    (128, False),
+    (128, True),
 ],
     ids=[
     '4 bits | Rust Extension',
@@ -29,6 +31,8 @@ except ImportError:
     '8 bits | Pure Python',
     '16 bits | Rust Extension',
     '16 bits | Pure Python',
+    '128 bits | Rust Extension',
+    '128 bits | Pure Python',
 ]
 )
 def test_deserialize_bitmap(benchmark, bits, pure_python):
