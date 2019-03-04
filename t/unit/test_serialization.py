@@ -11,6 +11,7 @@ from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
 from amqp.serialization import (ILLEGAL_TABLE_TYPE, GenericContent, _read_item,
                                 dumps, loads)
+from amqp.utils import bytes_to_str
 
 
 class _ANY(object):
@@ -46,7 +47,7 @@ class test_serialization:
 
     def test_roundtrip(self):
         format = b'bobBlLbsbSTx'
-        expected = [
+        payload = [
             True,
             32,
             False,
@@ -60,8 +61,10 @@ class test_serialization:
             datetime(2015, 3, 13, 10, 23),
             b'thequick\xff'
         ]
-        x = dumps(format, expected)
+        x = dumps(format, payload)
         y = loads(format, x)
+        expected = payload
+        expected[7] = bytes_to_str(expected[7])
         assert expected == y[0]
 
     def test_int_boundaries(self):
