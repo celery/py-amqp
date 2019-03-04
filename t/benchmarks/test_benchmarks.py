@@ -1,11 +1,16 @@
 from __future__ import absolute_import, unicode_literals
 
-import os
 from datetime import datetime
 
 import pytest
 
 from amqp.serialization import dumps, loads
+from amqp.utils import str_to_bytes, bytes_to_str
+
+try:
+    from amqp_serialization import loads as faster_loads
+except ImportError:
+    pass
 
 
 @pytest.mark.benchmark(group='bitmaps')
@@ -29,11 +34,10 @@ from amqp.serialization import dumps, loads
 def test_deserialize_bitmap(benchmark, bits, pure_python):
     pytest.importorskip("amqp_serialization")
 
-    if pure_python:
-        os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
+    loads_ = loads if pure_python else faster_loads
     format = 'b' * bits
-    x = dumps(format, [True] * bits)
-    benchmark(loads, format, x)
+    x = str_to_bytes(dumps(format, [True] * bits))
+    benchmark(loads_, bytes_to_str(format), x, 0)
 
 
 @pytest.mark.benchmark(group='timestamps')
@@ -57,11 +61,10 @@ def test_deserialize_bitmap(benchmark, bits, pure_python):
 def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
     pytest.importorskip("amqp_serialization")
 
-    if pure_python:
-        os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
+    loads_ = loads if pure_python else faster_loads
     format = b'T' * size_multipler
-    x = dumps(format, [datetime.utcnow()] * size_multipler)
-    benchmark(loads, format, x)
+    x = str_to_bytes(dumps(format, [datetime.utcnow()] * size_multipler))
+    benchmark(loads_, bytes_to_str(format), x, 0)
 
 
 @pytest.mark.benchmark(group='mixed')
@@ -85,12 +88,11 @@ def test_deserialize_timestamp(benchmark, size_multipler, pure_python):
 def test_deserialize(benchmark, size_multipler, pure_python):
     pytest.importorskip("amqp_serialization")
 
-    if pure_python:
-        os.environ['PYAMQP_DUMPS_SKIP_SPEEDUPS'] = "True"
+    loads_ = loads if pure_python else faster_loads
     format = b'bobBlLbsbSx' * size_multipler
-    x = dumps(format, [
+    x = str_to_bytes(dumps(format, [
         True, 32, False, 3415, 4513134, 13241923419,
         True, b'thequickbrownfox', False, 'jumpsoverthelazydog',
         b'thequick\xff'
-    ] * size_multipler)
-    benchmark(loads, format, x)
+    ] * size_multipler))
+    benchmark(loads_, bytes_to_str(format), x, 0)
