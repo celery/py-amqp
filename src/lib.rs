@@ -11,8 +11,8 @@ use pyo3::{IntoPy, Py};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use pyo3::import_exception;
 
-// Since this module is being currently imported we assume the GIL is acquired.
-// If it isn't, this module is the least of our problems
+// Since these modules are being currently imported we assume the GIL is acquired.
+// If they aren't, these modules is the least of our problems
 lazy_static! {
     static ref DATETIME_MODULE: &'static PyModule =
         { unsafe { Python::assume_gil_acquired().import("datetime").unwrap() } };
@@ -218,10 +218,9 @@ impl<'deserializer_l> AMQPDeserializer<'deserializer_l> {
     }
 
     fn deserialize(&mut self) -> PyResult<(&'deserializer_l PyList, u64)> {
-        // TODO: Figure out why
-        // let values = PyList::with_capacity(*self.py, self.format.len());
-        // crashes
-        let values = PyList::empty(*self.py);
+        let none = &self.py.None();
+        let initial = vec![none; self.format.len()];
+        let values = PyList::new(*self.py, initial);
 
         for p in self.format.chars() {
             match p {
