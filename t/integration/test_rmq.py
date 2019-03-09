@@ -1,14 +1,22 @@
 from __future__ import absolute_import, unicode_literals
 
+import os
+
 import pytest
 
 import amqp
 from case import ANY, Mock
 
 
+@pytest.fixture
+def connection(request):
+    host = 'localhost:%s' % os.environ.get('RABBITMQ_5672_TCP', '5672')
+    vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
+    return amqp.Connection(host=host, vhost=vhost)
+
+
 @pytest.mark.env('rabbitmq')
-def test_connect():
-    connection = amqp.Connection()
+def test_connect(connection):
     connection.connect()
     connection.close()
 
@@ -17,29 +25,77 @@ def test_connect():
 class test_rabbitmq_operations():
 
     @pytest.fixture(autouse=True)
-    def setup_conn(self):
-        self.connection = amqp.Connection()
+    def setup_conn(self, connection):
+        self.connection = connection
         self.connection.connect()
         self.channel = self.connection.channel()
         yield
         self.connection.close()
 
     @pytest.mark.parametrize(
-        "publish_method", ('basic_publish', 'basic_publish_confirm')
+        "publish_method,mandatory,immediate",
+        (
+            ('basic_publish', False, True),
+            ('basic_publish', True, True),
+            ('basic_publish', False, False),
+            ('basic_publish', True, False),
+            ('basic_publish_confirm', False, True),
+            ('basic_publish_confirm', True, True),
+            ('basic_publish_confirm', False, False),
+            ('basic_publish_confirm', True, False),
+        )
     )
-    def test_publish_consume(self, publish_method):
+    def test_publish_consume(self, publish_method, mandatory, immediate):
         callback = Mock()
         self.channel.queue_declare(
             queue='py-amqp-unittest', durable=False, exclusive=True
         )
-        getattr(self.channel, publish_method)(
-            amqp.Message('Unittest'), routing_key='py-amqp-unittest'
-        )
-        self.channel.basic_consume(
-            queue='py-amqp-unittest',
-            callback=callback,
-            consumer_tag='amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
-        )
+        # RabbitMQ 3 removed the support for the immediate flag
+        # Since we confirm the message, RabbitMQ complains
+        # See
+        # http://www.rabbitmq.com/blog/2012/11/19/breaking-things-with-rabbitmq-3-0/
+        if immediate and publish_method == "basic_publish_confirm":
+            with pytest.raises(amqp.exceptions.AMQPNotImplementedError) as exc:
+                getattr(self.channel, publish_method)(
+                    amqp.Message('Unittest'),
+                    routing_key='py-amqp-unittest',
+                    mandatory=mandatory,
+                    immediate=immediate
+                )
+
+            assert exc.value.reply_code == 540
+            assert exc.value.method_name == 'Basic.publish'
+            assert exc.value.reply_text == 'NOT_IMPLEMENTED - immediate=true'
+
+            return
+        else:
+            getattr(self.channel, publish_method)(
+                amqp.Message('Unittest'),
+                routing_key='py-amqp-unittest',
+                mandatory=mandatory,
+                immediate=immediate
+            )
+        # RabbitMQ 3 removed the support for the immediate flag
+        # See
+        # http://www.rabbitmq.com/blog/2012/11/19/breaking-things-with-rabbitmq-3-0/
+        if immediate:
+            with pytest.raises(amqp.exceptions.AMQPNotImplementedError) as exc:
+                self.channel.basic_consume(
+                    queue='py-amqp-unittest',
+                    callback=callback,
+                    consumer_tag='amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
+                )
+            assert exc.value.reply_code == 540
+            assert exc.value.method_name == 'Basic.publish'
+            assert exc.value.reply_text == 'NOT_IMPLEMENTED - immediate=true'
+
+            return
+        else:
+            self.channel.basic_consume(
+                queue='py-amqp-unittest',
+                callback=callback,
+                consumer_tag='amq.ctag-PCmzXGkhCw_v0Zq7jXyvkg'
+            )
         self.connection.drain_events()
         callback.assert_called_once_with(ANY)
         msg = callback.call_args[0][0]
