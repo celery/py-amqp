@@ -94,8 +94,13 @@ class test_serialization:
                 st.integers(),
                 st.booleans(),
                 st.text(),
-                st.datetimes(min_value=datetime(2000, 1, 1),
-                             max_value=datetime(2300, 1, 1)),
+                st.builds(
+                    lambda d: d.replace(microsecond=0),
+                    st.datetimes(
+                        min_value=datetime(2000, 1, 1),
+                        max_value=datetime(2300, 1, 1)
+                    )
+                ),
                 st.decimals(min_value=Decimal(-2147483648),
                             max_value=Decimal(2147483647)),
                 st.integers(),
