@@ -1,9 +1,10 @@
 from __future__ import absolute_import, unicode_literals
 
-from datetime import datetime
 from decimal import Decimal
+from datetime import datetime
 from math import ceil
 
+from hypothesis import given, reproduce_failure, strategies as st
 import pytest
 
 from amqp.basic_message import Message
@@ -87,17 +88,23 @@ class test_serialization:
         }
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
-    def test_array(self):
-        array = [
-            'A', 1, True, 33.3,
-            Decimal('55.5'), Decimal('-3.4'),
-            datetime(2015, 3, 13, 10, 23),
-            {'quick': 'fox', 'amount': 1},
-            [3, 'hens'],
-            None,
-        ]
+    @given(
+        st.lists(st.one_of(
+            [
+                st.integers(),
+                st.booleans(),
+                st.text(),
+                st.datetimes(min_value=datetime(2000, 1, 1),
+                             max_value=datetime(2300, 1, 1)),
+                st.decimals(min_value=Decimal(-2147483648),
+                            max_value=Decimal(2147483647)),
+                st.integers(),
+                st.floats(),
+            ])
+        )
+    )
+    def test_array(self, array):
         expected = list(array)
-        expected[6] = _ANY()
 
         assert expected == loads('A', dumps('A', [array]))[0][0]
 
