@@ -1,16 +1,27 @@
 from __future__ import absolute_import, unicode_literals
 
+from string import printable
 from decimal import Decimal
 from datetime import datetime
 from math import ceil
 
-from hypothesis import given, reproduce_failure, strategies as st
+from hypothesis import given, strategies as st
 import pytest
 
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
 from amqp.serialization import GenericContent, _read_item, dumps, loads
+
+
+def _filter_large_decimals(v):
+    sign, digits, exponent = v.as_tuple()
+    v = 0
+    for d in digits:
+        v = (v * 10) + d
+    if v > 2147483647 or v < -2147483647:
+        return False
+    return True
 
 
 class _ANY(object):
@@ -20,6 +31,39 @@ class _ANY(object):
 
     def __ne__(self, other):
         return other is None
+
+
+base_types_strategy = (
+    st.integers(min_value=-9223372036854775807,
+                max_value=18446744073709551615) |  # noqa: W503
+    st.booleans() |  # noqa: W503
+    st.text() |  # noqa: W503
+    st.builds(
+        lambda d: d.replace(microsecond=0),
+        st.datetimes(
+            min_value=datetime(2000, 1, 1),
+            max_value=datetime(2300, 1, 1)
+        )
+    ) |  # noqa: W503
+    st.decimals(
+        min_value=Decimal(-2147483648),
+        max_value=Decimal(2147483647),
+        allow_nan=False
+    ).filter(_filter_large_decimals) |  # noqa: W503
+    st.floats(allow_nan=False) |  # noqa: W503
+    st.binary() |  # noqa: W503
+    st.none()
+)
+
+arrays_strategy = st.recursive(
+    st.deferred(lambda: base_types_strategy),
+    st.lists
+).filter(lambda x: isinstance(x, list))
+
+tables_strategy = st.recursive(
+    st.deferred(lambda: base_types_strategy | arrays_strategy),
+    lambda y: st.dictionaries(st.text(printable, max_size=255), y)
+).filter(lambda x: isinstance(x, dict))
 
 
 class test_serialization:
@@ -74,40 +118,14 @@ class test_serialization:
             loads('y', 'asdsad')
 
     def test_float(self):
-        assert (int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100) ==
-                3231)
+        actual = loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100
+        assert int(actual) == 3231
 
-    def test_table(self):
-        table = {
-            'foo': 32,
-            'bar': 'baz',
-            'nil': None,
-            'array': [
-                1, True, 'bar'
-            ]
-        }
+    @given(tables_strategy)
+    def test_table(self, table):
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
-    @given(
-        st.lists(st.one_of(
-            [
-                st.integers(),
-                st.booleans(),
-                st.text(),
-                st.builds(
-                    lambda d: d.replace(microsecond=0),
-                    st.datetimes(
-                        min_value=datetime(2000, 1, 1),
-                        max_value=datetime(2300, 1, 1)
-                    )
-                ),
-                st.decimals(min_value=Decimal(-2147483648),
-                            max_value=Decimal(2147483647)),
-                st.integers(),
-                st.floats(),
-            ])
-        )
-    )
+    @given(arrays_strategy)
     def test_array(self, array):
         expected = list(array)
 

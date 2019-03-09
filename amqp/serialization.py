@@ -66,11 +66,11 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
         offset += blen
     # 'b': short-short int
     elif ftype == 'b':
-        val, = unpack_from('>B', buf, offset)
+        val, = unpack_from('>b', buf, offset)
         offset += 1
     # 'B': short-short unsigned int
     elif ftype == 'B':
-        val, = unpack_from('>b', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         offset += 1
     # 'U': short int
     elif ftype == 'U':
@@ -378,20 +378,40 @@ def _write_item(v, write, bits, pack=pack,
                 float=float, int_types=int_types, Decimal=Decimal,
                 datetime=datetime, dict=dict, list=list, tuple=tuple,
                 None_t=None):
-    if isinstance(v, (string_t, bytes)):
-        if isinstance(v, string):
-            v = v.encode('utf-8', 'surrogatepass')
+    if isinstance(v, string_t):
+        v = v.encode('utf-8', 'surrogatepass')
         write(pack('>cI', b'S', len(v)))
+        write(v)
+    elif isinstance(v, bytes):
+        write(pack('>cI', b'x', len(v)))
         write(v)
     elif isinstance(v, bool):
         write(pack('>cB', b't', int(v)))
     elif isinstance(v, float):
         write(pack('>cd', b'd', v))
     elif isinstance(v, int_types):
-        if v > 2147483647 or v < -2147483647:
+        if 127 >= v >= -128:
+            # signed short short int
+            write(pack('>cb', b'b', v))
+        elif 255 >= v >= 0:
+            # unsigned short short int
+            write(pack('>cB', b'B', v))
+        elif 32767 >= v >= -32768:
+            # short int
+            write(pack('>ch', b'U', v))
+        elif 65535 >= v >= 0:
+            # unsigned short int
+            write(pack('>cH', b'u', v))
+        elif 2147483647 >= v >= -2147483648:
+            # long int
+            write(pack('>cl', b'I', v))
+        elif 4294967295 >= v >= 0:
+            # unsigned long int
+            write(pack('>cL', b'i', v))
+        elif 9223372036854775807 >= v >= -9223372036854775807:
             write(pack('>cq', b'L', v))
-        else:
-            write(pack('>ci', b'I', v))
+        elif 18446744073709551615 >= v >= 0:
+            write(pack('>cQ', b'l', v))
     elif isinstance(v, Decimal):
         sign, digits, exponent = v.as_tuple()
         v = 0
