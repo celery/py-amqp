@@ -6,6 +6,7 @@
 # Copyright (C) 2007 Barry Pederson <bp@barryp.org>
 from __future__ import absolute_import, unicode_literals
 
+import struct
 import calendar
 import sys
 from datetime import datetime
@@ -22,7 +23,7 @@ from .utils import str_to_bytes
 ftype_t = chr if sys.version_info[0] == 3 else None
 
 ILLEGAL_TABLE_TYPE = """\
-    Table type {0!r} not handled by amqp.
+Table type {0!r} not handled by amqp.
 """
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
@@ -30,7 +31,14 @@ Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
 """
 
 ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
-    Table type {0!r} not handled by amqp. [value: {1!r}]
+Table type {0!r} not handled by amqp. [value: {1!r}]
+"""
+
+ILLEGAL_TABLE_VALUE_WITH_TYPE = """\
+Table type {0!r} cannot store {1!r} as it's value is below or above
+the storage limits.
+Details:
+{2!r}
 """
 
 
@@ -338,6 +346,10 @@ def _write_table(d, write, bits, pack=pack):
         except ValueError:
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v))
+        except struct.error as e:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_VALUE_WITH_TYPE.format(type(v), v, str(e))
+            )
     table_data = out.getvalue()
     write(pack('>I', len(table_data)))
     write(table_data)
@@ -352,6 +364,10 @@ def _write_array(l, write, bits, pack=pack):
         except ValueError:
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_VALUE.format(type(v), v))
+        except struct.error as e:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_VALUE_WITH_TYPE.format(type(v), v, str(e))
+            )
     array_data = out.getvalue()
     write(pack('>I', len(array_data)))
     write(array_data)
