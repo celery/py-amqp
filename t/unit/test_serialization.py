@@ -4,6 +4,7 @@ from string import printable
 from decimal import Decimal
 from datetime import datetime
 from math import ceil
+import sys
 
 from hypothesis import given, strategies as st
 import pytest
@@ -122,10 +123,14 @@ class test_serialization:
         assert int(actual) == 3231
 
     @given(tables_strategy)
+    @pytest.mark.xfail(sys.version_info <= (3, 0),
+                       reason="Unicode Problems on Python 2.x")
     def test_table(self, table):
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
     @given(arrays_strategy)
+    @pytest.mark.xfail(sys.version_info <= (3, 0),
+                       reason="Unicode Problems on Python 2.x")
     def test_array(self, array):
         expected = list(array)
 
