@@ -380,7 +380,11 @@ def _write_item(v, write, bits, pack=pack,
                 None_t=None):
     if isinstance(v, string_t):
         v = v.encode('utf-8', 'surrogatepass')
-        write(pack('>cI', b'S', len(v)))
+        string_length = len(v)
+        if string_length > 255:
+            write(pack('>cI', b'S', string_length))
+        else:
+            write(pack('>cB', b's', string_length))
         write(v)
     elif isinstance(v, bytes):
         write(pack('>cI', b'x', len(v)))
