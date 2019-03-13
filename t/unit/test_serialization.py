@@ -128,16 +128,16 @@ class test_serialization:
         assert int(actual) == 3231
 
     @given(tables_strategy)
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     @pytest.mark.xfail(sys.version_info <= (3, 0),
                        reason="Unicode Problems on Python 2.x")
-    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     def test_table(self, table):
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
     @given(arrays_strategy)
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     @pytest.mark.xfail(sys.version_info <= (3, 0),
                        reason="Unicode Problems on Python 2.x")
-    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     def test_array(self, array):
         expected = list(array)
 
