@@ -6,8 +6,8 @@
 # Copyright (C) 2007 Barry Pederson <bp@barryp.org>
 from __future__ import absolute_import, unicode_literals
 
-import struct
 import calendar
+import struct
 import sys
 from datetime import datetime
 from decimal import Decimal

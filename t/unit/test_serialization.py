@@ -1,18 +1,23 @@
 from __future__ import absolute_import, unicode_literals
 
-from string import printable
-from decimal import Decimal
-from datetime import datetime
-from math import ceil
+import os
 import sys
+from datetime import datetime
+from decimal import Decimal
+from math import ceil
+from string import printable
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
 from amqp.serialization import GenericContent, _read_item, dumps, loads
+
+CI = os.environ.get("CI")
+SUPPRESSED_HEALTH_CHECKS = (HealthCheck.too_slow,) if CI else ()
 
 
 def _filter_large_decimals(v):
@@ -125,12 +130,14 @@ class test_serialization:
     @given(tables_strategy)
     @pytest.mark.xfail(sys.version_info <= (3, 0),
                        reason="Unicode Problems on Python 2.x")
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     def test_table(self, table):
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
     @given(arrays_strategy)
     @pytest.mark.xfail(sys.version_info <= (3, 0),
                        reason="Unicode Problems on Python 2.x")
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
     def test_array(self, array):
         expected = list(array)
 
