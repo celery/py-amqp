@@ -12,6 +12,8 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
+import logging
+from pprint import pformat
 
 from .exceptions import FrameSyntaxError
 from .five import int_types, items, long_t, string, string_t
@@ -19,6 +21,8 @@ from .platform import pack, unpack_from
 from .spec import Basic
 from .utils import bytes_to_str as pstr_t
 from .utils import str_to_bytes
+
+AMQP_LOGGER = logging.getLogger('amqp')
 
 ftype_t = chr if sys.version_info[0] == 3 else None
 
@@ -250,6 +254,9 @@ def loads(format, buf, offset=0,
         else:
             raise FrameSyntaxError(ILLEGAL_TABLE_TYPE.format(p))
         append(val)
+    if __debug__:
+        AMQP_LOGGER.debug("Deserialized the following stream:\n%s\nInto these values:\n%s",
+                          buf, pformat(values))
     return values, offset
 
 
@@ -330,7 +337,12 @@ def dumps(format, values):
             write(pack('>Q', long_t(calendar.timegm(val.utctimetuple()))))
     _flushbits(bits, write)
 
-    return out.getvalue()
+    result = out.getvalue()
+    if __debug__:
+        AMQP_LOGGER.debug("Serialized the following values:\n%s\nInto:\n%s",
+                          pformat(values), result)
+
+    return result
 
 
 def _write_table(d, write, bits, pack=pack):
@@ -360,7 +372,7 @@ def _write_array(l, write, bits, pack=pack):
     awrite = out.write
     for v in l:
         try:
-            _write_item(v, awrite, bits)
+            _write_item(v, awrite, bits, array_types=True)
         except ValueError:
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_VALUE.format(type(v), v))
@@ -377,14 +389,19 @@ def _write_item(v, write, bits, pack=pack,
                 string_t=string_t, bytes=bytes, string=string, bool=bool,
                 float=float, int_types=int_types, Decimal=Decimal,
                 datetime=datetime, dict=dict, list=list, tuple=tuple,
-                None_t=None):
+                None_t=None, array_types=False):
     if isinstance(v, string_t):
         v = v.encode('utf-8', 'surrogatepass')
         string_length = len(v)
-        if string_length > 255:
-            write(pack('>cI', b'S', string_length))
+
+        if array_types:
+            # Only arrays support short strings
+            if string_length > 255:
+                write(pack('>cI', b'S', string_length))
+            else:
+                write(pack('>cB', b's', string_length))
         else:
-            write(pack('>cB', b's', string_length))
+            write(pack('>cI', b'S', string_length))
         write(v)
     elif isinstance(v, bytes):
         write(pack('>cI', b'x', len(v)))

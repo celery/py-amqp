@@ -1,5 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
+import logging
 import os
 
 import pytest
@@ -16,7 +17,8 @@ def connection(request):
 
 
 @pytest.mark.env('rabbitmq')
-def test_connect(connection):
+def test_connect(connection, caplog):
+    caplog.set_level(logging.DEBUG)
     connection.connect()
     connection.close()
 
@@ -46,6 +48,8 @@ class test_rabbitmq_operations():
         )
     )
     def test_publish_consume(self, publish_method, mandatory, immediate):
+        message = amqp.Message('Unittest')
+        method = getattr(self.channel, publish_method)
         callback = Mock()
         self.channel.queue_declare(
             queue='py-amqp-unittest', durable=False, exclusive=True
@@ -56,8 +60,8 @@ class test_rabbitmq_operations():
         # http://www.rabbitmq.com/blog/2012/11/19/breaking-things-with-rabbitmq-3-0/
         if immediate and publish_method == "basic_publish_confirm":
             with pytest.raises(amqp.exceptions.AMQPNotImplementedError) as exc:
-                getattr(self.channel, publish_method)(
-                    amqp.Message('Unittest'),
+                method(
+                    message,
                     routing_key='py-amqp-unittest',
                     mandatory=mandatory,
                     immediate=immediate
@@ -69,8 +73,8 @@ class test_rabbitmq_operations():
 
             return
         else:
-            getattr(self.channel, publish_method)(
-                amqp.Message('Unittest'),
+            method(
+                message,
                 routing_key='py-amqp-unittest',
                 mandatory=mandatory,
                 immediate=immediate
