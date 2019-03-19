@@ -1,6 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 
 import os
+import threading
+import logging
 
 import pytest
 
@@ -146,3 +148,21 @@ class test_rabbitmq_operations():
             queue='py-amqp-unittest',
         )
         assert msg is None
+
+
+def test_threadsafty(caplog, connection):
+    caplog.set_level(logging.DEBUG)
+    connection.connect()
+
+    def worker():
+        connection.channel()
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join(timeout=30)
+
+    connection.close()
