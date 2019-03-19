@@ -16,6 +16,7 @@ def connection(request):
 
 
 @pytest.mark.env('rabbitmq')
+@pytest.mark.flaky(reruns=5, reruns_delay=2)
 def test_connect(connection):
     connection.connect()
     connection.close()
@@ -45,6 +46,7 @@ class test_rabbitmq_operations():
             ('basic_publish_confirm', True, False),
         )
     )
+    @pytest.mark.flaky(reruns=5, reruns_delay=2)
     def test_publish_consume(self, publish_method, mandatory, immediate):
         callback = Mock()
         self.channel.queue_declare(
@@ -116,6 +118,7 @@ class test_rabbitmq_operations():
 
         self.channel.basic_ack(msg.delivery_tag)
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=2)
     def test_publish_get(self):
         self.channel.queue_declare(
             queue='py-amqp-unittest', durable=False, exclusive=True
