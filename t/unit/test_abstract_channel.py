@@ -6,7 +6,7 @@ from vine import promise
 from amqp.abstract_channel import AbstractChannel
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
-from case import Mock, patch
+from case import Mock, patch, ANY
 
 
 class test_AbstractChannel:
@@ -48,7 +48,9 @@ class test_AbstractChannel:
     def test_send_method__wait(self):
         self.c.wait = Mock(name='wait')
         self.c.send_method((50, 60), 'iB', (30, 0), wait=(50, 61))
-        self.c.wait.assert_called_with((50, 61), returns_tuple=False)
+        self.c.wait.assert_called_with((50, 61),
+                                       callback=ANY,
+                                       returns_tuple=False)
 
     def test_send_method__no_connection(self):
         self.c.connection = None
