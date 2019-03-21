@@ -1,7 +1,10 @@
 language: python
 sudo: required
 dist: xenial
-cache: pip
+cache:
+  pip: true
+  directories:
+    - $TRAVIS_BUILD_DIR/.hypothesis
 python:
   - '2.7'
   - '3.4'
@@ -27,50 +30,61 @@ matrix:
   include:
     - python: 2.7
       env: TOXENV=flake8
+      cache: pip
       stage: lint
     - python: 2.7
       env: TOXENV=flakeplus
+      cache: pip
       stage: lint
     - python: 2.7
       env: TOXENV=pydocstyle
+      cache: pip
       stage: lint
     - python: 2.7
       env: TOXENV=apicheck
+      cache: pip
       stage: lint
     - python: 2.7
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: 3.4
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: 3.5
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: 3.6
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: 3.7
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: pypy2.7-6.0
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
     - python: pypy3.5-6.0
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
+      cache: pip
       stage: integration
 
 before_install:

@@ -1,15 +1,33 @@
 from __future__ import absolute_import, unicode_literals
 
+import os
+import sys
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
+from string import printable
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from amqp.basic_message import Message
 from amqp.exceptions import FrameSyntaxError
 from amqp.platform import pack
 from amqp.serialization import GenericContent, _read_item, dumps, loads
+
+CI = os.environ.get("CI")
+SUPPRESSED_HEALTH_CHECKS = (HealthCheck.too_slow,) if CI else ()
+
+
+def _filter_large_decimals(v):
+    sign, digits, exponent = v.as_tuple()
+    v = 0
+    for d in digits:
+        v = (v * 10) + d
+    if v > 2147483647 or v < -2147483647:
+        return False
+    return True
 
 
 class _ANY(object):
@@ -19,6 +37,39 @@ class _ANY(object):
 
     def __ne__(self, other):
         return other is None
+
+
+base_types_strategy = (
+    st.integers(min_value=-9223372036854775807,
+                max_value=18446744073709551615) |  # noqa: W503
+    st.booleans() |  # noqa: W503
+    st.text() |  # noqa: W503
+    st.builds(
+        lambda d: d.replace(microsecond=0),
+        st.datetimes(
+            min_value=datetime(2000, 1, 1),
+            max_value=datetime(2300, 1, 1)
+        )
+    ) |  # noqa: W503
+    st.decimals(
+        min_value=Decimal(-2147483648),
+        max_value=Decimal(2147483647),
+        allow_nan=False
+    ).filter(_filter_large_decimals) |  # noqa: W503
+    st.floats(allow_nan=False) |  # noqa: W503
+    st.binary() |  # noqa: W503
+    st.none()
+)
+
+arrays_strategy = st.recursive(
+    st.deferred(lambda: base_types_strategy),
+    st.lists
+).filter(lambda x: isinstance(x, list))
+
+tables_strategy = st.recursive(
+    st.deferred(lambda: base_types_strategy | arrays_strategy),
+    lambda y: st.dictionaries(st.text(printable, max_size=255), y)
+).filter(lambda x: isinstance(x, dict))
 
 
 class test_serialization:
@@ -73,31 +124,22 @@ class test_serialization:
             loads('y', 'asdsad')
 
     def test_float(self):
-        assert (int(loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100) ==
-                3231)
+        actual = loads(b'fb', dumps(b'fb', [32.31, False]))[0][0] * 100
+        assert int(actual) == 3231
 
-    def test_table(self):
-        table = {
-            'foo': 32,
-            'bar': 'baz',
-            'nil': None,
-            'array': [
-                1, True, 'bar'
-            ]
-        }
+    @given(tables_strategy)
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
+    @pytest.mark.xfail(sys.version_info <= (3, 0),
+                       reason="Unicode Problems on Python 2.x")
+    def test_table(self, table):
         assert loads(b'F', dumps(b'F', [table]))[0][0] == table
 
-    def test_array(self):
-        array = [
-            'A', 1, True, 33.3,
-            Decimal('55.5'), Decimal('-3.4'),
-            datetime(2015, 3, 13, 10, 23),
-            {'quick': 'fox', 'amount': 1},
-            [3, 'hens'],
-            None,
-        ]
+    @given(arrays_strategy)
+    @settings(suppress_health_check=SUPPRESSED_HEALTH_CHECKS)
+    @pytest.mark.xfail(sys.version_info <= (3, 0),
+                       reason="Unicode Problems on Python 2.x")
+    def test_array(self, array):
         expected = list(array)
-        expected[6] = _ANY()
 
         assert expected == loads('A', dumps('A', [array]))[0][0]
 

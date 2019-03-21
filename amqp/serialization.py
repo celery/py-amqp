@@ -7,10 +7,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import calendar
+import struct
 import sys
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
+import logging
+from pprint import pformat
 
 from .exceptions import FrameSyntaxError
 from .five import int_types, items, long_t, string, string_t
@@ -19,10 +22,12 @@ from .spec import Basic
 from .utils import bytes_to_str as pstr_t
 from .utils import str_to_bytes
 
+AMQP_LOGGER = logging.getLogger('amqp')
+
 ftype_t = chr if sys.version_info[0] == 3 else None
 
 ILLEGAL_TABLE_TYPE = """\
-    Table type {0!r} not handled by amqp.
+Table type {0!r} not handled by amqp.
 """
 
 ILLEGAL_TABLE_TYPE_WITH_KEY = """\
@@ -30,7 +35,14 @@ Table type {0!r} for key {1!r} not handled by amqp. [value: {2!r}]
 """
 
 ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
-    Table type {0!r} not handled by amqp. [value: {1!r}]
+Table type {0!r} not handled by amqp. [value: {1!r}]
+"""
+
+ILLEGAL_TABLE_VALUE_WITH_TYPE = """\
+Table type {0!r} cannot store {1!r} as it's value is below or above
+the storage limits.
+Details:
+{2!r}
 """
 
 
@@ -58,11 +70,11 @@ def _read_item(buf, offset=0, unpack_from=unpack_from, ftype_t=ftype_t):
         offset += blen
     # 'b': short-short int
     elif ftype == 'b':
-        val, = unpack_from('>B', buf, offset)
+        val, = unpack_from('>b', buf, offset)
         offset += 1
     # 'B': short-short unsigned int
     elif ftype == 'B':
-        val, = unpack_from('>b', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         offset += 1
     # 'U': short int
     elif ftype == 'U':
@@ -242,6 +254,9 @@ def loads(format, buf, offset=0,
         else:
             raise FrameSyntaxError(ILLEGAL_TABLE_TYPE.format(p))
         append(val)
+    if __debug__:
+        AMQP_LOGGER.debug("Deserialized the following stream:\n%s\nInto these values:\n%s",
+                          buf, pformat(values))
     return values, offset
 
 
@@ -322,7 +337,12 @@ def dumps(format, values):
             write(pack('>Q', long_t(calendar.timegm(val.utctimetuple()))))
     _flushbits(bits, write)
 
-    return out.getvalue()
+    result = out.getvalue()
+    if __debug__:
+        AMQP_LOGGER.debug("Serialized the following values:\n%s\nInto:\n%s",
+                          pformat(values), result)
+
+    return result
 
 
 def _write_table(d, write, bits, pack=pack):
@@ -338,6 +358,10 @@ def _write_table(d, write, bits, pack=pack):
         except ValueError:
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_KEY.format(type(v), k, v))
+        except struct.error as e:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_VALUE_WITH_TYPE.format(type(v), v, str(e))
+            )
     table_data = out.getvalue()
     write(pack('>I', len(table_data)))
     write(table_data)
@@ -348,10 +372,14 @@ def _write_array(l, write, bits, pack=pack):
     awrite = out.write
     for v in l:
         try:
-            _write_item(v, awrite, bits)
+            _write_item(v, awrite, bits, array_types=True)
         except ValueError:
             raise FrameSyntaxError(
                 ILLEGAL_TABLE_TYPE_WITH_VALUE.format(type(v), v))
+        except struct.error as e:
+            raise FrameSyntaxError(
+                ILLEGAL_TABLE_VALUE_WITH_TYPE.format(type(v), v, str(e))
+            )
     array_data = out.getvalue()
     write(pack('>I', len(array_data)))
     write(array_data)
@@ -361,21 +389,50 @@ def _write_item(v, write, bits, pack=pack,
                 string_t=string_t, bytes=bytes, string=string, bool=bool,
                 float=float, int_types=int_types, Decimal=Decimal,
                 datetime=datetime, dict=dict, list=list, tuple=tuple,
-                None_t=None):
-    if isinstance(v, (string_t, bytes)):
-        if isinstance(v, string):
-            v = v.encode('utf-8', 'surrogatepass')
-        write(pack('>cI', b'S', len(v)))
+                None_t=None, array_types=False):
+    if isinstance(v, string_t):
+        v = v.encode('utf-8', 'surrogatepass')
+        string_length = len(v)
+
+        if array_types:
+            # Only arrays support short strings
+            if string_length > 255:
+                write(pack('>cI', b'S', string_length))
+            else:
+                write(pack('>cB', b's', string_length))
+        else:
+            write(pack('>cI', b'S', string_length))
+        write(v)
+    elif isinstance(v, bytes):
+        write(pack('>cI', b'x', len(v)))
         write(v)
     elif isinstance(v, bool):
         write(pack('>cB', b't', int(v)))
     elif isinstance(v, float):
         write(pack('>cd', b'd', v))
     elif isinstance(v, int_types):
-        if v > 2147483647 or v < -2147483647:
+        if 127 >= v >= -128:
+            # signed short short int
+            write(pack('>cb', b'b', v))
+        elif 255 >= v >= 0:
+            # unsigned short short int
+            write(pack('>cB', b'B', v))
+        elif 32767 >= v >= -32768:
+            # short int
+            write(pack('>ch', b'U', v))
+        elif 65535 >= v >= 0:
+            # unsigned short int
+            write(pack('>cH', b'u', v))
+        elif 2147483647 >= v >= -2147483648:
+            # long int
+            write(pack('>cl', b'I', v))
+        elif 4294967295 >= v >= 0:
+            # unsigned long int
+            write(pack('>cL', b'i', v))
+        elif 9223372036854775807 >= v >= -9223372036854775807:
             write(pack('>cq', b'L', v))
-        else:
-            write(pack('>ci', b'I', v))
+        elif 18446744073709551615 >= v >= 0:
+            write(pack('>cQ', b'l', v))
     elif isinstance(v, Decimal):
         sign, digits, exponent = v.as_tuple()
         v = 0
