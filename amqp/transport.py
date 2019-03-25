@@ -6,6 +6,7 @@ import errno
 import re
 import socket
 import ssl
+from ssl import SSLError
 from contextlib import contextmanager
 
 from .exceptions import UnexpectedFrame
@@ -13,11 +14,6 @@ from .five import items
 from .platform import KNOWN_TCP_OPTS, SOL_TCP, pack, unpack
 from .utils import get_errno, set_cloexec
 
-try:
-    from ssl import SSLError
-except ImportError:  # pragma: no cover
-    class SSLError(Exception):  # noqa
-        """Dummy SSL exception."""
 
 _UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
@@ -329,24 +325,31 @@ class SSLTransport(_AbstractTransport):
         Default `ssl.wrap_socket` method augmented with support for
         setting the server_hostname field required for SNI hostname header
         """
-        opts = dict(sock=sock, keyfile=keyfile, certfile=certfile,
-                    server_side=server_side, cert_reqs=cert_reqs,
-                    ca_certs=ca_certs,
-                    do_handshake_on_connect=do_handshake_on_connect,
-                    suppress_ragged_eofs=suppress_ragged_eofs,
-                    ciphers=ciphers)
         # Setup the right SSL version; default to optimal versions across
         # ssl implementations
-        if ssl_version is not None:
-            opts['ssl_version'] = ssl_version
-        else:
+        if ssl_version is None:
             # older versions of python 2.7 and python 2.6 do not have the
             # ssl.PROTOCOL_TLS defined the equivalent is ssl.PROTOCOL_SSLv23
             # we default to PROTOCOL_TLS and fallback to PROTOCOL_SSLv23
+            # TODO: Drop this once we drop Python 2.7 support
             if hasattr(ssl, 'PROTOCOL_TLS'):
-                opts['ssl_version'] = ssl.PROTOCOL_TLS
+                ssl_version = ssl.PROTOCOL_TLS
             else:
-                opts['ssl_version'] = ssl.PROTOCOL_SSLv23
+                ssl_version = ssl.PROTOCOL_SSLv23
+
+        opts = {
+            'sock': sock,
+            'keyfile': keyfile,
+            'certfile': certfile,
+            'server_side': server_side,
+            'cert_reqs': cert_reqs,
+            'ca_certs': ca_certs,
+            'do_handshake_on_connect': do_handshake_on_connect,
+            'suppress_ragged_eofs': suppress_ragged_eofs,
+            'ciphers': ciphers,
+            'ssl_version': ssl_version
+        }
+
         sock = ssl.wrap_socket(**opts)
         # Set SNI headers if supported
         if (server_hostname is not None) and (
@@ -360,13 +363,9 @@ class SSLTransport(_AbstractTransport):
         return sock
 
     def _shutdown_transport(self):
-        """Unwrap a Python 2.6 SSL socket, so we can call shutdown()."""
+        """Unwrap a SSL socket, so we can call shutdown()."""
         if self.sock is not None:
-            try:
-                unwrap = self.sock.unwrap
-            except AttributeError:
-                return
-            self.sock = unwrap()
+            self.sock = self.sock.unwrap()
 
     def _read(self, n, initial=False,
               _errnos=(errno.ENOENT, errno.EAGAIN, errno.EINTR)):
@@ -406,14 +405,11 @@ class SSLTransport(_AbstractTransport):
         while s:
             try:
                 n = write(s)
-            except (ValueError, AttributeError):
+            except ValueError:
                 # AG: sock._sslobj might become null in the meantime if the
                 # remote connection has hung up.
-                # In python 3.2, an AttributeError is raised because the SSL
-                # module tries to access self._sslobj.write (w/ self._sslobj ==
-                # None)
                 # In python 3.4, a ValueError is raised is self._sslobj is
-                # None. So much for portability... :/
+                # None.
                 n = 0
             if not n:
                 raise IOError('Socket closed')
