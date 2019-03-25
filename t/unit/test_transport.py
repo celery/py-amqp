@@ -636,8 +636,7 @@ class test_SSLTransport:
     def test_shutdown_transport(self):
         self.t.sock = None
         self.t._shutdown_transport()
-        self.t.sock = object()
-        self.t._shutdown_transport()
+
         sock = self.t.sock = Mock()
         self.t._shutdown_transport()
         assert self.t.sock is sock.unwrap()
