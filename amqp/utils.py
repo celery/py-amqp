@@ -1,39 +1,33 @@
 """Compatibility utilities."""
-from __future__ import absolute_import, unicode_literals
-
 import logging
+from logging import NullHandler
 
 # enables celery 3.1.23 to start again
 from vine import promise  # noqa
 from vine.utils import wraps
 
-from .five import PY3, string_t, text_t
-
 try:
     import fcntl
 except ImportError:  # pragma: no cover
-    fcntl = None   # noqa
+    fcntl = None  # noqa
 
-try:
-    from os import set_cloexec  # Python 3.4?
-except ImportError:  # pragma: no cover
-    # TODO: Drop this once we drop Python 2.7 support
-    def set_cloexec(fd, cloexec):  # noqa
-        """Set flag to close fd after exec."""
-        if fcntl is None:
-            return
-        try:
-            FD_CLOEXEC = fcntl.FD_CLOEXEC
-        except AttributeError:
-            raise NotImplementedError(
-                'close-on-exec flag not supported on this platform',
-            )
-        flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-        if cloexec:
-            flags |= FD_CLOEXEC
-        else:
-            flags &= ~FD_CLOEXEC
-        return fcntl.fcntl(fd, fcntl.F_SETFD, flags)
+
+def set_cloexec(fd, cloexec):
+    """Set flag to close fd after exec."""
+    if fcntl is None:
+        return
+    try:
+        FD_CLOEXEC = fcntl.FD_CLOEXEC
+    except AttributeError:
+        raise NotImplementedError(
+            'close-on-exec flag not supported on this platform',
+        )
+    flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+    if cloexec:
+        flags |= FD_CLOEXEC
+    else:
+        flags &= ~FD_CLOEXEC
+    return fcntl.fcntl(fd, fcntl.F_SETFD, flags)
 
 
 def get_errno(exc):
@@ -66,42 +60,23 @@ def coro(gen):
     return _boot
 
 
-if PY3:  # pragma: no cover
-
-    def str_to_bytes(s):
-        """Convert str to bytes."""
-        if isinstance(s, str):
-            return s.encode('utf-8', 'surrogatepass')
-        return s
-
-    def bytes_to_str(s):
-        """Convert bytes to str."""
-        if isinstance(s, bytes):
-            return s.decode('utf-8', 'surrogatepass')
-        return s
-else:
-    # TODO: Drop this once we drop Python 2.7 support
-    def str_to_bytes(s):                # noqa
-        """Convert str to bytes."""
-        if isinstance(s, text_t):
-            return s.encode('utf-8')
-        return s
-
-    def bytes_to_str(s):                # noqa
-        """Convert bytes to str."""
-        return s
+def str_to_bytes(s):
+    """Convert str to bytes."""
+    if isinstance(s, str):
+        return s.encode('utf-8', 'surrogatepass')
+    return s
 
 
-class NullHandler(logging.Handler):
-    """A logging handler that does nothing."""
-
-    def emit(self, record):
-        pass
+def bytes_to_str(s):
+    """Convert bytes to str."""
+    if isinstance(s, bytes):
+        return s.decode('utf-8', 'surrogatepass')
+    return s
 
 
 def get_logger(logger):
     """Get logger by name."""
-    if isinstance(logger, string_t):
+    if isinstance(logger, str):
         logger = logging.getLogger(logger)
     if not logger.handlers:
         logger.addHandler(NullHandler())

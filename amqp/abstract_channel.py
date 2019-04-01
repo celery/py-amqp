@@ -1,13 +1,11 @@
 """Code common to Connection and Channel objects."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>)
-from __future__ import absolute_import, unicode_literals
 
 import logging
 
 from vine import ensure_promise, promise
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
-from .five import bytes_if_py2
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
@@ -54,7 +52,7 @@ class AbstractChannel(object):
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
-        args = dumps(format, args) if format else bytes_if_py2('')
+        args = dumps(format, args) if format else ''
         try:
             conn.frame_writer(1, self.channel_id, sig, args, content)
         except StopIteration:

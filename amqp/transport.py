@@ -1,20 +1,18 @@
 """Transport implementation."""
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
 import os
 import errno
 import re
 import socket
 import ssl
-from ssl import SSLError
 from contextlib import contextmanager
+from ssl import SSLError
+from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
-from .five import items
-from .platform import KNOWN_TCP_OPTS, SOL_TCP, pack, unpack
+from .platform import KNOWN_TCP_OPTS, SOL_TCP
 from .utils import get_errno, set_cloexec
-
 
 _UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
@@ -216,7 +214,7 @@ class _AbstractTransport(object):
         tcp_opts = self._get_tcp_socket_defaults(self.sock)
         if socket_settings:
             tcp_opts.update(socket_settings)
-        for opt, val in items(tcp_opts):
+        for opt, val in tcp_opts.items():
             self.sock.setsockopt(SOL_TCP, opt, val)
 
     def _read(self, n, initial=False):

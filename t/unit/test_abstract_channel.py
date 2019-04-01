@@ -1,6 +1,5 @@
-from __future__ import absolute_import, unicode_literals
-
 import pytest
+from case import Mock, patch, sentinel
 from vine import promise
 
 from amqp import spec
@@ -9,7 +8,6 @@ from amqp.abstract_channel import (
 )
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
-from case import Mock, patch, sentinel
 
 
 class test_AbstractChannel:
