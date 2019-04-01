@@ -39,7 +39,7 @@ START_DEBUG_FMT = """
 Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 """.strip()
 
-__all__ = ['Connection']
+__all__ = ('Connection',)
 
 AMQP_LOGGER = logging.getLogger('amqp')
 AMQP_HEARTBEAT_LOGGER = logging.getLogger(

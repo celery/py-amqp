@@ -71,8 +71,8 @@ elif sys.platform.startswith('sunos'):
 elif sys.platform.startswith('aix'):
     KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
     KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
-__all__ = [
+__all__ = (
     'LINUX_VERSION',
     'SOL_TCP',
     'KNOWN_TCP_OPTS',
-]
+)

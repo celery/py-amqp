@@ -62,7 +62,7 @@ from .exceptions import (           # noqa
 from .utils import promise      # noqa
 
 
-__all__ = [
+__all__ = (
     'Connection',
     'Channel',
     'Message',
@@ -93,4 +93,4 @@ __all__ = [
     'AMQPNotImplementedError',
     'InternalError',
     'error_for_code',
-]
+)
