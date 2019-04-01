@@ -1,17 +1,15 @@
-from __future__ import absolute_import, unicode_literals
-
 import errno
 import socket
 import struct
 import os
+from struct import pack
 
 import pytest
+from case import ANY, MagicMock, Mock, call, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
-from amqp.platform import pack
 from amqp.transport import _AbstractTransport
-from case import ANY, MagicMock, Mock, call, patch
 
 SIGNED_INT_MAX = 0x7FFFFFFF
 
@@ -66,12 +64,6 @@ class test_socket_options:
         self.host = '127.0.0.1'
         self.connect_timeout = 3
         self.socket = MockSocket()
-        try:
-            import fcntl
-        except ImportError:
-            fcntl = None
-        if fcntl is not None:
-            patching('fcntl.fcntl')
         socket = patching('socket.socket')
         socket().getsockopt = self.socket.getsockopt
         socket().setsockopt = self.socket.setsockopt
@@ -96,6 +88,7 @@ class test_socket_options:
         patching('amqp.transport.TCPTransport._setup_transport')
         patching('amqp.transport.SSLTransport._write')
         patching('amqp.transport.SSLTransport._setup_transport')
+        patching('amqp.transport.set_cloexec')
 
     def test_backward_compatibility_tcp_transport(self):
         self.transp = transport.Transport(
@@ -246,9 +239,11 @@ class test_AbstractTransport:
             pass
 
     @pytest.fixture(autouse=True)
-    def setup_transport(self):
+    def setup_transport(self, patching):
         self.t = self.Transport('localhost:5672', 10)
         self.t.connect()
+
+        patching('amqp.transport.set_cloexec')
 
     def test_port(self):
         assert self.Transport('localhost').port == 5672
@@ -454,12 +449,7 @@ class test_AbstractTransport_connect:
     @pytest.fixture(autouse=True)
     def setup_transport(self, patching):
         self.t = self.Transport('localhost:5672', 10)
-        try:
-            import fcntl
-        except ImportError:
-            fcntl = None
-        if fcntl is not None:
-            patching('fcntl.fcntl')
+        patching('amqp.transport.set_cloexec')
 
     def test_connect_socket_fails(self):
         with patch('socket.socket', side_effect=socket.error):

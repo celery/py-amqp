@@ -1,12 +1,10 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 import ssl
 
 import pytest
+from case import ANY, Mock
 
 import amqp
-from case import ANY, Mock
 
 
 def get_connection(

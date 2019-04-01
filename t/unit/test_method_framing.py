@@ -1,13 +1,12 @@
-from __future__ import absolute_import, unicode_literals
+from struct import pack
 
 import pytest
+from case import Mock
 
 from amqp import spec
 from amqp.basic_message import Message
 from amqp.exceptions import UnexpectedFrame
 from amqp.method_framing import frame_handler, frame_writer
-from amqp.platform import pack
-from case import Mock
 
 
 class test_frame_handler:
