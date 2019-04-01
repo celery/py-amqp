@@ -12,7 +12,7 @@ from .serialization import GenericContent
 #   http://stackoverflow.com/a/14216937/4982251
 from .spec import Basic
 
-__all__ = ['Message']
+__all__ = ('Message',)
 
 
 class Message(GenericContent):
