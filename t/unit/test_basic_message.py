@@ -1,7 +1,6 @@
-from __future__ import absolute_import, unicode_literals
+from case import Mock
 
 from amqp.basic_message import Message
-from case import Mock
 
 
 class test_Message:

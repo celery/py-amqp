@@ -1,9 +1,6 @@
-from __future__ import absolute_import, unicode_literals
-
-from amqp.five import text_t
-from amqp.utils import (NullHandler, bytes_to_str, coro, get_errno, get_logger,
-                        str_to_bytes)
 from case import Mock, patch
+
+from amqp.utils import bytes_to_str, coro, get_errno, get_logger, str_to_bytes
 
 
 class test_get_errno:
@@ -53,19 +50,13 @@ class test_str_to_bytes:
 class test_bytes_to_str:
 
     def test_from_unicode(self):
-        assert isinstance(bytes_to_str(u'foo'), text_t)
+        assert isinstance(bytes_to_str(u'foo'), str)
 
     def test_from_bytes(self):
         assert bytes_to_str(b'foo')
 
     def test_support_surrogates(self):
         assert bytes_to_str(u'\ud83d\ude4f') == u'\ud83d\ude4f'
-
-
-class test_NullHandler:
-
-    def test_emit(self):
-        NullHandler().emit(Mock(name='record'))
 
 
 class test_get_logger:

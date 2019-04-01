@@ -1,10 +1,10 @@
 """AMQP Channels."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
 from collections import defaultdict
+from queue import Queue
 from warnings import warn
 
 from vine import ensure_promise
@@ -14,7 +14,6 @@ from .abstract_channel import AbstractChannel
 from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
                          RecoverableChannelError, RecoverableConnectionError,
                          error_for_code)
-from .five import Queue
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']

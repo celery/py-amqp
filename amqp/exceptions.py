@@ -1,9 +1,7 @@
 """Exceptions used by amqp."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
-from .five import python_2_unicode_compatible
-from .platform import pack, unpack
+from struct import pack, unpack
 
 __all__ = [
     'AMQPError',
@@ -28,7 +26,6 @@ class MessageNacked(Exception):
     """Message was nacked by broker."""
 
 
-@python_2_unicode_compatible
 class AMQPError(Exception):
     """Base class for all AMQP exceptions."""
 
