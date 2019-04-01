@@ -16,7 +16,7 @@ from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
                          error_for_code)
 from .protocol import queue_declare_ok_t
 
-__all__ = ['Channel']
+__all__ = ('Channel',)
 
 AMQP_LOGGER = logging.getLogger('amqp')
 

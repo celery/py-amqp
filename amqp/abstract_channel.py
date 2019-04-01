@@ -5,7 +5,7 @@ from vine import ensure_promise, promise
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from .serialization import dumps, loads
 
-__all__ = ['AbstractChannel']
+__all__ = ('AbstractChannel',)
 
 
 class AbstractChannel(object):

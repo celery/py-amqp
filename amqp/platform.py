@@ -61,8 +61,8 @@ elif sys.platform.startswith('cygwin'):
     KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
 
-__all__ = [
+__all__ = (
     'LINUX_VERSION',
     'SOL_TCP',
     'KNOWN_TCP_OPTS',
-]
+)

@@ -9,7 +9,7 @@ from .basic_message import Message
 from .exceptions import UnexpectedFrame
 from .utils import str_to_bytes
 
-__all__ = ['frame_handler', 'frame_writer']
+__all__ = ('frame_handler', 'frame_writer')
 
 #: Set of methods that require both a content frame and a body frame.
 _CONTENT_METHODS = frozenset([
