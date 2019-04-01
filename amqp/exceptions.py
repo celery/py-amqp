@@ -3,7 +3,7 @@
 
 from struct import pack, unpack
 
-__all__ = [
+__all__ = (
     'AMQPError',
     'ConnectionError', 'ChannelError',
     'RecoverableConnectionError', 'IrrecoverableConnectionError',
@@ -15,7 +15,7 @@ __all__ = [
     'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
     'MessageNacked',
     'AMQPDeprecationWarning',
-]
+)
 
 
 class AMQPDeprecationWarning(UserWarning):

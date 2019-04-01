@@ -65,8 +65,8 @@ elif sys.platform.startswith('cygwin'):
 elif sys.platform.startswith('sunos'):
     KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
 
-__all__ = [
+__all__ = (
     'LINUX_VERSION',
     'SOL_TCP',
     'KNOWN_TCP_OPTS',
-]
+)
