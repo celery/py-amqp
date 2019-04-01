@@ -1,14 +1,12 @@
 """Convert between frames and higher-level AMQP methods."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
 from collections import defaultdict
+from struct import pack, pack_into, unpack_from
 
 from . import spec
 from .basic_message import Message
 from .exceptions import UnexpectedFrame
-from .five import range, text_t
-from .platform import pack, pack_into, unpack_from
 from .utils import str_to_bytes
 
 __all__ = ['frame_handler', 'frame_writer']
@@ -87,13 +85,10 @@ def frame_handler(connection, callback,
 
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
-                 bytes=bytes, str_to_bytes=str_to_bytes, text_t=text_t):
+                 bytes=bytes, str_to_bytes=str_to_bytes, text_t=str):
     """Create closure that writes frames."""
     write = transport.write
 
-    # memoryview first supported in Python 2.7
-    # Initial support was very shaky, so could be we have to
-    # check for a bugfix release.
     buf = bytearray(connection.frame_max - 8)
     view = memoryview(buf)
 
@@ -104,7 +99,7 @@ def frame_writer(connection, transport,
         args = str_to_bytes(args)
         if content:
             body = content.body
-            if isinstance(body, text_t):
+            if isinstance(body, str):
                 encoding = content.properties.setdefault(
                     'content_encoding', 'utf-8')
                 body = body.encode(encoding)

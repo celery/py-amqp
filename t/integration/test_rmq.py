@@ -1,11 +1,9 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 
 import pytest
+from case import ANY, Mock
 
 import amqp
-from case import ANY, Mock
 
 
 @pytest.fixture

@@ -1,11 +1,12 @@
 """AMQP Connections."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
 import logging
 import socket
 import uuid
 import warnings
+from array import array
+from time import monotonic
 
 from vine import ensure_promise
 
@@ -16,7 +17,6 @@ from .exceptions import (AMQPDeprecationWarning, ChannelError, ConnectionError,
                          ConnectionForced, RecoverableChannelError,
                          RecoverableConnectionError, ResourceError,
                          error_for_code)
-from .five import array, items, monotonic, range, string, values
 from .method_framing import frame_handler, frame_writer
 from .transport import Transport
 
@@ -359,7 +359,7 @@ class Connection(AbstractChannel):
         self.version_major = version_major
         self.version_minor = version_minor
         self.server_properties = server_properties
-        if isinstance(mechanisms, string):
+        if isinstance(mechanisms, str):
             mechanisms = mechanisms.encode('utf-8')
         self.mechanisms = mechanisms.split(b' ')
         self.locales = locales.split(' ')
@@ -374,7 +374,7 @@ class Connection(AbstractChannel):
         cap = client_properties.setdefault('capabilities', {})
         cap.update({
             wanted_cap: enable_cap
-            for wanted_cap, enable_cap in items(self.negotiate_capabilities)
+            for wanted_cap, enable_cap in self.negotiate_capabilities.items()
             if scap.get(wanted_cap)
         })
         if not cap:
@@ -454,10 +454,16 @@ class Connection(AbstractChannel):
             if self._transport:
                 self._transport.close()
 
-            temp_list = [x for x in values(self.channels or {})
-                         if x is not self]
-            for ch in temp_list:
-                ch.collect()
+            if self.channels:
+                # Copy all the channels except self since the channels
+                # dictionary changes during the collection process.
+                channels = [
+                    ch for ch in self.channels.values()
+                    if ch is not self
+                ]
+
+                for ch in channels:
+                    ch.collect()
         except socket.error:
             pass  # connection already closed on the other end
         finally:

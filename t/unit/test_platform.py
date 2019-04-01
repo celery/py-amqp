@@ -1,19 +1,10 @@
-from __future__ import absolute_import, unicode_literals
-
+import importlib
 import itertools
 import operator
 
 import pytest
 
 from amqp.platform import _linux_version_to_tuple
-
-
-def reload_module(module):
-    try:
-        import importlib
-        importlib.reload(module)
-    except Exception:
-        reload(module)  # noqa -- does not exist on Python3
 
 
 def test_struct_argument_type():
@@ -46,19 +37,19 @@ def test_tcp_opts_change(monkeypatch):
     monkeypatch_platform(monkeypatch, 'linux', '2.6.36-1-amd64')
 
     import amqp.platform
-    reload_module(amqp.platform)
+    importlib.reload(amqp.platform)
     old_linux = amqp.platform.KNOWN_TCP_OPTS
 
     monkeypatch_platform(monkeypatch, 'linux', '2.6.37-0-41-generic')
-    reload_module(amqp.platform)
+    importlib.reload(amqp.platform)
     new_linux = amqp.platform.KNOWN_TCP_OPTS
 
     monkeypatch_platform(monkeypatch, 'win32', '7')
-    reload_module(amqp.platform)
+    importlib.reload(amqp.platform)
     win = amqp.platform.KNOWN_TCP_OPTS
 
     monkeypatch_platform(monkeypatch, 'linux', '4.4.0-43-Microsoft')
-    reload_module(amqp.platform)
+    importlib.reload(amqp.platform)
     win_bash = amqp.platform.KNOWN_TCP_OPTS
 
     li = [old_linux, new_linux, win, win_bash]

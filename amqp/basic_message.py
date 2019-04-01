@@ -1,7 +1,5 @@
 """AMQP Messages."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
-
 from .serialization import GenericContent
 # Intended to fix #85: ImportError: cannot import name spec
 # Encountered on python 2.7.3

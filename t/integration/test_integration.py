@@ -1,17 +1,15 @@
-from __future__ import absolute_import, unicode_literals
-
 import socket
+from struct import pack
 
 import pytest
+from case import ANY, Mock, call, patch
 
 import amqp
 from amqp import Channel, Connection, Message, sasl, spec
 from amqp.exceptions import (AccessRefused, ConnectionError, InvalidCommand,
                              NotFound, PreconditionFailed, ResourceLocked)
-from amqp.platform import pack
 from amqp.protocol import queue_declare_ok_t
 from amqp.serialization import dumps, loads
-from case import ANY, Mock, call, patch
 
 connection_testdata = (
     (spec.Connection.Blocked, '_on_blocked'),
