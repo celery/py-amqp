@@ -1,1 +1,1 @@
-sphinx_celery==1.4.6
+sphinx-celery>=1.4.8
