@@ -62,8 +62,8 @@ elif sys.platform.startswith('win'):
 elif sys.platform.startswith('cygwin'):
     KNOWN_TCP_OPTS = {'TCP_NODELAY'}
 
-# illumos do not allow to set the TCP_MAXSEG, also if the Oracle documentation
-# provides other information.
+# illumos does not allow to set the TCP_MAXSEG socket option,
+# even if the Oracle documentation says otherwise.
 elif sys.platform.startswith('sunos'):
     KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
 
