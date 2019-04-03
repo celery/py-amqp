@@ -37,3 +37,6 @@ install:
 
 test_script:
   - "py -3.7 -m tox"
+
+cache:
+- '%LOCALAPPDATA%\pip\Cache'
