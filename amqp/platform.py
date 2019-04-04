@@ -73,7 +73,7 @@ elif sys.platform.startswith('sunos'):
 elif sys.platform.startswith('aix'):
     KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
     KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
-    
+
 if sys.version_info < (2, 7, 7):  # pragma: no cover
     import functools
 
