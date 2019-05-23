@@ -4,7 +4,6 @@ dist: xenial
 cache: pip
 python:
   - '2.7'
-  - '3.4'
   - '3.5'
   - '3.6'
   - '3.7'
@@ -38,11 +37,6 @@ matrix:
       env: TOXENV=apicheck
       stage: lint
     - python: 2.7
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
-    - python: 3.4
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
