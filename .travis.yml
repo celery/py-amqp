@@ -17,9 +17,9 @@ env:
     - MATRIX_TOXENV=unit
 
 stages:
-  - lint
   - test
   - integration
+  - lint
 
 matrix:
   fast_finish: true
