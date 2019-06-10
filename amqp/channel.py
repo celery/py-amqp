@@ -1781,7 +1781,10 @@ class Channel(AbstractChannel):
             self.confirm_select()
         ret = self._basic_publish(*args, **kwargs)
         # Waiting for confirmation of message.
-        self.wait([spec.Basic.Ack, spec.Basic.Nack], callback=confirm_handler)
+        timeout = kwargs.get('timeout', None)
+        self.wait([spec.Basic.Ack, spec.Basic.Nack],
+                  callback=confirm_handler,
+                  timeout=timeout)
         return ret
 
     def basic_qos(self, prefetch_size, prefetch_count, a_global,
