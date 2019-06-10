@@ -405,7 +405,9 @@ class test_Channel:
         self.c._basic_publish.assert_called_with(1, 2, arg=1)
         assert ret is self.c._basic_publish()
         self.c.wait.assert_called_with(
-            [spec.Basic.Ack, spec.Basic.Nack], callback=ANY
+            [spec.Basic.Ack, spec.Basic.Nack],
+            callback=ANY,
+            timeout=None
         )
         self.c.basic_publish_confirm(1, 2, arg=1)
 
