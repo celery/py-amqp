@@ -3,9 +3,6 @@ environment:
     - TOXENV: "2.7"
       TOX_APPVEYOR_X64: 0
 
-    - TOXENV: "3.4"
-      TOX_APPVEYOR_X64: 0
-
     - TOXENV: "3.5"
       TOX_APPVEYOR_X64: 0
 
@@ -16,9 +13,6 @@ environment:
       TOX_APPVEYOR_X64: 0
 
     - TOXENV: "2.7"
-      TOX_APPVEYOR_X64: 1
-
-    - TOXENV: "3.4"
       TOX_APPVEYOR_X64: 1
 
     - TOXENV: "3.5"
