@@ -68,11 +68,10 @@ matrix:
       stage: integration
 
 before_install:
-    # - sudo apt install libcurl4-openssl-dev libssl-dev gnutls-dev
     - if [[ -v MATRIX_TOXENV ]]; then export TOXENV=${TRAVIS_PYTHON_VERSION}-${MATRIX_TOXENV}; fi; env
 install:
   - pip --disable-pip-version-check install -U pip setuptools wheel | cat
-  - pip --disable-pip-version-check install -U tox tox-docker | cat
+  - pip --disable-pip-version-check install -U --upgrade-strategy eager tox tox-docker | cat
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
