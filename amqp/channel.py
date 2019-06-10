@@ -1770,6 +1770,7 @@ class Channel(AbstractChannel):
     basic_publish = _basic_publish
 
     def basic_publish_confirm(self, *args, **kwargs):
+        confirm_timeout = kwargs.pop('confirm_timeout', None)
 
         def confirm_handler(method, *args):
             # When RMQ nacks message we are raising MessageNacked exception
@@ -1781,7 +1782,7 @@ class Channel(AbstractChannel):
             self.confirm_select()
         ret = self._basic_publish(*args, **kwargs)
         # Waiting for confirmation of message.
-        timeout = kwargs.get('timeout', None)
+        timeout = confirm_timeout or kwargs.get('timeout', None)
         self.wait([spec.Basic.Ack, spec.Basic.Nack],
                   callback=confirm_handler,
                   timeout=timeout)
