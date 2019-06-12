@@ -97,6 +97,10 @@ class Channel(AbstractChannel):
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
+    _ALLOWED_METHODS_WHEN_CLOSING = (
+        spec.Channel.Close, spec.Channel.CloseOk
+    )
+
     def __init__(self, connection,
                  channel_id=None, auto_decode=True, on_open=None):
         if channel_id:

@@ -162,6 +162,10 @@ class Connection(AbstractChannel):
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
+    _ALLOWED_METHODS_WHEN_CLOSING = (
+        spec.Connection.Close, spec.Connection.CloseOk
+    )
+
     connection_errors = (
         ConnectionError,
         socket.error,
@@ -576,10 +580,11 @@ class Connection(AbstractChannel):
                 wait=spec.Connection.CloseOk,
             )
         except (OSError, IOError, SSLError):
-            self.is_closing = False
             # close connection
             self.collect()
             raise
+        finally:
+            self.is_closing = False
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close.
