@@ -2,6 +2,8 @@
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>)
 from __future__ import absolute_import, unicode_literals
 
+import logging
+
 from vine import ensure_promise, promise
 
 from .exceptions import AMQPNotImplementedError, RecoverableConnectionError
@@ -9,6 +11,12 @@ from .five import bytes_if_py2
 from .serialization import dumps, loads
 
 __all__ = ['AbstractChannel']
+
+AMQP_LOGGER = logging.getLogger('amqp')
+
+IGNORED_METHOD_DURING_CHANNEL_CLOSE = """\
+Received method %s during closing channel %s. This method will be ignored\
+"""
 
 
 class AbstractChannel(object):
@@ -91,6 +99,17 @@ class AbstractChannel(object):
                     pending.pop(m, None)
 
     def dispatch_method(self, method_sig, payload, content):
+        if self.is_closing and method_sig not in (
+            self._ALLOWED_METHODS_WHEN_CLOSING
+        ):
+            # When channel.close() was called we must ignore all methods except
+            # Channel.close and Channel.CloseOk
+            AMQP_LOGGER.warning(
+                IGNORED_METHOD_DURING_CHANNEL_CLOSE,
+                method_sig, self.channel_id
+            )
+            return
+
         if content and \
                 self.auto_decode and \
                 hasattr(content, 'content_encoding'):

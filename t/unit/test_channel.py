@@ -88,6 +88,7 @@ class test_Channel:
             (30, 'text', spec.Queue.Declare[0], spec.Queue.Declare[1]),
             wait=spec.Channel.CloseOk,
         )
+        assert self.c.is_closing is False
         assert self.c.connection is None
 
     def test_on_close(self):
