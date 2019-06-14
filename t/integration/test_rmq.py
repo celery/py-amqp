@@ -34,6 +34,7 @@ class test_rabbitmq_operations():
         self.connection.connect()
         self.channel = self.connection.channel()
         yield
+        self.channel.close()
         self.connection.close()
 
     @pytest.mark.parametrize(
