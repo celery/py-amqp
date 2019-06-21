@@ -64,9 +64,10 @@ class _AbstractTransport(object):
         self.raise_on_initial_eintr = raise_on_initial_eintr
         self._read_buffer = EMPTY_BUFFER
         self.host, self.port = to_host_port(host)
-        self.connect_timeout = connect_timeout
-        self.read_timeout = read_timeout
-        self.write_timeout = write_timeout
+        # If the timeout is 0, set it to none to avoid setting the socket to nonblocking mode
+        self.connect_timeout = connect_timeout or None
+        self.read_timeout = read_timeout or None
+        self.write_timeout = write_timeout or None
         self.socket_settings = socket_settings
 
     def connect(self):
@@ -91,7 +92,7 @@ class _AbstractTransport(object):
 
     @contextmanager
     def having_timeout(self, timeout):
-        if timeout is None:
+        if timeout is None or timeout == 0:
             yield self.sock
         else:
             sock = self.sock
