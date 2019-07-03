@@ -317,7 +317,7 @@ class SSLTransport(_AbstractTransport):
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
-                         ca_certs=None, do_handshake_on_connect=True,
+                         ca_certs=None, do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
                          ciphers=None, ssl_version=None):
         """Socket wrap with SNI headers.
@@ -357,8 +357,10 @@ class SSLTransport(_AbstractTransport):
                 hasattr(ssl, 'SSLContext')):
             context = ssl.SSLContext(opts['ssl_version'])
             context.verify_mode = cert_reqs
-            context.check_hostname = True
-            context.load_cert_chain(certfile, keyfile)
+            if cert_reqs != ssl.CERT_NONE:
+                context.check_hostname = True
+            if (certfile is not None) and (keyfile is not None):
+                context.load_cert_chain(certfile, keyfile)
             sock = context.wrap_socket(sock, server_hostname=server_hostname)
         return sock
 
