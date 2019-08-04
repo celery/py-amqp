@@ -631,7 +631,7 @@ class test_SSLTransport:
                                              ca_certs=None, server_side=False,
                                              ciphers=None, ssl_version=2,
                                              suppress_ragged_eofs=True,
-                                             do_handshake_on_connect=True)
+                                             do_handshake_on_connect=False)
 
     def test_shutdown_transport(self):
         self.t.sock = None
