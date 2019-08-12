@@ -5,7 +5,6 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import socket
 from collections import defaultdict
-from warnings import warn
 
 from vine import ensure_promise
 
@@ -20,11 +19,6 @@ from .protocol import queue_declare_ok_t
 __all__ = ['Channel']
 
 AMQP_LOGGER = logging.getLogger('amqp')
-
-EXCHANGE_AUTODELETE_DEPRECATED = """\
-The auto_delete flag for exchanges has been deprecated and will be removed
-from py-amqp v1.5.0.\
-"""
 
 REJECTED_MESSAGE_WITHOUT_CALLBACK = """\
 Rejecting message with delivery tag %r for reason of having no callbacks.
@@ -613,9 +607,6 @@ class Channel(AbstractChannel):
                 implementation.  This field is ignored if passive is
                 True.
         """
-        if auto_delete:
-            warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
-
         self.send_method(
             spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,
