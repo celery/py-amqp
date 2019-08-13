@@ -148,12 +148,10 @@ class test_Channel:
         )
 
     def test_exchange_declare__auto_delete(self):
-        with patch('amqp.channel.warn') as warn:
-            self.c.exchange_declare(
-                'foo', 'direct', False, True,
-                auto_delete=True, nowait=False, arguments={'x': 1},
-            )
-            warn.assert_called()
+        self.c.exchange_declare(
+            'foo', 'direct', False, True,
+            auto_delete=True, nowait=False, arguments={'x': 1},
+        )
 
     def test_exchange_delete(self):
         self.c.exchange_delete('foo')
