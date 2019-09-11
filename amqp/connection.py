@@ -487,14 +487,15 @@ class Connection(AbstractChannel):
         Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist.
         """
-        if self.channels is not None:
-            try:
-                return self.channels[channel_id]
-            except KeyError:
-                channel = self.Channel(self, channel_id, on_open=callback)
-                channel.open()
-                return channel
-        raise RecoverableConnectionError('Connection already closed.')
+        if self.channels is None:
+            raise RecoverableConnectionError('Connection already closed.')
+
+        try:
+            return self.channels[channel_id]
+        except KeyError:
+            channel = self.Channel(self, channel_id, on_open=callback)
+            channel.open()
+            return channel
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
@@ -510,11 +511,12 @@ class Connection(AbstractChannel):
         return self.on_inbound_frame(frame)
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
-        if self.channels is not None:
-            return self.channels[channel_id].dispatch_method(
-                method_sig, payload, content,
-            )
-        raise RecoverableConnectionError('Connection already closed')
+        if self.channels is None:
+            raise RecoverableConnectionError('Connection already closed')
+
+        return self.channels[channel_id].dispatch_method(
+            method_sig, payload, content,
+        )
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
               argsig='BsBB'):
