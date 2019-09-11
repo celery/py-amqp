@@ -4,14 +4,15 @@ import socket
 import warnings
 
 import pytest
+from case import ContextMock, Mock, call, patch
 
 from amqp import Connection, spec
 from amqp.connection import SSLError
-from amqp.exceptions import ConnectionError, NotFound, ResourceError
+from amqp.exceptions import (ConnectionError, NotFound,
+                             RecoverableConnectionError, ResourceError)
 from amqp.five import items
 from amqp.sasl import AMQPLAIN, EXTERNAL, GSSAPI, PLAIN, SASL
 from amqp.transport import TCPTransport
-from case import ContextMock, Mock, call, patch
 
 
 class test_Connection:
@@ -416,6 +417,11 @@ class test_Connection:
         self.conn.channels[1].dispatch_method.assert_called_with(
             (50, 60), 'payload', 'content',
         )
+
+    def test_on_inbound_method_when_connection_is_closed(self):
+        self.conn.collect()
+        with pytest.raises(RecoverableConnectionError):
+            self.conn.on_inbound_method(1, (50, 60), 'payload', 'content')
 
     def test_close(self):
         self.conn.collect = Mock(name='collect')
