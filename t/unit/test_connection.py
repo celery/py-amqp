@@ -357,6 +357,12 @@ class test_Connection:
         c2 = self.conn.channel(3, callback)
         assert c2 is c
 
+    def test_channel_when_connection_is_closed(self):
+        self.conn.collect()
+        callback = Mock(name='callback')
+        with pytest.raises(RecoverableConnectionError):
+            self.conn.channel(3, callback)
+
     def test_is_alive(self):
         with pytest.raises(NotImplementedError):
             self.conn.is_alive()
