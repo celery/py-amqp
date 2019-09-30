@@ -6,7 +6,7 @@ import re
 
 from collections import namedtuple
 
-__version__ = '2.5.0'
+__version__ = '2.5.2'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Asif Saif Uddin, Omer Katz'
 __contact__ = 'pyamqp@celeryproject.org'
