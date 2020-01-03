@@ -37,31 +37,49 @@ matrix:
       env: TOXENV=apicheck
       stage: lint
     - python: 2.7
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
       stage: integration
     - python: 3.5
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
       stage: integration
     - python: 3.6
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
       stage: integration
     - python: 3.7
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
       stage: integration
     - python: pypy2.7-6.0
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
       stage: integration
     - python: pypy3.5-6.0
+      script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
       env: MATRIX_TOXENV=integration-rabbitmq
       services:
         - docker
