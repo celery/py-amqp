@@ -8,14 +8,28 @@ import amqp
 from case import ANY, Mock
 
 
-@pytest.fixture
+@pytest.fixture(params=['plain', 'tls'])
 def connection(request):
-    host = '%s:%s' % (
-        os.environ.get('RABBITMQ_HOST', 'localhost'),
-        os.environ.get('RABBITMQ_5672_TCP', '5672')
-    )
-    vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
-    return amqp.Connection(host=host, vhost=vhost)
+    if request.param == 'plain':
+        host = '%s:%s' % (
+            os.environ.get('RABBITMQ_HOST', 'localhost'),
+            os.environ.get('RABBITMQ_5672_TCP', '5672')
+        )
+        vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
+        return amqp.Connection(host=host, vhost=vhost)
+    elif request.param == 'tls':
+        host = '%s:%s' % (
+            os.environ.get('RABBITMQ_HOST', 'localhost'),
+            os.environ.get('RABBITMQ_5671_TCP', '5671')
+        )
+        vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
+        return amqp.Connection(
+            host=host, vhost=vhost,
+            ssl={
+                'keyfile': 't/certs/client_key.pem',
+                'certfile': 't/certs/client_certificate.pem'
+            }
+        )
 
 
 @pytest.mark.env('rabbitmq')
