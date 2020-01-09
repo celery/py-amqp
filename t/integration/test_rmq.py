@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import os
+import ssl
 
 import pytest
 
@@ -8,27 +9,40 @@ import amqp
 from case import ANY, Mock
 
 
+def get_connection(
+        hostname, port, vhost, use_tls=False, keyfile=None, certfile=None):
+    host = '%s:%s' % (hostname, port)
+    if use_tls:
+        return amqp.Connection(host=host, vhost=vhost, ssl={
+            'keyfile': keyfile,
+            'certfile': certfile
+        }
+        )
+    else:
+        return amqp.Connection(host=host, vhost=vhost)
+
+
 @pytest.fixture(params=['plain', 'tls'])
 def connection(request):
+    # this fixture yields plain connections to broker and TLS encrypted
     if request.param == 'plain':
-        host = '%s:%s' % (
-            os.environ.get('RABBITMQ_HOST', 'localhost'),
-            os.environ.get('RABBITMQ_5672_TCP', '5672')
+        return get_connection(
+            hostname=os.environ.get('RABBITMQ_HOST', 'localhost'),
+            port=os.environ.get('RABBITMQ_5672_TCP', '5672'),
+            vhost=getattr(
+                request.config, "slaveinput", {}
+            ).get("slaveid", None),
         )
-        vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
-        return amqp.Connection(host=host, vhost=vhost)
     elif request.param == 'tls':
-        host = '%s:%s' % (
-            os.environ.get('RABBITMQ_HOST', 'localhost'),
-            os.environ.get('RABBITMQ_5671_TCP', '5671')
-        )
-        vhost = getattr(request.config, "slaveinput", {}).get("slaveid", None)
-        return amqp.Connection(
-            host=host, vhost=vhost,
-            ssl={
-                'keyfile': 't/certs/client_key.pem',
-                'certfile': 't/certs/client_certificate.pem'
-            }
+        return get_connection(
+            hostname=os.environ.get('RABBITMQ_HOST', 'localhost'),
+            port=os.environ.get('RABBITMQ_5671_TCP', '5671'),
+            vhost=getattr(
+                request.config, "slaveinput", {}
+            ).get("slaveid", None),
+            use_tls=True,
+            keyfile='t/certs/client_key.pem',
+            certfile='t/certs/client_certificate.pem'
         )
 
 
@@ -37,6 +51,23 @@ def connection(request):
 def test_connect(connection):
     connection.connect()
     connection.close()
+
+
+@pytest.mark.env('rabbitmq')
+@pytest.mark.flaky(reruns=5, reruns_delay=2)
+def test_tls_connect_fails():
+    # testing that wrong client key/certificate yields SSLError
+    # when encrypted connection is used
+    connection = get_connection(
+        hostname=os.environ.get('RABBITMQ_HOST', 'localhost'),
+        port=os.environ.get('RABBITMQ_5671_TCP', '5671'),
+        vhost='/',
+        use_tls=True,
+        keyfile='t/certs/client_key_broken.pem',
+        certfile='t/certs/client_certificate_broken.pem'
+    )
+    with pytest.raises(ssl.SSLError):
+        connection.connect()
 
 
 @pytest.mark.env('rabbitmq')
