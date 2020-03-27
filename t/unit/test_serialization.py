@@ -116,7 +116,7 @@ class test_serialization:
         expected = [True, False] * 8
         format = 'b' * len(expected)
         buf = dumps(format, expected)
-        actual, _ = loads(format, buf)
+        actual, _ = loads(format, buf, 0)
         assert actual == expected
 
 
