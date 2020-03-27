@@ -48,6 +48,7 @@ if sys.platform.startswith('linux'):
     if platform.release().endswith("Microsoft"):
         KNOWN_TCP_OPTS = {'TCP_NODELAY', 'TCP_KEEPIDLE', 'TCP_KEEPINTVL',
                           'TCP_KEEPCNT'}
+
 elif sys.platform.startswith('darwin'):
     KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
@@ -61,6 +62,17 @@ elif sys.platform.startswith('win'):
 
 elif sys.platform.startswith('cygwin'):
     KNOWN_TCP_OPTS = {'TCP_NODELAY'}
+
+# illumos does not allow to set the TCP_MAXSEG socket option,
+# even if the Oracle documentation says otherwise.
+elif sys.platform.startswith('sunos'):
+    KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
+
+# aix does not allow to set the TCP_MAXSEG
+# or the TCP_USER_TIMEOUT socket options.
+elif sys.platform.startswith('aix'):
+    KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
+    KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
 if sys.version_info < (2, 7, 7):  # pragma: no cover
     import functools

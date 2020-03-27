@@ -1,12 +1,15 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-from case import Mock, patch
 from vine import promise
 
-from amqp.abstract_channel import AbstractChannel
+from amqp import spec
+from amqp.abstract_channel import (
+    AbstractChannel, IGNORED_METHOD_DURING_CHANNEL_CLOSE
+)
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
+from case import Mock, patch, sentinel
 
 
 class test_AbstractChannel:
@@ -124,3 +127,33 @@ class test_AbstractChannel:
             p2.assert_called_with((50, 61), 1, 2, 3, self.content)
             assert not self.c._pending
             assert self.c._callbacks[(50, 61)]
+
+    @pytest.mark.parametrize(
+        "method",
+        (
+            spec.Channel.Close,
+            spec.Channel.CloseOk,
+            spec.Basic.Deliver
+        )
+    )
+    def test_dispatch_method__closing_connection(self, method, caplog):
+        self.c._ALLOWED_METHODS_WHEN_CLOSING = (
+            spec.Channel.Close, spec.Channel.CloseOk
+        )
+        self.c.is_closing = True
+        with patch.object(self.c, '_METHODS'), \
+                patch.object(self.c, '_callbacks'):
+            self.c.dispatch_method(
+                method, sentinel.PAYLOAD, sentinel.CONTENT
+            )
+            if method in (spec.Channel.Close, spec.Channel.CloseOk):
+                self.c._METHODS.__getitem__.assert_called_once_with(method)
+                self.c._callbacks[method].assert_called_once()
+            else:
+                self.c._METHODS.__getitem__.assert_not_called()
+                self.c._callbacks[method].assert_not_called()
+                assert caplog.records[0].msg == \
+                    IGNORED_METHOD_DURING_CHANNEL_CLOSE
+                assert caplog.records[0].args[0] == method
+                assert caplog.records[0].args[1] == self.channel_id
+                assert caplog.records[0].levelname == 'WARNING'

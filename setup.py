@@ -23,9 +23,9 @@ classes = """
     Programming Language :: Python :: 2
     Programming Language :: Python :: 2.7
     Programming Language :: Python :: 3
-    Programming Language :: Python :: 3.4
     Programming Language :: Python :: 3.5
     Programming Language :: Python :: 3.6
+    Programming Language :: Python :: 3.7
     License :: OSI Approved :: BSD License
     Intended Audience :: Developers
     Operating System :: OS Independent
@@ -45,6 +45,7 @@ def add_default(m):
 
 def add_doc(m):
     return (('doc', m.groups()[0]),)
+
 
 pats = {re_meta: add_default,
         re_doc: add_doc}
@@ -102,6 +103,7 @@ class pytest(setuptools.command.test.test):
         pytest_args = self.pytest_args.split(' ')
         sys.exit(pytest.main(pytest_args))
 
+
 setuptools.setup(
     name=NAME,
     packages=setuptools.find_packages(exclude=['ez_setup', 't', 't.*']),
@@ -116,7 +118,7 @@ setuptools.setup(
     platforms=['any'],
     license='BSD',
     classifiers=classifiers,
-    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     install_requires=reqs('default.txt'),
     setup_requires=['Cython'],
     tests_require=reqs('test.txt'),

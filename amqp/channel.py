@@ -5,26 +5,20 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import socket
 from collections import defaultdict
-from warnings import warn
 
 from vine import ensure_promise
 
 from . import spec
 from .abstract_channel import AbstractChannel
-from .exceptions import (ChannelError, ConsumerCancelled,
+from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
                          RecoverableChannelError, RecoverableConnectionError,
-                         error_for_code, MessageNacked)
+                         error_for_code)
 from .five import Queue
 from .protocol import queue_declare_ok_t
 
 __all__ = ['Channel']
 
 AMQP_LOGGER = logging.getLogger('amqp')
-
-EXCHANGE_AUTODELETE_DEPRECATED = """\
-The auto_delete flag for exchanges has been deprecated and will be removed
-from py-amqp v1.5.0.\
-"""
 
 REJECTED_MESSAGE_WITHOUT_CALLBACK = """\
 Rejecting message with delivery tag %r for reason of having no callbacks.
@@ -96,6 +90,10 @@ class Channel(AbstractChannel):
         spec.method(spec.Basic.Nack, 'Lb'),
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
+
+    _ALLOWED_METHODS_WHEN_CLOSING = (
+        spec.Channel.Close, spec.Channel.CloseOk
+    )
 
     def __init__(self, connection,
                  channel_id=None, auto_decode=True, on_open=None):
@@ -609,9 +607,6 @@ class Channel(AbstractChannel):
                 implementation.  This field is ignored if passive is
                 True.
         """
-        if auto_delete:
-            warn(VDeprecationWarning(EXCHANGE_AUTODELETE_DEPRECATED))
-
         self.send_method(
             spec.Exchange.Declare, argsig,
             (0, exchange, type, passive, durable, auto_delete,

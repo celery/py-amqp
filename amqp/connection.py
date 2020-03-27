@@ -162,6 +162,10 @@ class Connection(AbstractChannel):
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
+    _ALLOWED_METHODS_WHEN_CLOSING = (
+        spec.Connection.Close, spec.Connection.CloseOk
+    )
+
     connection_errors = (
         ConnectionError,
         socket.error,
@@ -483,14 +487,15 @@ class Connection(AbstractChannel):
         Fetch a Channel object identified by the numeric channel_id, or
         create that object if it doesn't already exist.
         """
-        if self.channels is not None:
-            try:
-                return self.channels[channel_id]
-            except KeyError:
-                channel = self.Channel(self, channel_id, on_open=callback)
-                channel.open()
-                return channel
-        raise RecoverableConnectionError('Connection already closed.')
+        if self.channels is None:
+            raise RecoverableConnectionError('Connection already closed.')
+
+        try:
+            return self.channels[channel_id]
+        except KeyError:
+            channel = self.Channel(self, channel_id, on_open=callback)
+            channel.open()
+            return channel
 
     def is_alive(self):
         raise NotImplementedError('Use AMQP heartbeats')
@@ -506,6 +511,9 @@ class Connection(AbstractChannel):
         return self.on_inbound_frame(frame)
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
+        if self.channels is None:
+            raise RecoverableConnectionError('Connection already closed')
+
         return self.channels[channel_id].dispatch_method(
             method_sig, payload, content,
         )
@@ -576,10 +584,11 @@ class Connection(AbstractChannel):
                 wait=spec.Connection.CloseOk,
             )
         except (OSError, IOError, SSLError):
-            self.is_closing = False
             # close connection
             self.collect()
             raise
+        finally:
+            self.is_closing = False
 
     def _on_close(self, reply_code, reply_text, class_id, method_id):
         """Request a connection close.

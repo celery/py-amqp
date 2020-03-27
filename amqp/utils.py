@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover
 try:
     from os import set_cloexec  # Python 3.4?
 except ImportError:  # pragma: no cover
+    # TODO: Drop this once we drop Python 2.7 support
     def set_cloexec(fd, cloexec):  # noqa
         """Set flag to close fd after exec."""
         if fcntl is None:
@@ -79,7 +80,7 @@ if PY3:  # pragma: no cover
             return s.decode('utf-8', 'surrogatepass')
         return s
 else:
-
+    # TODO: Drop this once we drop Python 2.7 support
     def str_to_bytes(s):                # noqa
         """Convert str to bytes."""
         if isinstance(s, text_t):

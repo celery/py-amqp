@@ -4,7 +4,7 @@
 
 |build-status| |coverage| |license| |wheel| |pyversion| |pyimp|
 
-:Version: 2.4.1
+:Version: 2.5.2
 :Web: https://amqp.readthedocs.io/
 :Download: https://pypi.org/project/amqp/
 :Source: http://github.com/celery/py-amqp/
@@ -127,4 +127,9 @@ Further
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
     :target: https://pypi.org/project/amqp/
+    
+py-amqp as part of the Tidelift Subscription
+=======
+
+The maintainers of py-amqp and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source dependencies you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact dependencies you use. [Learn more.](https://tidelift.com/subscription/pkg/pypi-amqp?utm_source=pypi-amqp&utm_medium=referral&utm_campaign=readme&utm_term=repo)
 

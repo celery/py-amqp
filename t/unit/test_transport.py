@@ -5,12 +5,12 @@ import socket
 import struct
 
 import pytest
-from case import ANY, Mock, MagicMock, call, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
 from amqp.platform import pack
 from amqp.transport import _AbstractTransport
+from case import ANY, MagicMock, Mock, call, patch
 
 SIGNED_INT_MAX = 0x7FFFFFFF
 
@@ -631,13 +631,12 @@ class test_SSLTransport:
                                              ca_certs=None, server_side=False,
                                              ciphers=None, ssl_version=2,
                                              suppress_ragged_eofs=True,
-                                             do_handshake_on_connect=True)
+                                             do_handshake_on_connect=False)
 
     def test_shutdown_transport(self):
         self.t.sock = None
         self.t._shutdown_transport()
-        self.t.sock = object()
-        self.t._shutdown_transport()
+
         sock = self.t.sock = Mock()
         self.t._shutdown_transport()
         assert self.t.sock is sock.unwrap()

@@ -5,6 +5,79 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.5.2:
+
+2.5.2
+=====
+:release-date: 2019-09-30 19.00 P.M UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Ignore all methods except Close and Close-OK when channel/connection is closing
+- Fix faulty ssl sni intiation parameters (#283) 
+- Undeprecate auto_delete flag for exchanges. (#287) 
+- Improved tests and testing environments
+
+
+.. _version-2.5.1:
+
+2.5.1
+=====
+:release-date: 2019-08-14 22.00 P.M UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Ignore all methods except Close and Close-OK when channel/connection is closing
+- Fix faulty ssl sni intiation parameters (#283) 
+- Undeprecate auto_delete flag for exchanges. (#287) 
+- Improved tests and testing environments
+
+
+.. _version-2.5.0:
+
+2.5.0
+=====
+:release-date: 2019-05-30 17.30 P.M UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Drop Python 3.4
+- Add new platform
+- Numerious bug fixes
+
+.. _version-2.4.2:
+
+2.4.2
+=====
+:release-date: 2019-03-03 10:45 P.M UTC+2:00
+:release-by: Omer Katz
+
+- Added support for the Cygwin platform
+
+  Contributed by **Matus Valo**
+
+- Correct offset incrementation when parsing bitmaps.
+
+  Contributed by **Allan Simon** & **Omer Katz**
+
+- Consequent bitmaps are now parsed correctly.
+
+  Previously the bit counter was reset with every bit.
+  We now reset it once per 8 bits, when we consume the next byte.
+
+  Contributed by **Omer Katz**
+
+Code Cleanups & Improvements:
+
+  - **Patrick Cloke**
+  - **Matus Valo**
+  - **Jeremiah Cooper**
+  - **Omer Katz**
+
+Test Coverage & CI Improvements:
+
+  - **Matus Valo**
+  - **Omer Katz**
+  - **Jeremiah Cooper**
+  - **Omer Katz**
+
 .. _version-2.4.1:
 
 2.4.1
