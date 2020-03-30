@@ -55,7 +55,7 @@ class Message(GenericContent):
         message_id: shortstr
             The application message identifier
 
-        timestamp: datetime.datetime
+        timestamp: unsigned long
             The message timestamp
 
         type: shortstr
