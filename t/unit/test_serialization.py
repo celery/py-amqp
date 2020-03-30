@@ -102,8 +102,10 @@ class test_serialization:
 
         assert expected == loads('A', dumps('A', [array]), 0)[0][0]
 
-    @pytest.mark.skipif(bool(os.environ.get("PY_AMQP_ENABLE_CYTHON")) is True,
-                        reason="FrameSyntaxError is not raised when cython is used.")
+    @pytest.mark.skipif(
+        bool(os.environ.get("PY_AMQP_ENABLE_CYTHON")) is True,
+        reason="FrameSyntaxError is not raised when cython is used."
+    )
     def test_array_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
             dumps('A', [[object()]])
