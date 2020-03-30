@@ -104,6 +104,27 @@ class pytest(setuptools.command.test.test):
         sys.exit(pytest.main(pytest_args))
 
 
+if os.environ.get("PY_AMQP_ENABLE_CYTHON"):
+    setup_requires=['Cython']
+    ext_modules = [
+        setuptools.Extension(
+            'amqp.serialization',
+            ["amqp/serialization.py"],
+        ),
+        setuptools.Extension(
+            'amqp.basic_message',
+            ["amqp/basic_message.py"],
+        ),
+        setuptools.Extension(
+            'amqp.method_framing',
+            ["amqp/method_framing.py"],
+        ),
+    ]
+else:
+    setup_requires = []
+    ext_modules = []
+
+
 setuptools.setup(
     name=NAME,
     packages=setuptools.find_packages(exclude=['ez_setup', 't', 't.*']),
@@ -120,24 +141,11 @@ setuptools.setup(
     classifiers=classifiers,
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     install_requires=reqs('default.txt'),
-    setup_requires=['Cython'],
+    setup_requires=setup_requires,
     tests_require=reqs('test.txt'),
     cmdclass={
         'test': pytest,
     },
     zip_safe=False,
-    ext_modules = [
-        setuptools.Extension(
-            'amqp.serialization',
-            ["amqp/serialization.py"],
-        ),
-        setuptools.Extension(
-            'amqp.basic_message',
-            ["amqp/basic_message.py"],
-        ),
-        setuptools.Extension(
-            'amqp.method_framing',
-            ["amqp/method_framing.py"],
-        ),
-    ]
+    ext_modules = ext_modules,
 )
