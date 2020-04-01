@@ -1,6 +1,5 @@
 from __future__ import absolute_import, unicode_literals
 
-import os
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
@@ -88,6 +87,18 @@ class test_serialization:
         }
         assert loads(b'F', dumps(b'F', [table]), 0)[0][0] == table
 
+    def test_table__unknown_type(self):
+        table = {
+            'foo': object(),
+            'bar': 'baz',
+            'nil': None,
+            'array': [
+                1, True, 'bar'
+            ]
+        }
+        with pytest.raises(FrameSyntaxError):
+            dumps(b'F', [table])
+
     def test_array(self):
         array = [
             'A', 1, True, 33.3,
@@ -102,10 +113,6 @@ class test_serialization:
 
         assert expected == loads('A', dumps('A', [array]), 0)[0][0]
 
-    @pytest.mark.skipif(
-        bool(os.environ.get("PY_AMQP_ENABLE_CYTHON")) is True,
-        reason="FrameSyntaxError is not raised when cython is used."
-    )
     def test_array_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
             dumps('A', [[object()]])
@@ -162,7 +169,7 @@ class test_GenericContent:
         }
         s = m._serialize_properties()
         m2 = Message()
-        m2._load_properties(m2.CLASS_ID, s)
+        m2._load_properties(m2.CLASS_ID, s, 0)
         assert m2.properties == m.properties
 
     def test_load_properties__some_missing(self):
@@ -181,7 +188,7 @@ class test_GenericContent:
         }
         s = m._serialize_properties()
         m2 = Message()
-        m2._load_properties(m2.CLASS_ID, s)
+        m2._load_properties(m2.CLASS_ID, s, 0)
 
     def test_inbound_header(self):
         m = Message()

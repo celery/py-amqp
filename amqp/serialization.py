@@ -355,11 +355,7 @@ def _write_array(l, write, bits):
     write(array_data)
 
 
-def _write_item(v, write, bits, pack=pack,
-                string_t=string_t, bytes=bytes, string=string, bool=bool,
-                float=float, int_types=int_types, Decimal=Decimal,
-                datetime=datetime, dict=dict, list=list, tuple=tuple,
-                None_t=None):
+def _write_item(v, write, bits):
     if isinstance(v, (string_t, bytes)):
         if isinstance(v, string):
             v = v.encode('utf-8', 'surrogatepass')
@@ -391,7 +387,7 @@ def _write_item(v, write, bits, pack=pack,
     elif isinstance(v, (list, tuple)):
         write(b'A')
         _write_array(v, write, bits)
-    elif v is None_t:
+    elif v is None:
         write(b'V')
     else:
         raise ValueError()
@@ -484,7 +480,7 @@ class GenericContent(object):
     PROPERTIES = [('dummy', 's')]
 
     __slots__ = (
-        'frame_method', 'frame_args', '_pending_chunks',
+        'frame_method', 'frame_args', '_pending_chunks', 'body',
         'body_received', 'body_size', 'ready', 'properties'
     )
 
@@ -509,8 +505,7 @@ class GenericContent(object):
             return self.properties[name]
         raise AttributeError(name)
 
-    def _load_properties(self, class_id, buf, offset=0,
-                         classes=PROPERTY_CLASSES, unpack_from=unpack_from):
+    def _load_properties(self, class_id, buf, offset):
         """Load AMQP properties.
 
         Given the raw bytes containing the property-flags and property-list
@@ -518,7 +513,7 @@ class GenericContent(object):
         stored in this object as an attribute named 'properties'.
         """
         # Read 16-bit shorts until we get one with a low bit set to zero
-        props, offset = classes[class_id](buf, offset)
+        props, offset = PROPERTY_CLASSES[class_id](buf, offset)
         self.properties = props
         return offset
 

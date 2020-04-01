@@ -14,10 +14,12 @@ cpdef tuple loads(format, buf, int offset)
 cpdef dumps(format, values)
 
 # Does not raise FrameSyntaxError due performance reasons
-cpdef void _write_table(d, write, bits)
+cpdef int _write_table(d, write, bits) except -1
 
 # Does not raise FrameSyntaxError due performance reasons
-cdef void _write_array(l, write, bits)
+cdef int _write_array(l, write, bits) except -1
 
 @cython.locals(slen=cython.int, flags=cython.ushort)
 cdef tuple decode_properties_basic(buf, int offset)
+
+cdef int _write_item(v, write, bits) except -1
