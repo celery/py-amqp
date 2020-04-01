@@ -16,6 +16,7 @@ env:
     PYTHONUNBUFFERED=yes
   matrix:
     - MATRIX_TOXENV=unit
+    - MATRIX_TOXENV=unit CELERY_ENABLE_CYTHON=1
 
 stages:
   - test
@@ -24,6 +25,11 @@ stages:
 
 matrix:
   fast_finish: true
+  exclude:
+    - python: pypy2.7-6.0
+      env: MATRIX_TOXENV=unit CELERY_ENABLE_CYTHON=1
+    - python: pypy3.5-6.0
+      env: MATRIX_TOXENV=unit CELERY_ENABLE_CYTHON=1
   include:
     - python: 2.7
       env: TOXENV=flake8
@@ -98,6 +104,7 @@ before_install:
 install:
   - pip --disable-pip-version-check install -U pip setuptools wheel | cat
   - pip --disable-pip-version-check install -U --upgrade-strategy eager tox tox-docker | cat
+  - python setup.py develop
 script: tox -v -- -v
 after_success:
   - .tox/$TRAVIS_PYTHON_VERSION/bin/coverage xml
