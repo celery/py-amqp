@@ -104,7 +104,7 @@ class pytest(setuptools.command.test.test):
         sys.exit(pytest.main(pytest_args))
 
 
-if os.environ.get("CELERY_ENABLE_CYTHON"):
+if os.environ.get("CELERY_ENABLE_SPEEDUPS"):
     setup_requires=['Cython']
     ext_modules = [
         setuptools.Extension(
