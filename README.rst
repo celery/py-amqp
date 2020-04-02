@@ -82,6 +82,24 @@ Differences from `amqplib`_
   that set the no_ack flag.
 - Slightly better at error recovery
 
+Speedups
+========
+
+This library has **experimental** support of speedups. Speedups are implemented using Cython. To enable speedups, ``CELERY_ENABLE_SPEEDUPS`` environment variable must be set during building/installation.
+Currently speedups can be installed:
+
+1. using source package (using ``--no-binary`` switch):
+
+.. code-block::
+CELERY_ENABLE_SPEEDUPS=true pip install --no-binary :all: amqp
+
+
+2. building directly source code:
+
+.. code-block::
+CELERY_ENABLE_SPEEDUPS=true python setup.py install
+
+
 Further
 =======
 
