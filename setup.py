@@ -9,7 +9,6 @@ import sys
 import setuptools
 import setuptools.command.test
 
-
 if sys.version_info < (2, 7):
     raise Exception('amqp requires Python 2.7 or higher.')
 
@@ -143,9 +142,7 @@ setuptools.setup(
     install_requires=reqs('default.txt'),
     setup_requires=setup_requires,
     tests_require=reqs('test.txt'),
-    cmdclass={
-        'test': pytest,
-    },
+    cmdclass={'test': pytest},
     zip_safe=False,
     ext_modules = ext_modules,
 )
