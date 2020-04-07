@@ -23,3 +23,19 @@ cdef int _write_array(l, write, bits) except -1
 cdef tuple decode_properties_basic(buf, int offset)
 
 cdef int _write_item(v, write, bits) except -1
+
+
+cdef class GenericContent:
+    cdef public object frame_method
+    cdef public object frame_args
+    cdef public object body
+    cdef public list _pending_chunks
+    cdef public int body_received
+    cdef public int body_size
+    cdef public bint ready
+    cdef public dict properties
+
+    @cython.locals(shift=cython.int, flag_bits=cython.int, flags=list)
+    cpdef bytes _serialize_properties(self)
+
+    cpdef int _load_properties(self, class_id, buf, offset)
