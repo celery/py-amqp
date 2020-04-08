@@ -82,6 +82,63 @@ Differences from `amqplib`_
   that set the no_ack flag.
 - Slightly better at error recovery
 
+Quick overview
+==============
+
+Simple producer publishing messages to ``test`` queue using default exchange:
+
+.. code:: python
+
+    import amqp
+
+    with amqp.Connection('broker.example.com') as c:
+        ch = c.channel()
+        ch.basic_publish(amqp.Message('Hello World'), routing_key='test')
+
+Producer publishing to ``test_exchange`` exchange with publisher confirms enabled and using virtual_host ``test_vhost``:
+
+.. code:: python
+
+    import amqp
+
+    with amqp.Connection(
+        'broker.example.com', exchange='test_exchange',
+        confirm_publish=True, virtual_host='test_vhost'
+    ) as c:
+        ch = c.channel()
+        ch.basic_publish(amqp.Message('Hello World'), routing_key='test')
+
+Consumer with acknowledgments enabled:
+
+.. code:: python
+
+    import amqp
+
+    with amqp.Connection('broker.example.com') as c:
+        ch = c.channel()
+        def on_message(message):
+            print('Received message (delivery tag: {}): {}'.format(message.delivery_tag, message.body))
+            ch.basic_ack(message.delivery_tag)
+        ch.basic_consume(queue='test', callback=on_message)
+        while True:
+            c.drain_events()
+
+
+Consumer with acknowledgments disabled:
+
+.. code:: python
+
+    import amqp
+
+    with amqp.Connection('broker.example.com') as c:
+        ch = c.channel()
+        def on_message(message):
+            print('Received message (delivery tag: {}): {}'.format(message.delivery_tag, message.body))
+        ch.basic_consume(queue='test', callback=on_message, no_ack=True)
+        while True:
+            c.drain_events()
+
+
 Further
 =======
 
