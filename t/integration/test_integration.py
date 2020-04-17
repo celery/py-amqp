@@ -123,7 +123,7 @@ class DataComparator(object):
         self.items = items
 
     def __eq__(self, other):
-        values, offset = loads(self.argsig, other)
+        values, offset = loads(self.argsig, other, 0)
         return tuple(values) == tuple(self.items)
 
 
