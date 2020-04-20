@@ -24,6 +24,7 @@ cdef tuple decode_properties_basic(buf, int offset)
 
 cdef int _write_item(v, write, bits) except -1
 
+cdef dict PROPERTY_CLASSES
 
 cdef class GenericContent:
     cdef public object frame_method
