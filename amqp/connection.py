@@ -709,7 +709,7 @@ class Connection(AbstractChannel):
             rate (int): Previously used, but ignored now.
         """
         AMQP_HEARTBEAT_LOGGER.debug('heartbeat_tick : for connection %s',
-                          self._connection_id)
+                                    self._connection_id)
         if not self.heartbeat:
             return
 
