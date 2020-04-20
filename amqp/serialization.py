@@ -479,11 +479,6 @@ class GenericContent(object):
     CLASS_ID = None
     PROPERTIES = [('dummy', 's')]
 
-    __slots__ = (
-        'frame_method', 'frame_args', '_pending_chunks', 'body',
-        'body_received', 'body_size', 'ready', 'properties'
-    )
-
     def __init__(self, frame_method=None, frame_args=None, **props):
         self.frame_method = frame_method
         self.frame_args = frame_args
