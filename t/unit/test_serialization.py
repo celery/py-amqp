@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
+import pickle
 
 import pytest
 
@@ -140,11 +141,12 @@ class test_GenericContent:
 
     def test_getattr(self):
         self.g.properties['foo'] = 30
-        with pytest.raises(AttributeError):
-            self.g.__setstate__
         assert self.g.foo == 30
         with pytest.raises(AttributeError):
             self.g.bar
+
+    def test_pickle(self):
+        pickle.loads(pickle.dumps(self.g))
 
     def test_load_properties(self):
         m = Message()
