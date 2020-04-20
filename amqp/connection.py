@@ -42,6 +42,9 @@ Start from server, version: %d.%d, properties: %s, mechanisms: %s, locales: %s
 __all__ = ['Connection']
 
 AMQP_LOGGER = logging.getLogger('amqp')
+AMQP_HEARTBEAT_LOGGER = logging.getLogger(
+    'amqp.connection.Connection.heartbeat_tick'
+)
 
 #: Default map for :attr:`Connection.library_properties`
 LIBRARY_PROPERTIES = {
@@ -705,7 +708,7 @@ class Connection(AbstractChannel):
         Keyword Arguments:
             rate (int): Previously used, but ignored now.
         """
-        AMQP_LOGGER.debug('heartbeat_tick : for connection %s',
+        AMQP_HEARTBEAT_LOGGER.debug('heartbeat_tick : for connection %s',
                           self._connection_id)
         if not self.heartbeat:
             return
@@ -719,7 +722,7 @@ class Connection(AbstractChannel):
             self.last_heartbeat_received = monotonic()
 
         now = monotonic()
-        AMQP_LOGGER.debug(
+        AMQP_HEARTBEAT_LOGGER.debug(
             'heartbeat_tick : Prev sent/recv: %s/%s, '
             'now - %s/%s, monotonic - %s, '
             'last_heartbeat_sent - %s, heartbeat int. - %s '
@@ -735,7 +738,7 @@ class Connection(AbstractChannel):
 
         # send a heartbeat if it's time to do so
         if now > self.last_heartbeat_sent + self.heartbeat:
-            AMQP_LOGGER.debug(
+            AMQP_HEARTBEAT_LOGGER.debug(
                 'heartbeat_tick: sending heartbeat for connection %s',
                 self._connection_id)
             self.send_heartbeat()
