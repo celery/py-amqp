@@ -23,6 +23,15 @@ stages:
   - integration
   - lint
 
+_integration_job: &integration_job
+  script:
+      - docker build -t rabbitmq:tls .
+      - tox -v -- -v
+  services:
+    - docker
+  stage: integration
+  env: MATRIX_TOXENV=integration-rabbitmq
+
 matrix:
   fast_finish: true
   exclude:
@@ -44,60 +53,19 @@ matrix:
       env: TOXENV=apicheck
       stage: lint
     - python: 2.7
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
     - python: 3.5
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
     - python: 3.6
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
     - python: 3.7
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
+      <<: *integration_job
     - python: 3.8
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
     - python: pypy2.7-6.0
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
     - python: pypy3.5-6.0
-      script:
-        - docker build -t rabbitmq:tls .
-        - tox -v -- -v
-      env: MATRIX_TOXENV=integration-rabbitmq
-      services:
-        - docker
-      stage: integration
+      <<: *integration_job
 
 before_install:
     - if [[ -v MATRIX_TOXENV ]]; then export TOXENV=${TRAVIS_PYTHON_VERSION}-${MATRIX_TOXENV}; fi; env
