@@ -16,7 +16,6 @@ env:
     PYTHONUNBUFFERED=yes
   matrix:
     - MATRIX_TOXENV=unit
-    - MATRIX_TOXENV=unit CELERY_ENABLE_SPEEDUPS=1
 
 stages:
   - test
@@ -24,21 +23,15 @@ stages:
   - lint
 
 _integration_job: &integration_job
-  script:
-      - docker build -t rabbitmq:tls .
-      - tox -v -- -v
-  services:
-    - docker
-  stage: integration
-  env: MATRIX_TOXENV=integration-rabbitmq
+    script:
+        - docker build -t rabbitmq:tls .
+        - tox -v -- -v
+    services:
+      - docker
+    stage: integration
 
 matrix:
   fast_finish: true
-  exclude:
-    - python: pypy2.7-6.0
-      env: MATRIX_TOXENV=unit CELERY_ENABLE_SPEEDUPS=1
-    - python: pypy3.5-6.0
-      env: MATRIX_TOXENV=unit CELERY_ENABLE_SPEEDUPS=1
   include:
     - python: 2.7
       env: TOXENV=flake8
@@ -54,18 +47,41 @@ matrix:
       stage: lint
     - python: 2.7
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: 3.5
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: 3.6
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: 3.7
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: 3.8
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: pypy2.7-6.0
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
     - python: pypy3.5-6.0
       <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq
+    - python: 2.7
+      <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
+    - python: 3.5
+      <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
+    - python: 3.6
+      <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
+    - python: 3.7
+      <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
+    - python: 3.8
+      <<: *integration_job
+      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
+
 
 before_install:
     - if [[ -v MATRIX_TOXENV ]]; then export TOXENV=${TRAVIS_PYTHON_VERSION}-${MATRIX_TOXENV}; fi; env
