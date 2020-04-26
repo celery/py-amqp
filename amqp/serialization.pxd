@@ -30,7 +30,7 @@ cdef class GenericContent:
     cdef public object frame_method
     cdef public object frame_args
     cdef public object body
-    cdef public list _pending_chunks
+    cdef list _pending_chunks
     cdef public int body_received
     cdef public int body_size
     cdef public bint ready
@@ -39,4 +39,4 @@ cdef class GenericContent:
     @cython.locals(shift=cython.int, flag_bits=cython.int, flags=list)
     cpdef bytes _serialize_properties(self)
 
-    cpdef int _load_properties(self, class_id, buf, offset)
+    cdef int _load_properties(self, class_id, buf, offset)
