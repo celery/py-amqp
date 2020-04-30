@@ -1842,11 +1842,16 @@ class Channel(AbstractChannel):
 
             a_global: boolean
 
-                apply to entire connection
+                Defines a scope of QoS. Semantics of this parameter differs
+                between AMQP 0-9-1 standard and RabbitMQ broker:
 
-                By default the QoS settings apply to the current
-                channel only.  If this field is set, they are applied
-                to the entire connection.
+                MEANING IN AMQP 0-9-1:
+                    False:  shared across all consumers on the channel
+                    True:   shared across all consumers on the connection
+                MEANING IN RABBITMQ:
+                    False:  applied separately to each new consumer
+                            on the channel
+                    True:   shared across all consumers on the channel
         """
         return self.send_method(
             spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),
