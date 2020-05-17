@@ -262,7 +262,7 @@ class _AbstractTransport(object):
                 # lose part1 when we retry the read
                 try:
                     part2 = read(size - SIGNED_INT_MAX)
-                except:
+                except:  # noqa
                     read_frame_buffer += part1
                     raise
 
@@ -282,9 +282,14 @@ class _AbstractTransport(object):
             #    https://github.com/celery/py-amqp/issues/320
             # These cases should be handled as if they were socket.timeout
             # errors.
-            if ((isinstance(exc, socket.error) and os.name == 'nt'
-                 and get_errno(exc) == errno.EWOULDBLOCK) or
-                (isinstance(exc, SSLError) and 'timed out' in str(exc))):
+            if (
+                isinstance(exc, socket.error) and os.name == 'nt'
+                and get_errno(exc) == errno.EWOULDBLOCK  # noqa
+            ):
+                self._read_buffer = read_frame_buffer + self._read_buffer
+                raise socket.timeout()
+
+            if isinstance(exc, SSLError) and 'timed out' in str(exc):
                 self._read_buffer = read_frame_buffer + self._read_buffer
                 raise socket.timeout()
 

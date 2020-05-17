@@ -727,9 +727,10 @@ class test_TCPTransport:
 
         self.t._quick_recv.side_effect = [
             pack('>BHI', 1, 1, 16),
-            BlockingIOError(
+            socket.error(
                 10035,
-                "A non-blocking socket operation could not be completed immediately"
+                "A non-blocking socket operation could "
+                "not be completed immediately"
             ),
             b'thequickbrownfox',
             b'\xce'
