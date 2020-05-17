@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import errno
 import socket
 import struct
+import os
 
 import pytest
 
@@ -715,3 +716,38 @@ class test_TCPTransport:
         with pytest.raises(IOError,
                            match=r'.*Server unexpectedly closed connection.*'):
             self.t._read(64)
+
+    def test_read_frame__windowstimeout(self, monkeypatch):
+        """Make sure BlockingIOError on Windows properly saves off partial reads.
+
+        See https://github.com/celery/py-amqp/issues/320
+        """
+
+        self.t._quick_recv = Mock()
+
+        self.t._quick_recv.side_effect = [
+            pack('>BHI', 1, 1, 16),
+            BlockingIOError(
+                10035,
+                "A non-blocking socket operation could not be completed immediately"
+            ),
+            b'thequickbrownfox',
+            b'\xce'
+        ]
+
+        monkeypatch.setattr(os, 'name', 'nt')
+        monkeypatch.setattr(errno, 'EWOULDBLOCK', 10035)
+
+        assert len(self.t._read_buffer) == 0
+
+        with pytest.raises(socket.timeout):
+            self.t.read_frame()
+
+        assert len(self.t._read_buffer) == 7
+
+        frame_type, channel, payload = self.t.read_frame()
+
+        assert len(self.t._read_buffer) == 0
+        assert frame_type == 1
+        assert channel == 1
+        assert payload == b'thequickbrownfox'
