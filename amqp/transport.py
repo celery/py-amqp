@@ -258,11 +258,11 @@ class _AbstractTransport(object):
             if size > SIGNED_INT_MAX:
                 part1 = read(SIGNED_INT_MAX)
 
-                # In case this read times out, we need to make sure to not
-                # lose part1 when we retry the read
                 try:
                     part2 = read(size - SIGNED_INT_MAX)
-                except:  # noqa
+                except (socket.timeout, socket.error, SSLError):
+                    # In case this read times out, we need to make sure to not
+                    # lose part1 when we retry the read
                     read_frame_buffer += part1
                     raise
 
@@ -275,21 +275,19 @@ class _AbstractTransport(object):
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
         except (OSError, IOError, SSLError, socket.error) as exc:
-            # 1. Don't disconnect for ssl read time outs
-            #    http://bugs.python.org/issue10272
-            # 2. On windows we can get a read timeout with a winsock error
-            #    code instead of a proper socket.timeout() error, see
-            #    https://github.com/celery/py-amqp/issues/320
-            # These cases should be handled as if they were socket.timeout
-            # errors.
             if (
                 isinstance(exc, socket.error) and os.name == 'nt'
                 and get_errno(exc) == errno.EWOULDBLOCK  # noqa
             ):
+                # On windows we can get a read timeout with a winsock error
+                # code instead of a proper socket.timeout() error, see
+                # https://github.com/celery/py-amqp/issues/320
                 self._read_buffer = read_frame_buffer + self._read_buffer
                 raise socket.timeout()
 
             if isinstance(exc, SSLError) and 'timed out' in str(exc):
+                # Don't disconnect for ssl read time outs
+                # http://bugs.python.org/issue10272
                 self._read_buffer = read_frame_buffer + self._read_buffer
                 raise socket.timeout()
 
