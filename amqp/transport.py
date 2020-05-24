@@ -2,6 +2,7 @@
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
 from __future__ import absolute_import, unicode_literals
 
+import os
 import errno
 import re
 import socket
@@ -256,7 +257,15 @@ class _AbstractTransport(object):
             # so we know the size can be at most 2 * SIGNED_INT_MAX
             if size > SIGNED_INT_MAX:
                 part1 = read(SIGNED_INT_MAX)
-                part2 = read(size - SIGNED_INT_MAX)
+
+                try:
+                    part2 = read(size - SIGNED_INT_MAX)
+                except (socket.timeout, socket.error, SSLError):
+                    # In case this read times out, we need to make sure to not
+                    # lose part1 when we retry the read
+                    read_frame_buffer += part1
+                    raise
+
                 payload = b''.join([part1, part2])
             else:
                 payload = read(size)
@@ -266,10 +275,22 @@ class _AbstractTransport(object):
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
         except (OSError, IOError, SSLError, socket.error) as exc:
-            # Don't disconnect for ssl read time outs
-            # http://bugs.python.org/issue10272
-            if isinstance(exc, SSLError) and 'timed out' in str(exc):
+            if (
+                isinstance(exc, socket.error) and os.name == 'nt'
+                and get_errno(exc) == errno.EWOULDBLOCK  # noqa
+            ):
+                # On windows we can get a read timeout with a winsock error
+                # code instead of a proper socket.timeout() error, see
+                # https://github.com/celery/py-amqp/issues/320
+                self._read_buffer = read_frame_buffer + self._read_buffer
                 raise socket.timeout()
+
+            if isinstance(exc, SSLError) and 'timed out' in str(exc):
+                # Don't disconnect for ssl read time outs
+                # http://bugs.python.org/issue10272
+                self._read_buffer = read_frame_buffer + self._read_buffer
+                raise socket.timeout()
+
             if get_errno(exc) not in _UNAVAIL:
                 self.connected = False
             raise
