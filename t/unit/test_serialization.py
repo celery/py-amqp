@@ -26,6 +26,7 @@ class test_serialization:
 
     @pytest.mark.parametrize('descr,frame,expected,cast', [
         ('S', b's8thequick', 'thequick', None),
+        ('S', b'S\x00\x00\x00\x03\xc0\xc0\x00', b'\xc0\xc0\x00', None),
         ('x', b'x\x00\x00\x00\x09thequick\xffIGNORED', b'thequick\xff', None),
         ('b', b'b' + pack('>B', True), True, None),
         ('B', b'B' + pack('>b', 123), 123, None),
