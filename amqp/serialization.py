@@ -42,7 +42,11 @@ def _read_item(buf, offset):
     if ftype == 'S':
         slen, = unpack_from('>I', buf, offset)
         offset += 4
-        val = pstr_t(buf[offset:offset + slen])
+        try:
+            val = pstr_t(buf[offset:offset + slen])
+        except UnicodeDecodeError:
+            val = buf[offset:offset + slen]
+
         offset += slen
     # 's': short string
     elif ftype == 's':
