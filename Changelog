@@ -5,6 +5,23 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.6.0:
+
+2.6.0
+=====
+:release-date: 20-06-01 12.00 P.M UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Implement speedups in cython (#311) 
+- Updated some tests & code improvements
+- Separate logger for Connection.heartbeat_tick method 
+- Cython generic content (#315)
+- Improve documentation a_global parameter of basic_qos() method.
+- Fix saving partial read buffer on windows during socket timeout. (#321)
+- Fix deserialization of long string field values that are not utf-8.
+- Added simple cythonization of abstract_channel.py
+- Speedups of serialization.py are more restrictive
+
 .. _version-2.5.2:
 
 2.5.2
@@ -12,10 +29,8 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-date: 2019-09-30 19.00 P.M UTC+6:00
 :release-by: Asif Saif Uddin
 
-- Ignore all methods except Close and Close-OK when channel/connection is closing
-- Fix faulty ssl sni intiation parameters (#283) 
-- Undeprecate auto_delete flag for exchanges. (#287) 
-- Improved tests and testing environments
+- Fixed a channel issue against a connection already closed 
+- Updated some tests & code improvements
 
 
 .. _version-2.5.1:
