@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import codecs
 import io
 import os
 import re
@@ -25,6 +26,7 @@ classes = """
     Programming Language :: Python :: 3.5
     Programming Language :: Python :: 3.6
     Programming Language :: Python :: 3.7
+    Programming Language :: Python :: 3.8
     License :: OSI Approved :: BSD License
     Intended Audience :: Developers
     Operating System :: OS Independent
@@ -81,11 +83,11 @@ def reqs(f):
 
 # -*- Long Description -*-
 
-if os.path.exists('README.rst'):
-    with io.open('README.rst', encoding='utf-8') as fp:
-        long_description = fp.read()
-else:
-    long_description = 'See https://pypi.org/project/amqp/'
+def long_description():
+    try:
+        return codecs.open('README.rst', 'r', 'utf-8').read()
+    except IOError:
+        return 'Long description error: Missing README.rst file'
 
 # -*- %%% -*-
 
@@ -131,7 +133,6 @@ else:
 setuptools.setup(
     name=NAME,
     packages=setuptools.find_packages(exclude=['ez_setup', 't', 't.*']),
-    long_description=long_description,
     version=meta['version'],
     description=meta['doc'],
     keywords='amqp rabbitmq cloudamqp messaging',
