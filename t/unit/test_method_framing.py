@@ -138,3 +138,12 @@ class test_frame_writer:
         assert isinstance(memory, memoryview)
         assert 'body'.encode('utf-16') in memory.tobytes()
         assert msg.properties['content_encoding'] == 'utf-16'
+
+    def test_frame_max_update(self):
+        msg = Message(body='t' * (self.connection.frame_max + 10))
+        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.connection.frame_max += 100
+        self.g(*frame)
+        self.write.assert_called()
+        memory = self.write.call_args[0][0]
+        assert isinstance(memory, memoryview)
