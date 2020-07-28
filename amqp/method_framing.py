@@ -105,9 +105,6 @@ def frame_writer(connection, transport,
     """Create closure that writes frames."""
     write = transport.write
 
-    # memoryview first supported in Python 2.7
-    # Initial support was very shaky, so could be we have to
-    # check for a bugfix release.
     buffer_store = Buffer(bytearray(connection.frame_max - 8))
 
     def write_frame(type_, channel, method_sig, args, content):
