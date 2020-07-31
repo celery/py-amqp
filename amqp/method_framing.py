@@ -85,20 +85,37 @@ def frame_handler(connection, callback,
     return on_frame
 
 
+class Buffer(object):
+    def __init__(self, buf):
+        self.buf = buf
+
+    @property
+    def buf(self):
+        return self._buf
+
+    @buf.setter
+    def buf(self, buf):
+        self._buf = buf
+        self.view = memoryview(buf)
+
+
 def frame_writer(connection, transport,
                  pack=pack, pack_into=pack_into, range=range, len=len,
                  bytes=bytes, str_to_bytes=str_to_bytes, text_t=text_t):
     """Create closure that writes frames."""
     write = transport.write
 
-    # memoryview first supported in Python 2.7
-    # Initial support was very shaky, so could be we have to
-    # check for a bugfix release.
-    buf = bytearray(connection.frame_max - 8)
-    view = memoryview(buf)
+    buffer_store = Buffer(bytearray(connection.frame_max - 8))
 
     def write_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
+        # frame_max can be updated via connection._on_tune. If
+        # it became larger, then we need to resize the buffer
+        # to prevent overflow.
+        if chunk_size > len(buffer_store.buf):
+            buffer_store.buf = bytearray(chunk_size)
+        buf = buffer_store.buf
+        view = buffer_store.view
         offset = 0
         properties = None
         args = str_to_bytes(args)
