@@ -7,6 +7,19 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 .. _version-2.6.0:
 
+2.6.1
+=====
+:release-date: 2020-07-31 10.30 P.M UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Fix buffer overflow in frame_writer after frame_max is increased. `frame_writer`
+allocates a `bytearray` on intialization with a length based on the `connection.frame_max`
+value. If `connection.frame_max` is changed to a larger value, this causes an
+error like `pack_into requires a buffer of at least 408736 bytes`.
+
+
+.. _version-2.6.0:
+
 2.6.0
 =====
 :release-date: 20-06-01 12.00 P.M UTC+6:00
