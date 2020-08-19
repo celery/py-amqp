@@ -1,8 +1,9 @@
 import socket
 from struct import pack
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
-from case import ANY, ContextMock, MagicMock, Mock, patch
+from case import ContextMock
 from vine import promise
 
 from amqp import spec

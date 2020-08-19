@@ -1,8 +1,8 @@
 import os
 import ssl
+from unittest.mock import ANY, Mock
 
 import pytest
-from case import ANY, Mock
 
 import amqp
 

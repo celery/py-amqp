@@ -3,9 +3,9 @@ import socket
 import struct
 import os
 from struct import pack
+from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pytest
-from case import ANY, MagicMock, Mock, call, patch
 
 from amqp import transport
 from amqp.exceptions import UnexpectedFrame
@@ -385,7 +385,7 @@ class test_AbstractTransport:
             sock_mock.gettimeout.return_value = 3
             with self.t.having_timeout(5) as actual_sock:
                 assert actual_sock == self.t.sock
-            sock_mock.gettimeout.assert_called()
+            sock_mock.gettimeout.assert_called_with()
             sock_mock.settimeout.assert_has_calls(
                 [
                     call(5),
@@ -402,7 +402,7 @@ class test_AbstractTransport:
                 with self.t.having_timeout(5) as actual_sock:
                     assert actual_sock == self.t.sock
                     raise DummyException()
-            sock_mock.gettimeout.assert_called()
+            sock_mock.gettimeout.assert_called_with()
             sock_mock.settimeout.assert_has_calls(
                 [
                     call(5),
@@ -417,7 +417,7 @@ class test_AbstractTransport:
             sock_mock.gettimeout.return_value = 5
             with self.t.having_timeout(5) as actual_sock:
                 assert actual_sock == self.t.sock
-            sock_mock.gettimeout.assert_called()
+            sock_mock.gettimeout.assert_called_with()
             sock_mock.settimeout.assert_not_called()
 
     def test_set_timeout_ewouldblock_exc(self):
@@ -644,7 +644,7 @@ class test_SSLTransport:
         self.t.sock = Mock(name='SSLSocket')
         self.t.sock.write.return_value = 2
         self.t._write('foo')
-        self.t.sock.write.assert_called()
+        self.t.sock.write.assert_called_with(ANY)
 
     def test_write_socket_closed(self):
         self.t.sock = Mock(name='SSLSocket')

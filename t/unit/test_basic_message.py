@@ -1,4 +1,4 @@
-from case import Mock
+from unittest.mock import Mock
 
 from amqp.basic_message import Message
 
