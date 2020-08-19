@@ -2,9 +2,9 @@ import contextlib
 import socket
 import sys
 from io import BytesIO
+from unittest.mock import Mock, call, patch
 
 import pytest
-from case import Mock, call, patch
 
 from amqp import sasl
 from amqp.serialization import _write_table
@@ -99,7 +99,7 @@ class test_SASL:
             mech = GSSAPI(rdns=True)
             mech.start(connection)
 
-            connection.transport.sock.getpeername.assert_called()
+            connection.transport.sock.getpeername.assert_called_with()
             gethostbyaddr.assert_called_with('192.0.2.0')
             gssapi.Name.assert_called_with(b'amqp@broker.example.org',
                                            gssapi.NameType.hostbased_service)

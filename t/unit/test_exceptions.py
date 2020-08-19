@@ -1,5 +1,6 @@
+from unittest.mock import Mock
+
 import pytest
-from case import Mock
 
 import amqp.exceptions
 from amqp.exceptions import AMQPError, error_for_code

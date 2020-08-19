@@ -1,5 +1,6 @@
+from unittest.mock import Mock, patch, sentinel
+
 import pytest
-from case import Mock, patch, sentinel
 from vine import promise
 
 from amqp import spec
@@ -146,7 +147,9 @@ class test_AbstractChannel:
             )
             if method in (spec.Channel.Close, spec.Channel.CloseOk):
                 self.c._METHODS.__getitem__.assert_called_once_with(method)
-                self.c._callbacks[method].assert_called_once()
+                self.c._callbacks[method].assert_called_once_with(
+                    sentinel.CONTENT
+                )
             else:
                 self.c._METHODS.__getitem__.assert_not_called()
                 self.c._callbacks[method].assert_not_called()
