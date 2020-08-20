@@ -124,6 +124,10 @@ if os.environ.get("CELERY_ENABLE_SPEEDUPS"):
             'amqp.abstract_channel',
             ["amqp/abstract_channel.py"],
         ),
+        setuptools.Extension(
+            'amqp.utils',
+            ["amqp/utils.py"],
+        ),
     ]
 else:
     setup_requires = []
