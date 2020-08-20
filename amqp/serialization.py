@@ -16,8 +16,6 @@ from .spec import Basic
 from .utils import bytes_to_str as pstr_t
 from .utils import str_to_bytes
 
-ftype_t = chr
-
 ILLEGAL_TABLE_TYPE = """\
     Table type {0!r} not handled by amqp.
 """
@@ -32,7 +30,7 @@ ILLEGAL_TABLE_TYPE_WITH_VALUE = """\
 
 
 def _read_item(buf, offset):
-    ftype = ftype_t(buf[offset])
+    ftype = chr(buf[offset])
     offset += 1
 
     # 'S': long string
