@@ -12,7 +12,7 @@ from struct import pack, unpack
 
 from .exceptions import UnexpectedFrame
 from .platform import KNOWN_TCP_OPTS, SOL_TCP
-from .utils import get_errno, set_cloexec
+from .utils import set_cloexec
 
 _UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
@@ -108,7 +108,7 @@ class _AbstractTransport(object):
                     raise socket.timeout()
                 raise
             except socket.error as exc:
-                if get_errno(exc) == errno.EWOULDBLOCK:
+                if exc.errno == errno.EWOULDBLOCK:
                     raise socket.timeout()
                 raise
             finally:
@@ -275,7 +275,7 @@ class _AbstractTransport(object):
         except (OSError, IOError, SSLError, socket.error) as exc:
             if (
                 isinstance(exc, socket.error) and os.name == 'nt'
-                and get_errno(exc) == errno.EWOULDBLOCK  # noqa
+                and exc.errno == errno.EWOULDBLOCK  # noqa
             ):
                 # On windows we can get a read timeout with a winsock error
                 # code instead of a proper socket.timeout() error, see
@@ -289,7 +289,7 @@ class _AbstractTransport(object):
                 self._read_buffer = read_frame_buffer + self._read_buffer
                 raise socket.timeout()
 
-            if get_errno(exc) not in _UNAVAIL:
+            if exc.errno not in _UNAVAIL:
                 self.connected = False
             raise
         if ch == 206:  # '\xce'
@@ -304,7 +304,7 @@ class _AbstractTransport(object):
         except socket.timeout:
             raise
         except (OSError, IOError, socket.error) as exc:
-            if get_errno(exc) not in _UNAVAIL:
+            if exc.errno not in _UNAVAIL:
                 self.connected = False
             raise
 
