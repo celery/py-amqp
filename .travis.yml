@@ -1,13 +1,12 @@
 language: python
 sudo: required
-dist: xenial
+dist: bionic
 cache: pip
 python:
-  - '3.5'
   - '3.6'
   - '3.7'
   - '3.8'
-  - 'pypy3.5-6.0'
+  - 'pypy3.6-7.3.1'
 
 env:
   global:
@@ -31,18 +30,15 @@ _integration_job: &integration_job
 matrix:
   fast_finish: true
   include:
-    - python: 3.7
+    - python: 3.8
       env: TOXENV=flake8
       stage: lint
-    - python: 3.7
+    - python: 3.8
       env: TOXENV=pydocstyle
       stage: lint
-    - python: 3.7
+    - python: 3.8
       env: TOXENV=apicheck
       stage: lint
-    - python: 3.5
-      <<: *integration_job
-      env: MATRIX_TOXENV=integration-rabbitmq
     - python: 3.6
       <<: *integration_job
       env: MATRIX_TOXENV=integration-rabbitmq
@@ -55,12 +51,9 @@ matrix:
       services:
         - docker
       stage: integration
-    - python: pypy3.5-6.0
+    - python: pypy3.6-7.3.1
       <<: *integration_job
       env: MATRIX_TOXENV=integration-rabbitmq
-    - python: 3.5
-      <<: *integration_job
-      env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
     - python: 3.6
       <<: *integration_job
       env: MATRIX_TOXENV=integration-rabbitmq CELERY_ENABLE_SPEEDUPS=1
