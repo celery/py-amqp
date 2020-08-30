@@ -340,10 +340,10 @@ def _write_table(d, write, bits):
     write(table_data)
 
 
-def _write_array(l, write, bits):
+def _write_array(list_, write, bits):
     out = BytesIO()
     awrite = out.write
-    for v in l:
+    for v in list_:
         try:
             _write_item(v, awrite, bits)
         except ValueError:

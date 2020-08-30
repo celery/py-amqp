@@ -5,6 +5,8 @@ import re
 import sys
 
 # Jython does not have this attribute
+import typing
+
 try:
     from socket import SOL_TCP
 except ImportError:  # pragma: no cover
@@ -14,13 +16,11 @@ except ImportError:  # pragma: no cover
 RE_NUM = re.compile(r'(\d+).+')
 
 
-def _linux_version_to_tuple(s):
-    # type: (str) -> Tuple[int, int, int]
+def _linux_version_to_tuple(s: str) -> typing.Tuple[int, int, int]:
     return tuple(map(_versionatom, s.split('.')[:3]))
 
 
-def _versionatom(s):
-    # type: (str) -> int
+def _versionatom(s: str) -> int:
     if s.isdigit():
         return int(s)
     match = RE_NUM.match(s)
