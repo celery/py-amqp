@@ -1,7 +1,7 @@
 import errno
+import os
 import socket
 import struct
-import os
 from struct import pack
 from unittest.mock import ANY, MagicMock, Mock, call, patch
 

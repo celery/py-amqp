@@ -1,7 +1,7 @@
+import pickle
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
-import pickle
 from struct import pack
 
 import pytest

@@ -1,8 +1,8 @@
 """Transport implementation."""
 # Copyright (C) 2009 Barry Pederson <bp@barryp.org>
 
-import os
 import errno
+import os
 import re
 import socket
 import ssl

@@ -3,7 +3,6 @@
 from __future__ import absolute_import, unicode_literals
 
 import re
-
 from collections import namedtuple
 
 __version__ = '5.0.0a1'
@@ -29,38 +28,19 @@ del(_temp)
 del(re)
 
 from .basic_message import Message  # noqa
-from .channel import Channel        # noqa
+from .channel import Channel  # noqa
 from .connection import Connection  # noqa
-from .exceptions import (           # noqa
-    AMQPError,
-    ConnectionError,
-    RecoverableConnectionError,
-    IrrecoverableConnectionError,
-    ChannelError,
-    RecoverableChannelError,
-    IrrecoverableChannelError,
-    ConsumerCancelled,
-    ContentTooLarge,
-    NoConsumers,
-    ConnectionForced,
-    InvalidPath,
-    AccessRefused,
-    NotFound,
-    ResourceLocked,
-    PreconditionFailed,
-    FrameError,
-    FrameSyntaxError,
-    InvalidCommand,
-    ChannelNotOpen,
-    UnexpectedFrame,
-    ResourceError,
-    NotAllowed,
-    AMQPNotImplementedError,
-    InternalError,
-    error_for_code,
-)
-from .utils import promise      # noqa
-
+from .exceptions import (AccessRefused, AMQPError,  # noqa
+                         AMQPNotImplementedError, ChannelError, ChannelNotOpen,
+                         ConnectionError, ConnectionForced, ConsumerCancelled,
+                         ContentTooLarge, FrameError, FrameSyntaxError,
+                         InternalError, InvalidCommand, InvalidPath,
+                         IrrecoverableChannelError,
+                         IrrecoverableConnectionError, NoConsumers, NotAllowed,
+                         NotFound, PreconditionFailed, RecoverableChannelError,
+                         RecoverableConnectionError, ResourceError,
+                         ResourceLocked, UnexpectedFrame, error_for_code)
+from .utils import promise  # noqa
 
 __all__ = (
     'Connection',
