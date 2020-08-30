@@ -338,7 +338,7 @@ class SSLTransport(_AbstractTransport):
                          server_side=False, cert_reqs=ssl.CERT_NONE,
                          ca_certs=None, do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
-                         ciphers=None, ssl_version=None):
+                         ciphers=None, ssl_version=ssl.PROTOCOL_TLS):
         """Socket wrap with SNI headers.
 
         Default `ssl.wrap_socket` method augmented with support for
