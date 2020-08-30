@@ -4,9 +4,8 @@ import pytest
 from vine import promise
 
 from amqp import spec
-from amqp.abstract_channel import (
-    AbstractChannel, IGNORED_METHOD_DURING_CHANNEL_CLOSE
-)
+from amqp.abstract_channel import (IGNORED_METHOD_DURING_CHANNEL_CLOSE,
+                                   AbstractChannel)
 from amqp.exceptions import AMQPNotImplementedError, RecoverableConnectionError
 from amqp.serialization import dumps
 
