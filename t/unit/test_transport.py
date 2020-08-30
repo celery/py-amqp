@@ -620,7 +620,7 @@ class test_SSLTransport:
             mock_ssl_wrap.assert_called_with(cert_reqs=0, certfile=None,
                                              keyfile=None, sock=sock,
                                              ca_certs=None, server_side=False,
-                                             ciphers=None, ssl_version=2,
+                                             ciphers=None, ssl_version=None,
                                              suppress_ragged_eofs=True,
                                              do_handshake_on_connect=False)
 
