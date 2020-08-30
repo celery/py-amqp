@@ -208,9 +208,11 @@ class Channel(AbstractChannel):
                 is the ID of the method.
         """
         try:
-            connection_empty = self.connection is None
-            channels_empty = self.connection.channels is None
-            if not self.is_open or connection_empty or channels_empty:
+            if self.connection is None:
+                return
+            if self.connection.channels is None:
+                return
+            if not self.is_open:
                 return
 
             self.is_closing = True
