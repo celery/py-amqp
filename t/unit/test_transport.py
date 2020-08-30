@@ -1,6 +1,7 @@
 import errno
 import os
 import socket
+import ssl
 import struct
 from struct import pack
 from unittest.mock import ANY, MagicMock, Mock, call, patch
@@ -620,7 +621,7 @@ class test_SSLTransport:
             mock_ssl_wrap.assert_called_with(cert_reqs=0, certfile=None,
                                              keyfile=None, sock=sock,
                                              ca_certs=None, server_side=False,
-                                             ciphers=None, ssl_version=None,
+                                             ciphers=None, ssl_version=ssl.PROTOCOL_TLS,
                                              suppress_ragged_eofs=True,
                                              do_handshake_on_connect=False)
 
