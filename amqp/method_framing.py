@@ -125,12 +125,8 @@ def frame_writer(connection, transport,
                 body = body.encode(encoding)
             properties = content._serialize_properties()
             bodylen = len(body)
-            framelen = (
-                len(args) +
-                (len(properties) or 0) +
-                bodylen +
-                FRAME_OVERHEAD
-            )
+            properties_len = len(properties) or 0
+            framelen = len(args) + properties_len + bodylen + FRAME_OVERHEAD
             bigbody = framelen > chunk_size
         else:
             body, bodylen, bigbody = None, 0, 0

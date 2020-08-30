@@ -28,8 +28,10 @@ class MockSocket(object):
         self.sa = None
 
     def setsockopt(self, family, key, value):
-        if (family == socket.SOL_SOCKET and
-                key in (socket.SO_RCVTIMEO, socket.SO_SNDTIMEO)):
+        is_sol_socket = family == socket.SOL_SOCKET
+        is_receive_or_send_timeout = key in (socket.SO_RCVTIMEO,
+                                             socket.SO_SNDTIMEO)
+        if is_sol_socket and is_receive_or_send_timeout:
             self.options[key] = value
         elif not isinstance(value, int):
             raise socket.error()
@@ -215,8 +217,8 @@ class test_socket_options:
         read_timeout_sec, read_timeout_usec = 0xdead, 0xbeef
         write_timeout_sec = 0x42
 
-        self.transp.read_timeout = read_timeout_sec + \
-            read_timeout_usec * 0.000001
+        read_timeout = read_timeout_sec + read_timeout_usec * 0.000001
+        self.transp.read_timeout = read_timeout
         self.transp.write_timeout = write_timeout_sec
         self.transp.connect()
 
@@ -230,7 +232,6 @@ class test_socket_options:
 
 
 class test_AbstractTransport:
-
     class Transport(transport._AbstractTransport):
 
         def _connect(self, *args):
@@ -318,6 +319,7 @@ class test_AbstractTransport:
             self.t._read.return_value = b'thequickbrownfox'
             self.t._read.side_effect = on_read2
             return ret
+
         self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
 
@@ -338,9 +340,9 @@ class test_AbstractTransport:
         assert payload == b'read1read2'
 
     def transport_read_EOF(self):
-        for host, ssl in (('localhost:5672', False),
-                          ('localhost:5671', True),):
-            self.t = transport.Transport(host, ssl)
+        for host, is_ssl in (('localhost:5672', False),
+                             ('localhost:5671', True),):
+            self.t = transport.Transport(host, is_ssl)
             self.t.sock = Mock(name='socket')
             self.t.connected = True
             self.t._quick_recv = Mock(name='recv', return_value='')
@@ -441,7 +443,6 @@ class test_AbstractTransport:
 
 
 class test_AbstractTransport_connect:
-
     class Transport(transport._AbstractTransport):
 
         def _init_socket(self, *args):
@@ -460,13 +461,13 @@ class test_AbstractTransport_connect:
 
     def test_connect_socket_initialization_fails(self):
         with patch('socket.socket', side_effect=socket.error), \
-            patch('socket.getaddrinfo',
-                  return_value=[
-                      (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.1', 5672)),
-                      (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.2', 5672))
-                  ]):
+             patch('socket.getaddrinfo',
+                   return_value=[
+                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                        '', ('127.0.0.1', 5672)),
+                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                        '', ('127.0.0.2', 5672))
+                   ]):
             with pytest.raises(socket.error):
                 self.t.connect()
             assert self.t.sock is None and self.t.connected is False
@@ -476,9 +477,9 @@ class test_AbstractTransport_connect:
             patch('socket.getaddrinfo',
                   return_value=[
                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.1', 5672)),
+                       '', ('127.0.0.1', 5672)),
                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.2', 5672))
+                       '', ('127.0.0.2', 5672))
                   ]):
             self.t.sock = Mock()
             self.t.close()
@@ -492,9 +493,9 @@ class test_AbstractTransport_connect:
             patch('socket.getaddrinfo',
                   return_value=[
                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.1', 5672)),
+                       '', ('127.0.0.1', 5672)),
                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.2', 5672))
+                       '', ('127.0.0.2', 5672))
                   ]):
             self.t.sock = Mock()
             self.t.close()
@@ -504,13 +505,13 @@ class test_AbstractTransport_connect:
 
     def test_connect_short_curcuit_on_INET_succeed(self):
         with patch('socket.socket', return_value=MockSocket()), \
-            patch('socket.getaddrinfo',
-                  side_effect=[
-                      [(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.1', 5672))],
-                      [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                          '', ('::1', 5672))]
-                  ]) as getaddrinfo:
+             patch('socket.getaddrinfo',
+                   side_effect=[
+                       [(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                         '', ('127.0.0.1', 5672))],
+                       [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                         '', ('::1', 5672))]
+                   ]) as getaddrinfo:
             self.t.sock = Mock()
             self.t.close()
             self.t.connect()
@@ -522,9 +523,9 @@ class test_AbstractTransport_connect:
             patch('socket.getaddrinfo',
                   side_effect=[
                       [(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                          '', ('127.0.0.1', 5672))],
+                        '', ('127.0.0.1', 5672))],
                       [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                          '', ('::1', 5672))]
+                        '', ('::1', 5672))]
                   ]) as getaddrinfo:
             self.t.sock = Mock()
             self.t.close()
@@ -542,19 +543,19 @@ class test_AbstractTransport_connect:
 
     def test_connect_getaddrinfo_raises_gaierror_once_recovers(self):
         with patch('socket.socket', return_value=MockSocket()), \
-            patch('socket.getaddrinfo',
-                  side_effect=[
-                      socket.gaierror,
-                      [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                          '', ('::1', 5672))]
-                  ]):
+             patch('socket.getaddrinfo',
+                   side_effect=[
+                       socket.gaierror,
+                       [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                         '', ('::1', 5672))]
+                   ]):
             self.t.connect()
 
     def test_connect_survives_not_implemented_set_cloexec(self):
         with patch('socket.socket', return_value=MockSocket()), \
-            patch('socket.getaddrinfo',
-                  return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                                 '', ('127.0.0.1', 5672))]):
+             patch('socket.getaddrinfo',
+                   return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                                  '', ('127.0.0.1', 5672))]):
             with patch('amqp.transport.set_cloexec',
                        side_effect=NotImplementedError) as cloexec_mock:
                 self.t.connect()
@@ -571,7 +572,6 @@ class test_AbstractTransport_connect:
 
 
 class test_SSLTransport:
-
     class Transport(transport.SSLTransport):
 
         def _connect(self, *args):
@@ -605,8 +605,8 @@ class test_SSLTransport:
         self.t._wrap_context.assert_called_with(sock, {'foo': 1}, c=2)
 
     def test_wrap_context(self):
-        with patch('ssl.create_default_context', create=True) \
-                as create_default_context:
+        with patch('ssl.create_default_context',
+                   create=True) as create_default_context:
             sock = Mock()
             self.t._wrap_context(sock, {'f': 1}, check_hostname=True, bar=3)
             create_default_context.assert_called_with(bar=3)
@@ -618,10 +618,14 @@ class test_SSLTransport:
         sock = Mock()
         with patch('ssl.wrap_socket') as mock_ssl_wrap:
             self.t._wrap_socket_sni(sock)
-            mock_ssl_wrap.assert_called_with(cert_reqs=0, certfile=None,
-                                             keyfile=None, sock=sock,
-                                             ca_certs=None, server_side=False,
-                                             ciphers=None, ssl_version=ssl.PROTOCOL_TLS,
+            mock_ssl_wrap.assert_called_with(cert_reqs=0,
+                                             certfile=None,
+                                             keyfile=None,
+                                             sock=sock,
+                                             ca_certs=None,
+                                             server_side=False,
+                                             ciphers=None,
+                                             ssl_version=ssl.PROTOCOL_TLS,
                                              suppress_ragged_eofs=True,
                                              do_handshake_on_connect=False)
 
@@ -680,7 +684,6 @@ class test_SSLTransport:
 
 
 class test_TCPTransport:
-
     class Transport(transport.TCPTransport):
 
         def _connect(self, *args):

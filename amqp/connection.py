@@ -752,9 +752,10 @@ class Connection(AbstractChannel):
 
         # if we've missed two intervals' heartbeats, fail; this gives the
         # server enough time to send heartbeats a little late
-        if (self.last_heartbeat_received and
-                self.last_heartbeat_received + 2 *
-                self.heartbeat < monotonic()):
+        two_heartbeats = 2 * self.heartbeat
+        two_heartbeats_interval = self.last_heartbeat_received + two_heartbeats
+        heartbeats_missed = two_heartbeats_interval < monotonic()
+        if self.last_heartbeat_received and heartbeats_missed:
             raise ConnectionForced('Too many heartbeats missed')
 
     @property

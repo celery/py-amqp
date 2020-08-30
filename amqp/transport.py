@@ -344,7 +344,6 @@ class SSLTransport(_AbstractTransport):
         Default `ssl.wrap_socket` method augmented with support for
         setting the server_hostname field required for SNI hostname header
         """
-
         opts = {
             'sock': sock,
             'keyfile': keyfile,
