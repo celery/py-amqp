@@ -389,10 +389,6 @@ class SSLTransport(_AbstractTransport):
                 try:
                     s = recv(n - len(rbuf))  # see note above
                 except socket.error as exc:
-                    # ssl.sock.read may cause a SSLerror without errno
-                    # http://bugs.python.org/issue10272
-                    if isinstance(exc, SSLError) and 'timed out' in str(exc):
-                        raise socket.timeout()
                     # ssl.sock.read may cause ENOENT if the
                     # operation couldn't be performed (Issue celery#1414).
                     if exc.errno in _errnos:
