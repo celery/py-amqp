@@ -1,4 +1,4 @@
-from case import Mock, patch
+from unittest.mock import Mock, patch
 
 from amqp.utils import bytes_to_str, coro, get_logger, str_to_bytes
 

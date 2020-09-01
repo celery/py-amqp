@@ -1,11 +1,9 @@
 import socket
 import warnings
+from unittest.mock import Mock, call, patch
 
 import pytest
-# python 3.5 does not support assert_called()
-# TODO: After dropping support of python3.5
-#       unittest.mock can be used instead of case
-from case import ContextMock, Mock, call, patch
+from case import ContextMock
 
 from amqp import Connection, spec
 from amqp.connection import SSLError

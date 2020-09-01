@@ -1,10 +1,7 @@
+from unittest.mock import Mock
 from struct import pack
 
 import pytest
-# python 3.5 does not support assert_called()
-# TODO: After dropping support of python3.5
-#       unittest.mock can be used instead of case
-from case import Mock
 
 from amqp import spec
 from amqp.basic_message import Message
