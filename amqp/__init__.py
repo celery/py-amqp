@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import re
 from collections import namedtuple
 
-__version__ = '5.0.0a1'
+__version__ = '5.0.0b1'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Asif Saif Uddin, Matus Valo'
 __contact__ = 'pyamqp@celeryproject.org'
