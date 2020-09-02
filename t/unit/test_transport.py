@@ -1,7 +1,6 @@
 import errno
 import os
 import socket
-import ssl
 import struct
 from struct import pack
 from unittest.mock import ANY, MagicMock, Mock, call, patch
@@ -616,18 +615,13 @@ class test_SSLTransport:
 
     def test_wrap_socket_sni(self):
         sock = Mock()
-        with patch('ssl.wrap_socket') as mock_ssl_wrap:
+        with patch('ssl.SSLContext.wrap_socket') as mock_ssl_wrap:
             self.t._wrap_socket_sni(sock)
-            mock_ssl_wrap.assert_called_with(cert_reqs=0,
-                                             certfile=None,
-                                             keyfile=None,
-                                             sock=sock,
-                                             ca_certs=None,
+            mock_ssl_wrap.assert_called_with(sock=sock,
                                              server_side=False,
-                                             ciphers=None,
-                                             ssl_version=ssl.PROTOCOL_TLS,
+                                             do_handshake_on_connect=False,
                                              suppress_ragged_eofs=True,
-                                             do_handshake_on_connect=False)
+                                             server_hostname=None)
 
     def test_shutdown_transport(self):
         self.t.sock = None

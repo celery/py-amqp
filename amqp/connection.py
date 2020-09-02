@@ -94,8 +94,8 @@ class Connection(AbstractChannel):
     client name. For EXTERNAL authentication both userid and password are
     ignored.
 
-    The 'ssl' parameter may be simply True/False, or for Python >= 2.6
-    a dictionary of options to pass to ssl.wrap_socket() such as
+    The 'ssl' parameter may be simply True/False, or for Python >= 3.6
+    a dictionary of options to pass to ssl.SSLContext such as
     requiring certain certificates.
 
     The "socket_settings" parameter is a dictionary defining tcp

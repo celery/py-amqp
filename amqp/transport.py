@@ -336,39 +336,33 @@ class SSLTransport(_AbstractTransport):
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
-                         ca_certs=None, do_handshake_on_connect=False,
+                         do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
-                         ciphers=None, ssl_version=ssl.PROTOCOL_TLS):
+                         ssl_version=ssl.PROTOCOL_TLS):
         """Socket wrap with SNI headers.
 
-        Default `ssl.wrap_socket` method augmented with support for
+        stdlib `ssl.SSLContext.wrap_socket` method augmented with support for
         setting the server_hostname field required for SNI hostname header
         """
         opts = {
             'sock': sock,
-            'keyfile': keyfile,
-            'certfile': certfile,
             'server_side': server_side,
-            'cert_reqs': cert_reqs,
-            'ca_certs': ca_certs,
             'do_handshake_on_connect': do_handshake_on_connect,
             'suppress_ragged_eofs': suppress_ragged_eofs,
-            'ciphers': ciphers,
-            'ssl_version': ssl_version
+            'server_hostname': server_hostname,
         }
 
-        sock = ssl.wrap_socket(**opts)
+        context = ssl.SSLContext(ssl_version)
+        if certfile is not None:
+            context.load_cert_chain(certfile, keyfile)
+        if cert_reqs != ssl.CERT_NONE:
+            context.check_hostname = True
         # Set SNI headers if supported
         if (server_hostname is not None) and (
                 hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI) and (
                 hasattr(ssl, 'SSLContext')):
-            context = ssl.SSLContext(opts['ssl_version'])
             context.verify_mode = cert_reqs
-            if cert_reqs != ssl.CERT_NONE:
-                context.check_hostname = True
-            if (certfile is not None) and (keyfile is not None):
-                context.load_cert_chain(certfile, keyfile)
-            sock = context.wrap_socket(sock, server_hostname=server_hostname)
+        sock = context.wrap_socket(**opts)
         return sock
 
     def _shutdown_transport(self):
