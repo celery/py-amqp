@@ -5,6 +5,17 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-5.0.0:
+
+5.0.0
+=====
+:release-date: 2020-09-03 3:20 P.M UTC+3:00
+:release-by: Omer Katz
+
+- Stop to use deprecated method ssl.wrap_socket.
+
+  Contributed by **Hervé Beraud**
+
 .. _version-5.0.0b1:
 
 5.0.0b1
