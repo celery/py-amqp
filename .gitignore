@@ -23,5 +23,6 @@ Documentation/
 .eggs/
 .cache/
 .pytest_cache/
+.venv/
 coverage.xml
 htmlcov/
