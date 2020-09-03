@@ -23,7 +23,7 @@ EMPTY_BUFFER = bytes()
 SIGNED_INT_MAX = 0x7FFFFFFF
 
 # Yes, Advanced Message Queuing Protocol Protocol is redundant
-AMQP_PROTOCOL_HEADER = 'AMQP\x00\x00\x09\x01'.encode('latin_1')
+AMQP_PROTOCOL_HEADER = b'AMQP\x00\x00\x09\x01'
 
 # Match things like: [fe80::1]:5432, from RFC 2732
 IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
@@ -52,7 +52,7 @@ def to_host_port(host, default=AMQP_PORT):
     return host, port
 
 
-class _AbstractTransport(object):
+class _AbstractTransport:
     """Common superclass for TCP and SSL transports."""
 
     def __init__(self, host, connect_timeout=None,
@@ -81,7 +81,7 @@ class _AbstractTransport(object):
             # EINTR, EAGAIN, EWOULDBLOCK would signal that the banner
             # has _not_ been sent
             self.connected = True
-        except (OSError, IOError, SSLError):
+        except (OSError, SSLError):
             # if not fully connected, close socket, and reraise error
             if self.sock and not self.connected:
                 self.sock.close()
@@ -107,7 +107,7 @@ class _AbstractTransport(object):
                     # Non-blocking SSL sockets can throw SSLError
                     raise socket.timeout()
                 raise
-            except socket.error as exc:
+            except OSError as exc:
                 if exc.errno == errno.EWOULDBLOCK:
                     raise socket.timeout()
                 raise
@@ -158,7 +158,7 @@ class _AbstractTransport(object):
                         pass
                     self.sock.settimeout(timeout)
                     self.sock.connect(sa)
-                except socket.error as ex:
+                except OSError as ex:
                     e = ex
                     if self.sock is not None:
                         self.sock.close()
@@ -258,7 +258,7 @@ class _AbstractTransport(object):
 
                 try:
                     part2 = read(size - SIGNED_INT_MAX)
-                except (socket.timeout, socket.error, SSLError):
+                except (socket.timeout, OSError, SSLError):
                     # In case this read times out, we need to make sure to not
                     # lose part1 when we retry the read
                     read_frame_buffer += part1
@@ -272,7 +272,7 @@ class _AbstractTransport(object):
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
-        except (OSError, IOError, SSLError, socket.error) as exc:
+        except (OSError, SSLError) as exc:
             if (
                 isinstance(exc, socket.error) and os.name == 'nt'
                 and exc.errno == errno.EWOULDBLOCK  # noqa
@@ -296,14 +296,14 @@ class _AbstractTransport(object):
             return frame_type, channel, payload
         else:
             raise UnexpectedFrame(
-                'Received {0:#04x} while expecting 0xce'.format(ch))
+                f'Received {ch:#04x} while expecting 0xce')
 
     def write(self, s):
         try:
             self._write(s)
         except socket.timeout:
             raise
-        except (OSError, IOError, socket.error) as exc:
+        except OSError as exc:
             if exc.errno not in _UNAVAIL:
                 self.connected = False
             raise
@@ -315,7 +315,7 @@ class SSLTransport(_AbstractTransport):
     def __init__(self, host, connect_timeout=None, ssl=None, **kwargs):
         self.sslopts = ssl if isinstance(ssl, dict) else {}
         self._read_buffer = EMPTY_BUFFER
-        super(SSLTransport, self).__init__(
+        super().__init__(
             host, connect_timeout=connect_timeout, **kwargs)
 
     def _setup_transport(self):
@@ -381,7 +381,7 @@ class SSLTransport(_AbstractTransport):
             while len(rbuf) < n:
                 try:
                     s = recv(n - len(rbuf))  # see note above
-                except socket.error as exc:
+                except OSError as exc:
                     # ssl.sock.read may cause ENOENT if the
                     # operation couldn't be performed (Issue celery#1414).
                     if exc.errno in _errnos:
@@ -390,7 +390,7 @@ class SSLTransport(_AbstractTransport):
                         continue
                     raise
                 if not s:
-                    raise IOError('Server unexpectedly closed connection')
+                    raise OSError('Server unexpectedly closed connection')
                 rbuf += s
         except:  # noqa
             self._read_buffer = rbuf
@@ -411,7 +411,7 @@ class SSLTransport(_AbstractTransport):
                 # None.
                 n = 0
             if not n:
-                raise IOError('Socket closed')
+                raise OSError('Socket closed')
             s = s[n:]
 
 
@@ -433,14 +433,14 @@ class TCPTransport(_AbstractTransport):
             while len(rbuf) < n:
                 try:
                     s = recv(n - len(rbuf))
-                except socket.error as exc:
+                except OSError as exc:
                     if exc.errno in _errnos:
                         if initial and self.raise_on_initial_eintr:
                             raise socket.timeout()
                         continue
                     raise
                 if not s:
-                    raise IOError('Server unexpectedly closed connection')
+                    raise OSError('Server unexpectedly closed connection')
                 rbuf += s
         except:  # noqa
             self._read_buffer = rbuf

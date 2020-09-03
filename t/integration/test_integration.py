@@ -112,7 +112,7 @@ def build_frame_type_3(channel, body):
     return 3, channel, body
 
 
-class DataComparator(object):
+class DataComparator:
     # Comparator used for asserting serialized data. It can be used
     # in cases when direct comparision of bytestream cannot be used
     # (mainly cases of Table type where order of items can vary)

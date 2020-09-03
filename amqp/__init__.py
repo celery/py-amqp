@@ -1,6 +1,5 @@
 """Low-level AMQP client for Python (fork of amqplib)."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
-from __future__ import absolute_import, unicode_literals
 
 import re
 from collections import namedtuple

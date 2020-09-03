@@ -17,7 +17,7 @@ Received method %s during closing channel %s. This method will be ignored\
 """
 
 
-class AbstractChannel(object):
+class AbstractChannel:
     """Superclass for Connection and Channel.
 
     The connection is treated as channel 0, then comes
@@ -120,7 +120,7 @@ class AbstractChannel(object):
             amqp_method = self._METHODS[method_sig]
         except KeyError:
             raise AMQPNotImplementedError(
-                'Unknown AMQP method {0!r}'.format(method_sig))
+                f'Unknown AMQP method {method_sig!r}')
 
         try:
             listeners = [self._callbacks[method_sig]]

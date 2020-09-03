@@ -36,7 +36,7 @@ def frame_handler(connection, callback,
         connection.bytes_recv += 1
         if frame_type not in (expected_types[channel], 8):
             raise UnexpectedFrame(
-                'Received frame {0} while expecting type: {1}'.format(
+                'Received frame {} while expecting type: {}'.format(
                     frame_type, expected_types[channel]),
             )
         elif frame_type == 1:
@@ -83,7 +83,7 @@ def frame_handler(connection, callback,
     return on_frame
 
 
-class Buffer(object):
+class Buffer:
     def __init__(self, buf):
         self.buf = buf
 

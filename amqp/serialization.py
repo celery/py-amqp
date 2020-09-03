@@ -138,7 +138,7 @@ def _read_item(buf, offset):
         val = None
     else:
         raise FrameSyntaxError(
-            'Unknown value in table: {0!r} ({1!r})'.format(
+            'Unknown value in table: {!r} ({!r})'.format(
                 ftype, type(ftype)))
     return val, offset
 
@@ -469,7 +469,7 @@ PROPERTY_CLASSES = {
 }
 
 
-class GenericContent(object):
+class GenericContent:
     """Abstract base class for AMQP content.
 
     Subclasses should override the PROPERTIES attribute.

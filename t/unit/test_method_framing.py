@@ -115,7 +115,7 @@ class test_frame_writer:
         self.write.assert_called()
         memory = self.write.call_args[0][0]
         assert isinstance(memory, memoryview)
-        assert '\N{CHECK MARK}'.encode('utf-8') in memory.tobytes()
+        assert '\N{CHECK MARK}'.encode() in memory.tobytes()
         assert msg.properties['content_encoding'] == 'utf-8'
 
     def test_write_slow_unicode(self):
@@ -125,7 +125,7 @@ class test_frame_writer:
         self.write.assert_called()
         memory = self.write.call_args[0][0]
         assert isinstance(memory, bytes)
-        assert '\N{CHECK MARK}'.encode('utf-8') in memory
+        assert '\N{CHECK MARK}'.encode() in memory
         assert msg.properties['content_encoding'] == 'utf-8'
 
     def test_write_non_utf8(self):

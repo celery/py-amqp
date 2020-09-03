@@ -18,11 +18,11 @@ class DummyException(Exception):
     pass
 
 
-class MockSocket(object):
+class MockSocket:
     options = {}
 
     def __init__(self, *args, **kwargs):
-        super(MockSocket, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.connected = False
         self.sa = None
 
@@ -33,7 +33,7 @@ class MockSocket(object):
         if is_sol_socket and is_receive_or_send_timeout:
             self.options[key] = value
         elif not isinstance(value, int):
-            raise socket.error()
+            raise OSError()
         self.options[key] = value
 
     def getsockopt(self, family, key):
@@ -174,7 +174,7 @@ class test_socket_options:
             self.transp.connect()
 
     def test_passing_wrong_value_options(self):
-        socket_settings = {TCP_KEEPINTVL: 'a'.encode()}
+        socket_settings = {TCP_KEEPINTVL: b'a'}
         self.transp = transport.Transport(
             self.host, self.connect_timeout,
             socket_settings=socket_settings,
@@ -183,7 +183,7 @@ class test_socket_options:
             self.transp.connect()
 
     def test_passing_value_as_string(self):
-        socket_settings = {TCP_KEEPIDLE: '5'.encode()}
+        socket_settings = {TCP_KEEPIDLE: b'5'}
         self.transp = transport.Transport(
             self.host, self.connect_timeout,
             socket_settings=socket_settings,

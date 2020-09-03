@@ -11,7 +11,7 @@ from amqp.exceptions import FrameSyntaxError
 from amqp.serialization import GenericContent, _read_item, dumps, loads
 
 
-class _ANY(object):
+class _ANY:
 
     def __eq__(self, other):
         return other is not None

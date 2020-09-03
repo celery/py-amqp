@@ -9,7 +9,7 @@ import amqp
 
 def get_connection(
         hostname, port, vhost, use_tls=False, keyfile=None, certfile=None):
-    host = '%s:%s' % (hostname, port)
+    host = f'{hostname}:{port}'
     if use_tls:
         return amqp.Connection(host=host, vhost=vhost, ssl={
             'keyfile': keyfile,

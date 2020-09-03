@@ -103,7 +103,7 @@ class Channel(AbstractChannel):
 
         AMQP_LOGGER.debug('using channel_id: %s', channel_id)
 
-        super(Channel, self).__init__(connection, channel_id)
+        super().__init__(connection, channel_id)
 
         self.is_open = False
         self.active = True  # Flow control

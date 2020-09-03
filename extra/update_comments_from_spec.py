@@ -1,5 +1,3 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 import sys
 import re
@@ -10,8 +8,8 @@ default_source_file = os.path.join(
 )
 
 RE_COMMENTS = re.compile(
-    '(?P<methodsig>def\s+(?P<mname>[a-zA-Z0-9_]+)\(.*?\)'
-    ':\n+\s+""")(?P<comment>.*?)(?=""")',
+    r'(?P<methodsig>def\s+(?P<mname>[a-zA-Z0-9_]+)\(.*?\)'
+    ':\n+\\s+""")(?P<comment>.*?)(?=""")',
     re.MULTILINE | re.DOTALL
 )
 
@@ -21,7 +19,7 @@ Usage: %s <comments-file> <output-file> [<source-file>]\
 
 
 def update_comments(comments_file, impl_file, result_file):
-    text_file = open(impl_file, 'r')
+    text_file = open(impl_file)
     source = text_file.read()
 
     comments = get_comments(comments_file)
@@ -35,7 +33,7 @@ def update_comments(comments_file, impl_file, result_file):
 
 
 def get_comments(filename):
-    text_file = open(filename, 'r')
+    text_file = open(filename)
     whole_source = text_file.read()
     comments = {}
 
@@ -49,11 +47,11 @@ def get_comments(filename):
 
 
 def replace_comment_per_def(source, result_file, def_name, new_comment):
-    regex = ('(?P<methodsig>def\s+' +
+    regex = (r'(?P<methodsig>def\s+' +
              def_name +
-             '\(.*?\):\n+\s+""".*?\n).*?(?=""")')
+             '\\(.*?\\):\n+\\s+""".*?\n).*?(?=""")')
     #  print('method and comment:' + def_name + new_comment)
-    result = re.sub(regex, '\g<methodsig>' + new_comment, source, 0,
+    result = re.sub(regex, r'\g<methodsig>' + new_comment, source, 0,
                     re.MULTILINE | re.DOTALL)
     return result
 

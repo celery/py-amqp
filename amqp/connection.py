@@ -244,7 +244,7 @@ class Connection(AbstractChannel):
 
         self.channels = {}
         # The connection object itself is treated as channel 0
-        super(Connection, self).__init__(self, 0)
+        super().__init__(self, 0)
 
         self._frame_writer = None
         self._on_inbound_frame = None
@@ -319,7 +319,7 @@ class Connection(AbstractChannel):
             while not self._handshake_complete:
                 self.drain_events(timeout=self.connect_timeout)
 
-        except (OSError, IOError, SSLError):
+        except (OSError, SSLError):
             self.collect()
             raise
 
@@ -397,7 +397,7 @@ class Connection(AbstractChannel):
         else:
             raise ConnectionError(
                 "Couldn't find appropriate auth mechanism "
-                "(can offer: {0}; available: {1})".format(
+                "(can offer: {}; available: {})".format(
                     b", ".join(m.mechanism
                                for m in self.authentication
                                if m.mechanism).decode(),
@@ -471,7 +471,7 @@ class Connection(AbstractChannel):
 
                 for ch in channels:
                     ch.collect()
-        except socket.error:
+        except OSError:
             pass  # connection already closed on the other end
         finally:
             self._transport = self.connection = self.channels = None
@@ -481,14 +481,14 @@ class Connection(AbstractChannel):
             return self._avail_channel_ids.pop()
         except IndexError:
             raise ResourceError(
-                'No free channel ids, current={0}, channel_max={1}'.format(
+                'No free channel ids, current={}, channel_max={}'.format(
                     len(self.channels), self.channel_max), spec.Channel.Open)
 
     def _claim_channel_id(self, channel_id):
         try:
             return self._avail_channel_ids.remove(channel_id)
         except ValueError:
-            raise ConnectionError('Channel %r already open' % (channel_id,))
+            raise ConnectionError(f'Channel {channel_id!r} already open')
 
     def channel(self, channel_id=None, callback=None):
         """Create new channel.
@@ -592,7 +592,7 @@ class Connection(AbstractChannel):
                 (reply_code, reply_text, method_sig[0], method_sig[1]),
                 wait=spec.Connection.CloseOk,
             )
-        except (OSError, IOError, SSLError):
+        except (OSError, SSLError):
             # close connection
             self.collect()
             raise
