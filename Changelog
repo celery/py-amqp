@@ -5,6 +5,17 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-5.0.1:
+
+5.0.1
+=====
+:release-date: 2020-09-06 6:10 P.M UTC+3:00
+:release-by: Omer Katz
+
+- Require vine 5.0.0.
+
+  Contributed by **Omer Katz**
+
 .. _version-5.0.0:
 
 5.0.0
