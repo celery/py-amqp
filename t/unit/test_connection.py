@@ -1,3 +1,4 @@
+import re
 import socket
 import warnings
 from unittest.mock import Mock, call, patch
@@ -501,3 +502,19 @@ class test_Connection:
     def test_server_capabilities(self):
         self.conn.server_properties['capabilities'] = {'foo': 1}
         assert self.conn.server_capabilities == {'foo': 1}
+
+    def test_repr_disconnected(self):
+        assert re.fullmatch(
+            r'<AMQP Connection: broker.com:1234// \(disconnected\) at 0x.*>',
+            repr(Connection(host='broker.com:1234'))
+        )
+
+    def test_repr_connected(self):
+        c = Connection(host='broker.com:1234')
+        c._transport = Mock(name='transport')
+        assert re.fullmatch(
+            r'<AMQP Connection: broker.com:1234// using {} at 0x.*>'.format(
+                repr(c.transport)
+            ),
+            repr(c)
+        )
