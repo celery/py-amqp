@@ -1,5 +1,6 @@
 import errno
 import os
+import re
 import socket
 import struct
 from struct import pack
@@ -52,6 +53,12 @@ class MockSocket:
     def close(self):
         self.connected = False
         self.sa = None
+
+    def getsockname(self):
+        return ('127.0.0.1', 1234)
+
+    def getpeername(self):
+        return ('1.2.3.4', 5671)
 
 
 TCP_KEEPIDLE = 4
@@ -579,6 +586,20 @@ class test_SSLTransport:
         def _init_socket(self, *args):
             pass
 
+    def test_repr_disconnected(self):
+        assert re.fullmatch(
+            r'<SSLTransport: \(disconnected\) at 0x.*>',
+            repr(transport.SSLTransport('host', 3))
+        )
+
+    def test_repr_connected(self):
+        t = transport.SSLTransport('host', 3)
+        t.sock = MockSocket()
+        re.fullmatch(
+            '<SSLTransport: 127.0.0.1:1234 -> 1.2.3.4:5671 at 0x.*>',
+            repr(t)
+        )
+
     @pytest.fixture(autouse=True)
     def setup_transport(self):
         self.t = self.Transport(
@@ -685,6 +706,20 @@ class test_TCPTransport:
 
         def _init_socket(self, *args):
             pass
+
+    def test_repr_disconnected(self):
+        assert re.fullmatch(
+            r'<TCPTransport: \(disconnected\) at 0x.*>',
+            repr(transport.TCPTransport('host', 3))
+        )
+
+    def test_repr_connected(self):
+        t = transport.SSLTransport('host', 3)
+        t.sock = MockSocket()
+        re.fullmatch(
+            '<TCPTransport: 127.0.0.1:1234 -> 1.2.3.4:5671 at 0x.*>',
+            repr(t)
+        )
 
     @pytest.fixture(autouse=True)
     def setup_transport(self):

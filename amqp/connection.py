@@ -277,6 +277,14 @@ class Connection(AbstractChannel):
 
         self.connect_timeout = connect_timeout
 
+    def __repr__(self):
+        if self._transport:
+            return f'<AMQP Connection: {self.host}/{self.virtual_host} '\
+                   f'using {self._transport} at {id(self):#x}>'
+        else:
+            return f'<AMQP Connection: {self.host}/{self.virtual_host} '\
+                   f'(disconnected) at {id(self):#x}>'
+
     def __enter__(self):
         self.connect()
         return self
