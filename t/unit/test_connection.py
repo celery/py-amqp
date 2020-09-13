@@ -503,17 +503,33 @@ class test_Connection:
         self.conn.server_properties['capabilities'] = {'foo': 1}
         assert self.conn.server_capabilities == {'foo': 1}
 
-    def test_repr_disconnected(self):
+    @pytest.mark.parametrize(
+        'conn_kwargs,expected_vhost', [
+            ({}, '/'),
+            ({'user_id': 'test_user', 'password': 'test_pass'}, '/'),
+            ({'virtual_host': 'test_vhost'}, 'test_vhost')
+        ]
+    )
+    def test_repr_disconnected(self, conn_kwargs, expected_vhost):
         assert re.fullmatch(
-            r'<AMQP Connection: broker.com:1234// \(disconnected\) at 0x.*>',
-            repr(Connection(host='broker.com:1234'))
+            r'<AMQP Connection: broker.com:1234/{} '
+            r'\(disconnected\) at 0x.*>'.format(expected_vhost),
+            repr(Connection(host='broker.com:1234', **conn_kwargs))
         )
 
-    def test_repr_connected(self):
-        c = Connection(host='broker.com:1234')
+    @pytest.mark.parametrize(
+        'conn_kwargs,expected_vhost', [
+            ({}, '/'),
+            ({'user_id': 'test_user', 'password': 'test_pass'}, '/'),
+            ({'virtual_host': 'test_vhost'}, 'test_vhost')
+        ]
+    )
+    def test_repr_connected(self, conn_kwargs, expected_vhost):
+        c = Connection(host='broker.com:1234', **conn_kwargs)
         c._transport = Mock(name='transport')
         assert re.fullmatch(
-            r'<AMQP Connection: broker.com:1234// using {} at 0x.*>'.format(
+            r'<AMQP Connection: broker.com:1234/{} using {} at 0x.*>'.format(
+                expected_vhost,
                 repr(c.transport)
             ),
             repr(c)
