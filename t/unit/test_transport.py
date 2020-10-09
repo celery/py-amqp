@@ -333,8 +333,11 @@ class test_AbstractTransport:
         self.t._read.return_value = pack('>BHI', 1, 1, 16)
         self.t._read.side_effect = on_read1
         checksum[0] = b'\x13'
-        with pytest.raises(UnexpectedFrame):
+        with pytest.raises(UnexpectedFrame) as ex:
             self.t.read_frame()
+        assert ex.value.code == 505
+        assert ex.value.message == \
+            'Received frame_end 0x13 while expecting 0xce'
 
     def test_read_frame__long(self):
         self.t._read = Mock()

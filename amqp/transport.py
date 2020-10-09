@@ -253,6 +253,15 @@ class _AbstractTransport:
         self.connected = False
 
     def read_frame(self, unpack=unpack):
+        """Parse AMQP frame.
+
+        Frame has following format:
+        0      1         3         7                   size+7      size+8
+        +------+---------+---------+   +-------------+   +-----------+
+        | type | channel |  size   |   |   payload   |   | frame-end |
+        +------+---------+---------+   +-------------+   +-----------+
+         octet    short     long        'size' octets        octet
+        """
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
         try:
@@ -276,7 +285,7 @@ class _AbstractTransport:
             else:
                 payload = read(size)
             read_frame_buffer += payload
-            ch = ord(read(1))
+            frame_end = ord(read(1))
         except socket.timeout:
             self._read_buffer = read_frame_buffer + self._read_buffer
             raise
@@ -300,11 +309,12 @@ class _AbstractTransport:
             if exc.errno not in _UNAVAIL:
                 self.connected = False
             raise
-        if ch == 206:  # '\xce'
+        # frame-end octet must contain '\xce' value
+        if frame_end == 206:
             return frame_type, channel, payload
         else:
             raise UnexpectedFrame(
-                f'Received {ch:#04x} while expecting 0xce')
+                f'Received frame_end {frame_end:#04x} while expecting 0xce')
 
     def write(self, s):
         try:
