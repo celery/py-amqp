@@ -178,9 +178,9 @@ Further
 
     http://www.rabbitmq.com/devtools.html#python-dev
 
-.. |build-status| image:: https://secure.travis-ci.org/celery/py-amqp.png?branch=master
+.. |build-status| image:: https://api.travis-ci.com/celery/py-amqp.png?branch=master
     :alt: Build status
-    :target: https://travis-ci.org/celery/py-amqp
+    :target: https://travis-ci.com/celery/py-amqp
 
 .. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=master
     :target: https://codecov.io/github/celery/py-amqp?branch=master
