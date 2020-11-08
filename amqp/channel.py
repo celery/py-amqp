@@ -1676,6 +1676,7 @@ class Channel(AbstractChannel):
 
     def _basic_publish(self, msg, exchange='', routing_key='',
                        mandatory=False, immediate=False, timeout=None,
+                       confirm_timeout=None,
                        argsig='Bssbb'):
         """Publish a message.
 
@@ -1685,9 +1686,11 @@ class Channel(AbstractChannel):
         transaction, if any, is committed.
 
         When channel is in confirm mode (when Connection parameter
-        confirm_publish is set to True), each message is confirmed. When
-        broker rejects published message (e.g. due internal broker
-        constrains), MessageNacked exception is raised.
+        confirm_publish is set to True), each message is confirmed.
+        When broker rejects published message (e.g. due internal broker
+        constrains), MessageNacked exception is raised and
+        set confirm_timeout to wait maximum confirm_timeout second
+        for message to confirm.
 
         PARAMETERS:
             exchange: shortstr
@@ -1745,12 +1748,28 @@ class Channel(AbstractChannel):
                 RULE:
 
                     The server SHOULD implement the immediate flag.
+
+            timeout: short
+
+                timeout for publish
+
+                Set timeout to wait maximum timeout second
+                for message to publish.
+
+            confirm_timeout: short
+
+                confirm_timeout for publish in confirm mode
+
+                When the channel is in confirm mode set
+                confirm_timeout to wait maximum confirm_timeout
+                second for message to confirm.
+
         """
         if not self.connection:
             raise RecoverableConnectionError(
                 'basic_publish: connection closed')
 
-        capabilities = self.connection.\
+        capabilities = self.connection. \
             client_properties.get('capabilities', {})
         if capabilities.get('connection.blocked', False):
             try:
@@ -1767,6 +1786,7 @@ class Channel(AbstractChannel):
                 )
         except socket.timeout:
             raise RecoverableChannelError('basic_publish: timed out')
+
     basic_publish = _basic_publish
 
     def basic_publish_confirm(self, *args, **kwargs):
