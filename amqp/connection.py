@@ -94,9 +94,10 @@ class Connection(AbstractChannel):
     client name. For EXTERNAL authentication both userid and password are
     ignored.
 
-    The 'ssl' parameter may be simply True/False, or for Python >= 3.6
-    a dictionary of options to pass to ssl.SSLContext such as
-    requiring certain certificates.
+    The 'ssl' parameter may be simply True/False, or
+    a dictionary of options to pass to :class:`ssl.SSLContext` such as
+    requiring certain certificates. For details, refer ``ssl`` parameter of
+    :class:`~amqp.transport.SSLTransport`.
 
     The "socket_settings" parameter is a dictionary defining tcp
     settings which will be applied as socket options.

@@ -53,7 +53,36 @@ def to_host_port(host, default=AMQP_PORT):
 
 
 class _AbstractTransport:
-    """Common superclass for TCP and SSL transports."""
+    """Common superclass for TCP and SSL transports.
+
+    PARAMETERS:
+        host: str
+
+            Broker address in format ``HOSTNAME:PORT``.
+
+        connect_timeout: int
+
+            Timeout of creating new connection.
+
+        read_timeout: int
+
+            sets ``SO_RCVTIMEO`` parameter of socket.
+
+        write_timeout: int
+
+            sets ``SO_SNDTIMEO`` parameter of socket.
+
+        socket_settings: dict
+
+            dictionary containing `optname` and ``optval`` passed to
+            ``setsockopt(2)``.
+
+        raise_on_initial_eintr: bool
+
+            when True, ``socket.timeout`` is raised
+            when exception is received during first read. See ``_read()`` for
+            details.
+    """
 
     def __init__(self, host, connect_timeout=None,
                  read_timeout=None, write_timeout=None,
@@ -255,12 +284,14 @@ class _AbstractTransport:
     def read_frame(self, unpack=unpack):
         """Parse AMQP frame.
 
-        Frame has following format:
-        0      1         3         7                   size+7      size+8
-        +------+---------+---------+   +-------------+   +-----------+
-        | type | channel |  size   |   |   payload   |   | frame-end |
-        +------+---------+---------+   +-------------+   +-----------+
-         octet    short     long        'size' octets        octet
+        Frame has following format::
+
+            0      1         3         7                   size+7      size+8
+            +------+---------+---------+   +-------------+   +-----------+
+            | type | channel |  size   |   |   payload   |   | frame-end |
+            +------+---------+---------+   +-------------+   +-----------+
+             octet    short     long        'size' octets        octet
+
         """
         read = self._read
         read_frame_buffer = EMPTY_BUFFER
@@ -328,7 +359,39 @@ class _AbstractTransport:
 
 
 class SSLTransport(_AbstractTransport):
-    """Transport that works over SSL."""
+    """Transport that works over SSL.
+
+    PARAMETERS:
+        host: str
+
+            Broker address in format ``HOSTNAME:PORT``.
+
+        connect_timeout: int
+
+            Timeout of creating new connection.
+
+        ssl: bool|dict
+
+            parameters of TLS subsystem.
+                - when ``ssl`` is not dictionary, defaults of TLS are used
+                - otherwise:
+                    - if ``ssl`` dictionary contains ``context`` key,
+                      :attr:`~SSLTransport._wrap_context` is used for wrapping
+                      socket. ``context`` is a dictionary passed to
+                      :attr:`~SSLTransport._wrap_context` as context parameter.
+                      All others items from ``ssl`` argument are passed as
+                      ``sslopts``.
+                    - if ``ssl`` dictionary does not contain ``context`` key,
+                      :attr:`~SSLTransport._wrap_socket_sni` is used for
+                      wrapping socket. All items in ``ssl`` argument are
+                      passed to :attr:`~SSLTransport._wrap_socket_sni` as
+                      parameters.
+
+        kwargs:
+
+            additional arguments of
+            :class:`~amqp.transport._AbstractTransport` class
+    """
 
     def __init__(self, host, connect_timeout=None, ssl=None, **kwargs):
         self.sslopts = ssl if isinstance(ssl, dict) else {}
@@ -348,6 +411,26 @@ class SSLTransport(_AbstractTransport):
         return self._wrap_socket_sni(sock, **sslopts)
 
     def _wrap_context(self, sock, sslopts, check_hostname=None, **ctx_options):
+        """Wrap socket without SNI headers.
+
+        PARAMETERS:
+            sock: socket.socket
+
+            Socket to be wrapped.
+
+            sslopts: dict
+
+                Parameters of  :attr:`ssl.SSLContext.wrap_socket`.
+
+            check_hostname
+
+                Whether to match the peer cert’s hostname. See
+                :attr:`ssl.SSLContext.check_hostname` for details.
+
+            ctx_options
+
+                Parameters of :attr:`ssl.create_default_context`.
+        """
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
         return ctx.wrap_socket(sock, **sslopts)
@@ -359,8 +442,61 @@ class SSLTransport(_AbstractTransport):
                          ciphers=None, ssl_version=ssl.PROTOCOL_TLS):
         """Socket wrap with SNI headers.
 
-        stdlib `ssl.SSLContext.wrap_socket` method augmented with support for
-        setting the server_hostname field required for SNI hostname header
+        stdlib :attr:`ssl.SSLContext.wrap_socket` method augmented with support
+        for setting the server_hostname field required for SNI hostname header.
+
+        PARAMETERS:
+            sock: socket.socket
+
+                Socket to be wrapped.
+
+            keyfile: str
+
+                path to client private key
+
+            certfile: str
+
+                path to client certificate
+
+            server_side: bool
+
+                identifies whether server-side or client-side
+                behavior is desired from this socket. See
+                :attr:`~ssl.SSLContext.wrap_socket` for details.
+                cert_reqs: If set, peers certificate is checked. Possible
+                values are :attr:`ssl.CERT_OPTIONAL` or
+                :attr:`ssl.CERT_REQUIRED`.
+
+            ca_certs: str
+
+                path to “certification authority” (CA) certificates
+                used to validate other peers’ certificates when ``cert_reqs``
+                is other than :attr:`ssl.CERT_NONE`.
+
+            do_handshake_on_connect: bool
+
+                specifies whether to do the SSL
+                handshake automatically. See
+                :attr:`~ssl.SSLContext.wrap_socket` for details.
+
+            suppress_ragged_eofs (bool): See
+                :attr:`~ssl.SSLContext.wrap_socket` for details.
+
+            server_hostname: str
+
+                specifies the hostname of the service which
+                we are connecting to. See :attr:`~ssl.SSLContext.wrap_socket`
+                for details.
+
+            ciphers: str
+
+                available ciphers for sockets created with this
+                context. See :attr:`ssl.SSLContext.set_ciphers`
+
+            ssl_version:
+
+                Protocol of the SSL Context. The value is one of
+                ``ssl.PROTOCOL_*`` constants.
         """
         opts = {
             'sock': sock,
@@ -438,7 +574,10 @@ class SSLTransport(_AbstractTransport):
 
 
 class TCPTransport(_AbstractTransport):
-    """Transport that deals directly with TCP socket."""
+    """Transport that deals directly with TCP socket.
+
+    All parameters are :class:`~amqp.transport._AbstractTransport` class.
+    """
 
     def _setup_transport(self):
         # Setup to _write() directly to the socket, and
@@ -476,7 +615,29 @@ def Transport(host, connect_timeout=None, ssl=False, **kwargs):
     """Create transport.
 
     Given a few parameters from the Connection constructor,
-    select and create a subclass of _AbstractTransport.
+    select and create a subclass of
+    :class:`~amqp.transport._AbstractTransport`.
+
+    PARAMETERS:
+
+        host: str
+
+            Broker address in format ``HOSTNAME:PORT``.
+
+        connect_timeout: int
+
+            Timeout of creating new connection.
+
+        ssl: bool|dict
+
+            If set, :class:`~amqp.transport.SSLTransport` is used
+            and ``ssl`` parameter is passed to it. Otherwise
+            :class:`~amqp.transport.TCPTransport` is used.
+
+        kwargs:
+
+            additional arguments of :class:`~amqp.transport._AbstractTransport`
+            class
     """
     transport = SSLTransport if ssl else TCPTransport
     return transport(host, connect_timeout=connect_timeout, ssl=ssl, **kwargs)
