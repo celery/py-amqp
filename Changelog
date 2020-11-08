@@ -5,6 +5,31 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-5.0.2:
+
+5.0.2
+=====
+:release-date: 2020-11-08 6:50 P.M UTC+3:00
+:release-by: Omer Katz
+
+- Whhels are no longer universal.
+
+  Contributed by **Omer Katz**
+
+- Added debug representation to Connection and *Transport classes
+
+  Contributed by **Matus Valo**
+
+- Reintroduce ca_certs and ciphers parameters of SSLTransport._wrap_socket_sni()
+
+  This fixes issue introduced in commit: 53d6777
+
+  Contributed by **Matus Valo**
+
+- Fix infinite wait when using confirm_publish
+
+  Contributed by **Omer Katz** & **RezaSi**
+
 .. _version-5.0.1:
 
 5.0.1
