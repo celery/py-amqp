@@ -658,8 +658,10 @@ class test_SSLTransport:
         sock = Mock()
         with patch(
             'ssl.SSLContext.wrap_socket',
-            return_value=sentinel.WRAPPED_SOCKET) as mock_ssl_wrap, \
-                patch('ssl.SSLContext.load_cert_chain') as mock_load_cert_chain:
+            return_value=sentinel.WRAPPED_SOCKET
+        ) as mock_ssl_wrap, patch(
+            'ssl.SSLContext.load_cert_chain'
+        ) as mock_load_cert_chain:
             ret = self.t._wrap_socket_sni(
                 sock, keyfile=sentinel.KEYFILE, certfile=sentinel.CERTFILE)
 
