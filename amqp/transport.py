@@ -354,9 +354,9 @@ class SSLTransport(_AbstractTransport):
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
                          server_side=False, cert_reqs=ssl.CERT_NONE,
-                         do_handshake_on_connect=False,
+                         ca_certs=None, do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
-                         ssl_version=ssl.PROTOCOL_TLS):
+                         ciphers=None, ssl_version=ssl.PROTOCOL_TLS):
         """Socket wrap with SNI headers.
 
         stdlib `ssl.SSLContext.wrap_socket` method augmented with support for
@@ -373,6 +373,10 @@ class SSLTransport(_AbstractTransport):
         context = ssl.SSLContext(ssl_version)
         if certfile is not None:
             context.load_cert_chain(certfile, keyfile)
+        if ca_certs is not None:
+            context.load_verify_locations(ca_certs)
+        if ciphers:
+            context.set_ciphers(ciphers)
         if cert_reqs != ssl.CERT_NONE:
             context.check_hostname = True
         # Set SNI headers if supported
