@@ -3,7 +3,6 @@
 import platform
 import re
 import sys
-
 # Jython does not have this attribute
 import typing
 

@@ -470,13 +470,13 @@ class test_AbstractTransport_connect:
 
     def test_connect_socket_initialization_fails(self):
         with patch('socket.socket', side_effect=socket.error), \
-             patch('socket.getaddrinfo',
-                   return_value=[
-                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                        '', ('127.0.0.1', 5672)),
-                       (socket.AF_INET, 1, socket.IPPROTO_TCP,
-                        '', ('127.0.0.2', 5672))
-                   ]):
+            patch('socket.getaddrinfo',
+                  return_value=[
+                      (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                       '', ('127.0.0.1', 5672)),
+                      (socket.AF_INET, 1, socket.IPPROTO_TCP,
+                       '', ('127.0.0.2', 5672))
+                  ]):
             with pytest.raises(socket.error):
                 self.t.connect()
             assert self.t.sock is None and self.t.connected is False
@@ -514,13 +514,13 @@ class test_AbstractTransport_connect:
 
     def test_connect_short_curcuit_on_INET_succeed(self):
         with patch('socket.socket', return_value=MockSocket()), \
-             patch('socket.getaddrinfo',
-                   side_effect=[
-                       [(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                         '', ('127.0.0.1', 5672))],
-                       [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                         '', ('::1', 5672))]
-                   ]) as getaddrinfo:
+            patch('socket.getaddrinfo',
+                  side_effect=[
+                      [(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                        '', ('127.0.0.1', 5672))],
+                      [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                        '', ('::1', 5672))]
+                  ]) as getaddrinfo:
             self.t.sock = Mock()
             self.t.close()
             self.t.connect()
@@ -552,19 +552,19 @@ class test_AbstractTransport_connect:
 
     def test_connect_getaddrinfo_raises_gaierror_once_recovers(self):
         with patch('socket.socket', return_value=MockSocket()), \
-             patch('socket.getaddrinfo',
-                   side_effect=[
-                       socket.gaierror,
-                       [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
-                         '', ('::1', 5672))]
-                   ]):
+            patch('socket.getaddrinfo',
+                  side_effect=[
+                      socket.gaierror,
+                      [(socket.AF_INET6, 1, socket.IPPROTO_TCP,
+                        '', ('::1', 5672))]
+                  ]):
             self.t.connect()
 
     def test_connect_survives_not_implemented_set_cloexec(self):
         with patch('socket.socket', return_value=MockSocket()), \
-             patch('socket.getaddrinfo',
-                   return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
-                                  '', ('127.0.0.1', 5672))]):
+            patch('socket.getaddrinfo',
+                  return_value=[(socket.AF_INET, 1, socket.IPPROTO_TCP,
+                                 '', ('127.0.0.1', 5672))]):
             with patch('amqp.transport.set_cloexec',
                        side_effect=NotImplementedError) as cloexec_mock:
                 self.t.connect()
@@ -657,9 +657,9 @@ class test_SSLTransport:
         # testing _wrap_socket_sni() with parameters certfile and keyfile
         sock = Mock()
         with patch(
-                'ssl.SSLContext.wrap_socket',
-                return_value=sentinel.WRAPPED_SOCKET) as mock_ssl_wrap, \
-             patch('ssl.SSLContext.load_cert_chain') as mock_load_cert_chain:
+            'ssl.SSLContext.wrap_socket',
+            return_value=sentinel.WRAPPED_SOCKET) as mock_ssl_wrap, \
+                patch('ssl.SSLContext.load_cert_chain') as mock_load_cert_chain:
             ret = self.t._wrap_socket_sni(
                 sock, keyfile=sentinel.KEYFILE, certfile=sentinel.CERTFILE)
 
@@ -697,9 +697,9 @@ class test_SSLTransport:
         # testing _wrap_socket_sni() with parameter ciphers
         sock = Mock()
         with patch(
-                'ssl.SSLContext.wrap_socket',
-                return_value=sentinel.WRAPPED_SOCKET) as mock_ssl_wrap, \
-             patch('ssl.SSLContext.set_ciphers') as mock_set_ciphers:
+            'ssl.SSLContext.wrap_socket',
+            return_value=sentinel.WRAPPED_SOCKET) as mock_ssl_wrap, \
+                patch('ssl.SSLContext.set_ciphers') as mock_set_ciphers:
             ret = self.t._wrap_socket_sni(sock, ciphers=sentinel.CIPHERS)
 
         mock_set_ciphers.assert_called_with(sentinel.CIPHERS)
@@ -732,7 +732,7 @@ class test_SSLTransport:
         # testing _wrap_socket_sni() with setting SNI header
         sock = Mock()
         with patch('ssl.SSLContext') as mock_ssl_context_class, \
-             patch('ssl.HAS_SNI', new=True):
+                patch('ssl.HAS_SNI', new=True):
             # SSL module supports SNI
             wrap_socket_method_mock = mock_ssl_context_class().wrap_socket
             wrap_socket_method_mock.return_value = sentinel.WRAPPED_SOCKET
@@ -751,7 +751,7 @@ class test_SSLTransport:
         assert ret == sentinel.WRAPPED_SOCKET
 
         with patch('ssl.SSLContext') as mock_ssl_context_class, \
-             patch('ssl.HAS_SNI', new=False):
+                patch('ssl.HAS_SNI', new=False):
             # SSL module does not support SNI
             wrap_socket_method_mock = mock_ssl_context_class().wrap_socket
             wrap_socket_method_mock.return_value = sentinel.WRAPPED_SOCKET

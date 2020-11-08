@@ -1,8 +1,9 @@
 # cython: language_level=3
 import cython
 
-from amqp.utils cimport str_to_bytes
 from amqp.utils cimport bytes_to_str as pstr_t
+from amqp.utils cimport str_to_bytes
+
 
 cdef int _flushbits(list bits, write)
 

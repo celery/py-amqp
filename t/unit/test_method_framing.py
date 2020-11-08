@@ -1,5 +1,5 @@
-from unittest.mock import Mock
 from struct import pack
+from unittest.mock import Mock
 
 import pytest
 
