@@ -23,4 +23,3 @@
     amqp.serialization
     amqp.spec
     amqp.utils
-    amqp.five

@@ -6,6 +6,8 @@
     :local:
 .. currentmodule:: amqp.transport
 
+.. automodule:: amqp.transport
+
 .. autoclass:: _AbstractTransport
     :members:
     :undoc-members:
