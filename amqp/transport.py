@@ -452,45 +452,49 @@ class SSLTransport(_AbstractTransport):
 
             keyfile: str
 
-                path to client private key
+                Path to the private key
 
             certfile: str
 
-                path to client certificate
+                Path to the certificate
 
             server_side: bool
 
-                identifies whether server-side or client-side
+                Identifies whether server-side or client-side
                 behavior is desired from this socket. See
                 :attr:`~ssl.SSLContext.wrap_socket` for details.
-                cert_reqs: If set, peers certificate is checked. Possible
-                values are :attr:`ssl.CERT_OPTIONAL` or
-                :attr:`ssl.CERT_REQUIRED`.
+
+            cert_reqs: ssl.VerifyMode
+
+                When set to other than :attr:`ssl.CERT_NONE`, peers certificate
+                is checked. Possible values are :attr:`ssl.CERT_NONE`,
+                :attr:`ssl.CERT_OPTIONAL` and :attr:`ssl.CERT_REQUIRED`.
 
             ca_certs: str
 
-                path to “certification authority” (CA) certificates
+                Path to “certification authority” (CA) certificates
                 used to validate other peers’ certificates when ``cert_reqs``
                 is other than :attr:`ssl.CERT_NONE`.
 
             do_handshake_on_connect: bool
 
-                specifies whether to do the SSL
+                Specifies whether to do the SSL
                 handshake automatically. See
                 :attr:`~ssl.SSLContext.wrap_socket` for details.
 
-            suppress_ragged_eofs (bool): See
-                :attr:`~ssl.SSLContext.wrap_socket` for details.
+            suppress_ragged_eofs (bool):
+
+                See :attr:`~ssl.SSLContext.wrap_socket` for details.
 
             server_hostname: str
 
-                specifies the hostname of the service which
+                Specifies the hostname of the service which
                 we are connecting to. See :attr:`~ssl.SSLContext.wrap_socket`
                 for details.
 
             ciphers: str
 
-                available ciphers for sockets created with this
+                Available ciphers for sockets created with this
                 context. See :attr:`ssl.SSLContext.set_ciphers`
 
             ssl_version:
