@@ -8,12 +8,15 @@ import amqp
 
 
 def get_connection(
-        hostname, port, vhost, use_tls=False, keyfile=None, certfile=None):
+        hostname, port, vhost, use_tls=False,
+        keyfile=None, certfile=None, ca_certs=None
+):
     host = f'{hostname}:{port}'
     if use_tls:
         return amqp.Connection(host=host, vhost=vhost, ssl={
             'keyfile': keyfile,
-            'certfile': certfile
+            'certfile': certfile,
+            'ca_certs': ca_certs,
         }
         )
     else:
@@ -40,7 +43,8 @@ def connection(request):
             ).get("slaveid", None),
             use_tls=True,
             keyfile='t/certs/client_key.pem',
-            certfile='t/certs/client_certificate.pem'
+            certfile='t/certs/client_certificate.pem',
+            ca_certs='t/certs/ca_certificate.pem',
         )
 
 
