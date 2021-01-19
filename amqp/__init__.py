@@ -39,6 +39,7 @@ from .exceptions import (AccessRefused, AMQPError,  # noqa
                          NotFound, PreconditionFailed, RecoverableChannelError,
                          RecoverableConnectionError, ResourceError,
                          ResourceLocked, UnexpectedFrame, error_for_code)
+from .types import ChannelT, ConnectionT, MessageT
 from .utils import promise  # noqa
 
 __all__ = (
