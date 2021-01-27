@@ -535,6 +535,14 @@ class SSLTransport(_AbstractTransport):
         except AttributeError:
             pass  # ask forgiveness not permission
 
+        if ca_certs is None and context.verify_mode != ssl.CERT_NONE:
+            purpose = (
+                ssl.Purpose.CLIENT_AUTH
+                if server_side
+                else ssl.Purpose.SERVER_AUTH
+            )
+            context.load_default_certs(purpose)
+
         sock = context.wrap_socket(**opts)
         return sock
 
