@@ -436,10 +436,10 @@ class SSLTransport(_AbstractTransport):
         return ctx.wrap_socket(sock, **sslopts)
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
-                         server_side=False, cert_reqs=ssl.CERT_NONE,
+                         server_side=False, cert_reqs=None,
                          ca_certs=None, do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
-                         ciphers=None, ssl_version=ssl.PROTOCOL_TLS):
+                         ciphers=None, ssl_version=None):
         """Socket wrap with SNI headers.
 
         stdlib :attr:`ssl.SSLContext.wrap_socket` method augmented with support
@@ -510,20 +510,39 @@ class SSLTransport(_AbstractTransport):
             'server_hostname': server_hostname,
         }
 
+        if ssl_version is None:
+            ssl_version = (
+                ssl.PROTOCOL_TLS_SERVER
+                if server_side
+                else ssl.PROTOCOL_TLS_CLIENT
+            )
+
         context = ssl.SSLContext(ssl_version)
+
         if certfile is not None:
             context.load_cert_chain(certfile, keyfile)
         if ca_certs is not None:
             context.load_verify_locations(ca_certs)
-        if ciphers:
+        if ciphers is not None:
             context.set_ciphers(ciphers)
-        if cert_reqs != ssl.CERT_NONE:
-            context.check_hostname = True
-        # Set SNI headers if supported
-        if (server_hostname is not None) and (
-                hasattr(ssl, 'HAS_SNI') and ssl.HAS_SNI) and (
-                hasattr(ssl, 'SSLContext')):
+        if cert_reqs is not None:
             context.verify_mode = cert_reqs
+        # Set SNI headers if supported
+        try:
+            context.check_hostname = (
+                ssl.HAS_SNI and server_hostname is not None
+            )
+        except AttributeError:
+            pass  # ask forgiveness not permission
+
+        if ca_certs is None and context.verify_mode != ssl.CERT_NONE:
+            purpose = (
+                ssl.Purpose.CLIENT_AUTH
+                if server_side
+                else ssl.Purpose.SERVER_AUTH
+            )
+            context.load_default_certs(purpose)
+
         sock = context.wrap_socket(**opts)
         return sock
 

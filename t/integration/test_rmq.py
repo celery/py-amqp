@@ -5,15 +5,19 @@ from unittest.mock import ANY, Mock
 import pytest
 
 import amqp
+from amqp import transport
 
 
 def get_connection(
-        hostname, port, vhost, use_tls=False, keyfile=None, certfile=None):
+        hostname, port, vhost, use_tls=False,
+        keyfile=None, certfile=None, ca_certs=None
+):
     host = f'{hostname}:{port}'
     if use_tls:
         return amqp.Connection(host=host, vhost=vhost, ssl={
             'keyfile': keyfile,
-            'certfile': certfile
+            'certfile': certfile,
+            'ca_certs': ca_certs,
         }
         )
     else:
@@ -40,7 +44,8 @@ def connection(request):
             ).get("slaveid", None),
             use_tls=True,
             keyfile='t/certs/client_key.pem',
-            certfile='t/certs/client_certificate.pem'
+            certfile='t/certs/client_certificate.pem',
+            ca_certs='t/certs/ca_certificate.pem',
         )
 
 
@@ -64,6 +69,32 @@ def test_tls_connect_fails():
         use_tls=True,
         keyfile='t/certs/client_key_broken.pem',
         certfile='t/certs/client_certificate_broken.pem'
+    )
+    with pytest.raises(ssl.SSLError):
+        connection.connect()
+
+
+@pytest.mark.env('rabbitmq')
+@pytest.mark.flaky(reruns=5, reruns_delay=2)
+def test_tls_default_certs():
+    # testing TLS connection against badssl.com with default certs
+    connection = transport.Transport(
+        host="tls-v1-2.badssl.com:1012",
+        ssl=True,
+    )
+    assert type(connection) == transport.SSLTransport
+    connection.connect()
+
+
+@pytest.mark.env('rabbitmq')
+@pytest.mark.flaky(reruns=5, reruns_delay=2)
+def test_tls_no_default_certs_fails():
+    # testing TLS connection fails against badssl.com without default certs
+    connection = transport.Transport(
+        host="tls-v1-2.badssl.com:1012",
+        ssl={
+            "ca_certs": 't/certs/ca_certificate.pem',
+        },
     )
     with pytest.raises(ssl.SSLError):
         connection.connect()
