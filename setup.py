@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 import codecs
-import os
 import re
 import sys
+from os import environ
+from pathlib import Path
 
 import setuptools
 import setuptools.command.test
@@ -45,16 +46,15 @@ def add_doc(m):
 
 pats = {re_meta: add_default,
         re_doc: add_doc}
-here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'amqp/__init__.py')) as meta_fh:
-    meta = {}
-    for line in meta_fh:
-        if line.strip() == '# -eof meta-':
-            break
-        for pattern, handler in pats.items():
-            m = pattern.match(line.strip())
-            if m:
-                meta.update(handler(m))
+here = Path(__file__).parent
+meta = {}
+for line in (here / 'amqp/__init__.py').read_text().splitlines():
+    if line.strip() == '# -eof meta-':
+        break
+    for pattern, handler in pats.items():
+        m = pattern.match(line.strip())
+        if m:
+            meta.update(handler(m))
 
 # -*- Installation Requires -*-
 
@@ -68,20 +68,9 @@ def strip_comments(l):
 
 
 def reqs(f):
-    with open(os.path.join(os.getcwd(), 'requirements', f)) as fp:
-        req = filter(None, [strip_comments(l) for l in fp.readlines()])
-    # filter returns filter object(iterator) in Python 3,
-    # but a list in Python 2.7, so make sure it returns a list.
-    return list(req)
-
-
-# -*- Long Description -*-
-
-def long_description():
-    try:
-        return codecs.open('README.rst', 'r', 'utf-8').read()
-    except OSError:
-        return 'Long description error: Missing README.rst file'
+    lines = (here / 'requirements' / f).read_text().splitlines()
+    reqs = [strip_comments(l) for l in lines]
+    return list(filter(None, reqs))
 
 
 # -*- %%% -*-
@@ -100,7 +89,7 @@ class pytest(setuptools.command.test.test):
         sys.exit(pytest.main(pytest_args))
 
 
-if os.environ.get("CELERY_ENABLE_SPEEDUPS"):
+if environ.get("CELERY_ENABLE_SPEEDUPS"):
     setup_requires = ['Cython']
     ext_modules = [
         setuptools.Extension(
@@ -133,6 +122,7 @@ setuptools.setup(
     packages=setuptools.find_packages(exclude=['ez_setup', 't', 't.*']),
     version=meta['version'],
     description=meta['doc'],
+    long_description=(here / 'README.rst').read_text(),
     keywords='amqp rabbitmq cloudamqp messaging',
     author=meta['author'],
     author_email=meta['contact'],
