@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import codecs
 import re
 import sys
 from os import environ
