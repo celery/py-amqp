@@ -62,8 +62,10 @@ elif sys.platform.startswith('cygwin'):
 
     # illumos does not allow to set the TCP_MAXSEG socket option,
     # even if the Oracle documentation says otherwise.
+    # TCP_USER_TIMEOUT does not exist on Solaris 11.4
 elif sys.platform.startswith('sunos'):
     KNOWN_TCP_OPTS.remove('TCP_MAXSEG')
+    KNOWN_TCP_OPTS.remove('TCP_USER_TIMEOUT')
 
 # aix does not allow to set the TCP_MAXSEG
 # or the TCP_USER_TIMEOUT socket options.
