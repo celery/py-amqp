@@ -63,13 +63,13 @@ is_jython = sys.platform.startswith('java')
 is_pypy = hasattr(sys, 'pypy_version_info')
 
 
-def strip_comments(l):
-    return l.split('#', 1)[0].strip()
+def strip_comments(line):
+    return line.split('#', 1)[0].strip()
 
 
 def reqs(f):
     with open(os.path.join(os.getcwd(), 'requirements', f)) as fp:
-        req = filter(None, [strip_comments(l) for l in fp.readlines()])
+        req = filter(None, [strip_comments(line) for line in fp.readlines()])
     # filter returns filter object(iterator) in Python 3,
     # but a list in Python 2.7, so make sure it returns a list.
     return list(req)

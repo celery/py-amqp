@@ -200,7 +200,7 @@ Further
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
     :target: https://pypi.org/project/amqp/
-    
+
 py-amqp as part of the Tidelift Subscription
 =======
 
