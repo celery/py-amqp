@@ -700,7 +700,6 @@ class test_SSLTransport:
             set_ciphers_method_mock.assert_called_with(sentinel.CIPHERS)
 
     def test_wrap_socket_sni_cert_reqs(self):
-        # testing _wrap_socket_sni() with parameter cert_reqs == ssl.CERT_NONE
         with patch('ssl.SSLContext') as mock_ssl_context_class:
             sock = Mock()
             context = mock_ssl_context_class()
@@ -719,6 +718,48 @@ class test_SSLTransport:
                 ssl.Purpose.SERVER_AUTH
             )
             assert context.verify_mode == sentinel.CERT_REQS
+
+        # testing context creation inside _wrap_socket_sni() with parameter 
+        # cert_reqs == ssl.CERT_NONE. Previously raised ValueError because
+        # code path attempted to set context.verify_mode=ssl.CERT_NONE before
+        # setting context.check_hostname = False which raised a ValueError
+        with patch('ssl.SSLContext.wrap_socket') as mock_wrap_socket:
+            with patch('ssl.SSLContext.load_default_certs') as mock_load_default_certs:
+                sock = Mock()
+                self.t._wrap_socket_sni(
+                    sock, server_side=True, cert_reqs=ssl.CERT_NONE
+                )
+                mock_load_default_certs.assert_not_called()
+                mock_wrap_socket.assert_called_once()
+
+        with patch('ssl.SSLContext.wrap_socket') as mock_wrap_socket:
+            with patch('ssl.SSLContext.load_default_certs') as mock_load_default_certs:
+                sock = Mock()
+                self.t._wrap_socket_sni(
+                    sock, server_side=False, cert_reqs=ssl.CERT_NONE
+                )
+                mock_load_default_certs.assert_not_called()
+                mock_wrap_socket.assert_called_once()
+        
+        with patch('ssl.SSLContext.wrap_socket') as mock_wrap_socket:
+            with patch('ssl.SSLContext.load_default_certs') as mock_load_default_certs:
+                sock = Mock()
+                self.t._wrap_socket_sni(
+                    sock, server_side=True, cert_reqs=ssl.CERT_REQUIRED
+                )
+                mock_load_default_certs.assert_called_with(ssl.Purpose.CLIENT_AUTH)
+                mock_wrap_socket.assert_called_once()
+
+        with patch('ssl.SSLContext.wrap_socket') as mock_wrap_socket:
+            with patch('ssl.SSLContext.load_default_certs') as mock_load_default_certs:
+                sock = Mock()
+                self.t._wrap_socket_sni(
+                    sock, server_side=False, cert_reqs=ssl.CERT_REQUIRED
+                )
+                mock_load_default_certs.assert_called_once_with(
+                    ssl.Purpose.SERVER_AUTH
+                )
+                mock_wrap_socket.assert_called_once()
 
     def test_wrap_socket_sni_setting_sni_header(self):
         # testing _wrap_socket_sni() without parameter server_hostname
