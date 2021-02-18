@@ -525,15 +525,24 @@ class SSLTransport(_AbstractTransport):
             context.load_verify_locations(ca_certs)
         if ciphers is not None:
             context.set_ciphers(ciphers)
-        if cert_reqs is not None:
-            context.verify_mode = cert_reqs
-        # Set SNI headers if supported
+        # Set SNI headers if supported. 
+        # Must set context.check_hostname before setting context.verify_mode 
+        # to avoid setting context.verify_mode=ssl.CERT_NONE while
+        # context.check_hostname is still True (the default value in context
+        # if client-side) which results in the following exception:
+        # ValueError: Cannot set verify_mode to CERT_NONE when check_hostname
+        # is enabled.
         try:
             context.check_hostname = (
                 ssl.HAS_SNI and server_hostname is not None
             )
         except AttributeError:
             pass  # ask forgiveness not permission
+
+        # See note above re: ordering for context.check_hostname and 
+        # context.verify_mode assignments.
+        if cert_reqs is not None:
+            context.verify_mode = cert_reqs
 
         if ca_certs is None and context.verify_mode != ssl.CERT_NONE:
             purpose = (
