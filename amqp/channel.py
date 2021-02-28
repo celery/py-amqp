@@ -298,7 +298,7 @@ class Channel(AbstractChannel):
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
-        peer can use to avoid oveflowing its queues or otherwise
+        peer can use to avoid overflowing its queues or otherwise
         finding itself receiving more messages than it can process.
         Note that this method is not intended for window control.  The
         peer that receives a request to stop sending content should
@@ -322,7 +322,7 @@ class Channel(AbstractChannel):
 
             A peer MAY use the Channel.Flow method to throttle
             incoming content data for internal reasons, for example,
-            when exchangeing data over a slower connection.
+            when exchanging data over a slower connection.
 
         RULE:
 
@@ -347,7 +347,7 @@ class Channel(AbstractChannel):
 
         This method asks the peer to pause or restart the flow of
         content data. This is a simple flow-control mechanism that a
-        peer can use to avoid oveflowing its queues or otherwise
+        peer can use to avoid overflowing its queues or otherwise
         finding itself receiving more messages than it can process.
         Note that this method is not intended for window control.  The
         peer that receives a request to stop sending content should
@@ -371,7 +371,7 @@ class Channel(AbstractChannel):
 
             A peer MAY use the Channel.Flow method to throttle
             incoming content data for internal reasons, for example,
-            when exchangeing data over a slower connection.
+            when exchanging data over a slower connection.
 
         RULE:
 
@@ -1398,7 +1398,7 @@ class Channel(AbstractChannel):
         This method cancels a consumer. This does not affect already
         delivered messages, but it does mean the server will not send
         any more messages for that consumer.  The client may receive
-        an abitrary number of messages in between sending the cancel
+        an arbitrary number of messages in between sending the cancel
         method and receiving the cancel-ok reply.
 
         RULE:
