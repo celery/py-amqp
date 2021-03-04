@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6,3.7,3.8]
+        python-version: [3.6,3.7,3.8,pypy3]
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v2.3.4
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6,3.7,3.8]
+        python-version: [3.6,3.7,3.8,pypy3]
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v2.3.4
@@ -63,3 +63,6 @@ jobs:
         run: pip install --upgrade pip setuptools wheel tox tox-docker
       - name: Run integration tests
         run: tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
+      - name: Run integration tests with speedups enabled
+        run: CELERY_ENABLE_SPEEDUPS=1 tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
+        if: ${{ matrix.python-version != 'pypy3'}}
