@@ -64,5 +64,7 @@ jobs:
       - name: Run integration tests
         run: tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
       - name: Run integration tests with speedups enabled
-        run: CELERY_ENABLE_SPEEDUPS=1 tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
+        run: |
+          CELERY_ENABLE_SPEEDUPS=1 python setup.py develop
+          tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
         if: ${{ matrix.python-version != 'pypy3'}}
