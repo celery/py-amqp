@@ -122,6 +122,7 @@ setuptools.setup(
     version=meta['version'],
     description=meta['doc'],
     long_description=(here / 'README.rst').read_text(),
+    long_description_content_type="text/x-rst",
     keywords='amqp rabbitmq cloudamqp messaging',
     author=meta['author'],
     author_email=meta['contact'],

@@ -146,14 +146,16 @@ Currently speedups can be installed:
 
 1. using source package (using ``--no-binary`` switch):
 
-.. code-block::
-CELERY_ENABLE_SPEEDUPS=true pip install --no-binary :all: amqp
+.. code:: shell
+
+    CELERY_ENABLE_SPEEDUPS=true pip install --no-binary :all: amqp
 
 
 2. building directly source code:
 
-.. code-block::
-CELERY_ENABLE_SPEEDUPS=true python setup.py install
+.. code:: shell
+
+    CELERY_ENABLE_SPEEDUPS=true python setup.py install
 
 Further
 =======
@@ -202,7 +204,7 @@ Further
     :target: https://pypi.org/project/amqp/
     
 py-amqp as part of the Tidelift Subscription
-=======
+============================================
 
 The maintainers of py-amqp and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source dependencies you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact dependencies you use. [Learn more.](https://tidelift.com/subscription/pkg/pypi-amqp?utm_source=pypi-amqp&utm_medium=referral&utm_campaign=readme&utm_term=repo)
 
