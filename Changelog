@@ -5,6 +5,17 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+.. _version-2.6.2:
+
+2.6.2
+=====
+:release-date:
+:release-by:
+
+- Fix infinite wait when using confirm_publish
+
+  Contributed by **Omer Katz** & **RezaSi**
+
 .. _version-2.6.0:
 
 2.6.1
