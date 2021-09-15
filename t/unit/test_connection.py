@@ -4,7 +4,6 @@ import warnings
 from unittest.mock import Mock, call, patch
 
 import pytest
-from case import ContextMock
 
 from amqp import Connection, spec
 from amqp.connection import SSLError
@@ -12,6 +11,8 @@ from amqp.exceptions import (ConnectionError, NotFound,
                              RecoverableConnectionError, ResourceError)
 from amqp.sasl import AMQPLAIN, EXTERNAL, GSSAPI, PLAIN, SASL
 from amqp.transport import TCPTransport
+
+from t.mocks import ContextMock
 
 
 class test_Connection:

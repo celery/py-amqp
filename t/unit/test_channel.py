@@ -3,7 +3,6 @@ from struct import pack
 from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
-from case import ContextMock
 from vine import promise
 
 from amqp import spec
@@ -13,6 +12,7 @@ from amqp.exceptions import (ConsumerCancelled, MessageNacked, NotFound,
                              RecoverableConnectionError)
 from amqp.serialization import dumps
 
+from t.mocks import ContextMock
 
 class test_Channel:
 
