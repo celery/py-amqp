@@ -68,7 +68,7 @@ class AbstractChannel:
 
     def close(self):
         """Close this Channel or Connection."""
-        raise NotImplementedError('Must be overriden in subclass')
+        raise NotImplementedError('Must be overridden in subclass')
 
     def wait(self, method, callback=None, timeout=None, returns_tuple=False):
         p = ensure_promise(callback)

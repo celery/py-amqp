@@ -104,7 +104,7 @@ class Connection(AbstractChannel):
 
     When "confirm_publish" is set to True, the channel is put to
     confirm mode. In this mode, each published message is
-    confirmed using Publisher confirms RabbitMQ extention.
+    confirmed using Publisher confirms RabbitMQ extension.
     """
 
     Channel = Channel

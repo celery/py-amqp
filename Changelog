@@ -167,7 +167,7 @@ Code Cleanups & Improvements:
 :release-by: Asif Saif Uddin
 
 - Fix buffer overflow in frame_writer after frame_max is increased. `frame_writer`
-allocates a `bytearray` on intialization with a length based on the `connection.frame_max`
+allocates a `bytearray` on initialization with a length based on the `connection.frame_max`
 value. If `connection.frame_max` is changed to a larger value, this causes an
 error like `pack_into requires a buffer of at least 408736 bytes`.
 

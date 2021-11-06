@@ -256,7 +256,7 @@ class _AbstractTransport:
 
     def _read(self, n, initial=False):
         """Read exactly n bytes from the peer."""
-        raise NotImplementedError('Must be overriden in subclass')
+        raise NotImplementedError('Must be overridden in subclass')
 
     def _setup_transport(self):
         """Do any additional initialization of the class."""
@@ -268,7 +268,7 @@ class _AbstractTransport:
 
     def _write(self, s):
         """Completely write a string to the peer."""
-        raise NotImplementedError('Must be overriden in subclass')
+        raise NotImplementedError('Must be overridden in subclass')
 
     def close(self):
         if self.sock is not None:

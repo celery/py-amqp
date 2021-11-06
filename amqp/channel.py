@@ -1380,7 +1380,7 @@ class Channel(AbstractChannel):
                 False, the delivery tag refers to a single message.
                 If the multiple field is True, and the delivery tag
                 is zero, tells the server to acknowledge all
-                outstanding mesages.
+                outstanding messages.
 
                 RULE:
 
