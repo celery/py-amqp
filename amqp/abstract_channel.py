@@ -39,6 +39,19 @@ class AbstractChannel:
 
         self._setup_listeners()
 
+    __slots__ = (
+        "is_closing",
+        "connection",
+        "channel_id",
+        "method_queue",
+        "auto_decode",
+        "_pending",
+        "_callbacks",
+        # adding '__dict__' to get dynamic assignment
+        "__dict__",
+        "__weakref__",
+        )
+
     def __enter__(self):
         return self
 

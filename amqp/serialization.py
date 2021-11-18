@@ -488,6 +488,19 @@ class GenericContent:
         self.body_size = 0
         self.ready = False
 
+    __slots__ = (
+        "frame_method",
+        "frame_args",
+        "properties",
+        "_pending_chunks",
+        "body_received",
+        "body_size",
+        "ready",
+        # adding '__dict__' to get dynamic assignment
+        "__dict__",
+        "__weakref__",
+        )
+
     def __getattr__(self, name):
         # Look for additional properties in the 'properties'
         # dictionary, and if present - the 'delivery_info' dictionary.
