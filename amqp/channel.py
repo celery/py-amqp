@@ -122,6 +122,18 @@ class Channel(AbstractChannel):
         if self.connection.confirm_publish:
             self.basic_publish = self.basic_publish_confirm
 
+        __slots__ = (
+        "is_open",
+        "active",
+        "returned_messages",
+        "callbacks",
+        "cancel_callbacks",
+        "events",
+        "no_ack_consumers",
+        "on_open",
+        "_confirm_selected",
+        )
+
     def then(self, on_success, on_error=None):
         return self.on_open.then(on_success, on_error)
 

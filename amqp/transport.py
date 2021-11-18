@@ -415,6 +415,10 @@ class SSLTransport(_AbstractTransport):
         super().__init__(
             host, connect_timeout=connect_timeout, **kwargs)
 
+    __slots__ = (
+        "sslopts",
+        )
+
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
         self.sock = self._wrap_socket(self.sock, **self.sslopts)

@@ -87,6 +87,10 @@ class Buffer:
     def __init__(self, buf):
         self.buf = buf
 
+    __slots__ = (
+        "buf",
+        )
+
     @property
     def buf(self):
         return self._buf

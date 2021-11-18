@@ -34,6 +34,11 @@ class PLAIN(SASL):
     def __init__(self, username, password):
         self.username, self.password = username, password
 
+    __slots__ = (
+        "username",
+        "password",
+        )
+
     def start(self, connection):
         if self.username is None or self.password is None:
             return NotImplemented
@@ -55,6 +60,11 @@ class AMQPLAIN(SASL):
 
     def __init__(self, username, password):
         self.username, self.password = username, password
+
+    __slots__ = (
+        "username",
+        "password",
+        )
 
     def start(self, connection):
         if self.username is None or self.password is None:
@@ -103,6 +113,13 @@ def _get_gssapi_mechanism():
                 self.fail_soft = fail_soft
                 self.service = service
                 self.rdns = rdns
+
+            __slots__ = (
+                "client_name",
+                "fail_soft",
+                "service",
+                "rdns"
+                )
 
             def get_hostname(self, connection):
                 sock = connection.transport.sock
