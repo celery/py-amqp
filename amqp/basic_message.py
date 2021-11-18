@@ -111,10 +111,6 @@ class Message(GenericContent):
         "delivery_info",
         "body",
         "channel",
-
-        # adding '__dict__' to get dynamic assignment
-        "__dict__",
-        "__weakref__",
         )
 
     @property
