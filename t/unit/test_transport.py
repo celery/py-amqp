@@ -282,6 +282,13 @@ class test_AbstractTransport:
         self.t.close()
         assert self.t.sock is None and self.t.connected is False
 
+    def test_close_os_error(self):
+        sock = self.t.sock = Mock()
+        sock.shutdown.side_effect = OSError
+        self.t.close()
+        sock.close.assert_called_with()
+        assert self.t.sock is None and self.t.connected is False
+
     def test_read_frame__timeout(self):
         self.t._read = Mock()
         self.t._read.side_effect = socket.timeout()
@@ -719,7 +726,7 @@ class test_SSLTransport:
             )
             assert context.verify_mode == sentinel.CERT_REQS
 
-        # testing context creation inside _wrap_socket_sni() with parameter 
+        # testing context creation inside _wrap_socket_sni() with parameter
         # cert_reqs == ssl.CERT_NONE. Previously raised ValueError because
         # code path attempted to set context.verify_mode=ssl.CERT_NONE before
         # setting context.check_hostname = False which raised a ValueError
@@ -740,7 +747,7 @@ class test_SSLTransport:
                 )
                 mock_load_default_certs.assert_not_called()
                 mock_wrap_socket.assert_called_once()
-        
+
         with patch('ssl.SSLContext.wrap_socket') as mock_wrap_socket:
             with patch('ssl.SSLContext.load_default_certs') as mock_load_default_certs:
                 sock = Mock()

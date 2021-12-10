@@ -466,24 +466,20 @@ class Connection(AbstractChannel):
         return self._transport and self._transport.connected
 
     def collect(self):
-        try:
-            if self._transport:
-                self._transport.close()
+        if self._transport:
+            self._transport.close()
 
-            if self.channels:
-                # Copy all the channels except self since the channels
-                # dictionary changes during the collection process.
-                channels = [
-                    ch for ch in self.channels.values()
-                    if ch is not self
-                ]
+        if self.channels:
+            # Copy all the channels except self since the channels
+            # dictionary changes during the collection process.
+            channels = [
+                ch for ch in self.channels.values()
+                if ch is not self
+            ]
 
-                for ch in channels:
-                    ch.collect()
-        except OSError:
-            pass  # connection already closed on the other end
-        finally:
-            self._transport = self.connection = self.channels = None
+            for ch in channels:
+                ch.collect()
+        self._transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
         try:

@@ -276,7 +276,10 @@ class _AbstractTransport:
             # Call shutdown first to make sure that pending messages
             # reach the AMQP broker if the program exits after
             # calling this method.
-            self.sock.shutdown(socket.SHUT_RDWR)
+            try:
+                self.sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             self.sock.close()
             self.sock = None
         self.connected = False
@@ -525,8 +528,8 @@ class SSLTransport(_AbstractTransport):
             context.load_verify_locations(ca_certs)
         if ciphers is not None:
             context.set_ciphers(ciphers)
-        # Set SNI headers if supported. 
-        # Must set context.check_hostname before setting context.verify_mode 
+        # Set SNI headers if supported.
+        # Must set context.check_hostname before setting context.verify_mode
         # to avoid setting context.verify_mode=ssl.CERT_NONE while
         # context.check_hostname is still True (the default value in context
         # if client-side) which results in the following exception:
@@ -539,7 +542,7 @@ class SSLTransport(_AbstractTransport):
         except AttributeError:
             pass  # ask forgiveness not permission
 
-        # See note above re: ordering for context.check_hostname and 
+        # See note above re: ordering for context.check_hostname and
         # context.verify_mode assignments.
         if cert_reqs is not None:
             context.verify_mode = cert_reqs
