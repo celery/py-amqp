@@ -5,6 +5,18 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+
+.. _version-5.0.7:
+
+5.0.7
+=====
+:release-date: 2021-12-13 15:45 P.M. UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Remove dependency to case
+- Bugfix: not closing socket after server disconnect 
+
+
 .. _version-5.0.6:
 
 5.0.6
