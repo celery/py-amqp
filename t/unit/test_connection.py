@@ -1,6 +1,7 @@
 import re
 import socket
 import warnings
+from array import array
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -347,8 +348,11 @@ class test_Connection:
         self.conn.collect()
         self.conn.collect()
 
+    def test_get_free_channel_id(self):
+        assert self.conn._get_free_channel_id() == 1
+
     def test_get_free_channel_id__raises_IndexError(self):
-        self.conn._avail_channel_ids = []
+        self.conn._used_channel_ids = array('H', range(1, self.conn.channel_max))
         with pytest.raises(ResourceError):
             self.conn._get_free_channel_id()
 

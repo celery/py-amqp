@@ -150,7 +150,11 @@ class Channel(AbstractChannel):
         connection, self.connection = self.connection, None
         if connection:
             connection.channels.pop(channel_id, None)
-            connection._avail_channel_ids.append(channel_id)
+            try:
+                connection._used_channel_ids.remove(channel_id)
+            except ValueError:
+                # channel id already removed
+                pass
         self.callbacks.clear()
         self.cancel_callbacks.clear()
         self.events.clear()

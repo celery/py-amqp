@@ -267,7 +267,7 @@ class Connection(AbstractChannel):
         self.on_unblocked = on_unblocked
         self.on_open = ensure_promise(on_open)
 
-        self._avail_channel_ids = array('H', range(self.channel_max, 0, -1))
+        self._used_channel_ids = array('H')
 
         # Properties set in the Start method
         self.version_major = 0
@@ -482,18 +482,20 @@ class Connection(AbstractChannel):
         self._transport = self.connection = self.channels = None
 
     def _get_free_channel_id(self):
-        try:
-            return self._avail_channel_ids.pop()
-        except IndexError:
-            raise ResourceError(
-                'No free channel ids, current={}, channel_max={}'.format(
-                    len(self.channels), self.channel_max), spec.Channel.Open)
+        for channel_id in range(1, self.channel_max):
+            if channel_id not in self._used_channel_ids:
+                return channel_id
+
+        raise ResourceError(
+            'No free channel ids, current={}, channel_max={}'.format(
+                len(self.channels), self.channel_max), spec.Channel.Open)
 
     def _claim_channel_id(self, channel_id):
-        try:
-            return self._avail_channel_ids.remove(channel_id)
-        except ValueError:
+        if channel_id in self._used_channel_ids:
             raise ConnectionError(f'Channel {channel_id!r} already open')
+        else:
+            self._used_channel_ids.append(channel_id)
+            return channel_id
 
     def channel(self, channel_id=None, callback=None):
         """Create new channel.
