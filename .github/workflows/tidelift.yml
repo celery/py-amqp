@@ -24,4 +24,4 @@ jobs:
         env:
           TIDELIFT_API_KEY: ${{ secrets.TIDELIFT_API_KEY }}
           TIDELIFT_ORGANIZATION: team/auvipy
-          TIDELIFT_PROJECT: amqp
+          TIDELIFT_PROJECT: celeryproject
