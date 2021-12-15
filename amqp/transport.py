@@ -272,7 +272,11 @@ class _AbstractTransport:
 
     def close(self):
         if self.sock is not None:
-            self._shutdown_transport()
+            try:
+                self._shutdown_transport()
+            except OSError:
+                pass
+
             # Call shutdown first to make sure that pending messages
             # reach the AMQP broker if the program exits after
             # calling this method.
@@ -280,7 +284,11 @@ class _AbstractTransport:
                 self.sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-            self.sock.close()
+
+            try:
+                self.sock.close()
+            except OSError:
+                pass
             self.sock = None
         self.connected = False
 
