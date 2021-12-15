@@ -587,6 +587,16 @@ class test_AbstractTransport_connect:
         self.t.connect()
         assert self.t.connected and self.t.sock is sock_obj
 
+    def test_close__close_error(self):
+        # sock.close() can raise an error if the fd is invalid
+        # make sure the socket is properly deallocated
+        sock = self.t.sock = Mock()
+        sock.unwrap.return_value = sock
+        sock.close.side_effect = OSError
+        self.t.close()
+        sock.close.assert_called_with()
+        assert self.t.sock is None and self.t.connected is False
+
 
 class test_SSLTransport:
     class Transport(transport.SSLTransport):
@@ -842,15 +852,6 @@ class test_SSLTransport:
         sock.unwrap.side_effect = OSError
         self.t.close()
         assert self.t.sock is None
-
-    def test_close__close_error(self):
-        # sock.close() can raise an error if the fd is invalid
-        # make sure the socket is properly deallocated
-        sock = self.t.sock = Mock()
-        sock.close.side_effect = OSError
-        self.t.close()
-        sock.close.assert_called_with()
-        assert self.t.sock is None and self.t.connected is False
 
     def test_read_EOF(self):
         self.t.sock = Mock(name='SSLSocket')
