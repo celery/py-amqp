@@ -24,7 +24,7 @@ Rejecting message with delivery tag %r for reason of having no callbacks.
 consumer_tag=%r exchange=%r routing_key=%r.\
 """
 
-MAX_RECONNECTIONS = 256
+MAX_RECONNECTIONS = 128
 
 
 class VDeprecationWarning(DeprecationWarning):
