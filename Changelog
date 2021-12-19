@@ -6,6 +6,18 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.0.8:
+
+5.0.8
+=====
+:release-date: 2021-12-19 11:15 A.M. UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Reduce memory usage of Connection (#377)
+- Add additional error handling around code where an OSError 
+  may be raised on failed connections. Fixes (#378)
+
+
 .. _version-5.0.7:
 
 5.0.7
