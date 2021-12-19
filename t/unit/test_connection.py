@@ -350,6 +350,7 @@ class test_Connection:
 
     def test_get_free_channel_id(self):
         assert self.conn._get_free_channel_id() == 1
+        assert self.conn._get_free_channel_id() == 2
 
     def test_get_free_channel_id__raises_IndexError(self):
         self.conn._used_channel_ids = array('H', range(1, self.conn.channel_max))
