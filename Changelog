@@ -6,6 +6,16 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.0.9:
+
+5.0.9
+=====
+:release-date: 2021-12-20 11:00 A.M. UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Append to _used_channel_ids in _used_channel_ids
+
+
 .. _version-5.0.8:
 
 5.0.8
