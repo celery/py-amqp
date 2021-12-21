@@ -138,11 +138,24 @@ class test_frame_writer:
         assert 'body'.encode('utf-16') in memory.tobytes()
         assert msg.properties['content_encoding'] == 'utf-16'
 
-    def test_frame_max_update(self):
-        msg = Message(body='t' * (self.connection.frame_max + 10))
-        frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
+    def test_write_frame__fast__buffer_store_resize(self):
+        """The buffer_store is resized when the connection's frame_max is increased."""
+        small_msg = Message(body='t')
+        small_frame = 2, 1, spec.Basic.Publish, b'x' * 10, small_msg
+        self.g(*small_frame)
+        self.write.assert_called_once()
+        write_arg = self.write.call_args[0][0]
+        assert isinstance(write_arg, memoryview)
+        assert len(write_arg) < self.connection.frame_max
+        self.connection.reset_mock()
+
+        # write a larger message to the same frame_writer after increasing frame_max
+        large_msg = Message(body='t' * (self.connection.frame_max + 10))
+        large_frame = 2, 1, spec.Basic.Publish, b'x' * 10, large_msg
+        original_frame_max = self.connection.frame_max
         self.connection.frame_max += 100
-        self.g(*frame)
-        self.write.assert_called()
-        memory = self.write.call_args[0][0]
-        assert isinstance(memory, memoryview)
+        self.g(*large_frame)
+        self.write.assert_called_once()
+        write_arg = self.write.call_args[0][0]
+        assert isinstance(write_arg, memoryview)
+        assert len(write_arg) > original_frame_max
