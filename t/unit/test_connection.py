@@ -352,8 +352,10 @@ class test_Connection:
         assert self.conn._get_free_channel_id() == 1
         assert self.conn._get_free_channel_id() == 2
 
-    def test_get_free_channel_id__raises_IndexError(self):
-        self.conn._used_channel_ids = array('H', range(1, self.conn.channel_max))
+    def test_get_free_channel_id__raises_ResourceError(self):
+        self.conn.channel_max = 2
+        self.conn._get_free_channel_id()
+        self.conn._get_free_channel_id()
         with pytest.raises(ResourceError):
             self.conn._get_free_channel_id()
 
