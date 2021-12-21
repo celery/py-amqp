@@ -415,6 +415,17 @@ class test_connection:
                 )
                 callback_mock.assert_called_once_with()
 
+    def test_send_heartbeat(self):
+        """The send_heartbeat method writes the expected output."""
+        conn = Connection()
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            transport_mock().write.reset_mock()
+            conn.send_heartbeat()
+            transport_mock().write.assert_called_once_with(
+                memoryview(bytearray(b'\x08\x00\x00\x00\x00\x00\x00\xce'))
+            )
+
 
 class test_channel:
     # Integration tests. Tests verify the correctness of communication between
