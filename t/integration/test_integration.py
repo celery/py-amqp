@@ -1,4 +1,5 @@
 import socket
+from array import array
 from struct import pack
 from unittest.mock import ANY, Mock, call, patch
 
@@ -534,9 +535,11 @@ class test_channel:
             frame_writer_mock.reset_mock()
 
             on_open_mock = Mock()
+            assert conn._used_channel_ids == array('H')
             ch = conn.channel(channel_id=channel_id, callback=on_open_mock)
             on_open_mock.assert_called_once_with(ch)
             assert ch.is_open is True
+            assert conn._used_channel_ids == array('H', (1,))
 
             ch.close()
             frame_writer_mock.assert_has_calls(
@@ -552,6 +555,7 @@ class test_channel:
                 ]
             )
             assert ch.is_open is False
+            assert conn._used_channel_ids == array('H')
 
     def test_received_channel_Close_during_connection_close(self):
         # This test verifies that library handles correctly closing channel
