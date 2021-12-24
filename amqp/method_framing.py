@@ -94,6 +94,9 @@ class Buffer:
     @buf.setter
     def buf(self, buf):
         self._buf = buf
+        # Using a memoryview allows slicing without copying underlying data.
+        # Slicing this is much faster than slicing the bytearray directly.
+        # More details: https://stackoverflow.com/a/34257357
         self.view = memoryview(buf)
 
 
@@ -107,13 +110,6 @@ def frame_writer(connection, transport,
 
     def write_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
-        # frame_max can be updated via connection._on_tune. If
-        # it became larger, then we need to resize the buffer
-        # to prevent overflow.
-        if chunk_size > len(buffer_store.buf):
-            buffer_store.buf = bytearray(chunk_size)
-        buf = buffer_store.buf
-        view = buffer_store.view
         offset = 0
         properties = None
         args = str_to_bytes(args)
@@ -155,6 +151,13 @@ def frame_writer(connection, transport,
                                frame, 0xce))
 
         else:
+            # frame_max can be updated via connection._on_tune. If
+            # it became larger, then we need to resize the buffer
+            # to prevent overflow.
+            if chunk_size > len(buffer_store.buf):
+                buffer_store.buf = bytearray(chunk_size)
+            buf = buffer_store.buf
+
             # ## FAST: pack into buffer and single write
             frame = (b''.join([pack('>HH', *method_sig), args])
                      if type_ == 1 else b'')
@@ -180,7 +183,7 @@ def frame_writer(connection, transport,
                               3, channel, framelen, body, 0xce)
                     offset += 8 + framelen
 
-            write(view[:offset])
+            write(buffer_store.view[:offset])
 
         connection.bytes_sent += 1
     return write_frame
