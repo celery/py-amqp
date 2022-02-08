@@ -107,6 +107,12 @@ class Message(GenericContent):
         self.body = body
         self.channel = channel
 
+    __slots__ = (
+        "delivery_info",
+        "body",
+        "channel",
+        )
+
     @property
     def headers(self):
         return self.properties.get('application_headers')

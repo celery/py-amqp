@@ -97,6 +97,22 @@ class _AbstractTransport:
         self.write_timeout = write_timeout
         self.socket_settings = socket_settings
 
+    __slots__ = (
+        "connection",
+        "sock",
+        "raise_on_initial_eintr",
+        "_read_buffer",
+        "host",
+        "port",
+        "connect_timeout",
+        "read_timeout",
+        "write_timeout",
+        "socket_settings",
+        # adding '__dict__' to get dynamic assignment
+        "__dict__",
+        "__weakref__",
+        )
+
     def __repr__(self):
         if self.sock:
             src = f'{self.sock.getsockname()[0]}:{self.sock.getsockname()[1]}'
@@ -409,6 +425,10 @@ class SSLTransport(_AbstractTransport):
         self._read_buffer = EMPTY_BUFFER
         super().__init__(
             host, connect_timeout=connect_timeout, **kwargs)
+
+    __slots__ = (
+        "sslopts",
+        )
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
