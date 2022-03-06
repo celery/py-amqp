@@ -6,6 +6,21 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.1.0:
+
+5.1.0
+=====
+:release-date: 2022-03-06 10:05 A.M. UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Improve performance of _get_free_channel_id, fix channel max bug (#385).
+- Document memoryview usage, minor frame_writer.write_frame refactor (#384).
+- Start dropping python 3.6 (#387).
+- Added experimental __slots__ to some classes (#368)
+- Relaxed vine version for upcoming release.
+- Upgraded topytest 7 (#388).
+
+
 .. _version-5.0.9:
 
 5.0.9
