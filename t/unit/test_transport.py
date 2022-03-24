@@ -520,6 +520,15 @@ class test_AbstractTransport_connect:
                               side_effect=(socket.error, None)):
                 self.t.connect()
 
+    def test_connect_calls_getaddrinfo_with_af_unspec(self):
+        with patch('socket.socket', return_value=MockSocket()), \
+            patch('socket.getaddrinfo') as getaddrinfo:
+            self.t.sock = Mock()
+            self.t.close()
+            self.t.connect()
+            getaddrinfo.assert_called_with(
+                'localhost', 5672, socket.AF_UNSPEC, ANY, ANY)
+
     def test_connect_getaddrinfo_raises_gaierror(self):
         with patch('socket.getaddrinfo', side_effect=socket.gaierror):
             with pytest.raises(socket.error):
