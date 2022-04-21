@@ -9,7 +9,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 5.1.1
 =====
-:release-date: 2022-03-06 12:45 P.M. UTC+6:00
+:release-date: 2022-04-17 12:45 P.M. UTC+6:00
 :release-by: Asif Saif Uddin
 
 - Use AF_UNSPEC for name resolution (#389).
