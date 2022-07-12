@@ -1,8 +1,6 @@
 
 name: Tidelift Alignment
 on:
-  schedule:
-    - cron: "30 2 * * *"  # daily at 02:30 UTC
   push:
     paths:
       - ".github/workflows/tidelift.yml"
@@ -16,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Scan
         uses: tidelift/alignment-action@main
         env:
