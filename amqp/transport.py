@@ -401,6 +401,8 @@ class SSLTransport(_AbstractTransport):
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
         self.sock = self._wrap_socket(self.sock, **self.sslopts)
+        # Explicitly set a timeout here to stop any hangs on handshake.
+        self.sock.settimeout(self.connect_timeout)
         self.sock.do_handshake()
         self._quick_recv = self.sock.read
 
