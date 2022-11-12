@@ -864,6 +864,14 @@ class test_SSLTransport:
         with pytest.raises(socket.timeout):
             self.t._read(64)
 
+    def test_handshake_timeout(self):
+        self.t.sock = Mock()
+        self.t._wrap_socket = Mock()
+        self.t._wrap_socket.return_value = self.t.sock
+        self.t.sock.do_handshake.side_effect = socket.timeout()
+        with pytest.raises(socket.timeout):
+            self.t._setup_transport()
+
 
 class test_TCPTransport:
     class Transport(transport.TCPTransport):
