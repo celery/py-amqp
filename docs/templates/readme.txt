@@ -6,12 +6,12 @@
 
 .. include:: ../includes/introduction.txt
 
-.. |build-status| image:: https://secure.travis-ci.org/celery/py-amqp.png?branch=master
+.. |build-status| image:: https://github.com/celery/py-amqp/actions/workflows/ci.yaml/badge.svg
     :alt: Build status
-    :target: https://travis-ci.org/celery/py-amqp
+    :target: https://github.com/celery/py-amqp/actions/workflows/ci.yaml
 
-.. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=master
-    :target: https://codecov.io/github/celery/py-amqp?branch=master
+.. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=main
+    :target: https://codecov.io/github/celery/py-amqp?branch=main
 
 .. |license| image:: https://img.shields.io/pypi/l/amqp.svg
     :alt: BSD License

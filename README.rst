@@ -180,12 +180,12 @@ Further
 
     http://www.rabbitmq.com/devtools.html#python-dev
 
-.. |build-status| image:: https://api.travis-ci.com/celery/py-amqp.png?branch=master
+.. |build-status| image:: https://github.com/celery/py-amqp/actions/workflows/ci.yaml/badge.svg
     :alt: Build status
-    :target: https://travis-ci.com/celery/py-amqp
+    :target: https://github.com/celery/py-amqp/actions/workflows/ci.yaml
 
-.. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=master
-    :target: https://codecov.io/github/celery/py-amqp?branch=master
+.. |coverage| image:: https://codecov.io/github/celery/py-amqp/coverage.svg?branch=main
+    :target: https://codecov.io/github/celery/py-amqp?branch=main
 
 .. |license| image:: https://img.shields.io/pypi/l/amqp.svg
     :alt: BSD License
@@ -202,7 +202,7 @@ Further
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
     :target: https://pypi.org/project/amqp/
-    
+
 py-amqp as part of the Tidelift Subscription
 ============================================
 
