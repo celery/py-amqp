@@ -1,10 +1,10 @@
 import re
 import socket
 import warnings
-from array import array
 from unittest.mock import Mock, call, patch
 
 import pytest
+import time
 
 from amqp import Connection, spec
 from amqp.connection import SSLError
@@ -513,6 +513,38 @@ class test_Connection:
         self.conn.last_heartbeat_sent -= 1000
         with pytest.raises(ConnectionError):
             self.conn.heartbeat_tick()
+
+    def _test_heartbeat_rate_tick(self, rate):
+        # Doing 22 calls,
+        # First one is setting the variables
+        # All nexts may send heartbeats, depending on rate
+        for i in range(1, 22):
+            self.conn.heartbeat_tick(rate)
+            time.sleep(0.1)
+
+    def test_heartbeat_check_rate_default(self):
+        # Heartbeat set to 2 secs
+        self.conn.heartbeat = 2
+        # Default rate is 2 --> should send frames every sec
+        self._test_heartbeat_rate_tick(2)
+        # Verify that we wrote 2 frames
+        assert self.conn.frame_writer.call_count == 2
+
+    def test_heartbeat_check_rate_four(self):
+        # Heartbeat set to 2 secs
+        self.conn.heartbeat = 2
+        # Rate 4 --> should send frames every 0.5sec
+        self._test_heartbeat_rate_tick(4)
+        # Verify that we wrote 4 frames
+        assert self.conn.frame_writer.call_count == 4
+
+    def test_heartbeat_check_rate_wrong(self):
+        # Heartbeat set to 2 secs
+        self.conn.heartbeat = 2
+        # Default rate is 2 --> should send frames every sec
+        self._test_heartbeat_rate_tick(-42)
+        # Verify that we wrote 2 frames
+        assert self.conn.frame_writer.call_count == 2
 
     def test_server_capabilities(self):
         self.conn.server_properties['capabilities'] = {'foo': 1}

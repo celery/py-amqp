@@ -724,12 +724,17 @@ class Connection(AbstractChannel):
             once per second.
 
         Keyword Arguments:
-            rate (int): Previously used, but ignored now.
+            rate (int): Number of heartbeat frames to send during the heartbeat
+                        timeout
         """
         AMQP_HEARTBEAT_LOGGER.debug('heartbeat_tick : for connection %s',
                                     self._connection_id)
         if not self.heartbeat:
             return
+
+        # If rate is wrong, let's use 2 as default
+        if rate <= 0:
+            rate = 2
 
         # treat actual data exchange in either direction as a heartbeat
         sent_now = self.bytes_sent
@@ -755,7 +760,7 @@ class Connection(AbstractChannel):
         self.prev_sent, self.prev_recv = sent_now, recv_now
 
         # send a heartbeat if it's time to do so
-        if now > self.last_heartbeat_sent + self.heartbeat:
+        if now > self.last_heartbeat_sent + self.heartbeat / rate:
             AMQP_HEARTBEAT_LOGGER.debug(
                 'heartbeat_tick: sending heartbeat for connection %s',
                 self._connection_id)
