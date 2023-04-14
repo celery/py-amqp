@@ -14,7 +14,7 @@ from . import __version__, sasl, spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
 from .exceptions import (AMQPDeprecationWarning, ChannelError, ConnectionError,
-                         ConnectionForced, RecoverableChannelError,
+                         ConnectionForced, MessageNacked, RecoverableChannelError,
                          RecoverableConnectionError, ResourceError,
                          error_for_code)
 from .method_framing import frame_handler, frame_writer
@@ -179,6 +179,7 @@ class Connection(AbstractChannel):
     channel_errors = (ChannelError,)
     recoverable_connection_errors = (
         RecoverableConnectionError,
+        MessageNacked,
         socket.error,
         IOError,
         OSError,
