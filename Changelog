@@ -48,7 +48,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-by: Asif Saif Uddin
 
 - Reduce memory usage of Connection (#377)
-- Add additional error handling around code where an OSError 
+- Add additional error handling around code where an OSError
   may be raised on failed connections. Fixes (#378)
 
 
@@ -60,7 +60,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 :release-by: Asif Saif Uddin
 
 - Remove dependency to case
-- Bugfix: not closing socket after server disconnect 
+- Bugfix: not closing socket after server disconnect
 
 
 .. _version-5.0.6:
@@ -76,7 +76,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
   "ValueError: Cannot set verify_mode to CERT_NONE when check_hostname is enabled."
   Setting context.check_hostname prior to setting context.verify_mode resolves the
   issue.
-- Remove TCP_USER_TIMEOUT option for Solaris (#355) 
+- Remove TCP_USER_TIMEOUT option for Solaris (#355)
 - Pass long_description to setup() (#353)
 - Fix for tox-docker 2.0
 - Moved to GitHub actions CI (#359)
