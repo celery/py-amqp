@@ -7,10 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7,3.8,3.9,"3.10"]
+        python-version: [3.8,3.9,"3.10","3.12"]
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         id: python
         uses: actions/setup-python@v4
@@ -26,10 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8,3.9,"3.10"]
+        python-version: [3.8,3.9,"3.10","3.12"]
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build rabbitmq:tls container
         run: docker build -t rabbitmq:tls .
       - name: Set up Python ${{ matrix.python-version }}
@@ -56,7 +56,7 @@ jobs:
         python-version: [3.8]
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         id: python
         uses: actions/setup-python@v4
