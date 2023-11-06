@@ -5,6 +5,22 @@ py-amqp is fork of amqplib used by Kombu containing additional features and impr
 The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
+
+.. _version-5.2.0:
+
+5.2.0
+=====
+:release-date: 2023-11-06 10:55 A.M. UTC+6:00
+:release-by: Asif Saif Uddin
+
+- Added python 3.12 and drop python 3.7 (#423).
+- Test vine 5.1.0 (#424).
+- Set an explicit timeout on SSL handshake to prevent hangs.
+- Add MessageNacked to recoverable errors.
+- Send heartbeat frames more often.
+
+
+
 .. _version-5.1.1:
 
 5.1.1
