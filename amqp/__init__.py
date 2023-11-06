@@ -4,10 +4,10 @@
 import re
 from collections import namedtuple
 
-__version__ = '5.1.1'
+__version__ = '5.2.0'
 __author__ = 'Barry Pederson'
 __maintainer__ = 'Asif Saif Uddin, Matus Valo'
-__contact__ = 'pyamqp@celeryproject.org'
+__contact__ = 'auvipy@gmail.com'
 __homepage__ = 'http://github.com/celery/py-amqp'
 __docformat__ = 'restructuredtext'
 
