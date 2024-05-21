@@ -59,7 +59,10 @@ class MockSocket:
         return ('127.0.0.1', 1234)
 
     def getpeername(self):
-        return ('1.2.3.4', 5671)
+        if self.connected:
+            return ('1.2.3.4', 5671)
+        else:
+            raise socket.error
 
 
 TCP_KEEPIDLE = 4
@@ -236,6 +239,17 @@ class test_socket_options:
                                                            socket.SO_RCVTIMEO)
         assert expected_sndtimeo == self.socket.getsockopt(socket.SOL_TCP,
                                                            socket.SO_SNDTIMEO)
+
+    def test_transport_repr_issue_361(self):
+        "Regression test for https://github.com/celery/py-amqp/issues/361"
+        self.t = transport.Transport(self.host)
+        self.t.sock = MockSocket()
+        self.t.sock.connect(None)
+        assert '127.0.0.1:1234 -> 1.2.3.4:5671' in repr(self.t)
+
+        self.t.sock.connected = False
+        self.t.sock.close()
+        assert '127.0.0.1:1234 -> ERROR:' in repr(self.t)
 
 
 class test_AbstractTransport:

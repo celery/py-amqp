@@ -116,7 +116,10 @@ class _AbstractTransport:
     def __repr__(self):
         if self.sock:
             src = f'{self.sock.getsockname()[0]}:{self.sock.getsockname()[1]}'
-            dst = f'{self.sock.getpeername()[0]}:{self.sock.getpeername()[1]}'
+            try:
+                dst = f'{self.sock.getpeername()[0]}:{self.sock.getpeername()[1]}'
+            except (socket.error) as e:
+                dst = f'ERROR: {e}'
             return f'<{type(self).__name__}: {src} -> {dst} at {id(self):#x}>'
         else:
             return f'<{type(self).__name__}: (disconnected) at {id(self):#x}>'
