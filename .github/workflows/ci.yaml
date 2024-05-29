@@ -13,11 +13,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install --upgrade pip setuptools wheel tox tox-docker
+        run: pip install --upgrade pip setuptools wheel tox tox-docker>=5.0.0 docker>=7.1.0 requests>=2.32.2
       - name: Run unittest
         run: tox -v -e ${{ matrix.python-version }}-unit -- -v
   #################### Integration tests ####################
@@ -34,11 +34,11 @@ jobs:
         run: docker build -t rabbitmq:tls .
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install --upgrade pip setuptools wheel tox tox-docker
+        run: pip install --upgrade pip setuptools wheel tox tox-docker>=5.0.0 docker>=7.1.0 requests>=2.32.2
       - name: Run integration tests
         run: tox -v -e ${{ matrix.python-version }}-integration-rabbitmq -- -v
       - name: Run integration tests with speedups enabled
@@ -59,11 +59,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install --upgrade pip setuptools wheel tox tox-docker
+        run: pip install --upgrade pip setuptools wheel tox tox-docker>=5.0.0 docker>=7.1.0 requests>=2.32.2
       - name: Run flake8
         run: tox -v -e py-flake8 -- -v
       - name: Run pydocstyle
