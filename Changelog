@@ -6,6 +6,17 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.3.1:
+
+5.3.1
+=====
+:release-date: 2024-11-12
+:release-by: Tomer Nosrati
+
+- Fixed readthedocs (#443)
+- Prepare for release: 5.3.0 (#444)
+
+
 .. _version-5.3.0:
 
 5.3.0
