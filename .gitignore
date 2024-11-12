@@ -26,3 +26,6 @@ Documentation/
 .venv/
 coverage.xml
 htmlcov/
+.vscode/
+.python-version
+.idea/
