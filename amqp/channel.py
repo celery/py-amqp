@@ -24,6 +24,8 @@ Rejecting message with delivery tag %r for reason of having no callbacks.
 consumer_tag=%r exchange=%r routing_key=%r.\
 """
 
+MAX_RECONNECTIONS = 128
+
 
 class VDeprecationWarning(DeprecationWarning):
     pass
@@ -116,6 +118,8 @@ class Channel(AbstractChannel):
 
         self.on_open = ensure_promise(on_open)
 
+        self.reconnection_count = 0
+
         # set first time basic_publish_confirm is called
         # and publisher confirms are enabled for this channel.
         self._confirm_selected = False
@@ -174,6 +178,7 @@ class Channel(AbstractChannel):
 
     def _do_revive(self):
         self.is_open = False
+        self.reconnection_count += 1
         self.open()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
@@ -289,6 +294,10 @@ class Channel(AbstractChannel):
         """
         self.send_method(spec.Channel.CloseOk)
         if not self.connection.is_closing:
+            if self.reconnection_count >= MAX_RECONNECTIONS:
+                raise error_for_code(
+                    reply_code, reply_text, (class_id, method_id), ChannelError,
+                )
             self._do_revive()
             raise error_for_code(
                 reply_code, reply_text, (class_id, method_id), ChannelError,
@@ -457,6 +466,7 @@ class Channel(AbstractChannel):
         """
         self.is_open = True
         self.on_open(self)
+        self.reconnection_count = 0
         AMQP_LOGGER.debug('Channel open')
 
     #############
