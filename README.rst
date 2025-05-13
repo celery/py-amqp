@@ -8,6 +8,7 @@
 :Web: https://amqp.readthedocs.io/
 :Download: https://pypi.org/project/amqp/
 :Source: http://github.com/celery/py-amqp/
+:DeepWiki: |deepwiki|
 :Keywords: amqp, rabbitmq
 
 About
@@ -202,6 +203,11 @@ Further
 .. |pyimp| image:: https://img.shields.io/pypi/implementation/amqp.svg
     :alt: Support Python implementations.
     :target: https://pypi.org/project/amqp/
+
+.. |deepwiki| image:: https://devin.ai/assets/deepwiki-badge.png
+    :alt: Ask http://DeepWiki.com
+    :target: https://deepwiki.com/celery/py-amqp
+    :width: 125px
 
 py-amqp as part of the Tidelift Subscription
 ============================================
