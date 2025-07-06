@@ -7,6 +7,7 @@
 
 import calendar
 from datetime import datetime
+from datetime import timezone
 from decimal import Decimal
 from io import BytesIO
 from struct import pack, unpack_from
@@ -132,7 +133,7 @@ def _read_item(buf, offset):
     elif ftype == 'T':
         val, = unpack_from('>Q', buf, offset)
         offset += 8
-        val = datetime.utcfromtimestamp(val)
+        val = datetime.fromtimestamp(val, tz=timezone.utc).replace(tzinfo=None)
     # 'V': void
     elif ftype == 'V':
         val = None
@@ -235,7 +236,8 @@ def loads(format, buf, offset):
             bitcount = bits = 0
             val, = unpack_from('>Q', buf, offset)
             offset += 8
-            val = datetime.utcfromtimestamp(val)
+            val = datetime.fromtimestamp(val, tz=timezone.utc).replace(
+                tzinfo=None)
         else:
             raise FrameSyntaxError(ILLEGAL_TABLE_TYPE.format(p))
         append(val)
