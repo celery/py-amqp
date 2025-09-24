@@ -90,6 +90,18 @@ class test_Channel:
         assert self.c.is_closing is False
         assert self.c.connection is None
 
+    def test_on_close_exceeds_max_reconnections(self):
+        assert self.c.reconnection_count == 0
+
+        def mocked_on_revive():
+            self.c.reconnection_count += 1
+            self.c._on_close(404, 'text', 50, 61)
+        self.c._do_revive = Mock(name='_do_revive', side_effect=mocked_on_revive)
+        with pytest.raises(NotFound):
+            self.c._on_close(404, 'text', 50, 61)
+        from amqp.channel import MAX_RECONNECTIONS
+        assert self.c.reconnection_count == MAX_RECONNECTIONS
+
     def test_on_close(self):
         self.c._do_revive = Mock(name='_do_revive')
         with pytest.raises(NotFound):
