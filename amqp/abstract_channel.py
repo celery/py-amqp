@@ -96,7 +96,10 @@ class AbstractChannel:
 
         try:
             while not p.ready:
-                self.connection.drain_events(timeout=timeout)
+                conn = self.connection
+                if conn is None:
+                    raise RecoverableConnectionError('Connection already closed')
+                conn.drain_events(timeout=timeout)
 
             if p.value:
                 args, kwargs = p.value
