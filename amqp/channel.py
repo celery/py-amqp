@@ -288,7 +288,7 @@ class Channel(AbstractChannel):
                 is the ID of the method.
         """
         self.send_method(spec.Channel.CloseOk)
-        if not self.connection.is_closing:
+        if not self.connection.is_closing and not self.is_closing:
             self._do_revive()
             raise error_for_code(
                 reply_code, reply_text, (class_id, method_id), ChannelError,
