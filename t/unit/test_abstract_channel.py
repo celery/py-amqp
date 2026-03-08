@@ -86,7 +86,7 @@ class test_AbstractChannel:
     def test_wait__no_connection(self):
         self.c.connection = None
         with pytest.raises(RecoverableConnectionError,
-                           match='Connection already closed'):
+                           match='connection already closed'):
             self.c.wait((50, 61))
         assert (50, 61) not in self.c._pending
 
