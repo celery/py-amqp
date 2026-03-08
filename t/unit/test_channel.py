@@ -97,6 +97,20 @@ class test_Channel:
         self.c.send_method.assert_called_with(spec.Channel.CloseOk)
         self.c._do_revive.assert_called_with()
 
+    def test_on_close_when_channel_is_closing(self):
+        self.c._do_revive = Mock(name='_do_revive')
+        self.c.is_closing = True
+        self.c._on_close(404, 'text', 50, 61)
+        self.c.send_method.assert_called_with(spec.Channel.CloseOk)
+        self.c._do_revive.assert_not_called()
+
+    def test_on_close_when_connection_is_closing(self):
+        self.c._do_revive = Mock(name='_do_revive')
+        self.conn.is_closing = True
+        self.c._on_close(404, 'text', 50, 61)
+        self.c.send_method.assert_called_with(spec.Channel.CloseOk)
+        self.c._do_revive.assert_not_called()
+
     def test_on_close_ok(self):
         self.c.collect = Mock(name='collect')
         self.c._on_close_ok()
