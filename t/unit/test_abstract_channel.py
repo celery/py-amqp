@@ -83,6 +83,13 @@ class test_AbstractChannel:
             self.c.wait([(50, 61)])
             assert self.c._pending[(50, 61)] is prev
 
+    def test_wait__no_connection(self):
+        self.c.connection = None
+        with pytest.raises(RecoverableConnectionError,
+                           match='connection already closed'):
+            self.c.wait((50, 61))
+        assert (50, 61) not in self.c._pending
+
     def test_dispatch_method__content_encoding(self):
         self.c.auto_decode = True
         self.method.args = None
