@@ -443,7 +443,8 @@ class SSLTransport(_AbstractTransport):
                          server_side=False, cert_reqs=None,
                          ca_certs=None, do_handshake_on_connect=False,
                          suppress_ragged_eofs=True, server_hostname=None,
-                         ciphers=None, ssl_version=None):
+                         ciphers=None, ssl_version=None,
+                         tls_maximum_version=None, tls_minimum_version=None):
         """Socket wrap with SNI headers.
 
         stdlib :attr:`ssl.SSLContext.wrap_socket` method augmented with support
@@ -505,6 +506,17 @@ class SSLTransport(_AbstractTransport):
 
                 Protocol of the SSL Context. The value is one of
                 ``ssl.PROTOCOL_*`` constants.
+
+            tls_maximum_version:
+
+                The highest supported TLS version. The value is a member of
+                ``ssl.TLSVersion``.
+
+            tls_minimum_version:
+
+                The lowest supported TLS version. The value is a member of
+                ``ssl.TLSVersion``.
+
         """
         opts = {
             'sock': sock,
@@ -522,6 +534,10 @@ class SSLTransport(_AbstractTransport):
             )
 
         context = ssl.SSLContext(ssl_version)
+        if tls_maximum_version is not None:
+            context.maximum_version = tls_maximum_version
+        if tls_minimum_version is not None:
+            context.minimum_version = tls_minimum_version
 
         if certfile is not None:
             context.load_cert_chain(certfile, keyfile)

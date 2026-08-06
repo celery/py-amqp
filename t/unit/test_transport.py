@@ -696,6 +696,26 @@ class test_SSLTransport:
 
             set_ciphers_method_mock.assert_called_with(sentinel.CIPHERS)
 
+    def test_wrap_socket_tls_minimum_version(self):
+        # testing _wrap_socket_sni() with parameter tls_minimum_version
+        with patch('ssl.SSLContext') as mock_ssl_context_class:
+            sock = Mock()
+            context = mock_ssl_context_class()
+            self.t._wrap_socket_sni(
+                sock, tls_minimum_version=ssl.TLSVersion.TLSv1_3
+            )
+            assert context.minimum_version == ssl.TLSVersion.TLSv1_3
+
+    def test_wrap_socket_tls_maximum_version(self):
+        # testing _wrap_socket_sni() with parameter tls_maximum_version
+        with patch('ssl.SSLContext') as mock_ssl_context_class:
+            sock = Mock()
+            context = mock_ssl_context_class()
+            self.t._wrap_socket_sni(
+                sock, tls_maximum_version=ssl.TLSVersion.TLSv1_3
+            )
+            assert context.maximum_version == ssl.TLSVersion.TLSv1_3
+
     def test_wrap_socket_sni_cert_reqs(self):
         with patch('ssl.SSLContext') as mock_ssl_context_class:
             sock = Mock()
