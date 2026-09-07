@@ -402,9 +402,10 @@ class test_Channel:
             (0, 'ex', 'rkey', False, False), 'msg',
         )
 
-    def test_basic_publish_timeout_is_connection_error(self):
+    @pytest.mark.parametrize('exc_type', [socket.timeout, TimeoutError])
+    def test_basic_publish_timeout_is_connection_error(self, exc_type):
         self.c.connection.transport.having_timeout = ContextMock()
-        self.c.send_method.side_effect = socket.timeout
+        self.c.send_method.side_effect = exc_type
         with pytest.raises(RecoverableConnectionError, match='timed out'):
             self.c._basic_publish('msg', 'ex', 'rkey')
 
