@@ -183,9 +183,18 @@ class test_frame_writer:
         writer_a.start()
         assert in_write.wait(2)
 
-        writer_b = threading.Thread(target=self.g, args=frame_b)
+        b_started = threading.Event()
+
+        def write_b():
+            b_started.set()
+            self.g(*frame_b)
+
+        writer_b = threading.Thread(target=write_b)
         writer_b.start()
         try:
+            # Only check once B is actually running, so a slow scheduler
+            # can't make this pass on an unlocked implementation.
+            assert b_started.wait(2)
             writer_b.join(0.2)
             # B must not reach the transport while A's write is in flight.
             assert writer_b.is_alive()
