@@ -187,7 +187,7 @@ class test_frame_writer:
         writer_b.start()
         try:
             writer_b.join(0.2)
-            # B must be blocked on the buffer while A's write is in flight.
+            # B must not reach the transport while A's write is in flight.
             assert writer_b.is_alive()
             assert self.transport.write.call_count == 1
         finally:

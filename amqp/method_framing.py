@@ -1,9 +1,9 @@
 """Convert between frames and higher-level AMQP methods."""
 # Copyright (C) 2007-2008 Barry Pederson <bp@barryp.org>
 
+import threading
 from collections import defaultdict
 from struct import pack, pack_into, unpack_from
-from threading import Lock
 
 from . import spec
 from .basic_message import Message
@@ -112,8 +112,10 @@ def frame_writer(connection, transport,
     # The buffer is shared by every frame written on this connection and is
     # handed to transport.write() as a live memoryview, so two threads
     # publishing on the same connection would overwrite each other's frame
-    # before the socket has consumed it (#462).
-    buffer_lock = Lock()
+    # before the socket has consumed it (#462).  Looked up at connect time
+    # rather than import time so it picks up eventlet/gevent monkeypatching
+    # even when amqp was imported before the patch was applied.
+    buffer_lock = threading.Lock()
 
     def write_frame(type_, channel, method_sig, args, content):
         with buffer_lock:
