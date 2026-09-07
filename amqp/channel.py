@@ -11,7 +11,7 @@ from vine import ensure_promise
 from . import spec
 from .abstract_channel import AbstractChannel
 from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
-                         RecoverableChannelError, RecoverableConnectionError,
+                         RecoverableConnectionError,
                          error_for_code)
 from .protocol import queue_declare_ok_t
 
@@ -1798,8 +1798,11 @@ class Channel(AbstractChannel):
                     spec.Basic.Publish, argsig,
                     (0, exchange, routing_key, mandatory, immediate), msg
                 )
-        except socket.timeout:
-            raise RecoverableChannelError('basic_publish: timed out')
+        except (socket.timeout, TimeoutError):
+            # A write timeout means the socket is dead. Channel errors do
+            # not trigger Kombu/ensure() reconnects, so this must be a
+            # connection error. See celery/py-amqp#452.
+            raise RecoverableConnectionError('basic_publish: timed out')
 
     basic_publish = _basic_publish
 
