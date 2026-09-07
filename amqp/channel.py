@@ -283,6 +283,7 @@ class Channel(AbstractChannel):
         self.send_method(spec.Channel.CloseOk)
         if not self.connection.is_closing:
             if self.reconnection_count >= MAX_RECONNECTIONS:
+                self.collect()
                 raise error_for_code(
                     reply_code, reply_text, (class_id, method_id), ChannelError,
                 )
