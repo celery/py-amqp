@@ -3,6 +3,7 @@
 
 from collections import defaultdict
 from struct import pack, pack_into, unpack_from
+from threading import Lock
 
 from . import spec
 from .basic_message import Message
@@ -108,7 +109,17 @@ def frame_writer(connection, transport,
 
     buffer_store = Buffer(bytearray(connection.frame_max - 8))
 
+    # The buffer is shared by every frame written on this connection and is
+    # handed to transport.write() as a live memoryview, so two threads
+    # publishing on the same connection would overwrite each other's frame
+    # before the socket has consumed it (#462).
+    buffer_lock = Lock()
+
     def write_frame(type_, channel, method_sig, args, content):
+        with buffer_lock:
+            return _write_frame(type_, channel, method_sig, args, content)
+
+    def _write_frame(type_, channel, method_sig, args, content):
         chunk_size = connection.frame_max - 8
         offset = 0
         properties = None

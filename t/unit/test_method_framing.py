@@ -1,3 +1,4 @@
+import threading
 from struct import pack
 from unittest.mock import Mock
 
@@ -159,3 +160,41 @@ class test_frame_writer:
         write_arg = self.write.call_args[0][0]
         assert isinstance(write_arg, memoryview)
         assert len(write_arg) > original_frame_max
+
+    def test_write_frame__concurrent_writers_are_serialized(self):
+        """A second thread must not touch the shared buffer while a write
+        is in flight (#462)."""
+        in_write = threading.Event()
+        release_write = threading.Event()
+        seen = []
+
+        def blocking_write(view):
+            # Snapshot what the socket would send *after* it has consumed
+            # the view; another writer must not be able to change it.
+            in_write.set()
+            release_write.wait(2)
+            seen.append(bytes(view))
+
+        self.transport.write.side_effect = blocking_write
+        frame_a = 2, 1, spec.Basic.Publish, b'x' * 10, Message(body=b'A' * 40)
+        frame_b = 2, 1, spec.Basic.Publish, b'x' * 10, Message(body=b'B' * 40)
+
+        writer_a = threading.Thread(target=self.g, args=frame_a)
+        writer_a.start()
+        assert in_write.wait(2)
+
+        writer_b = threading.Thread(target=self.g, args=frame_b)
+        writer_b.start()
+        try:
+            writer_b.join(0.2)
+            # B must be blocked on the buffer while A's write is in flight.
+            assert writer_b.is_alive()
+            assert self.transport.write.call_count == 1
+        finally:
+            release_write.set()
+            writer_a.join(2)
+            writer_b.join(2)
+        assert not writer_a.is_alive() and not writer_b.is_alive()
+        assert self.transport.write.call_count == 2
+        assert b'A' * 40 in seen[0] and b'B' * 40 not in seen[0]
+        assert b'B' * 40 in seen[1] and b'A' * 40 not in seen[1]
