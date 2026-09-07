@@ -32,7 +32,8 @@ class test_serialization:
         ('u', b'u' + pack('>H', 321), 321, None),
         ('i', b'i' + pack('>I', 1234), 1234, None),
         ('L', b'L' + pack('>q', -32451), -32451, None),
-        ('l', b'l' + pack('>Q', 32451), 32451, None),
+        ('l', b'l' + pack('>q', 32451), 32451, None),
+        ('l-neg', b'l' + pack('>q', -1000), -1000, None),
         ('f', b'f' + pack('>f', 33.3), 34.0, ceil),
     ])
     def test_read_item(self, descr, frame, expected, cast):
