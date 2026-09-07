@@ -402,6 +402,12 @@ class test_Channel:
             (0, 'ex', 'rkey', False, False), 'msg',
         )
 
+    def test_basic_publish_timeout_is_connection_error(self):
+        self.c.connection.transport.having_timeout = ContextMock()
+        self.c.send_method.side_effect = socket.timeout
+        with pytest.raises(RecoverableConnectionError, match='timed out'):
+            self.c._basic_publish('msg', 'ex', 'rkey')
+
     def test_basic_publish_confirm(self):
         self.c._confirm_selected = False
         self.c.confirm_select = Mock(name='confirm_select')
