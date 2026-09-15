@@ -44,12 +44,12 @@ def _read_item(buf, offset):
             val = buf[offset:offset + slen]
 
         offset += slen
-    # 's': short string
+    # 's': RabbitMQ 16-bit signed int (AMQP 0-9-1 errata; the spec's short
+    # string letter, which RabbitMQ and its clients never send in tables).
+    # Reading it as a string mangled pika/pamqp headers, celery/kombu#2354.
     elif ftype == 's':
-        slen, = unpack_from('>B', buf, offset)
-        offset += 1
-        val = pstr_t(buf[offset:offset + slen])
-        offset += slen
+        val, = unpack_from('>h', buf, offset)
+        offset += 2
     # 'x': Bytes Array
     elif ftype == 'x':
         blen, = unpack_from('>I', buf, offset)

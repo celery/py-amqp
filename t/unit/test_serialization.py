@@ -23,7 +23,8 @@ class _ANY:
 class test_serialization:
 
     @pytest.mark.parametrize('descr,frame,expected,cast', [
-        ('S', b's8thequick', 'thequick', None),
+        ('s', b's' + pack('>h', 128), 128, None),
+        ('s-neg', b's' + pack('>h', -1000), -1000, None),
         ('S', b'S\x00\x00\x00\x03\xc0\xc0\x00', b'\xc0\xc0\x00', None),
         ('x', b'x\x00\x00\x00\x09thequick\xffIGNORED', b'thequick\xff', None),
         ('b', b'b' + pack('>B', True), True, None),
@@ -87,6 +88,11 @@ class test_serialization:
             ]
         }
         assert loads(b'F', dumps(b'F', [table]), 0)[0][0] == table
+
+    def test_table__short_int(self):
+        # header table as encoded by pika/pamqp for {'key': 128}
+        frame = b'\x00\x00\x00\x07\x03keys\x00\x80'
+        assert loads(b'F', frame, 0)[0] == [{'key': 128}]
 
     def test_table__unknown_type(self):
         table = {

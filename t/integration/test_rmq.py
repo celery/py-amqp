@@ -1,5 +1,6 @@
 import os
 import ssl
+from struct import pack
 from unittest.mock import ANY, Mock
 
 import pytest
@@ -228,3 +229,27 @@ class test_rabbitmq_operations():
             queue='py-amqp-unittest',
         )
         assert msg is None
+
+    @pytest.mark.flaky(reruns=5, reruns_delay=2)
+    def test_publish_get__short_int_header(self):
+        class ShortIntHeaderMessage(amqp.Message):
+            # application_headers={'key': 128} with the value typed 's', as
+            # pika/pamqp/Java publish it; py-amqp's own writer never emits 's'.
+            def _serialize_properties(self):
+                flags = pack('>H', 1 << 13)
+                table = b'\x03key' + b's' + pack('>h', 128)
+                return flags + pack('>I', len(table)) + table
+
+        self.channel.queue_declare(
+            queue='py-amqp-unittest', durable=False, exclusive=True
+        )
+        self.channel.basic_publish(
+            ShortIntHeaderMessage(b'Unittest'), routing_key='py-amqp-unittest'
+        )
+        msg = self.channel.basic_get(
+            queue='py-amqp-unittest',
+        )
+        assert msg.body == b'Unittest'
+        assert msg.properties == {'application_headers': {'key': 128}}
+
+        self.channel.basic_ack(msg.delivery_tag)
