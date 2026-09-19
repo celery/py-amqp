@@ -4,9 +4,9 @@
 import re
 from collections import namedtuple
 
-__version__ = '5.3.1'
+__version__ = '5.4.0'
 __author__ = 'Barry Pederson'
-__maintainer__ = 'Asif Saif Uddin, Matus Valo'
+__maintainer__ = 'Asif Saif Uddin'
 __contact__ = 'auvipy@gmail.com'
 __homepage__ = 'http://github.com/celery/py-amqp'
 __docformat__ = 'restructuredtext'
