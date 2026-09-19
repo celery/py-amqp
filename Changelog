@@ -6,6 +6,26 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.4.0:
+
+5.4.0
+=====
+:release-date: 2026-09-19
+:release-by: Asif Saif Uddin (@auvipy)
+
+- Replace deprecated datetime.datetime.utcfromtimestamp (#448)
+- Remove Python 3.8, 3.9 support
+- Update CI workflow to exclude Python 3.9 (#454)
+- Add null check for connection to prevent AttributeError on drain_events (#457)
+- Fix prevent channel revival during intentional close to fix shutdown crash (#458)
+- Add Python 3.14 support
+- Support limiting tls version (#463)
+- Decode AMQP field-table type l as signed 64-bit (#465)
+- Treat basic_publish write timeouts as connection errors (#464)
+- Serialize frame_writer() writes with a lock (#466)
+- Decode AMQP field-table type 's' as signed 16-bit (#469)
+
+
 .. _version-5.3.1:
 
 5.3.1
