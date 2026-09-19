@@ -34,7 +34,7 @@ jobs:
         run: docker build -t rabbitmq:tls .
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
