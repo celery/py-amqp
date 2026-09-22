@@ -253,3 +253,32 @@ class test_rabbitmq_operations():
         assert msg.properties == {'application_headers': {'key': 128}}
 
         self.channel.basic_ack(msg.delivery_tag)
+
+    @pytest.mark.flaky(reruns=5, reruns_delay=2)
+    def test_publish_get__short_short_int_header(self):
+        class ShortShortIntHeaderMessage(amqp.Message):
+            # application_headers={'signed': -1, 'unsigned': 200} typed 'b'
+            # and 'B'; py-amqp's own writer never emits either.
+            def _serialize_properties(self):
+                flags = pack('>H', 1 << 13)
+                signed = b'\x06signed' + b'b' + pack('>b', -1)
+                unsigned = b'\x08unsigned' + b'B' + pack('>B', 200)
+                table = signed + unsigned
+                return flags + pack('>I', len(table)) + table
+
+        self.channel.queue_declare(
+            queue='py-amqp-unittest', durable=False, exclusive=True
+        )
+        self.channel.basic_publish(
+            ShortShortIntHeaderMessage(b'Unittest'),
+            routing_key='py-amqp-unittest'
+        )
+        msg = self.channel.basic_get(
+            queue='py-amqp-unittest',
+        )
+        assert msg.body == b'Unittest'
+        assert msg.properties == {
+            'application_headers': {'signed': -1, 'unsigned': 200}
+        }
+
+        self.channel.basic_ack(msg.delivery_tag)
