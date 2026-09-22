@@ -58,11 +58,11 @@ def _read_item(buf, offset):
         offset += blen
     # 'b': short-short int
     elif ftype == 'b':
-        val, = unpack_from('>B', buf, offset)
+        val, = unpack_from('>b', buf, offset)
         offset += 1
     # 'B': short-short unsigned int
     elif ftype == 'B':
-        val, = unpack_from('>b', buf, offset)
+        val, = unpack_from('>B', buf, offset)
         offset += 1
     # 'U': short int
     elif ftype == 'U':
