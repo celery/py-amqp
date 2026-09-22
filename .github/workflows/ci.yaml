@@ -4,16 +4,16 @@ jobs:
 
   #################### Unittests ####################
   unittest:
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v7
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -23,10 +23,10 @@ jobs:
   #################### Integration tests ####################
   integration:
     needs: [unittest]
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v7
@@ -34,7 +34,7 @@ jobs:
         run: docker build -t rabbitmq:tls .
       - name: Set up Python ${{ matrix.python-version }}
         id: python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
