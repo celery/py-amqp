@@ -27,9 +27,12 @@ class test_serialization:
         ('s-neg', b's' + pack('>h', -1000), -1000, None),
         ('S', b'S\x00\x00\x00\x03\xc0\xc0\x00', b'\xc0\xc0\x00', None),
         ('x', b'x\x00\x00\x00\x09thequick\xffIGNORED', b'thequick\xff', None),
-        ('b', b'b' + pack('>b', 123), 123, None),
+        ('b', b'b' + pack('>B', True), True, None),
+        ('b-min', b'b' + pack('>b', -128), -128, None),
         ('b-neg', b'b' + pack('>b', -1), -1, None),
-        ('B', b'B' + pack('>B', 200), 200, None),
+        ('B', b'B' + pack('>b', 123), 123, None),
+        ('B-high', b'B' + pack('>B', 128), 128, None),
+        ('B-max', b'B' + pack('>B', 255), 255, None),
         ('U', b'U' + pack('>h', -321), -321, None),
         ('u', b'u' + pack('>H', 321), 321, None),
         ('i', b'i' + pack('>I', 1234), 1234, None),
@@ -94,6 +97,27 @@ class test_serialization:
         # header table as encoded by pika/pamqp for {'key': 128}
         frame = b'\x00\x00\x00\x07\x03keys\x00\x80'
         assert loads(b'F', frame, 0)[0] == [{'key': 128}]
+
+    @pytest.mark.parametrize('tag,fmt,value', [
+        (b'b', '>b', -128), (b'b', '>b', -1),
+        (b'b', '>b', 0), (b'b', '>b', 127),
+        (b'B', '>B', 0), (b'B', '>B', 127),
+        (b'B', '>B', 128), (b'B', '>B', 255),
+    ])
+    def test_table__byte_values(self, tag, fmt, value):
+        # RabbitMQ uses b for signed bytes and B for unsigned bytes.
+        item = tag + pack(fmt, value)
+        nested = b'\x01v' + item
+        fields = b''.join((
+            b'\x06nestedF' + pack('>I', len(nested)) + nested,
+            b'\x05arrayA' + pack('>I', len(item)) + item,
+            b'\x05afterI' + pack('>i', 42),
+        ))
+        frame = pack('>I', len(fields)) + fields
+        actual, offset = loads('F', frame, 0)
+        assert actual == [{'nested': {'v': value}, 'array': [value],
+                           'after': 42}]
+        assert offset == len(frame)
 
     def test_table__unknown_type(self):
         table = {
