@@ -6,6 +6,16 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+.. _version-5.4.1:
+
+5.4.1
+=====
+:release-date: 2026-10-05
+:release-by: Asif Saif Uddin (@auvipy)
+
+- Fix signedness of byte fields in AMQP tables - #472
+
+
 .. _version-5.4.0:
 
 5.4.0
