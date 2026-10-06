@@ -426,6 +426,20 @@ class test_Channel:
         )
         self.c.basic_publish_confirm(1, 2, arg=1)
 
+    def test_basic_publish_confirm_after_revive(self):
+        # A revived channel is a new channel on the broker, so confirm
+        # mode has to be selected again before waiting for an Ack.
+        self.c.confirm_select = Mock(name='confirm_select')
+        self.c._basic_publish = Mock(name='_basic_publish')
+        self.c.wait = Mock(name='wait')
+        self.c.open = Mock(name='open')
+        self.c.basic_publish_confirm(1, 2, arg=1)
+        with pytest.raises(NotFound):
+            self.c._on_close(404, 'text', 50, 61)
+        self.c.open.assert_called_with()
+        self.c.basic_publish_confirm(1, 2, arg=1)
+        assert self.c.confirm_select.call_count == 2
+
     def test_basic_publish_confirm_nack(self):
         # test checking whether library is handling correctly Nack confirms
         # sent from RabbitMQ. Library must raise MessageNacked when server
