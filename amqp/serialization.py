@@ -115,7 +115,10 @@ def _read_item(buf, offset):
         while offset < limit:
             keylen, = unpack_from('>B', buf, offset)
             offset += 1
-            key = pstr_t(buf[offset:offset + keylen])
+            try:
+                key = pstr_t(buf[offset:offset + keylen])
+            except UnicodeDecodeError:
+                key = buf[offset:offset + keylen]
             offset += keylen
             val[key], offset = _read_item(buf, offset)
     # 'A': array
@@ -223,7 +226,10 @@ def loads(format, buf, offset):
             while offset < limit:
                 keylen, = unpack_from('>B', buf, offset)
                 offset += 1
-                key = pstr_t(buf[offset:offset + keylen])
+                try:
+                    key = pstr_t(buf[offset:offset + keylen])
+                except UnicodeDecodeError:
+                    key = buf[offset:offset + keylen]
                 offset += keylen
                 val[key], offset = _read_item(buf, offset)
         elif p == 'A':
