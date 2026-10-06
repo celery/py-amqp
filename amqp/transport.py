@@ -433,7 +433,7 @@ class SSLTransport(_AbstractTransport):
 
             ctx_options
 
-                Parameters of :attr:`ssl.create_default_context`.
+                Parameters of :func:`ssl.create_default_context`.
         """
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
@@ -471,15 +471,15 @@ class SSLTransport(_AbstractTransport):
 
             cert_reqs: ssl.VerifyMode
 
-                When set to other than :attr:`ssl.CERT_NONE`, peers certificate
-                is checked. Possible values are :attr:`ssl.CERT_NONE`,
-                :attr:`ssl.CERT_OPTIONAL` and :attr:`ssl.CERT_REQUIRED`.
+                When set to other than :data:`ssl.CERT_NONE`, peers certificate
+                is checked. Possible values are :data:`ssl.CERT_NONE`,
+                :data:`ssl.CERT_OPTIONAL` and :data:`ssl.CERT_REQUIRED`.
 
             ca_certs: str
 
                 Path to “certification authority” (CA) certificates
                 used to validate other peers’ certificates when ``cert_reqs``
-                is other than :attr:`ssl.CERT_NONE`.
+                is other than :data:`ssl.CERT_NONE`.
 
             do_handshake_on_connect: bool
 

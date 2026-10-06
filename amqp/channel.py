@@ -1884,15 +1884,13 @@ class Channel(AbstractChannel):
             a_global: boolean
 
                 Defines a scope of QoS. Semantics of this parameter differs
-                between AMQP 0-9-1 standard and RabbitMQ broker:
-
-                MEANING IN AMQP 0-9-1:
-                    False:  shared across all consumers on the channel
-                    True:   shared across all consumers on the connection
-                MEANING IN RABBITMQ:
-                    False:  applied separately to each new consumer
-                            on the channel
-                    True:   shared across all consumers on the channel
+                between the AMQP 0-9-1 standard and RabbitMQ broker.
+                For AMQP 0-9-1, ``False`` is shared across all consumers
+                on the channel, while ``True`` is shared across all
+                consumers on the connection.
+                For RabbitMQ, ``False`` is applied separately to each new
+                consumer on the channel, while ``True`` is shared across
+                all consumers on the channel.
         """
         return self.send_method(
             spec.Basic.Qos, argsig, (prefetch_size, prefetch_count, a_global),

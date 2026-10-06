@@ -212,7 +212,7 @@ http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
   Contributed by **Omer Katz**
 
-- Added debug representation to Connection and *Transport classes
+- Added debug representation to Connection and *Transport* classes
 
   Contributed by **Matus Valo**
 
@@ -287,7 +287,7 @@ Code Cleanups & Improvements:
   - **Omer Katz**
 
 
-.. _version-2.6.0:
+.. _version-2.6.1:
 
 2.6.1
 =====
@@ -295,9 +295,9 @@ Code Cleanups & Improvements:
 :release-by: Asif Saif Uddin
 
 - Fix buffer overflow in frame_writer after frame_max is increased. `frame_writer`
-allocates a `bytearray` on initialization with a length based on the `connection.frame_max`
-value. If `connection.frame_max` is changed to a larger value, this causes an
-error like `pack_into requires a buffer of at least 408736 bytes`.
+  allocates a `bytearray` on initialization with a length based on the `connection.frame_max`
+  value. If `connection.frame_max` is changed to a larger value, this causes an
+  error like `pack_into requires a buffer of at least 408736 bytes`.
 
 
 .. _version-2.6.0:
@@ -350,7 +350,8 @@ error like `pack_into requires a buffer of at least 408736 bytes`.
 
 - Drop Python 3.4
 - Add new platform
-- Numerious bug fixes
+- Numerous bug fixes
+
 .. _version-2.4.2:
 
 2.4.2
@@ -711,14 +712,14 @@ Code Cleanups & Test Coverage:
 =====
 :release-date: 2016-12-07 02:00 P.M PST
 
-- Linux: Now sets the :data:`~socket.TCP_USER_TIMEOUT` flag if available
+- Linux: Now sets the ``socket.TCP_USER_TIMEOUT`` flag if available
   for better failed connection detection.
 
     Contributed by **Jelte Fennema**.
 
     The timeout is set to the ``connect_timeout`` value by default,
     but can also be specified by using the ``socket_settings`` argument
-    to :class:`~amqp.Connection`:
+    to :class:`~amqp.connection.Connection`:
 
     .. code-block:: python
 
@@ -773,7 +774,7 @@ Code Cleanups & Test Coverage:
 
 - **Requirements**
 
-    - Now depends on :ref:`Vine 1.1.3 <vine:version-1.1.3>`.
+    - Now depends on :pypi:`vine` 1.1.3.
 
 - Frame writer: Account for overhead when calculating frame size.
 
@@ -797,7 +798,7 @@ Code Cleanups & Test Coverage:
 
 - **Requirements**
 
-    - Now depends on :ref:`Vine 1.1.2 <vine:version-1.1.2>`.
+    - Now depends on :pypi:`vine` 1.1.2.
 
 - Now licensed under the BSD license!
 
@@ -980,7 +981,7 @@ Code Cleanups & Test Coverage:
 
     Fix contributed by Eric Wang.
 
-- ``channel.basic_publish`` now raises :exc:`amqp.exceptions.NotConfirmed` on
+- ``channel.basic_publish`` now raises ``NotConfirmed`` on
     ``basic.nack``.
 
 - AMQP timestamps received are now converted from GMT instead of local time
@@ -1165,7 +1166,7 @@ Code Cleanups & Test Coverage:
     and now it's possible by configuration.
 
 - ``queue_declare`` now returns named tuple of type
-  :class:`~amqp.protocol.basic_declare_ok_t`.
+  :class:`~amqp.protocol.queue_declare_ok_t`.
 
     Supporting fields: ``queue``, ``message_count``, and
     ``consumer_count``.
@@ -1189,7 +1190,7 @@ Code Cleanups & Test Coverage:
 :release-date: 2013-08-16 05:30 P.M UTC
 :release-by: Ask Solem
 
-- Adds promise type: :meth:`amqp.utils.promise`
+- Adds promise type: `promise`
 
 - Merges fixes from 1.0.x
 
@@ -1202,31 +1203,31 @@ Code Cleanups & Test Coverage:
 
 - New exception hierarchy:
 
-    - :class:`~amqp.AMQPError`
-        - :class:`~amqp.ConnectionError`
-            - :class:`~amqp.RecoverableConnectionError`
-                - :class:`~amqp.ConsumerCancelled`
-                - :class:`~amqp.ConnectionForced`
-                - :class:`~amqp.ResourceError`
-            - :class:`~IrrecoverableConnectionError`
-                - :class:`~amqp.ChannelNotOpen`
-                - :class:`~amqp.FrameError`
-                - :class:`~amqp.FrameSyntaxError`
-                - :class:`~amqp.InvalidCommand`
-                - :class:`~amqp.InvalidPath`
-                - :class:`~amqp.NotAllowed`
-                - :class:`~amqp.UnexpectedFrame`
-                - :class:`~amqp.AMQPNotImplementedError`
-                - :class:`~amqp.InternalError`
-        - :class:`~amqp.ChannelError`
-            - :class:`~RecoverableChannelError`
-                - :class:`~amqp.ContentTooLarge`
-                - :class:`~amqp.NoConsumers`
-                - :class:`~amqp.ResourceLocked`
-            - :class:`~IrrecoverableChannelError`
-                - :class:`~amqp.AccessRefused`
-                - :class:`~amqp.NotFound`
-                - :class:`~amqp.PreconditionFailed`
+    - :class:`~amqp.exceptions.AMQPError`
+        - :class:`~amqp.exceptions.ConnectionError`
+            - :class:`~amqp.exceptions.RecoverableConnectionError`
+                - :class:`~amqp.exceptions.ConsumerCancelled`
+                - :class:`~amqp.exceptions.ConnectionForced`
+                - :class:`~amqp.exceptions.ResourceError`
+            - :class:`~amqp.exceptions.IrrecoverableConnectionError`
+                - :class:`~amqp.exceptions.ChannelNotOpen`
+                - :class:`~amqp.exceptions.FrameError`
+                - :class:`~amqp.exceptions.FrameSyntaxError`
+                - :class:`~amqp.exceptions.InvalidCommand`
+                - :class:`~amqp.exceptions.InvalidPath`
+                - :class:`~amqp.exceptions.NotAllowed`
+                - :class:`~amqp.exceptions.UnexpectedFrame`
+                - :class:`~amqp.exceptions.AMQPNotImplementedError`
+                - :class:`~amqp.exceptions.InternalError`
+        - :class:`~amqp.exceptions.ChannelError`
+            - :class:`~amqp.exceptions.RecoverableChannelError`
+                - :class:`~amqp.exceptions.ContentTooLarge`
+                - :class:`~amqp.exceptions.NoConsumers`
+                - :class:`~amqp.exceptions.ResourceLocked`
+            - :class:`~amqp.exceptions.IrrecoverableChannelError`
+                - :class:`~amqp.exceptions.AccessRefused`
+                - :class:`~amqp.exceptions.NotFound`
+                - :class:`~amqp.exceptions.PreconditionFailed`
 
 
 .. _version-1.1.0:
@@ -1366,7 +1367,7 @@ Code Cleanups & Test Coverage:
 
 - Now uses :class:`array.array` to keep track of unused channel ids.
 
-- The :data:`~amqp.exceptions.METHOD_NAME_MAP` has been updated for
+- The ``amqp.exceptions.METHOD_NAME_MAP`` has been updated for
   amqp/0.9.1 and Rabbit extensions.
 
 - Removed a bunch of accidentally included images.
