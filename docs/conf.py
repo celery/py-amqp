@@ -1,3 +1,5 @@
+import sys
+
 from sphinx_celery import conf
 
 globals().update(conf.build_config(
@@ -21,3 +23,12 @@ globals().update(conf.build_config(
     apicheck_package='amqp',
     apicheck_ignore_modules=['amqp'],
 ))
+
+# apicheck is only required for the apicheck builder.
+if not any(arg == 'apicheck' for arg in sys.argv):
+    extensions.remove('sphinx_celery.apicheck')
+
+# GSSAPI may be backed by a local fallback class when gssapi is unavailable.
+nitpick_ignore = [
+    ('py:class', 'amqp.sasl._get_gssapi_mechanism.<locals>.FakeGSSAPI'),
+]

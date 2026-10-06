@@ -79,6 +79,7 @@ class Connection(AbstractChannel):
         use-connection      = *channel
         close-connection    = C:CLOSE S:CLOSE-OK
                             / S:CLOSE C:CLOSE-OK
+
     Create a connection to the specified host, which should be
     a 'host[:port]', such as 'localhost', or '1.2.3.4:5672'
     (defaults to 'localhost', if a port is not specified then
@@ -114,10 +115,12 @@ class Connection(AbstractChannel):
     #: and if a key in this map is present the client will tell the
     #: server to either enable or disable the capability depending
     #: on the value set in this map.
-    #: For example with:
+    #: For example with::
+    #:
     #:     negotiate_capabilities = {
     #:         'consumer_cancel_notify': True,
     #:     }
+    #:
     #: The client will enable this capability if the server reports
     #: support for it, but if the value is False the client will
     #: disable the capability.
