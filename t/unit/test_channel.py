@@ -67,9 +67,13 @@ class test_Channel:
     def test_do_revive(self):
         self.c.open = Mock(name='open')
         self.c.is_open = True
+        self.c._confirm_selected = True
+
         self.c._do_revive()
+
         assert not self.c.is_open
-        self.c.open.assert_called_with()
+        assert not self.c._confirm_selected
+        self.c.open.assert_called_once_with()
 
     def test_close__not_open(self):
         self.c.is_open = False

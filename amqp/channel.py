@@ -174,6 +174,7 @@ class Channel(AbstractChannel):
 
     def _do_revive(self):
         self.is_open = False
+        self._confirm_selected = False
         self.open()
 
     def close(self, reply_code=0, reply_text='', method_sig=(0, 0),
