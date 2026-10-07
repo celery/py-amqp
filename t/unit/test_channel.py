@@ -67,9 +67,13 @@ class test_Channel:
     def test_do_revive(self):
         self.c.open = Mock(name='open')
         self.c.is_open = True
+        self.c._confirm_selected = True
+
         self.c._do_revive()
+
         assert not self.c.is_open
-        self.c.open.assert_called_with()
+        assert not self.c._confirm_selected
+        self.c.open.assert_called_once_with()
 
     def test_close__not_open(self):
         self.c.is_open = False
@@ -425,6 +429,28 @@ class test_Channel:
             timeout=None
         )
         self.c.basic_publish_confirm(1, 2, arg=1)
+
+    def test_confirm_publish_reselects_after_channel_revival(self):
+        self.c.confirm_select = Mock(name='confirm_select')
+        self.c._basic_publish = Mock(name='_basic_publish')
+        self.c.wait = Mock(name='wait')
+        self.c.open = Mock(name='open')
+
+        def publish():
+            return self.c.basic_publish_confirm(
+                1, 2, exchange='test', routing_key='key',
+            )
+
+        publish()
+        assert self.c.confirm_select.call_count == 1
+
+        with pytest.raises(NotFound):
+            self.c._on_close(404, 'channel closed', 50, 61)
+
+        self.c.open.assert_called_once_with()
+
+        publish()
+        assert self.c.confirm_select.call_count == 2
 
     def test_basic_publish_confirm_nack(self):
         # test checking whether library is handling correctly Nack confirms
