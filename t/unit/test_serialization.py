@@ -98,6 +98,24 @@ class test_serialization:
         frame = b'\x00\x00\x00\x07\x03keys\x00\x80'
         assert loads(b'F', frame, 0)[0] == [{'key': 128}]
 
+    def test_table__non_utf8_key(self):
+        fields = b'\x01\xffI' + pack('>i', 42)
+        frame = pack('>I', len(fields)) + fields
+
+        actual, offset = loads(b'F', frame, 0)
+
+        assert actual == [{b'\xff': 42}]
+        assert offset == len(frame)
+
+    def test_nested_table__non_utf8_key(self):
+        fields = b'\x01\xffI' + pack('>i', 42)
+        frame = b'F' + pack('>I', len(fields)) + fields
+
+        actual, offset = _read_item(frame, 0)
+
+        assert actual == {b'\xff': 42}
+        assert offset == len(frame)
+
     @pytest.mark.parametrize('tag,fmt,value', [
         (b'b', '>b', -128), (b'b', '>b', -1),
         (b'b', '>b', 0), (b'b', '>b', 127),
