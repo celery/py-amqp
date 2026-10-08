@@ -735,6 +735,79 @@ class test_channel:
                 None
             )
 
+    def test_queue_declare_with_timeout(self):
+        # Test queue declaration with a timeout propagated to transport.
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            transport_mock().read_frame.return_value = build_frame_type_1(
+                spec.Queue.DeclareOk,
+                channel=1,
+                arg_format='sll',
+                args=('foo', 1, 2)
+            )
+
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+
+            ret = ch.queue_declare('foo', timeout=5)
+
+            assert ret == queue_declare_ok_t(
+                queue='foo', message_count=1, consumer_count=2
+            )
+
+            transport_mock().having_timeout.assert_called_with(5)
+
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Queue.Declare,
+                dumps(
+                    'BsbbbbbF',
+                    (
+                        0,
+                        'foo', False, False, False,
+                        True, False, None
+                    )
+                ),
+                None
+            )
+
+    def test_queue_declare_timeout(self):
+        # Test that a queue declaration timeout is propagated to the
+        # transport and the timeout exception reaches the caller.
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            transport_mock().read_frame.side_effect = socket.timeout
+
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+
+            with pytest.raises(socket.timeout):
+                ch.queue_declare('foo', timeout=1)
+
+            transport_mock().having_timeout.assert_called_with(1)
+
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Queue.Declare,
+                dumps(
+                    'BsbbbbbF',
+                    (
+                        0,
+                        'foo', False, False, False,
+                        True, False, None
+                    )
+                ),
+                None
+            )
+
     @pytest.mark.parametrize(
         "reply_code, reply_text, exception", queue_declare_error_testdata)
     def test_queue_declare_error(self, reply_code, reply_text, exception):

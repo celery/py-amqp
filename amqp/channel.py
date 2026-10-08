@@ -1002,7 +1002,7 @@ class Channel(AbstractChannel):
 
     def queue_declare(self, queue='', passive=False, durable=False,
                       exclusive=False, auto_delete=True, nowait=False,
-                      arguments=None, argsig='BsbbbbbF'):
+                      arguments=None, argsig='BsbbbbbF', timeout=None):
         """Declare queue, create if needed.
 
         This method creates or checks a queue.  When creating a new
@@ -1149,6 +1149,11 @@ class Channel(AbstractChannel):
                 implementation.  This field is ignored if passive is
                 True.
 
+            timeout: float
+
+                Maximum time to wait for the server response.
+                If None, the call may block indefinitely.
+
         Returns a tuple containing 3 items:
             the name of the queue (essential for automatically-named queues),
             message count and
@@ -1160,8 +1165,13 @@ class Channel(AbstractChannel):
              nowait, arguments),
         )
         if not nowait:
+            wait_kwargs = {'returns_tuple': True}
+            if timeout is not None:
+                wait_kwargs['timeout'] = timeout
+
             return queue_declare_ok_t(*self.wait(
-                spec.Queue.DeclareOk, returns_tuple=True,
+                spec.Queue.DeclareOk,
+                **wait_kwargs,
             ))
 
     def queue_delete(self, queue='',
