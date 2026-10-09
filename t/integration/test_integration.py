@@ -701,6 +701,38 @@ class test_channel:
             assert ch.callbacks['my_tag'] == callback_mock
             assert ret == 'my_tag'
 
+    def test_consume_nowait_with_consumer_tag(self):
+        # Test verifying starting consuming with nowait and specified
+        # consumer_tag. Broker does not send ConsumeOk in this case.
+        callback_mock = Mock()
+        frame_writer_cls_mock = Mock()
+        conn = Connection(frame_writer=frame_writer_cls_mock)
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            ch = create_channel(1, conn, transport_mock)
+
+            transport_mock().read_frame.reset_mock()
+            frame_writer_mock = frame_writer_cls_mock()
+            frame_writer_mock.reset_mock()
+            ret = ch.basic_consume(
+                'my_queue', callback=callback_mock, consumer_tag='my_tag',
+                nowait=True
+            )
+            frame_writer_mock.assert_called_once_with(
+                1, 1, spec.Basic.Consume,
+                dumps(
+                    'BssbbbbF',
+                    (
+                        0, 'my_queue', 'my_tag',
+                        False, False, False, True, None
+                    )
+                ),
+                None
+            )
+            transport_mock().read_frame.assert_not_called()
+            assert ch.callbacks['my_tag'] == callback_mock
+            assert ret == 'my_tag'
+
     def test_queue_declare(self):
         # Test verifying declaring queue
         frame_writer_cls_mock = Mock()
