@@ -279,6 +279,13 @@ class test_Channel:
         assert 123 not in self.c.callbacks
         assert 123 not in self.c.cancel_callbacks
 
+    def test_on_basic_cancel__no_ack(self):
+        self.c.callbacks[123] = Mock()
+        self.c.cancel_callbacks[123] = Mock()
+        self.c.no_ack_consumers.add(123)
+        self.c._on_basic_cancel(123)
+        assert 123 not in self.c.no_ack_consumers
+
     def test_basic_consume(self):
         callback = Mock()
         on_cancel = Mock()
