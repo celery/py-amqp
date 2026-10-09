@@ -1471,6 +1471,7 @@ class Channel(AbstractChannel):
         self._remove_tag(consumer_tag)
 
     def _remove_tag(self, consumer_tag):
+        self.no_ack_consumers.discard(consumer_tag)
         self.callbacks.pop(consumer_tag, None)
         return self.cancel_callbacks.pop(consumer_tag, None)
 
