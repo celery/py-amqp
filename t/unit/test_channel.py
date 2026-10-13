@@ -229,6 +229,21 @@ class test_Channel:
         self.c.wait.assert_called_with(
             spec.Queue.DeclareOk, returns_tuple=True)
 
+    def test_queue_declare__sync_timeout(self):
+        self.c.wait = Mock(name='wait')
+        self.c.wait.return_value = ('name', 123, 45)
+
+        ret = self.c.queue_declare('q', timeout=5)
+
+        assert ret.queue == 'name'
+        assert ret.message_count == 123
+        assert ret.consumer_count == 45
+        self.c.wait.assert_called_once_with(
+            spec.Queue.DeclareOk,
+            timeout=5,
+            returns_tuple=True,
+        )
+
     def test_queue_delete(self):
         self.c.queue_delete('q')
         self.c.send_method.assert_called_with(
