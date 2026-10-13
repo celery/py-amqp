@@ -335,7 +335,7 @@ class test_Channel:
             returns_tuple=True
         )
         assert self.c.callbacks[123] is callback
-        assert ret == ret_promise
+        assert ret == 123
 
     def test_basic_consume_no_wait_no_consumer_tag(self):
         callback = Mock()
@@ -344,7 +344,8 @@ class test_Channel:
                 'q', arguments={'x': 1},
                 callback=callback, nowait=True
             )
-        assert 123 not in self.c.callbacks
+        self.c.send_method.assert_not_called()
+        assert not self.c.callbacks
 
     def test_on_basic_deliver(self):
         msg = Message()
