@@ -6,6 +6,13 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+Unreleased
+==========
+
+- Add ``Connection.update_secret`` to renew credentials on an open RabbitMQ
+  connection without closing its channels (#455).
+
+
 .. _version-5.4.1:
 
 5.4.1

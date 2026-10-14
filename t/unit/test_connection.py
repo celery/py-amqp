@@ -443,6 +443,20 @@ class test_Connection:
         with pytest.raises(RecoverableConnectionError):
             self.conn.on_inbound_method(1, (50, 60), 'payload', 'content')
 
+    def test_update_secret(self):
+        result = self.conn.update_secret('new-token', 'token renewal')
+        self.conn.send_method.assert_called_once_with(
+            spec.Connection.UpdateSecret, 'Ss', ('new-token', 'token renewal'),
+            wait=spec.Connection.UpdateSecretOk,
+        )
+        assert result is self.conn.send_method.return_value
+
+    def test_update_secret_closed(self):
+        conn = Connection()
+        conn.collect()
+        with pytest.raises(RecoverableConnectionError):
+            conn.update_secret('new-token', 'token renewal')
+
     def test_close(self):
         self.conn.collect = Mock(name='collect')
         self.conn.close(reply_text='foo', method_sig=spec.Channel.Open)

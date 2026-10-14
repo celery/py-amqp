@@ -27,6 +27,8 @@ class Connection:
     CloseOk = (10, 51)
     Blocked = (10, 60)
     Unblocked = (10, 61)
+    UpdateSecret = (10, 70)
+    UpdateSecretOk = (10, 71)
 
 
 class Channel:

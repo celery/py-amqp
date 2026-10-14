@@ -166,6 +166,7 @@ class Connection(AbstractChannel):
         spec.method(spec.Connection.Blocked),
         spec.method(spec.Connection.Unblocked),
         spec.method(spec.Connection.CloseOk),
+        spec.method(spec.Connection.UpdateSecretOk),
     }
     _METHODS = {m.method_sig: m for m in _METHODS}
 
@@ -711,6 +712,28 @@ class Connection(AbstractChannel):
     def _on_unblocked(self):
         if self.on_unblocked:
             return self.on_unblocked()
+
+    def update_secret(self, new_secret, reason):
+        """Update the secret for this connection and wait for confirmation.
+
+        This RabbitMQ extension renews an expiring secret, such as an
+        OAuth 2 token, without closing the connection or its channels.
+        The broker must support ``connection.update-secret``.
+
+        Arguments:
+            new_secret (str, bytes): New secret for the current connection.
+            reason (str): Reason for the update, at most 255 bytes in UTF-8.
+                Do not include the secret: the broker can log this value.
+
+        The caller must obtain the new secret and send it before the old
+        secret expires. This method does not change the credentials used
+        to open a connection. A broker that rejects the update can close
+        the connection and raise a connection error.
+        """
+        return self.send_method(
+            spec.Connection.UpdateSecret, 'Ss', (new_secret, reason),
+            wait=spec.Connection.UpdateSecretOk,
+        )
 
     def send_heartbeat(self):
         self.frame_writer(8, 0, None, None, None)
