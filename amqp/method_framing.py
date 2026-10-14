@@ -147,7 +147,7 @@ def frame_writer(connection, transport,
             framelen = len(frame)
             write(pack('>BHI%dsB' % framelen,
                        type_, channel, framelen, frame, 0xce))
-            if body:
+            if body is not None:
                 frame = b''.join([
                     pack('>HHQ', method_sig[0], 0, len(body)),
                     properties,

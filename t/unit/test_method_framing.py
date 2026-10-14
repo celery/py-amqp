@@ -109,6 +109,20 @@ class test_frame_writer:
         self.write.assert_called()
         assert 'content_encoding' not in msg.properties
 
+    def test_write_slow_zero_len_body(self):
+        # Large headers push an empty message onto the slow path, which
+        # must still send the content header frame and no body frame.
+        msg = Message(body=b'', application_headers={'h': 'v' * 450})
+        frame = 1, 1, spec.Basic.Publish, b'x' * 10, msg
+        self.g(*frame)
+        frame_types = [
+            call[0][0][0] for call in self.write.call_args_list
+        ]
+        assert frame_types == [1, 2]
+        header = self.write.call_args[0][0]
+        assert header[7:11] == pack('>HH', spec.Basic.CLASS_ID, 0)
+        assert header[11:19] == pack('>Q', 0)
+
     def test_write_fast_unicode(self):
         msg = Message(body='\N{CHECK MARK}')
         frame = 2, 1, spec.Basic.Publish, b'x' * 10, msg
