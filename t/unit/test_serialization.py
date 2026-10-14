@@ -181,6 +181,20 @@ class test_serialization:
         actual, _ = loads(format, buf, 0)
         assert actual == expected
 
+    @pytest.mark.parametrize('format,expected', [
+        ('bTb', [True, datetime(2015, 3, 13, 10, 23), True]),
+        ('bxb', [True, b'thequick\xff', False]),
+        ('bxb', [False, b'thequick\xff', True]),
+    ])
+    def test_bits_flushed_before_field(self, format, expected):
+        buf = dumps(format, expected)
+        actual, _ = loads(format, buf, 0)
+        assert actual == expected
+
+    def test_dumps_bit_before_timestamp(self):
+        ts = datetime(2015, 3, 13, 10, 23)
+        assert dumps('bT', [True, ts]) == b'\x01' + dumps('T', [ts])
+
 
 class test_GenericContent:
 
