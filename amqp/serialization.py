@@ -213,6 +213,7 @@ def loads(format, buf, offset):
             val = buf[offset:offset + slen].decode('utf-8', 'surrogatepass')
             offset += slen
         elif p == 'x':
+            bitcount = bits = 0
             blen, = unpack_from('>I', buf, offset)
             offset += 4
             val = buf[offset:offset + blen]
@@ -327,6 +328,7 @@ def dumps(format, values):
             bitcount = _flushbits(bits, write)
             _write_array(val or [], write, bits)
         elif p == 'T':
+            bitcount = _flushbits(bits, write)
             write(pack('>Q', int(calendar.timegm(val.utctimetuple()))))
     _flushbits(bits, write)
 
