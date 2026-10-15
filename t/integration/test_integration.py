@@ -1,6 +1,6 @@
 import socket
 from array import array
-from struct import pack
+from struct import error as StructError, pack
 from unittest.mock import ANY, Mock, call, patch
 
 import pytest
@@ -8,7 +8,8 @@ import pytest
 import amqp
 from amqp import Channel, Connection, Message, sasl, spec
 from amqp.exceptions import (AccessRefused, ConnectionError, InvalidCommand,
-                             NotFound, PreconditionFailed, ResourceLocked)
+                             NotAllowed, NotFound, PreconditionFailed,
+                             ResourceLocked)
 from amqp.protocol import queue_declare_ok_t
 from amqp.serialization import dumps, loads
 
@@ -221,6 +222,73 @@ class test_connection:
                 ]
             )
             assert conn.client_properties == CLIENT_PROPERTIES
+
+    @pytest.mark.parametrize(
+        'secret', ['new-token', 'x' * 300, b'new\x00token'])
+    def test_update_secret(self, secret, caplog):
+        conn = Connection()
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            channel = create_channel(1, conn, transport_mock)
+            original_transport = conn.transport
+            frames = []
+            original_transport.write.side_effect = lambda frame: frames.append(
+                bytes(frame))
+            original_transport.read_frame.side_effect = [
+                (8, 0, b''),
+                build_frame_type_1((10, 71)),
+            ]
+
+            conn.update_secret(secret, 'token renewal')
+
+            secret_bytes = (
+                secret.encode() if isinstance(secret, str) else secret)
+            payload = b''.join((pack('>HHI', 10, 70, len(secret_bytes)),
+                                secret_bytes, b'\x0dtoken renewal'))
+            expected = pack('>BHI', 1, 0, len(payload)) + payload + b'\xce'
+            assert frames == [expected]
+            assert conn.transport is original_transport
+            assert conn.channels[1] is channel
+            assert conn._pending == {}
+            assert original_transport.read_frame.call_count == 6
+            assert 'new-token' not in caplog.text
+
+    @pytest.mark.parametrize('reason', ['x' * 256, '\u00e9' * 128])
+    def test_update_secret_reason_too_long(self, reason):
+        conn = Connection()
+        conn.frame_writer = Mock()
+        with pytest.raises(StructError):
+            conn.update_secret('new-token', reason)
+        conn.frame_writer.assert_not_called()
+
+    def test_update_secret_rejected(self, caplog):
+        conn = Connection()
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            channel = create_channel(1, conn, transport_mock)
+            transport_mock().read_frame.side_effect = [
+                build_frame_type_1(
+                    spec.Connection.Close, arg_format='BsBB',
+                    args=(530, 'New secret was refused', 10, 70),
+                ),
+            ]
+            with pytest.raises(NotAllowed) as excinfo:
+                conn.update_secret('new-token', 'token renewal')
+            assert excinfo.value.method_name == 'Connection.update_secret'
+            assert excinfo.value.method_sig == (10, 70)
+            assert conn.connection is None
+            assert channel.connection is None
+            assert conn._pending == {}
+            assert 'new-token' not in caplog.text
+
+    def test_update_secret_read_error(self):
+        conn = Connection()
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(conn, transport_mock)
+            transport_mock().read_frame.side_effect = socket.timeout()
+            with pytest.raises(socket.timeout):
+                conn.update_secret('new-token', 'token renewal')
+            assert conn._pending == {}
 
     def test_connect_no_capabilities(self):
         # Test checking connection handshake with broker

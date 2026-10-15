@@ -113,6 +113,23 @@ class test_rabbitmq_operations():
         self.channel.close()
         self.connection.close()
 
+    def test_update_secret(self):
+        original_transport = self.connection.transport
+        queue = self.channel.queue_declare(exclusive=True).queue
+        self.channel.basic_publish(amqp.Message('before update'),
+                                   routing_key=queue)
+
+        self.connection.update_secret('guest', 'test secret update')
+
+        assert self.connection.transport is original_transport
+        assert (self.connection.channels[self.channel.channel_id]
+                is self.channel)
+        self.channel.basic_publish(amqp.Message('after update'),
+                                   routing_key=queue)
+        for body in ['before update', 'after update']:
+            message = self.channel.basic_get(queue, no_ack=True)
+            assert message.body == body
+
     @pytest.mark.parametrize(
         "publish_method,mandatory,immediate",
         (
