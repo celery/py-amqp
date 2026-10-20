@@ -181,6 +181,28 @@ class test_serialization:
         actual, _ = loads(format, buf, 0)
         assert actual == expected
 
+    @pytest.mark.parametrize('field,value', [
+        ('o', 32),
+        ('B', 3415),
+        ('l', 4513134),
+        ('L', 13241923419),
+        ('f', 1.5),
+        ('s', 'thequickbrownfox'),
+        ('S', 'jumpsoverthelazydog'),
+        ('x', b'thequick\xff'),
+        ('F', {'foo': 32}),
+        ('A', [1, 'bar']),
+        ('T', datetime(2015, 3, 13, 10, 23)),
+    ])
+    def test_bits_around_field(self, field, value):
+        # Any non-bit field ends the current run of bits, so the bits on
+        # each side of it must be packed into their own octet.
+        format = 'bb' + field + 'bb'
+        values = [True, False, value, False, True]
+        buf = dumps(format, values)
+        assert buf == b'\x01' + dumps(field, [value]) + b'\x02'
+        assert loads(format, buf, 0) == (values, len(buf))
+
 
 class test_GenericContent:
 
