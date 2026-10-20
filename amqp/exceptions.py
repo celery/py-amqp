@@ -228,6 +228,8 @@ METHOD_NAME_MAP = {
     (10, 41): 'Connection.open_ok',
     (10, 50): 'Connection.close',
     (10, 51): 'Connection.close_ok',
+    (10, 70): 'Connection.update_secret',
+    (10, 71): 'Connection.update_secret_ok',
     (20, 10): 'Channel.open',
     (20, 11): 'Channel.open_ok',
     (20, 20): 'Channel.flow',
