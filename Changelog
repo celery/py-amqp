@@ -6,6 +6,12 @@ The previous amqplib changelog is here:
 http://code.google.com/p/py-amqplib/source/browse/CHANGES
 
 
+Unreleased
+==========
+
+- Decode decimal fields exactly regardless of the active decimal context.
+
+
 .. _version-5.4.1:
 
 5.4.1

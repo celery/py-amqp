@@ -105,7 +105,8 @@ def _read_item(buf, offset):
         offset += 1
         n, = unpack_from('>i', buf, offset)
         offset += 4
-        val = Decimal(n) / Decimal(10 ** d)
+        sign, digits, _ = Decimal(n).as_tuple()
+        val = Decimal((sign, digits, -d))
     # 'F': table
     elif ftype == 'F':
         tlen, = unpack_from('>I', buf, offset)

@@ -1,6 +1,6 @@
 import pickle
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, Inexact, localcontext
 from math import ceil
 from struct import pack
 
@@ -45,6 +45,36 @@ class test_serialization:
         actual = _read_item(frame, 0)[0]
         actual = cast(actual) if cast else actual
         assert actual == expected
+
+    @pytest.mark.parametrize('coefficient,scale,expected', [
+        (2147483647, 2, '21474836.47'),
+        (-2147483648, 2, '-21474836.48'),
+        (1234567890, 0, '1234567890'),
+        (1, 255, '1E-255'),
+        (0, 255, '0E-255'),
+    ])
+    @pytest.mark.parametrize('trap_inexact', [False, True])
+    def test_decimal_decode_ignores_context(self, coefficient, scale,
+                                            expected, trap_inexact):
+        item = b'D' + pack('>Bi', scale, coefficient)
+        nested = b'\x01v' + item
+        fields = b''.join((
+            b'\x06nestedF' + pack('>I', len(nested)) + nested,
+            b'\x05arrayA' + pack('>I', len(item)) + item,
+            b'\x05afterI' + pack('>i', 42),
+        ))
+        frame = pack('>I', len(fields)) + fields
+        with localcontext() as context:
+            context.prec = 3
+            context.Emin = -9
+            context.Emax = 9
+            context.traps[Inexact] = trap_inexact
+            context.clear_flags()
+            actual, offset = loads('F', frame, 0)
+            assert actual == [{'nested': {'v': Decimal(expected)},
+                               'array': [Decimal(expected)], 'after': 42}]
+            assert offset == len(frame)
+            assert not any(context.flags.values())
 
     def test_read_item_V(self):
         assert _read_item(b'V', 0)[0] is None
