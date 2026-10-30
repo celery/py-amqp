@@ -1,10 +1,72 @@
 """Compatibility utilities."""
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from logging import NullHandler
+from math import isfinite
+from threading import TIMEOUT_MAX
+from time import monotonic
 
 # enables celery 3.1.23 to start again
 from vine import promise  # noqa
 from vine.utils import wraps
+
+from .exceptions import OperationTimeout
+
+_operation_deadline = ContextVar('amqp_operation_deadline', default=None)
+
+
+def operation_deadline():
+    """Return the absolute deadline for this execution context, if any."""
+    return _operation_deadline.get()
+
+
+def remaining_operation_time(limit=None):
+    """Cap an existing timeout without turning expiry into nonblocking I/O."""
+    deadline = operation_deadline()
+    if deadline is None:
+        return limit
+    remaining = deadline - monotonic()
+    if remaining <= 0:
+        raise OperationTimeout('Operation deadline exceeded')
+    remaining = min(remaining, TIMEOUT_MAX)
+    return remaining if limit is None else min(limit, remaining)
+
+
+@contextmanager
+def operation_timeout(timeout=None, *, deadline=None):
+    """Share a monotonic budget across AMQP operations in this context.
+
+    Nested scopes can shorten but cannot extend an existing deadline. DNS
+    and application callbacks are checked cooperatively, not interrupted.
+    """
+    if timeout is not None:
+        if deadline is not None:
+            raise ValueError('Specify timeout or deadline, not both')
+        try:
+            valid = isinstance(timeout, (int, float)) and \
+                not isinstance(timeout, bool) and \
+                isfinite(timeout) and 0 <= timeout <= TIMEOUT_MAX
+        except OverflowError:
+            valid = False
+        if not valid:
+            raise ValueError(
+                'timeout must be a finite non-negative number '
+                '<= threading.TIMEOUT_MAX')
+        deadline = monotonic() + timeout
+    if deadline is not None and not isfinite(deadline):
+        raise ValueError('deadline must be finite')
+    previous = operation_deadline()
+    if previous is not None:
+        deadline = previous if deadline is None else min(previous, deadline)
+    token = _operation_deadline.set(deadline)
+    try:
+        remaining_operation_time()
+        yield
+        remaining_operation_time()
+    finally:
+        _operation_deadline.reset(token)
+
 
 try:
     import fcntl
