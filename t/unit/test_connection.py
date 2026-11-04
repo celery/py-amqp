@@ -287,10 +287,29 @@ class test_Connection:
             callback=self.conn._on_tune_sent,
         )
 
-    def test_on_tune__client_heartbeat_disabled(self):
-        self.conn.client_heartbeat = 0
-        self.conn._on_tune(345, 16, 10)
-        assert self.conn.heartbeat == 0
+    @pytest.mark.parametrize(
+        ('client_heartbeat', 'server_heartbeat', 'expected'),
+        [
+            (0, 0, 0),  # heartbeats disabled only when both peers opt out
+            (0, 10, 10),  # a zero value does not override the other peer
+            (10, 0, 10),
+            (16, 10, 10),  # otherwise the lower value wins
+            (10, 16, 10),
+        ],
+    )
+    def test_on_tune__heartbeat_negotiation(
+        self, client_heartbeat, server_heartbeat, expected,
+    ):
+        self.conn.client_heartbeat = client_heartbeat
+        self.conn._on_tune(345, 16, server_heartbeat)
+        assert self.conn.server_heartbeat == server_heartbeat
+        assert self.conn.heartbeat == expected
+        self.conn.send_method.assert_called_with(
+            spec.Connection.TuneOk, 'BlB', (
+                self.conn.channel_max, self.conn.frame_max, expected,
+            ),
+            callback=self.conn._on_tune_sent,
+        )
 
     def test_on_tune_sent(self):
         self.conn._on_tune_sent()

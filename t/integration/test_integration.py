@@ -126,7 +126,9 @@ class DataComparator:
         return tuple(values) == tuple(self.items)
 
 
-def handshake(conn, transport_mock, server_properties=None):
+def handshake(
+    conn, transport_mock, server_properties=None, server_heartbeat=60,
+):
     # Helper function simulating connection handshake with server
     if server_properties is None:
         server_properties = SERVER_PROPERTIES
@@ -141,7 +143,7 @@ def handshake(conn, transport_mock, server_properties=None):
         ),
         build_frame_type_1(
             spec.Connection.Tune, channel=0,
-            args=(2047, 131072, 60), arg_format='BlB'
+            args=(2047, 131072, server_heartbeat), arg_format='BlB'
         ),
         build_frame_type_1(
             spec.Connection.OpenOk, channel=0
@@ -221,6 +223,38 @@ class test_connection:
                 ]
             )
             assert conn.client_properties == CLIENT_PROPERTIES
+
+    @pytest.mark.parametrize(
+        ('client_heartbeat', 'server_heartbeat', 'expected'),
+        [
+            (0, 0, 0),  # heartbeats disabled only when both peers opt out
+            (0, 60, 60),  # the broker's value is used when the client has 0
+            (60, 0, 60),
+            (30, 60, 30),  # otherwise the lower value wins
+        ],
+    )
+    def test_connect_heartbeat_negotiation(
+        self, client_heartbeat, server_heartbeat, expected,
+    ):
+        # The heartbeat sent in TuneOk follows the RabbitMQ negotiation rules
+        frame_writer_cls_mock = Mock()
+        frame_writer_mock = frame_writer_cls_mock()
+        conn = Connection(
+            frame_writer=frame_writer_cls_mock,
+            heartbeat=client_heartbeat,
+        )
+
+        with patch.object(conn, 'Transport') as transport_mock:
+            handshake(
+                conn, transport_mock, server_heartbeat=server_heartbeat,
+            )
+
+            assert conn.heartbeat == expected
+            frame_writer_mock.assert_any_call(
+                1, 0, spec.Connection.TuneOk,
+                dumps('BlB', (conn.channel_max, conn.frame_max, expected)),
+                None
+            )
 
     def test_connect_no_capabilities(self):
         # Test checking connection handshake with broker
