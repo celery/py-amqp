@@ -65,6 +65,11 @@ class AbstractChannel:
         conn = self.connection
         if conn is None:
             raise RecoverableConnectionError('connection already closed')
+        if conn._blocked_deadline is not None:
+            conn._wait_until_unblocked()
+            # An inbound callback may have collected this channel/connection.
+            if self.connection is not conn:
+                raise RecoverableConnectionError('connection already closed')
         args = dumps(format, args) if format else ''
         try:
             conn.frame_writer(1, self.channel_id, sig, args, content)

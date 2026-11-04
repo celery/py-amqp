@@ -13,7 +13,7 @@ __all__ = (
     'ResourceLocked', 'PreconditionFailed', 'FrameError', 'FrameSyntaxError',
     'InvalidCommand', 'ChannelNotOpen', 'UnexpectedFrame', 'ResourceError',
     'NotAllowed', 'AMQPNotImplementedError', 'InternalError',
-    'MessageNacked',
+    'MessageNacked', 'ConnectionBlockedTimeout', 'OperationTimeout',
     'AMQPDeprecationWarning',
 )
 
@@ -73,6 +73,18 @@ class IrrecoverableChannelError(ChannelError):
 
 class RecoverableConnectionError(ConnectionError):
     """Exception class for recoverable connection errors."""
+
+
+class ConnectionBlockedTimeout(RecoverableConnectionError):
+    """The broker did not unblock the connection before its deadline."""
+
+
+class OperationTimeout(RecoverableConnectionError):
+    """The operation deadline expired; a retry needs a new budget."""
+
+    def __init__(self, message, *, connection_usable=False):
+        super().__init__(message)
+        self.connection_usable = connection_usable
 
 
 class IrrecoverableConnectionError(ConnectionError):

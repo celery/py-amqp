@@ -31,15 +31,17 @@ from .channel import Channel  # noqa
 from .connection import Connection  # noqa
 from .exceptions import (AccessRefused, AMQPError,  # noqa
                          AMQPNotImplementedError, ChannelError, ChannelNotOpen,
-                         ConnectionError, ConnectionForced, ConsumerCancelled,
-                         ContentTooLarge, FrameError, FrameSyntaxError,
-                         InternalError, InvalidCommand, InvalidPath,
+                         ConnectionBlockedTimeout, ConnectionError,
+                         ConnectionForced, ConsumerCancelled, ContentTooLarge,
+                         FrameError, FrameSyntaxError, InternalError,
+                         InvalidCommand, InvalidPath,
                          IrrecoverableChannelError,
                          IrrecoverableConnectionError, NoConsumers, NotAllowed,
-                         NotFound, PreconditionFailed, RecoverableChannelError,
-                         RecoverableConnectionError, ResourceError,
-                         ResourceLocked, UnexpectedFrame, error_for_code)
-from .utils import promise  # noqa
+                         NotFound, OperationTimeout, PreconditionFailed,
+                         RecoverableChannelError, RecoverableConnectionError,
+                         ResourceError, ResourceLocked, UnexpectedFrame,
+                         error_for_code)
+from .utils import operation_timeout, promise  # noqa
 
 __all__ = (
     'Connection',
@@ -48,6 +50,9 @@ __all__ = (
     'promise',
     'AMQPError',
     'ConnectionError',
+    'ConnectionBlockedTimeout',
+    'OperationTimeout',
+    'operation_timeout',
     'RecoverableConnectionError',
     'IrrecoverableConnectionError',
     'ChannelError',

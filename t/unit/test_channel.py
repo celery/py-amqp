@@ -11,8 +11,8 @@ from amqp.channel import Channel
 from amqp.exceptions import (ConsumerCancelled, MessageNacked, NotFound,
                              RecoverableConnectionError)
 from amqp.serialization import dumps
-
 from t.mocks import ContextMock
+
 
 class test_Channel:
 
@@ -20,6 +20,8 @@ class test_Channel:
     def setup_conn(self):
         self.conn = MagicMock(name='connection')
         self.conn.is_closing = False
+        self.conn.blocked_connection_timeout = None
+        self.conn._blocked_deadline = None
         self.conn.channels = {}
         self.conn._get_free_channel_id.return_value = 2
         self.c = Channel(self.conn, 1)

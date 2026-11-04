@@ -9,10 +9,11 @@ import ssl
 from contextlib import contextmanager
 from ssl import SSLError
 from struct import pack, unpack
+from time import monotonic
 
-from .exceptions import UnexpectedFrame
+from .exceptions import OperationTimeout, UnexpectedFrame
 from .platform import KNOWN_TCP_OPTS, SOL_TCP
-from .utils import set_cloexec
+from .utils import operation_deadline, remaining_operation_time, set_cloexec
 
 _UNAVAIL = {errno.EAGAIN, errno.EINTR, errno.ENOENT, errno.EWOULDBLOCK}
 
@@ -96,6 +97,7 @@ class _AbstractTransport:
         self.read_timeout = read_timeout
         self.write_timeout = write_timeout
         self.socket_settings = socket_settings
+        self._read_deadline = None
 
     __slots__ = (
         "connection",
@@ -137,7 +139,7 @@ class _AbstractTransport:
             # EINTR, EAGAIN, EWOULDBLOCK would signal that the banner
             # has _not_ been sent
             self.connected = True
-        except (OSError, SSLError):
+        except (OSError, SSLError, OperationTimeout):
             # if not fully connected, close socket, and reraise error
             if self.sock and not self.connected:
                 self.sock.close()
@@ -168,13 +170,15 @@ class _AbstractTransport:
                     raise socket.timeout()
                 raise
             finally:
-                if timeout != prev:
+                if timeout != prev and self.sock is sock:
                     sock.settimeout(prev)
 
     def _connect(self, host, port, timeout):
+        remaining_operation_time()
         entries = socket.getaddrinfo(
             host, port, socket.AF_UNSPEC, socket.SOCK_STREAM, SOL_TCP,
         )
+        remaining_operation_time()
         for i, res in enumerate(entries):
             af, socktype, proto, canonname, sa = res
             try:
@@ -183,7 +187,7 @@ class _AbstractTransport:
                     set_cloexec(self.sock, True)
                 except NotImplementedError:
                     pass
-                self.sock.settimeout(timeout)
+                self.sock.settimeout(remaining_operation_time(timeout))
                 self.sock.connect(sa)
             except socket.error:
                 if self.sock:
@@ -193,6 +197,32 @@ class _AbstractTransport:
                     raise
             else:
                 break
+
+    @contextmanager
+    def having_read_deadline(self, deadline):
+        """Bound reads and partial frames by an absolute deadline."""
+        sock = self.sock
+        timeout = sock.gettimeout()
+        previous = self._read_deadline
+        self._read_deadline = (deadline if previous is None else
+                               min(deadline, previous))
+        try:
+            yield
+        finally:
+            self._read_deadline = previous
+            if self.sock is sock:
+                sock.settimeout(timeout)
+
+    def _set_read_timeout(self):
+        remaining = self._read_deadline - monotonic()
+        if remaining <= 0:
+            raise socket.timeout()
+        timeout = self.sock.gettimeout()
+        # A Python socket timeout uses nonblocking I/O, bypassing SO_RCVTIMEO.
+        if self.read_timeout is not None and self.read_timeout > 0:
+            remaining = min(remaining, self.read_timeout)
+        if timeout is None or remaining < timeout:
+            self.sock.settimeout(remaining)
 
     def _init_socket(self, socket_settings, read_timeout, write_timeout):
         self.sock.settimeout(None)  # set socket back to blocking mode
@@ -211,7 +241,10 @@ class _AbstractTransport:
                 )
         self._setup_transport()
 
-        self._write(AMQP_PROTOCOL_HEADER)
+        if operation_deadline() is None:
+            self._write(AMQP_PROTOCOL_HEADER)
+        else:
+            self.write(AMQP_PROTOCOL_HEADER)
 
     def _get_tcp_socket_defaults(self, sock):
         tcp_opts = {}
@@ -257,12 +290,13 @@ class _AbstractTransport:
         """Completely write a string to the peer."""
         raise NotImplementedError('Must be overridden in subclass')
 
-    def close(self):
+    def close(self, *, force=False):
         if self.sock is not None:
-            try:
-                self._shutdown_transport()
-            except OSError:
-                pass
+            if not force:
+                try:
+                    self._shutdown_transport()
+                except OSError:
+                    pass
 
             # Call shutdown first to make sure that pending messages
             # reach the AMQP broker if the program exits after
@@ -347,8 +381,18 @@ class _AbstractTransport:
 
     def write(self, s):
         try:
-            self._write(s)
+            if operation_deadline() is None:
+                self._write(s)
+            else:
+                limit = self.sock.gettimeout()
+                if self.write_timeout is not None and self.write_timeout > 0:
+                    limit = (self.write_timeout if limit is None else
+                             min(limit, self.write_timeout))
+                with self.having_timeout(remaining_operation_time(limit)):
+                    self._write(s)
+                remaining_operation_time()
         except socket.timeout:
+            remaining_operation_time()
             raise
         except OSError as exc:
             if exc.errno not in _UNAVAIL:
@@ -403,10 +447,20 @@ class SSLTransport(_AbstractTransport):
 
     def _setup_transport(self):
         """Wrap the socket in an SSL object."""
+        if operation_deadline() is not None:
+            # wrap_socket may perform the TLS handshake itself.
+            self.sock.settimeout(
+                remaining_operation_time(self.connect_timeout))
         self.sock = self._wrap_socket(self.sock, **self.sslopts)
         # Explicitly set a timeout here to stop any hangs on handshake.
         self.sock.settimeout(self.connect_timeout)
-        self.sock.do_handshake()
+        if operation_deadline() is None:
+            self.sock.do_handshake()
+        else:
+            with self.having_timeout(
+                    remaining_operation_time(self.connect_timeout)):
+                self.sock.do_handshake()
+            remaining_operation_time()
         self._quick_recv = self.sock.read
 
     def _wrap_socket(self, sock, context=None, **sslopts):
@@ -437,6 +491,8 @@ class SSLTransport(_AbstractTransport):
         """
         ctx = ssl.create_default_context(**ctx_options)
         ctx.check_hostname = check_hostname
+        if operation_deadline() is not None:
+            sock.settimeout(remaining_operation_time(sock.gettimeout()))
         return ctx.wrap_socket(sock, **sslopts)
 
     def _wrap_socket_sni(self, sock, keyfile=None, certfile=None,
@@ -572,6 +628,9 @@ class SSLTransport(_AbstractTransport):
             )
             context.load_default_certs(purpose)
 
+        # Recheck after certificate setup, before an implicit TLS handshake.
+        if operation_deadline() is not None:
+            sock.settimeout(remaining_operation_time(sock.gettimeout()))
         sock = context.wrap_socket(**opts)
         return sock
 
@@ -590,6 +649,8 @@ class SSLTransport(_AbstractTransport):
         try:
             while len(rbuf) < n:
                 try:
+                    if self._read_deadline is not None:
+                        self._set_read_timeout()
                     s = recv(n - len(rbuf))  # see note above
                 except OSError as exc:
                     # ssl.sock.read may cause ENOENT if the
@@ -613,6 +674,9 @@ class SSLTransport(_AbstractTransport):
         write = self.sock.write
         while s:
             try:
+                if operation_deadline() is not None:
+                    self.sock.settimeout(remaining_operation_time(
+                        self.sock.gettimeout()))
                 n = write(s)
             except ValueError:
                 # AG: sock._sslobj might become null in the meantime if the
@@ -645,6 +709,8 @@ class TCPTransport(_AbstractTransport):
         try:
             while len(rbuf) < n:
                 try:
+                    if self._read_deadline is not None:
+                        self._set_read_timeout()
                     s = recv(n - len(rbuf))
                 except OSError as exc:
                     if exc.errno in _errnos:
