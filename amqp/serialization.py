@@ -387,6 +387,11 @@ def _write_item(v, write, bits):
         v = 0
         for d in digits:
             v = (v * 10) + d
+        if exponent > 0:
+            # the scale octet is unsigned, so fold the exponent into
+            # the value, e.g. Decimal('1E+2') is sent as 100.
+            v *= 10 ** exponent
+            exponent = 0
         if sign:
             v = -v
         write(pack('>cBi', b'D', -exponent, v))

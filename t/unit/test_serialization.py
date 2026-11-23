@@ -163,6 +163,18 @@ class test_serialization:
 
         assert expected == loads('A', dumps('A', [array]), 0)[0][0]
 
+    @pytest.mark.parametrize('value', [
+        Decimal('1E+2'),
+        Decimal('-2.5E+3'),
+        Decimal('1200').normalize(),
+    ])
+    def test_table__decimal_positive_exponent(self, value):
+        # A decimal's scale octet can't be negative, so values with a
+        # positive exponent (e.g. after normalize()) are sent with scale 0.
+        buf = dumps(b'F', [{'d': value}])
+        assert buf[-6:] == b'D' + pack('>Bi', 0, int(value))
+        assert loads(b'F', buf, 0)[0] == [{'d': value}]
+
     def test_array_unknown_type(self):
         with pytest.raises(FrameSyntaxError):
             dumps('A', [[object()]])
