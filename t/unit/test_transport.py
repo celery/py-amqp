@@ -273,6 +273,16 @@ class test_AbstractTransport:
         assert self.Transport('localhost:5672').port == 5672
         assert self.Transport('[fe80::1]:5432').port == 5432
 
+    @pytest.mark.parametrize('host,expected', [
+        ('[fe80::1]:5432', ('fe80::1', 5432)),
+        ('[FE80::1]:5432', ('FE80::1', 5432)),
+        ('[FE80::1]', ('FE80::1', 5672)),
+        ('[fe80::1%eth0]:5432', ('fe80::1%eth0', 5432)),
+    ])
+    def test_ipv6_literal(self, host, expected):
+        t = self.Transport(host)
+        assert (t.host, t.port) == expected
+
     def test_read(self):
         with pytest.raises(NotImplementedError):
             self.t._read(1024)

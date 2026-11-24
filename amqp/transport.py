@@ -26,7 +26,7 @@ SIGNED_INT_MAX = 0x7FFFFFFF
 AMQP_PROTOCOL_HEADER = b'AMQP\x00\x00\x09\x01'
 
 # Match things like: [fe80::1]:5432, from RFC 2732
-IPV6_LITERAL = re.compile(r'\[([\.0-9a-f:]+)\](?::(\d+))?')
+IPV6_LITERAL = re.compile(r'\[([^\]]+)\](?::(\d+))?')
 
 DEFAULT_SOCKET_SETTINGS = {
     'TCP_NODELAY': 1,
