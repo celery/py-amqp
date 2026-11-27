@@ -6,6 +6,7 @@ import socket
 import uuid
 import warnings
 from array import array
+from math import isfinite
 from time import monotonic
 
 from vine import ensure_promise
@@ -13,12 +14,14 @@ from vine import ensure_promise
 from . import __version__, sasl, spec
 from .abstract_channel import AbstractChannel
 from .channel import Channel
-from .exceptions import (AMQPDeprecationWarning, ChannelError, ConnectionError,
-                         ConnectionForced, MessageNacked, RecoverableChannelError,
-                         RecoverableConnectionError, ResourceError,
-                         error_for_code)
+from .exceptions import (AMQPDeprecationWarning, ChannelError,
+                         ConnectionBlockedTimeout, ConnectionError,
+                         ConnectionForced, MessageNacked, OperationTimeout,
+                         RecoverableChannelError, RecoverableConnectionError,
+                         ResourceError, error_for_code)
 from .method_framing import frame_handler, frame_writer
 from .transport import Transport
+from .utils import operation_deadline, remaining_operation_time
 
 try:
     from ssl import SSLError
@@ -106,6 +109,28 @@ class Connection(AbstractChannel):
     When "confirm_publish" is set to True, the channel is put to
     confirm mode. In this mode, each published message is
     confirmed using Publisher confirms RabbitMQ extension.
+
+    ``blocked_connection_timeout`` optionally bounds how long a connection
+    can remain blocked after receiving RabbitMQ's ``Connection.Blocked``.
+    It accepts a finite, non-negative number of seconds, or ``None`` (the
+    default) to preserve the existing behavior. Zero expires immediately.
+    ``Connection.Unblocked`` cancels the deadline; repeated blocked
+    notifications do not extend it.
+
+    Expiry raises :exc:`~amqp.exceptions.ConnectionBlockedTimeout` and
+    discards the connection without waiting for an AMQP or TLS close
+    handshake. A new connection is required. The exception is recoverable
+    and may therefore trigger retries by a higher-level client.
+
+    This synchronous client checks the deadline while reading and before
+    sending a method on a known blocked connection. An idle application
+    observes expiry on its next such operation. Reading is also needed to
+    receive the blocked notification: a publish ``timeout`` bounds payload
+    writes, but does not cover declaration writes before the notification is
+    processed. Socket operations before notification processing require their
+    own applicable timeouts.
+    This option is not a total publication or retry deadline. A timed-out
+    publication may still have reached the broker; retries can duplicate it.
     """
 
     Channel = Channel
@@ -200,7 +225,23 @@ class Connection(AbstractChannel):
                  on_unblocked=None, confirm_publish=False,
                  on_tune_ok=None, read_timeout=None, write_timeout=None,
                  socket_settings=None, frame_handler=frame_handler,
-                 frame_writer=frame_writer, **kwargs):
+                 frame_writer=frame_writer, blocked_connection_timeout=None,
+                 **kwargs):
+        value = blocked_connection_timeout
+        if value is not None:
+            valid = isinstance(value, (int, float))
+            valid = valid and not isinstance(value, bool)
+            if not valid or not isfinite(value) or value < 0:
+                raise ValueError(
+                    'blocked_connection_timeout must be a finite, '
+                    'non-negative number or None')
+            # A block may arrive while a graceful close is already waiting.
+            self._ALLOWED_METHODS_WHEN_CLOSING = (
+                *self._ALLOWED_METHODS_WHEN_CLOSING,
+                spec.Connection.Blocked, spec.Connection.Unblocked,
+            )
+        self.blocked_connection_timeout = blocked_connection_timeout
+        self._blocked_deadline = None
         self._connection_id = uuid.uuid4().hex
         channel_max = channel_max or 65535
         frame_max = frame_max or 131072
@@ -316,6 +357,7 @@ class Connection(AbstractChannel):
         # Let the transport.py module setup the actual
         # socket connection to the broker.
         #
+        remaining_operation_time()
         if self.connected:
             return callback() if callback else None
         try:
@@ -332,8 +374,9 @@ class Connection(AbstractChannel):
             while not self._handshake_complete:
                 self.drain_events(timeout=self.connect_timeout)
 
-        except (OSError, SSLError):
+        except (OSError, SSLError, OperationTimeout):
             self.collect()
+            remaining_operation_time()
             raise
 
     def _warn_force_connect(self, attr):
@@ -469,9 +512,13 @@ class Connection(AbstractChannel):
     def connected(self):
         return self._transport and self._transport.connected
 
-    def collect(self):
+    def collect(self, *, force=False):
         if self._transport:
-            self._transport.close()
+            if force or self._blocked_deadline is not None or \
+                    operation_deadline() is not None:
+                self._transport.close(force=True)
+            else:
+                self._transport.close()
 
         if self.channels:
             # Copy all the channels except self since the channels
@@ -484,6 +531,7 @@ class Connection(AbstractChannel):
             for ch in channels:
                 ch.collect()
         self._transport = self.connection = self.channels = None
+        self._blocked_deadline = None
 
     def _get_free_channel_id(self):
         # Cast to a set for fast lookups, and keep stored as an array for lower memory usage.
@@ -530,9 +578,50 @@ class Connection(AbstractChannel):
             pass
 
     def blocking_read(self, timeout=None):
-        with self.transport.having_timeout(timeout):
-            frame = self.transport.read_frame()
+        self._check_operation_timeout()
+        transport = self.transport
+        deadline = self._blocked_deadline
+        operation = operation_deadline()
+        if operation is not None:
+            self._check_operation_timeout()
+            deadline = (operation if deadline is None
+                        else min(deadline, operation))
+        if deadline is None:
+            with transport.having_timeout(timeout):
+                frame = transport.read_frame()
+        else:
+            self._check_blocked_timeout()
+            try:
+                with transport.having_timeout(timeout):
+                    with transport.having_read_deadline(deadline):
+                        frame = transport.read_frame()
+            except socket.timeout:
+                self._check_operation_timeout()
+                self._check_blocked_timeout()
+                raise
+            self._check_operation_timeout()
+            self._check_blocked_timeout()
         return self.on_inbound_frame(frame)
+
+    def _check_operation_timeout(self):
+        try:
+            remaining_operation_time()
+        except OperationTimeout:
+            self.collect(force=True)
+            raise
+
+    def _check_blocked_timeout(self):
+        deadline = self._blocked_deadline
+        if deadline is not None and monotonic() >= deadline:
+            # An AMQP close or SSL unwrap can itself wait for the blocked peer.
+            self.collect(force=True)
+            raise ConnectionBlockedTimeout(
+                'Connection blocked for longer than '
+                f'{self.blocked_connection_timeout} seconds')
+
+    def _wait_until_unblocked(self):
+        while self._blocked_deadline is not None:
+            self.drain_events()
 
     def on_inbound_method(self, channel_id, method_sig, payload, content):
         if self.channels is None:
@@ -599,6 +688,11 @@ class Connection(AbstractChannel):
         if self._transport is None:
             # already closed
             return
+        deadline = operation_deadline()
+        if deadline is not None and monotonic() >= deadline:
+            return self.collect(force=True)
+        if self._blocked_deadline is not None:
+            return self.collect(force=True)
 
         try:
             self.is_closing = True
@@ -667,7 +761,11 @@ class Connection(AbstractChannel):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        self._x_close_ok()
+        if self._blocked_deadline is not None:
+            # Preserve the broker error without waiting to send CloseOk.
+            self.collect(force=True)
+        else:
+            self._x_close_ok()
         raise error_for_code(reply_code, reply_text,
                              (class_id, method_id), ConnectionError)
 
@@ -704,11 +802,16 @@ class Connection(AbstractChannel):
         Notes:
             This is an RabbitMQ Extension.
         """
+        if self._blocked_deadline is None:
+            timeout = self.blocked_connection_timeout
+            if timeout is not None:
+                self._blocked_deadline = monotonic() + timeout
         reason = 'connection blocked, see broker logs'
         if self.on_blocked:
             return self.on_blocked(reason)
 
     def _on_unblocked(self):
+        self._blocked_deadline = None
         if self.on_unblocked:
             return self.on_unblocked()
 

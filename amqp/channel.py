@@ -10,10 +10,11 @@ from vine import ensure_promise
 
 from . import spec
 from .abstract_channel import AbstractChannel
-from .exceptions import (ChannelError, ConsumerCancelled, MessageNacked,
-                         RecoverableConnectionError,
-                         error_for_code)
+from .exceptions import (ChannelError, ConnectionBlockedTimeout,
+                         ConsumerCancelled, MessageNacked, OperationTimeout,
+                         RecoverableConnectionError, error_for_code)
 from .protocol import queue_declare_ok_t
+from .utils import operation_deadline
 
 __all__ = ('Channel',)
 
@@ -288,12 +289,36 @@ class Channel(AbstractChannel):
                 When the close is provoked by a method exception, this
                 is the ID of the method.
         """
-        self.send_method(spec.Channel.CloseOk)
-        if not self.connection.is_closing and not self.is_closing:
-            self._do_revive()
-            raise error_for_code(
-                reply_code, reply_text, (class_id, method_id), ChannelError,
-            )
+        connection = self.connection
+        is_closing = connection.is_closing or self.is_closing
+        bounded = connection.blocked_connection_timeout is not None or \
+            operation_deadline() is not None
+        error = error_for_code(
+            reply_code, reply_text, (class_id, method_id), ChannelError,
+        )
+        try:
+            if connection._blocked_deadline is not None:
+                # CloseOk and channel revival cannot progress while blocked.
+                error.connection_usable = False
+                connection.collect(force=True)
+            else:
+                self.send_method(spec.Channel.CloseOk)
+                if not is_closing:
+                    self._do_revive()
+        except (socket.timeout, ConnectionBlockedTimeout,
+                OperationTimeout) as exc:
+            if not bounded or is_closing:
+                raise
+            # Keep the broker error if bounded cleanup also expires.
+            error.connection_usable = False
+            try:
+                connection.collect(force=True)
+            except (socket.timeout, ConnectionBlockedTimeout,
+                    OperationTimeout):
+                pass
+            raise error from exc
+        if not is_closing:
+            raise error
 
     def _on_close_ok(self):
         """Confirm a channel close.
@@ -1797,6 +1822,10 @@ class Channel(AbstractChannel):
             except socket.timeout:
                 pass
 
+        if not self.connection:
+            raise RecoverableConnectionError(
+                'basic_publish: connection closed')
+
         try:
             with self.connection.transport.having_timeout(timeout):
                 return self.send_method(
@@ -1807,6 +1836,8 @@ class Channel(AbstractChannel):
             # A write timeout means the socket is dead. Channel errors do
             # not trigger Kombu/ensure() reconnects, so this must be a
             # connection error. See celery/py-amqp#452.
+            if self.connection is not None:
+                self.connection.collect(force=True)
             raise RecoverableConnectionError('basic_publish: timed out')
 
     basic_publish = _basic_publish

@@ -7,8 +7,8 @@ from struct import pack, pack_into, unpack_from
 
 from . import spec
 from .basic_message import Message
-from .exceptions import UnexpectedFrame
-from .utils import str_to_bytes
+from .exceptions import OperationTimeout, UnexpectedFrame
+from .utils import operation_deadline, remaining_operation_time, str_to_bytes
 
 __all__ = ('frame_handler', 'frame_writer')
 
@@ -118,6 +118,26 @@ def frame_writer(connection, transport,
     buffer_lock = threading.Lock()
 
     def write_frame(type_, channel, method_sig, args, content):
+        if operation_deadline() is not None:
+            # Do not close the active writer's connection while waiting.
+            try:
+                acquired = buffer_lock.acquire(
+                    timeout=remaining_operation_time())
+            except OperationTimeout:
+                acquired = False
+            if not acquired:
+                raise OperationTimeout(
+                    'Timed out waiting for the frame writer',
+                    connection_usable=True)
+            try:
+                remaining_operation_time()
+                return _write_frame(type_, channel, method_sig, args, content)
+            except (OperationTimeout, OSError):
+                # Once writing starts, a timeout can leave partial frames.
+                connection.collect(force=True)
+                raise
+            finally:
+                buffer_lock.release()
         with buffer_lock:
             return _write_frame(type_, channel, method_sig, args, content)
 
